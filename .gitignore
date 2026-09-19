@@ -16,3 +16,4 @@ local.properties
 # Local diagnostic output
 /extracted_tables.txt
 /session7-dex-failure.txt
+_local-reviews/
