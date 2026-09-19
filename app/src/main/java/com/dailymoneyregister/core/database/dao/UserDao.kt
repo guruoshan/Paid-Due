@@ -32,6 +32,22 @@ interface UserDao {
     @Update
     suspend fun updateUser(user: UserAccountEntity)
 
+    @Query(
+        """
+        UPDATE user_accounts
+        SET language_code = :languageCode,
+            updated_at = :updatedAt
+        WHERE id = :userId
+          AND business_id = :businessId
+        """
+    )
+    suspend fun updateLanguageForUser(
+        userId: String,
+        businessId: String,
+        languageCode: String,
+        updatedAt: Long
+    ): Int
+
     /**
      * Credential upgrades must not overwrite unrelated User fields.
      *

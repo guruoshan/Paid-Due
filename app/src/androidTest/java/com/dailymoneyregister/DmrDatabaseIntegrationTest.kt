@@ -8,12 +8,14 @@ import com.dailymoneyregister.core.command.CommandExecutor
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.command.OperationCommand
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.security.FinancialImmutabilityCallback
 import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.i18n.LanguageManager
 import com.dailymoneyregister.core.model.enums.OperationStatus
 import com.dailymoneyregister.core.model.enums.OperationType
 import com.dailymoneyregister.core.model.enums.SubjectType
+import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.model.ids.OperationId
 import com.dailymoneyregister.core.model.ids.TransactionId
@@ -843,6 +845,83 @@ class DmrDatabaseIntegrationTest {
         languageManager.setLanguage("hi")
         assertEquals("hi", languageManager.currentLanguage.value.code)
         assertFalse(languageManager.isRtl)
+    }
+
+    @Test
+    fun testTargetedLanguageUpdatePreservesUserAccountFieldsAndScopesBusiness() = runBlocking {
+        val setup = (setupRepository.executeSetup(SetupParams(
+            businessName = "Language DAO Shop",
+            branchName = "Main",
+            branchCode = "LANG",
+            countryCode = "OM",
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat",
+            taxRoundingMode = TaxRoundingMode.HALF_UP,
+            defaultTaxRateBps = 0,
+            adminDisplayName = "Language Owner",
+            adminUsername = "language_owner",
+            adminPasswordPlain = "LanguageOwnerPass123",
+            languageCode = "en"
+        )) as CommandResult.Success).data
+        val original = UserAccountEntity(
+            id = "language-user-fixed",
+            identityId = "identity-fixed",
+            businessId = setup.businessId.value,
+            displayName = "Fixed Display Name",
+            username = "fixed_username",
+            role = UserRole.CASHIER,
+            authType = AuthType.PIN,
+            credentialHash = "fixed-credential-hash",
+            credentialSalt = "fixed-credential-salt",
+            languageCode = "en",
+            isActive = false,
+            mustChangePin = true,
+            createdAt = 111_111L,
+            updatedAt = 222_222L
+        )
+        database.userDao().insertUser(original)
+
+        val newUpdatedAt = 999_999L
+        assertEquals(
+            1,
+            database.userDao().updateLanguageForUser(
+                userId = original.id,
+                businessId = original.businessId,
+                languageCode = "ar",
+                updatedAt = newUpdatedAt
+            )
+        )
+        val updated = database.userDao().getUserById(original.id)!!
+        assertEquals("ar", updated.languageCode)
+        assertEquals(newUpdatedAt, updated.updatedAt)
+        assertEquals(original.identityId, updated.identityId)
+        assertEquals(original.businessId, updated.businessId)
+        assertEquals(original.displayName, updated.displayName)
+        assertEquals(original.username, updated.username)
+        assertEquals(original.role, updated.role)
+        assertEquals(original.authType, updated.authType)
+        assertEquals(original.credentialHash, updated.credentialHash)
+        assertEquals(original.credentialSalt, updated.credentialSalt)
+        assertEquals(original.isActive, updated.isActive)
+        assertEquals(original.mustChangePin, updated.mustChangePin)
+        assertEquals(original.createdAt, updated.createdAt)
+
+        val rejectedUpdatedAt = 1_111_111L
+        assertEquals(
+            0,
+            database.userDao().updateLanguageForUser(
+                userId = original.id,
+                businessId = "wrong-business",
+                languageCode = "hi",
+                updatedAt = rejectedUpdatedAt
+            )
+        )
+        val afterRejectedWrite = database.userDao().getUserById(original.id)!!
+        assertEquals("ar", afterRejectedWrite.languageCode)
+        assertEquals(newUpdatedAt, afterRejectedWrite.updatedAt)
+        assertEquals(updated, afterRejectedWrite)
     }
 
     private fun operationFixture(
