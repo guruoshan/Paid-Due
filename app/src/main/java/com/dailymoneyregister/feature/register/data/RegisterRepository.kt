@@ -187,6 +187,22 @@ class RegisterRepository @Inject constructor(
 
         val validatedDraft = command.draftState
 
+        if (validatedDraft.taxRateBps !in 0..10_000) {
+            return CommandResult.Error(
+                IllegalArgumentException(
+                    "Cash sale tax rate must be between 0 and 10,000 basis points"
+                )
+            )
+        }
+
+        if (validatedDraft.items.map { it.id }.toSet().size != validatedDraft.items.size) {
+            return CommandResult.Error(
+                IllegalArgumentException(
+                    "Cash sale item IDs must be unique"
+                )
+            )
+        }
+
         if (validatedDraft.subtotal.amount <= 0L) {
             return CommandResult.Error(
                 IllegalArgumentException("Cash sale subtotal must be greater than zero")
@@ -211,9 +227,7 @@ class RegisterRepository @Inject constructor(
             )
         }
 
-        if (validatedDraft.taxRateBps < 0 ||
-            validatedDraft.taxAmount.amount < 0L
-        ) {
+        if (validatedDraft.taxAmount.amount < 0L) {
             return CommandResult.Error(
                 IllegalArgumentException("Tax values cannot be negative")
             )

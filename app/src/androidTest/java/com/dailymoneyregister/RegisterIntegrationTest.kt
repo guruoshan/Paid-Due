@@ -479,6 +479,85 @@ class RegisterIntegrationTest {
     }
 
     @Test
+    fun testCashSaleRejectsNegativeTaxBeforeAnyPersistence() = runBlocking {
+        val operationId = OperationId("tax-negative-operation")
+        val transactionId = TransactionId("tax-negative-transaction")
+        val result = repository.executeCashSale(
+            cashSaleCommand(operationId, transactionId, DraftState(
+                manualAmount = MoneyMinorUnits(1000L),
+                taxRateBps = -1,
+                isTaxEnabled = true
+            )),
+            testUser,
+            testMembershipAuthorized
+        )
+
+        assertTrue(result is CommandResult.Error)
+        assertNoCashSaleRows(operationId.value, transactionId.value)
+    }
+
+    @Test
+    fun testCashSaleRejectsTaxAboveOneHundredPercentBeforeAnyPersistence() = runBlocking {
+        val operationId = OperationId("tax-over-limit-operation")
+        val transactionId = TransactionId("tax-over-limit-transaction")
+        val result = repository.executeCashSale(
+            cashSaleCommand(operationId, transactionId, DraftState(
+                manualAmount = MoneyMinorUnits(1000L),
+                taxRateBps = 10_001,
+                isTaxEnabled = true
+            )),
+            testUser,
+            testMembershipAuthorized
+        )
+
+        assertTrue(result is CommandResult.Error)
+        assertNoCashSaleRows(operationId.value, transactionId.value)
+    }
+
+    @Test
+    fun testCashSaleAllowsOneHundredPercentTaxWithExactFinancialResult() = runBlocking {
+        val operationId = OperationId("tax-limit-operation")
+        val transactionId = TransactionId("tax-limit-transaction")
+        val result = repository.executeCashSale(
+            cashSaleCommand(operationId, transactionId, DraftState(
+                manualAmount = MoneyMinorUnits(1000L),
+                taxRateBps = 10_000,
+                isTaxEnabled = true
+            )),
+            testUser,
+            testMembershipAuthorized
+        )
+
+        assertTrue(result is CommandResult.Success)
+        val transaction = (result as CommandResult.Success).data
+        assertEquals(1000L, transaction.subtotalMinor)
+        assertEquals(10_000, transaction.taxRateBps)
+        assertEquals(1000L, transaction.taxableBaseMinor)
+        assertEquals(1000L, transaction.taxAmountMinor)
+        assertEquals(2000L, transaction.grandTotalMinor)
+        assertEquals(2000L, database.transactionDao()
+            .getSettlementsForTransaction(transactionId.value).single().amountSignedMinor)
+    }
+
+    @Test
+    fun testCashSaleRejectsDuplicateItemIdsBeforeAnyPersistence() = runBlocking {
+        val operationId = OperationId("duplicate-item-operation")
+        val transactionId = TransactionId("duplicate-item-transaction")
+        val duplicateItems = listOf(
+            DraftItem("duplicate-item", "First", unitPrice = MoneyMinorUnits(600L)),
+            DraftItem("duplicate-item", "Second", unitPrice = MoneyMinorUnits(400L))
+        )
+        val result = repository.executeCashSale(
+            cashSaleCommand(operationId, transactionId, DraftState(items = duplicateItems)),
+            testUser,
+            testMembershipAuthorized
+        )
+
+        assertTrue(result is CommandResult.Error)
+        assertNoCashSaleRows(operationId.value, transactionId.value)
+    }
+
+    @Test
     fun testPendingCrashRecoveryExecution() = runBlocking {
         val opId = OperationId.generate()
         val txId = TransactionId.generate()
@@ -679,6 +758,30 @@ class RegisterIntegrationTest {
                 }
             }
         }
+
+    private fun cashSaleCommand(
+        operationId: OperationId,
+        transactionId: TransactionId,
+        draftState: DraftState
+    ) = CashSaleCommand(
+        operationId = operationId,
+        businessId = "biz-1",
+        branchId = "branch-1",
+        actorUserId = testUser.id,
+        transactionIdVal = transactionId,
+        draftState = draftState,
+        currencyCode = "OMR",
+        currencyDecimalPlaces = 3,
+        deviceId = "test-device",
+        occurredAt = 1700000000000L
+    )
+
+    private suspend fun assertNoCashSaleRows(operationId: String, transactionId: String) {
+        assertNull(database.operationDao().getOperationById(operationId))
+        assertNull(database.transactionDao().getTransactionById(transactionId))
+        assertTrue(database.transactionDao().getItemsForTransaction(transactionId).isEmpty())
+        assertTrue(database.transactionDao().getSettlementsForTransaction(transactionId).isEmpty())
+    }
 
     private suspend fun assertRecoveryBlocked(original: OperationEntity) {
         val before = financialRows()
