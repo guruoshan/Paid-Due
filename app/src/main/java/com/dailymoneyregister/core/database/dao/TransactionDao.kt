@@ -62,6 +62,19 @@ interface TransactionDao {
     @Query("SELECT * FROM settlement_entries WHERE transaction_id = :transactionId")
     suspend fun getSettlementsForTransaction(transactionId: String): List<SettlementEntryEntity>
 
+    @Query(
+        """
+        SELECT * FROM settlement_entries
+        WHERE operation_id = :operationId
+           OR transaction_id = :transactionId
+           OR (subject_type = 'TRANSACTION' AND subject_id = :transactionId)
+        """
+    )
+    suspend fun getSettlementsForCashSaleRecovery(
+        operationId: String,
+        transactionId: String
+    ): List<SettlementEntryEntity>
+
     @Query("SELECT COALESCE(SUM(amount_signed_minor), 0) FROM settlement_entries WHERE transaction_id = :transactionId")
     suspend fun getEffectiveSettlementTotal(transactionId: String): Long
 

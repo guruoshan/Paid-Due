@@ -22,6 +22,24 @@ interface OperationDao {
     @Query("SELECT * FROM operations WHERE status = 'PENDING' ORDER BY occurred_at ASC")
     suspend fun getPendingOperations(): List<OperationEntity>
 
+    @Query("SELECT * FROM operations WHERE operation_type = 'RECORD_SALE' AND status = 'REQUIRES_RECONCILIATION' ORDER BY occurred_at ASC")
+    suspend fun getSaleOperationsRequiringReconciliation(): List<OperationEntity>
+
+    @Query(
+        """
+        UPDATE operations
+        SET status = 'REQUIRES_RECONCILIATION', reason = :reason
+        WHERE id = :operationId
+          AND status = 'PENDING'
+          AND request_fingerprint = :requestFingerprint
+        """
+    )
+    suspend fun markRequiresReconciliationIfPending(
+        operationId: String,
+        requestFingerprint: String,
+        reason: String
+    ): Int
+
     @Query("SELECT * FROM operations WHERE transaction_id = :transactionId ORDER BY occurred_at ASC")
     suspend fun getOperationsForTransaction(
         transactionId: String

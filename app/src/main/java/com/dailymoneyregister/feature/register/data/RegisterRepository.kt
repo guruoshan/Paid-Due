@@ -342,124 +342,206 @@ class RegisterRepository @Inject constructor(
     }
 
     /**
-     * Recovers any PENDING Cash sales interrupted by process death or crash.
-     * Decodes the authoritative intent payload and commits remaining steps atomically.
+     * Completes admitted durable intent without consulting current session permissions.
+     * Existing financial evidence is verified, never repaired or overwritten.
      */
     suspend fun recoverPendingCashSales(): List<TransactionEntity> {
-        val pendingOps = commandExecutor.getPendingOperations()
-            .filter { it.operationType == OperationType.RECORD_SALE }
-
-        val recoveredList = mutableListOf<TransactionEntity>()
-
-        for (op in pendingOps) {
-            val targetTxId = op.transactionId ?: op.subjectId
-            val existingTx = transactionDao.getTransactionById(targetTxId)
-
-            if (existingTx != null) {
-                // Transaction already exists in DB, ensure operation marked SUCCEEDED
-                val changedRows = database.operationDao().markSucceededIfPending(
-                    operationId = op.id,
-                    requestFingerprint = op.requestFingerprint,
-                    resultReferenceType = "TRANSACTION",
-                    resultReferenceId = existingTx.id
-                )
-
-                if (changedRows == 0) {
-                    val latest = database.operationDao().getOperationById(op.id)
-
-                    check(
-                        latest?.status == OperationStatus.SUCCEEDED &&
-                            latest.resultReferenceId == existingTx.id
-                    ) {
-                        "Pending operation '${op.id}' could not be safely reconciled with transaction '${existingTx.id}'"
-                    }
-                }
-                recoveredList.add(existingTx)
-            } else {
-                // Decode command from persisted durable payload
-                val recoveredCmd = CashSalePayloadCodec.decode(op)
-                val txId = recoveredCmd.transactionIdVal.value
-                val draft = recoveredCmd.draftState
-                val now = recoveredCmd.occurredAt
-                val displayRef = "SAL-${now % 1_000_000_000}-${txId.takeLast(4).uppercase()}"
-
-                val transactionEntity = TransactionEntity(
-                    id = txId,
-                    branchId = recoveredCmd.branchId,
-                    type = TransactionType.SALE,
-                    customerId = null,
-                    subtotalMinor = draft.subtotal.amount,
-                    taxRateBps = if (draft.isTaxEnabled) draft.taxRateBps else 0,
-                    taxableBaseMinor = draft.taxableBase.amount,
-                    taxAmountMinor = draft.taxAmount.amount,
-                    txShippingMinor = draft.txShipping.amount,
-                    txPackingMinor = draft.txPacking.amount,
-                    grandTotalMinor = draft.grandTotal.amount,
-                    currencyCode = recoveredCmd.currencyCode,
-                    currencyDecimalPlaces = recoveredCmd.currencyDecimalPlaces,
-                    createdByUserId = recoveredCmd.actorUserId,
-                    deviceId = recoveredCmd.deviceId,
-                    createdAt = now,
-                    description = draft.manualDescription,
-                    displayRef = displayRef
-                )
-
-                database.withTransaction {
-                    transactionDao.insertTransaction(transactionEntity)
-
-                    if (draft.isItemized) {
-                        val itemEntities = draft.items.map { item ->
-                            TransactionItemEntity(
-                                id = item.id,
-                                transactionId = txId,
-                                productId = null,
-                                productNameSnapshot = item.name,
-                                descriptionSnapshot = item.description,
-                                quantity = item.quantity,
-                                unitPriceMinor = item.unitPrice.amount,
-                                lineTotalMinor = item.lineTotal.amount,
-                                barcodeSnapshot = item.barcode,
-                                itemPackingChargeMinor = item.itemPackingCharge.amount,
-                                itemShippingChargeMinor = item.itemShippingCharge.amount
-                            )
-                        }
-                        transactionDao.insertTransactionItems(itemEntities)
-                    }
-
-                    val settlementEntity = SettlementEntryEntity(
-                        id = IdGenerator.newId(),
-                        operationId = op.id,
-                        subjectType = SubjectType.TRANSACTION,
-                        subjectId = txId,
-                        transactionId = txId,
-                        entryPurpose = EntryPurpose.SALE_FUNDING,
-                        category = PaymentCategory.CASH,
-                        channel = PaymentChannel.CASH_TENDER,
-                        amountSignedMinor = draft.grandTotal.amount,
-                        currencyCode = recoveredCmd.currencyCode,
-                        confirmationType = ConfirmationType.CASHIER_CONFIRMED,
-                        occurredAt = now,
-                        actorUserId = recoveredCmd.actorUserId
-                    )
-                    transactionDao.insertSettlement(settlementEntity)
-
-                    val changedRows = database.operationDao().markSucceededIfPending(
-                        operationId = op.id,
-                        requestFingerprint = op.requestFingerprint,
-                        resultReferenceType = "TRANSACTION",
-                        resultReferenceId = txId
-                    )
-
-                    check(changedRows == 1) {
-                        "Pending operation '${op.id}' lost its PENDING state during crash recovery"
-                    }
-                }
-
-                recoveredList.add(transactionEntity)
+        val operationDao = database.operationDao()
+        suspend fun requireNoReconciliation() {
+            check(operationDao.getSaleOperationsRequiringReconciliation().isEmpty()) {
+                "Cash Sale requires financial reconciliation"
             }
         }
+        requireNoReconciliation()
+        val pendingOps = commandExecutor.getPendingOperations()
+            .filter { it.operationType == OperationType.RECORD_SALE }
+        val recovered = mutableListOf<TransactionEntity>()
 
-        return recoveredList
+        for (candidate in pendingOps) {
+            // Null means reconciliation or an operation completed by a competing caller.
+            val result = try {
+                database.withTransaction {
+                    requireNoReconciliation()
+                    val op = checkNotNull(operationDao.getOperationById(candidate.id)) {
+                        "Cash Sale operation unavailable during recovery"
+                    }
+                    if (op.status == OperationStatus.SUCCEEDED) {
+                        // A competing execution already completed; never write financial rows again.
+                        return@withTransaction null
+                    }
+                    check(op.status == OperationStatus.PENDING) {
+                        "Cash Sale operation is no longer pending"
+                    }
+
+                    suspend fun reconcile(reason: String): TransactionEntity? {
+                        check(operationDao.markRequiresReconciliationIfPending(
+                            op.id, op.requestFingerprint, reason
+                        ) == 1) { "Cash Sale reconciliation transition failed" }
+                        return null
+                    }
+
+                    val command = try {
+                        CashSalePayloadCodec.decode(op)
+                    } catch (_: IllegalArgumentException) {
+                        return@withTransaction reconcile("Invalid durable Cash Sale intent")
+                    } catch (_: ArithmeticException) {
+                        return@withTransaction reconcile("Cash Sale amount cannot be represented")
+                    }
+                    val txId = command.transactionIdVal.value
+                    if (op.subjectType != SubjectType.TRANSACTION || op.subjectId != txId ||
+                        (op.transactionId != null && op.transactionId != txId) ||
+                        (op.resultReferenceType != null && op.resultReferenceType != "TRANSACTION") ||
+                        (op.resultReferenceId != null && op.resultReferenceId != txId)
+                    ) {
+                        return@withTransaction reconcile("Cash Sale identity mismatch")
+                    }
+
+                    val expected = try {
+                        expectedRecoveryResult(command)
+                    } catch (_: ArithmeticException) {
+                        return@withTransaction reconcile("Cash Sale amount cannot be represented")
+                    }
+                    if (expected.items.map { it.id }.distinct().size != expected.items.size) {
+                        return@withTransaction reconcile("Ambiguous Cash Sale item identity")
+                    }
+                    val existing = transactionDao.getTransactionById(txId)
+                    val items = transactionDao.getItemsForTransaction(txId)
+                    val settlements = transactionDao.getSettlementsForCashSaleRecovery(op.id, txId)
+
+                    if (existing != null) {
+                        val mismatch = recoveryMismatch(expected, existing, items, settlements)
+                        if (mismatch != null) return@withTransaction reconcile(mismatch)
+                    } else {
+                        if (items.isNotEmpty() || settlements.isNotEmpty()) {
+                            return@withTransaction reconcile("Partial Cash Sale financial records")
+                        }
+                        transactionDao.insertTransaction(expected.transaction)
+                        transactionDao.insertTransactionItems(expected.items)
+                        transactionDao.insertSettlement(expected.settlement.copy(id = IdGenerator.newId()))
+                        // A failed post-write check throws, rolling back ALL new financial rows.
+                        // It must not commit partial writes alongside a reconciliation marker.
+                        if (recoveryMismatch(
+                            expected,
+                            transactionDao.getTransactionById(txId),
+                            transactionDao.getItemsForTransaction(txId),
+                            transactionDao.getSettlementsForCashSaleRecovery(op.id, txId)
+                        ) != null) {
+                            throw RecoveryWriteVerificationException(op.id, op.requestFingerprint)
+                        }
+                    }
+                    check(operationDao.markSucceededIfPending(
+                        op.id, op.requestFingerprint, "TRANSACTION", txId
+                    ) == 1) { "Cash Sale success transition failed" }
+                    expected.transaction
+                }
+            } catch (error: RecoveryWriteVerificationException) {
+                // The failed materialization has rolled back. Persist only the hold now.
+                database.withTransaction {
+                    val latest = checkNotNull(operationDao.getOperationById(error.operationId))
+                    check(latest.requestFingerprint == error.fingerprint) {
+                        "Cash Sale intent changed during recovery"
+                    }
+                    if (latest.status == OperationStatus.PENDING) {
+                        check(operationDao.markRequiresReconciliationIfPending(
+                            latest.id, latest.requestFingerprint,
+                            "Cash Sale materialization verification failed"
+                        ) == 1)
+                    } else {
+                        check(latest.status == OperationStatus.SUCCEEDED ||
+                            latest.status == OperationStatus.REQUIRES_RECONCILIATION)
+                    }
+                }
+                null
+            }
+            // This check is deliberately OUTSIDE withTransaction: reconciliation must persist.
+            requireNoReconciliation()
+            if (result != null) recovered.add(result)
+        }
+        requireNoReconciliation()
+        return recovered
+    }
+
+    private data class RecoveryResult(
+        val transaction: TransactionEntity,
+        val items: List<TransactionItemEntity>,
+        val settlement: SettlementEntryEntity
+    )
+
+    private class RecoveryWriteVerificationException(
+        val operationId: String,
+        val fingerprint: String
+    ) : IllegalStateException("Cash Sale materialization verification failed")
+
+    private fun expectedRecoveryResult(command: CashSaleCommand): RecoveryResult {
+        val txId = command.transactionIdVal.value
+        val draft = command.draftState
+        val now = command.occurredAt
+        return RecoveryResult(
+            transaction = TransactionEntity(
+                id = txId,
+                branchId = command.branchId,
+                type = TransactionType.SALE,
+                customerId = null,
+                subtotalMinor = draft.subtotal.amount,
+                taxRateBps = if (draft.isTaxEnabled) draft.taxRateBps else 0,
+                taxableBaseMinor = draft.taxableBase.amount,
+                taxAmountMinor = draft.taxAmount.amount,
+                txShippingMinor = draft.txShipping.amount,
+                txPackingMinor = draft.txPacking.amount,
+                grandTotalMinor = draft.grandTotal.amount,
+                currencyCode = command.currencyCode,
+                currencyDecimalPlaces = command.currencyDecimalPlaces,
+                createdByUserId = command.actorUserId,
+                deviceId = command.deviceId,
+                createdAt = now,
+                description = draft.manualDescription,
+                displayRef = "SAL-${now % 1_000_000_000}-${txId.takeLast(4).uppercase()}"
+            ),
+            items = draft.items.map { item ->
+                TransactionItemEntity(
+                    id = item.id,
+                    transactionId = txId,
+                    productId = null,
+                    productNameSnapshot = item.name,
+                    descriptionSnapshot = item.description,
+                    quantity = item.quantity,
+                    unitPriceMinor = item.unitPrice.amount,
+                    lineTotalMinor = item.lineTotal.amount,
+                    barcodeSnapshot = item.barcode,
+                    itemPackingChargeMinor = item.itemPackingCharge.amount,
+                    itemShippingChargeMinor = item.itemShippingCharge.amount
+                )
+            },
+            settlement = SettlementEntryEntity(
+                id = "", // Generated settlement identity is not part of the durable command.
+                operationId = command.operationId.value,
+                subjectType = SubjectType.TRANSACTION,
+                subjectId = txId,
+                transactionId = txId,
+                entryPurpose = EntryPurpose.SALE_FUNDING,
+                category = PaymentCategory.CASH,
+                channel = PaymentChannel.CASH_TENDER,
+                amountSignedMinor = draft.grandTotal.amount,
+                currencyCode = command.currencyCode,
+                confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                occurredAt = now,
+                actorUserId = command.actorUserId
+            )
+        )
+    }
+
+    private fun recoveryMismatch(
+        expected: RecoveryResult,
+        transaction: TransactionEntity?,
+        items: List<TransactionItemEntity>,
+        settlements: List<SettlementEntryEntity>
+    ): String? = when {
+        transaction != expected.transaction -> "Cash Sale transaction mismatch"
+        items.sortedBy { it.id } != expected.items.sortedBy { it.id } -> "Cash Sale items mismatch"
+        settlements.size != 1 -> "Cash Sale settlement count mismatch"
+        settlements.single().id.isBlank() ||
+            settlements.single().copy(id = "") != expected.settlement -> "Cash Sale settlement mismatch"
+        else -> null
     }
 
     fun observeRecentTransactions(branchId: String, limit: Int = 20): Flow<List<TransactionEntity>> {
