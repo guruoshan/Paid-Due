@@ -1,0 +1,130 @@
+<resources>
+    <string name="app_name">डेली मनी रजिस्टर</string>
+
+    <!-- Common Actions -->
+    <string name="continue_btn">जारी रखें</string>
+    <string name="save">सुरक्षित करें</string>
+    <string name="cancel">रद्द करें</string>
+    <string name="close">बंद करें</string>
+    <string name="delete">हटाएं</string>
+    <string name="back">पीछे</string>
+
+    <!-- Language Selection -->
+    <string name="choose_language">अपनी भाषा चुनें</string>
+    <string name="preferred_language">पसंदीदा भाषा</string>
+
+    <!-- Setup Flow -->
+    <string name="setup_title">प्रारंभिक व्यवसाय सेटअप</string>
+    <string name="business_name">व्यवसाय का नाम</string>
+    <string name="branch_name">शाखा का नाम</string>
+    <string name="branch_code">शाखा कोड (उदा. MAIN)</string>
+    <string name="country">देश</string>
+    <string name="currency">मुद्रा</string>
+    <string name="timezone">समय क्षेत्र</string>
+    <string name="default_tax_rate">डिफ़ॉल्ट कर दर (%)</string>
+    <string name="admin_name">व्यवस्थापक का पूरा नाम</string>
+    <string name="admin_username">व्यवस्थापक यूज़रनेम</string>
+    <string name="admin_password">व्यवस्थापक पासवर्ड</string>
+    <string name="create_account">खाता बनाएं और सेटअप पूरा करें</string>
+
+    <!-- Auth / Login -->
+    <string name="login_title">डेली मनी रजिस्टर</string>
+    <string name="admin_login">व्यवस्थापक लॉगिन</string>
+    <string name="cashier_login">कैशियर पिन लॉगिन</string>
+    <string name="username">यूज़रनेम</string>
+    <string name="password">पासवर्ड</string>
+    <string name="enter_6_digit_pin">6-अंकों का कैशियर पिन दर्ज करें</string>
+    <string name="login">लॉगिन</string>
+    <string name="switch_to_cashier">कैशियर लॉगिन पर जाएं</string>
+    <string name="switch_to_admin">व्यवस्थापक लॉगिन पर जाएं</string>
+    <string name="invalid_credentials">अमान्य यूज़रनेम या पासवर्ड</string>
+    <string name="invalid_pin">अमान्य 6-अंकीय पिन</string>
+    <string name="account_inactive">उपयोगकर्ता खाता निष्क्रिय है</string>
+    <string name="locked_out_msg">बहुत सारे असफल प्रयास। %1$d सेकंड के लिए लॉक किया गया।</string>
+
+    <!-- Hub Screen -->
+    <string name="admin_hub_title">डेली मनी रजिस्टर — व्यवस्थापक</string>
+    <string name="welcome_user">स्वागत है, %1$s</string>
+    <string name="main_register_admin_controls">मुख्य रजिस्टर और व्यवस्थापक नियंत्रण</string>
+    <string name="open_cash_register">कैश रजिस्टर खोलें</string>
+    <string name="open_cash_register_desc">तेज़ नकद बिक्री, कैलकुलेटर, बिल, कर और शिपिंग</string>
+    <string name="manage_cashiers_desc">पिन, भाषा और अनुमतियों के साथ कैशियर बनाएं</string>
+    <string name="settings_languages_desc">ऐप की भाषा बदलें या प्रोफ़ाइल देखें</string>
+
+    <!-- Cashier Management -->
+    <string name="manage_cashiers">कैशियर प्रबंधन</string>
+    <string name="create_cashier">नया कैशियर बनाएं</string>
+    <string name="cashier_name">कैशियर का नाम</string>
+    <string name="cashier_username">यूज़रनेम</string>
+    <string name="cashier_pin">6-अंकीय पिन</string>
+    <string name="cashier_language">पसंदीदा भाषा</string>
+    <string name="save_cashier">कैशियर सुरक्षित करें</string>
+    <string name="permissions">अनुमतियां</string>
+    <string name="permission_credit_sale">उधार बिक्री बना सकते हैं</string>
+    <string name="permission_refund">रिफंड जारी कर सकते हैं</string>
+    <string name="permission_void">लेनदेन रद्द कर सकते हैं</string>
+
+    <!-- Settings -->
+    <string name="settings">सेटिंग्स</string>
+    <string name="change_language">भाषा</string>
+    <string name="business_profile">व्यवसाय प्रोफ़ाइल</string>
+    <string name="logout">लॉग आउट</string>
+
+    <!-- Register Screen -->
+    <string name="note_optional">नोट / वस्तु विवरण (वैकल्पिक)</string>
+    <string name="bill">बिल</string>
+    <string name="tax">कर</string>
+    <string name="add_tax">+कर</string>
+    <string name="ship_pack">शिप/पैक</string>
+    <string name="cash_sale">नकद बिक्री</string>
+    <string name="online">ऑनलाइन</string>
+    <string name="credit">उधार</string>
+    <string name="coupon">कूपन</string>
+    <string name="upcoming_payment_msg">%1$s भुगतान आगामी चरण में उपलब्ध होगा।</string>
+
+    <!-- Success Panel -->
+    <string name="cash_sale_completed">नकद बिक्री पूर्ण हुई!</string>
+    <string name="ref_label">संदर्भ: %1$s</string>
+    <string name="total_received_cash">कुल प्राप्त राशि (नकद)</string>
+    <string name="receipt">रसीद</string>
+    <string name="invoice">चालान (इनवॉइस)</string>
+    <string name="whatsapp">व्हाट्सएप</string>
+    <string name="new_sale">नई बिक्री</string>
+
+    <!-- Recent Transactions Panel -->
+    <string name="todays_sales">आज की बिक्री (%1$d)</string>
+    <string name="today_total">कुल: %1$s</string>
+    <string name="no_transactions_today">आज अभी तक कोई लेनदेन दर्ज नहीं किया गया है।</string>
+    <string name="cash_sale_label">नकद बिक्री</string>
+    <string name="whatsapp_mobile_number">WhatsApp / मोबाइल नंबर</string>
+    <string name="ship_pack_amount">शिप/पैक: %1$s</string>
+    <string name="online_sale_label">ऑनलाइन बिक्री</string>
+    <string name="credit_sale_label">उधार बिक्री</string>
+    <string name="coupon_sale_label">कूपन से बिक्री</string>
+    <string name="sale_label">बिक्री</string>
+    <string name="history">इतिहास</string>
+    <string name="customer">ग्राहक</string>
+    <string name="clear">साफ़ करें</string>
+    <string name="share">साझा करें</string>
+
+    <!-- Itemized Bill Dialogs -->
+    <string name="itemized_bill">मदवार बिल</string>
+    <string name="add_item">वस्तु जोड़ें</string>
+    <string name="item_name">वस्तु का नाम</string>
+    <string name="unit_price">इकाई मूल्य</string>
+    <string name="quantity">मात्रा</string>
+    <string name="item_desc_optional">विवरण (वैकल्पिक)</string>
+    <string name="item_packing_optional">पैकिंग शुल्क (वैकल्पिक)</string>
+    <string name="item_shipping_optional">शिपिंग शुल्क (वैकल्पिक)</string>
+    <string name="items_count">%1$d वस्तुएं</string>
+
+    <!-- Tax & Shipping Dialogs -->
+    <string name="tax_config">कर (वैकल्पिक)</string>
+    <string name="enable_tax">कर सक्षम करें</string>
+    <string name="tax_rate_percent">कर दर (%)</string>
+    <string name="apply_tax">कर लागू करें</string>
+    <string name="shipping_packing_charges">शिपिंग और पैकिंग</string>
+    <string name="tx_shipping_charge">लेनदेन शिपिंग शुल्क</string>
+    <string name="tx_packing_charge">लेनदेन पैकिंग शुल्क</string>
+    <string name="save_charges">शुल्क सुरक्षित करें</string>
+</resources>

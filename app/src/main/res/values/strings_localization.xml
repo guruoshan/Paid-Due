@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <!-- English-first preparation intentionally uses fallback until translations are supplied.
+         Keep entries translatable; remove this scoped lint suppression when translations land. -->
+    <string name="hub_business_branch">%1$s • %2$s (%3$s)</string>
+    <string name="add_cashier">Add Cashier</string>
+    <string name="no_cashiers">No cashiers added yet. Tap \'+\' to create your first cashier.</string>
+    <string name="cashier_pin_hint">6 digits (e.g. 123456)</string>
+    <string name="cashier_language_summary">\@%1$s • Language: %2$s</string>
+    <string name="backspace">Backspace</string>
+    <string name="clear_key">C</string>
+    <string name="lockout_countdown">Locked out: %1$ss</string>
+    <string name="sale_saved">Sale saved</string>
+    <string name="remove_tax">Remove tax</string>
+    <string name="remove_shipping_packing">Remove shipping and packing</string>
+    <string name="no_bill_items">No items in bill yet. Tap \'+\' to add items.</string>
+    <string name="subtotal_label">Subtotal:</string>
+    <string name="decrease">Decrease</string>
+    <string name="increase">Increase</string>
+    <string name="itemized_bill_title">%1$s (%2$s)</string>
+    <string name="unit_price_each">%1$s each</string>
+    <string name="required_field">%1$s *</string>
+    <string name="required_currency_field">%1$s (%2$s) *</string>
+    <string name="currency_field">%1$s (%2$s)</string>
+    <string name="cash">Cash</string>
+    <string name="recent_transactions">Recent Transactions</string>
+    <string name="toggle_panel">Toggle Panel</string>
+    <string name="transaction_time_label">%1$s • %2$s</string>
+    <string name="positive_amount">+%1$s</string>
+    <string name="tax_rate_hint">e.g. 5, 18, 7.5</string>
+    <string name="label_with_colon">%1$s:</string>
+    <string name="menu">Menu</string>
+    <string name="bill_with_count">%1$s (%2$s)</string>
+    <string name="tax_amount">Tax: %1$s</string>
+    <string name="change">Change</string>
+    <string name="profile_business">Business: %1$s</string>
+    <string name="profile_branch">Branch: %1$s (%2$s)</string>
+    <string name="profile_currency">Currency: %1$s (%2$s decimals)</string>
+    <string name="profile_timezone">Timezone: %1$s</string>
+    <string name="profile_user">Logged in as: %1$s (%2$s)</string>
+    <string name="setup_complete">Setup Complete!</string>
+    <string name="select_country">Select Country</string>
+    <string name="confirm_currency">Confirm / Change Currency</string>
+    <string name="confirm_timezone">Confirm / Change Timezone</string>
+    <string name="create_admin_account">Create Admin Account</string>
+    <string name="country_oman">Oman (OM)</string>
+    <string name="country_india">India (IN)</string>
+    <string name="country_uae">United Arab Emirates (AE)</string>
+    <string name="country_saudi_arabia">Saudi Arabia (SA)</string>
+    <string name="country_bangladesh">Bangladesh (BD)</string>
+    <string name="country_us">United States (US)</string>
+    <string name="currency_omr">OMR — Omani Rial (3 decimal places)</string>
+    <string name="currency_inr">INR — Indian Rupee ₹ (2 decimal places)</string>
+    <string name="currency_aed">AED — UAE Dirham (2 decimal places)</string>
+    <string name="currency_sar">SAR — Saudi Riyal (2 decimal places)</string>
+    <string name="currency_bdt">BDT — Bangladeshi Taka (2 decimal places)</string>
+    <string name="currency_usd">USD — US Dollar $ (2 decimal places)</string>
+    <string name="timezone_muscat">Asia/Muscat (GMT+4)</string>
+    <string name="timezone_kolkata">Asia/Kolkata (GMT+5:30)</string>
+    <string name="timezone_dubai">Asia/Dubai (GMT+4)</string>
+    <string name="timezone_riyadh">Asia/Riyadh (GMT+3)</string>
+    <string name="timezone_dhaka">Asia/Dhaka (GMT+6)</string>
+    <string name="timezone_new_york">America/New_York (EST/EDT)</string>
+    <string name="timezone_utc">UTC</string>
+    <string name="role_admin">ADMIN</string>
+    <string name="role_cashier">CASHIER</string>
+    <string name="cashier_name_required">Name and username are required</string>
+    <string name="cashier_pin_invalid">PIN must be exactly 6 numeric digits</string>
+    <string name="cashier_creation_failed">Failed to create cashier</string>
+    <string name="username_required">Username is required</string>
+    <string name="sale_session_missing">Active session missing branch or user</string>
+    <string name="sale_total_zero">Cannot complete a sale with grand total of zero</string>
+    <string name="cash_sale_failed">Cash sale failed</string>
+    <string name="business_name_required">Business name cannot be blank</string>
+    <string name="admin_details_required">Admin name and username are required, password must be &gt;= 6 characters</string>
+    <string name="setup_failed">Setup failed</string>
+    <string name="cashier_created">Cashier \'%1$s\' created successfully</string>
+    <string name="language_en_native" translatable="false">English</string>
+    <string name="language_ar_native" translatable="false">العربية</string>
+    <string name="language_hi_native" translatable="false">हिन्दी</string>
+    <string name="language_bn_native" translatable="false">বাংলা</string>
+    <string name="language_ur_native" translatable="false">اردو</string>
+    <string name="language_ar_english" translatable="false">Arabic</string>
+    <string name="language_hi_english" translatable="false">Hindi</string>
+    <string name="language_bn_english" translatable="false">Bangla</string>
+    <string name="language_ur_english" translatable="false">Urdu</string>
+    <string name="payment_coupon_name">COUPON</string>
+    <string name="payment_credit_name">CREDIT</string>
+    <string name="payment_online_name">ONLINE</string>
+</resources>

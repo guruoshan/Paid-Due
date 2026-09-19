@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Localization preparation: new UI strings fall back to values/strings_localization.xml.
+         Add entries here when translations are available; existing strings.xml is preserved. -->
+</resources>

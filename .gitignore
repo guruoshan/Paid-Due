@@ -1,0 +1,18 @@
+.gradle/
+.kotlin/
+**/build/
+local.properties
+*.apk
+*.aab
+*.db
+*.db-journal
+*.jks
+*.keystore
+.idea/
+*.iml
+*.bak
+.manual-backups/
+
+# Local diagnostic output
+/extracted_tables.txt
+/session7-dex-failure.txt

@@ -1,0 +1,130 @@
+<resources>
+    <string name="app_name">ڈیلی منی رجسٹر</string>
+
+    <!-- Common Actions -->
+    <string name="continue_btn">جاری رکھیں</string>
+    <string name="save">محفوظ کریں</string>
+    <string name="cancel">منسوخ کریں</string>
+    <string name="close">بند کریں</string>
+    <string name="delete">حذف کریں</string>
+    <string name="back">پیچھے</string>
+
+    <!-- Language Selection -->
+    <string name="choose_language">اپنی زبان منتخب کریں</string>
+    <string name="preferred_language">پسندیدہ زبان</string>
+
+    <!-- Setup Flow -->
+    <string name="setup_title">ابتدائی کاروباری سیٹ اپ</string>
+    <string name="business_name">کاروبار کا نام</string>
+    <string name="branch_name">برانچ کا نام</string>
+    <string name="branch_code">برانچ کوڈ (مثال: MAIN)</string>
+    <string name="country">ملک</string>
+    <string name="currency">کرنسی</string>
+    <string name="timezone">ٹائم زون</string>
+    <string name="default_tax_rate">پہلے سے طے شدہ ٹیکس کی شرح (%)</string>
+    <string name="admin_name">ایڈمن کا مکمل نام</string>
+    <string name="admin_username">ایڈمن صارف نام</string>
+    <string name="admin_password">ایڈمن پاس ورڈ</string>
+    <string name="create_account">اکاؤنٹ بنائیں اور سیٹ اپ مکمل کریں</string>
+
+    <!-- Auth / Login -->
+    <string name="login_title">ڈیلی منی رجسٹر</string>
+    <string name="admin_login">ایڈمن لاگ ان</string>
+    <string name="cashier_login">کیشیئر پن لاگ ان</string>
+    <string name="username">صارف نام</string>
+    <string name="password">پاس ورڈ</string>
+    <string name="enter_6_digit_pin">6 ہندسوں کا کیشیئر پن درج کریں</string>
+    <string name="login">لاگ ان</string>
+    <string name="switch_to_cashier">کیشیئر لاگ ان پر جائیں</string>
+    <string name="switch_to_admin">ایڈمن لاگ ان پر جائیں</string>
+    <string name="invalid_credentials">غلط صارف نام یا پاس ورڈ</string>
+    <string name="invalid_pin">غلط 6 ہندسوں کا پن</string>
+    <string name="account_inactive">صارف کا اکاؤنٹ غیر فعال ہے</string>
+    <string name="locked_out_msg">بہت سی ناکام کوششیں۔ %1$d سیکنڈ کے لیے لاک کر دیا گیا ہے۔</string>
+
+    <!-- Hub Screen -->
+    <string name="admin_hub_title">ڈیلی منی رجسٹر — ایڈمن</string>
+    <string name="welcome_user">خوش آمدید، %1$s</string>
+    <string name="main_register_admin_controls">مین رجسٹر اور ایڈمن کنٹرولز</string>
+    <string name="open_cash_register">کیش رجسٹر کھولیں</string>
+    <string name="open_cash_register_desc">تیز رفتار نقد فروخت، کیلکولیٹر، بل، ٹیکس اور شپنگ</string>
+    <string name="manage_cashiers_desc">پن، زبان اور اجازت کے ساتھ کیشیئر بنائیں</string>
+    <string name="settings_languages_desc">ایپ کی زبان تبدیل کریں یا پروفائل دیکھیں</string>
+
+    <!-- Cashier Management -->
+    <string name="manage_cashiers">کیشیئرز کا انتظام</string>
+    <string name="create_cashier">نیا کیشیئر بنائیں</string>
+    <string name="cashier_name">کیشیئر کا نام</string>
+    <string name="cashier_username">صارف نام</string>
+    <string name="cashier_pin">6 ہندسوں کا پن</string>
+    <string name="cashier_language">پسندیدہ زبان</string>
+    <string name="save_cashier">کیشیئر محفوظ کریں</string>
+    <string name="permissions">اجازتیں</string>
+    <string name="permission_credit_sale">ادھار فروخت کر سکتے ہیں</string>
+    <string name="permission_refund">رقم واپس کر سکتے ہیں</string>
+    <string name="permission_void">لین دین منسوخ کر سکتے ہیں</string>
+
+    <!-- Settings -->
+    <string name="settings">ترتیبات</string>
+    <string name="change_language">زبان</string>
+    <string name="business_profile">کاروباری پروفائل</string>
+    <string name="logout">لاگ آؤٹ</string>
+
+    <!-- Register Screen -->
+    <string name="note_optional">نوٹ / آئٹم کی تفصیل (اختیاری)</string>
+    <string name="bill">بل</string>
+    <string name="tax">ٹیکس</string>
+    <string name="add_tax">+ٹیکس</string>
+    <string name="ship_pack">شپنگ/پیکنگ</string>
+    <string name="cash_sale">نقد فروخت</string>
+    <string name="online">آن لائن</string>
+    <string name="credit">ادھار</string>
+    <string name="coupon">کوپن</string>
+    <string name="upcoming_payment_msg">%1$s ادائیگی آئندہ مرحلے میں دستیاب ہوگی۔</string>
+
+    <!-- Success Panel -->
+    <string name="cash_sale_completed">نقد فروخت مکمل ہو گئی!</string>
+    <string name="ref_label">حوالہ: %1$s</string>
+    <string name="total_received_cash">کل موصولہ رقم (نقد)</string>
+    <string name="receipt">رسید</string>
+    <string name="invoice">انوائس (بل)</string>
+    <string name="whatsapp">واٹس ایپ</string>
+    <string name="new_sale">نئی فروخت</string>
+
+    <!-- Recent Transactions Panel -->
+    <string name="todays_sales">آج کی فروخت (%1$d)</string>
+    <string name="today_total">کل: %1$s</string>
+    <string name="no_transactions_today">آج ابھی تک کوئی لین دین درج نہیں ہوا۔</string>
+    <string name="cash_sale_label">نقد فروخت</string>
+    <string name="whatsapp_mobile_number">واٹس ایپ / موبائل نمبر</string>
+    <string name="ship_pack_amount">شپنگ/پیکنگ: %1$s</string>
+    <string name="online_sale_label">آن لائن فروخت</string>
+    <string name="credit_sale_label">ادھار فروخت</string>
+    <string name="coupon_sale_label">کوپن کے ذریعے فروخت</string>
+    <string name="sale_label">فروخت</string>
+    <string name="history">ریکارڈ</string>
+    <string name="customer">گاہک</string>
+    <string name="clear">صاف کریں</string>
+    <string name="share">شیئر کریں</string>
+
+    <!-- Itemized Bill Dialogs -->
+    <string name="itemized_bill">آئٹمائزڈ بل</string>
+    <string name="add_item">آئٹم شامل کریں</string>
+    <string name="item_name">آئٹم کا نام</string>
+    <string name="unit_price">یونٹ قیمت</string>
+    <string name="quantity">مقدار</string>
+    <string name="item_desc_optional">تفصیل (اختیاری)</string>
+    <string name="item_packing_optional">پیکنگ چارج (اختیاری)</string>
+    <string name="item_shipping_optional">شپنگ چارج (اختیاری)</string>
+    <string name="items_count">%1$d آئٹمز</string>
+
+    <!-- Tax & Shipping Dialogs -->
+    <string name="tax_config">ٹیکس (اختیاری)</string>
+    <string name="enable_tax">ٹیکس فعال کریں</string>
+    <string name="tax_rate_percent">ٹیکس کی شرح (%)</string>
+    <string name="apply_tax">ٹیکس لاگو کریں</string>
+    <string name="shipping_packing_charges">شپنگ اور پیکنگ</string>
+    <string name="tx_shipping_charge">ٹرانزیکشن شپنگ چارج</string>
+    <string name="tx_packing_charge">ٹرانزیکشن پیکنگ چارج</string>
+    <string name="save_charges">چارجز محفوظ کریں</string>
+</resources>

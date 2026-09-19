@@ -1,0 +1,130 @@
+<resources>
+    <string name="app_name">سجل الأموال اليومي</string>
+
+    <!-- Common Actions -->
+    <string name="continue_btn">متابعة</string>
+    <string name="save">حفظ</string>
+    <string name="cancel">إلغاء</string>
+    <string name="close">إغلاق</string>
+    <string name="delete">حذف</string>
+    <string name="back">رجوع</string>
+
+    <!-- Language Selection -->
+    <string name="choose_language">اختر لغتك</string>
+    <string name="preferred_language">اللغة المفضلة</string>
+
+    <!-- Setup Flow -->
+    <string name="setup_title">الإعداد الأولي للمنشأة</string>
+    <string name="business_name">اسم المنشأة</string>
+    <string name="branch_name">اسم الفرع</string>
+    <string name="branch_code">رمز الفرع (مثال: MAIN)</string>
+    <string name="country">الدولة</string>
+    <string name="currency">العملة</string>
+    <string name="timezone">المنطقة الزمنية</string>
+    <string name="default_tax_rate">نسبة الضريبة الافتراضية (%)</string>
+    <string name="admin_name">الاسم الكامل للمشرف</string>
+    <string name="admin_username">اسم مستخدم المشرف</string>
+    <string name="admin_password">كلمة مرور المشرف</string>
+    <string name="create_account">إنشاء الحساب وإنهاء الإعداد</string>
+
+    <!-- Auth / Login -->
+    <string name="login_title">سجل الأموال اليومي</string>
+    <string name="admin_login">دخول المشرف</string>
+    <string name="cashier_login">دخول أمين الصندوق برمز PIN</string>
+    <string name="username">اسم المستخدم</string>
+    <string name="password">كلمة المرور</string>
+    <string name="enter_6_digit_pin">أدخل رمز PIN المكون من 6 أرقام</string>
+    <string name="login">تسجيل الدخول</string>
+    <string name="switch_to_cashier">التبديل إلى دخول أمين الصندوق</string>
+    <string name="switch_to_admin">التبديل إلى دخول المشرف</string>
+    <string name="invalid_credentials">اسم المستخدم أو كلمة المرور غير صحيحة</string>
+    <string name="invalid_pin">رمز PIN غير صحيح</string>
+    <string name="account_inactive">حساب المستخدم غير نشط</string>
+    <string name="locked_out_msg">محاولات خاطئة كثيرة. تم قفل الحساب لمدة %1$d ثانية.</string>
+
+    <!-- Hub Screen -->
+    <string name="admin_hub_title">سجل الأموال اليومي — المشرف</string>
+    <string name="welcome_user">مرحبًا، %1$s</string>
+    <string name="main_register_admin_controls">سجل المبيعات الرئيسي ولوحة التحكم</string>
+    <string name="open_cash_register">فتح سجل الصندوق</string>
+    <string name="open_cash_register_desc">مبيعات نقدية سريعة، حاسبة، فواتير مفصلة، وضريبة وشحن</string>
+    <string name="manage_cashiers_desc">إنشاء أمناء الصناديق برمز PIN ولغة وصلاحيات</string>
+    <string name="settings_languages_desc">تغيير لغة التطبيق أو استعراض الملف التعريفي</string>
+
+    <!-- Cashier Management -->
+    <string name="manage_cashiers">إدارة أمناء الصناديق</string>
+    <string name="create_cashier">إنشاء أمين صندوق جديد</string>
+    <string name="cashier_name">اسم أمين الصندوق</string>
+    <string name="cashier_username">اسم المستخدم</string>
+    <string name="cashier_pin">رمز PIN (6 أرقام)</string>
+    <string name="cashier_language">اللغة المفضلة</string>
+    <string name="save_cashier">حفظ أمين الصندوق</string>
+    <string name="permissions">الصلاحيات</string>
+    <string name="permission_credit_sale">إمكانية إنشاء مبيعات آجلة</string>
+    <string name="permission_refund">إمكانية إصدار استرجاع</string>
+    <string name="permission_void">إمكانية إلغاء العمليات</string>
+
+    <!-- Settings -->
+    <string name="settings">الإعدادات</string>
+    <string name="change_language">اللغة</string>
+    <string name="business_profile">ملف المنشأة</string>
+    <string name="logout">تسجيل الخروج</string>
+
+    <!-- Register Screen -->
+    <string name="note_optional">ملاحظة / وصف الصنف (اختياري)</string>
+    <string name="bill">الفاتورة</string>
+    <string name="tax">الضريبة</string>
+    <string name="add_tax">+الضريبة</string>
+    <string name="ship_pack">شحن/تغليف</string>
+    <string name="cash_sale">بيع نقدي</string>
+    <string name="online">إلكتروني</string>
+    <string name="credit">آجل</string>
+    <string name="coupon">قسيمة</string>
+    <string name="upcoming_payment_msg">دفع %1$s سيكون متاحًا في المرحلة القادمة.</string>
+
+    <!-- Success Panel -->
+    <string name="cash_sale_completed">تمت عملية البيع النقدي بنجاح!</string>
+    <string name="ref_label">المرجع: %1$s</string>
+    <string name="total_received_cash">المبلغ المستلم (نقدًا)</string>
+    <string name="receipt">الإيصال</string>
+    <string name="invoice">الفاتورة</string>
+    <string name="whatsapp">واتساب</string>
+    <string name="new_sale">عملية جديدة</string>
+
+    <!-- Recent Transactions Panel -->
+    <string name="todays_sales">مبيعات اليوم (%1$d)</string>
+    <string name="today_total">الإجمالي: %1$s</string>
+    <string name="no_transactions_today">لم تُسجل مبيعات اليوم بعد.</string>
+    <string name="cash_sale_label">بيع نقدي</string>
+    <string name="whatsapp_mobile_number">واتساب / رقم الهاتف المحمول</string>
+    <string name="ship_pack_amount">شحن/تغليف: %1$s</string>
+    <string name="online_sale_label">بيع إلكتروني</string>
+    <string name="credit_sale_label">بيع آجل</string>
+    <string name="coupon_sale_label">بيع بالقسيمة</string>
+    <string name="sale_label">بيع</string>
+    <string name="history">السجل</string>
+    <string name="customer">العميل</string>
+    <string name="clear">مسح</string>
+    <string name="share">مشاركة</string>
+
+    <!-- Itemized Bill Dialogs -->
+    <string name="itemized_bill">فاتورة مفصلة</string>
+    <string name="add_item">إضافة صنف</string>
+    <string name="item_name">اسم الصنف</string>
+    <string name="unit_price">سعر الوحدة</string>
+    <string name="quantity">الكمية</string>
+    <string name="item_desc_optional">الوصف (اختياري)</string>
+    <string name="item_packing_optional">رسوم تغليف الصنف (اختياري)</string>
+    <string name="item_shipping_optional">رسوم شحن الصنف (اختياري)</string>
+    <string name="items_count">%1$d أصناف</string>
+
+    <!-- Tax & Shipping Dialogs -->
+    <string name="tax_config">الضريبة (اختياري)</string>
+    <string name="enable_tax">تفعيل الضريبة</string>
+    <string name="tax_rate_percent">نسبة الضريبة (%)</string>
+    <string name="apply_tax">تطبيق الضريبة</string>
+    <string name="shipping_packing_charges">الشحن والتغليف</string>
+    <string name="tx_shipping_charge">رسوم شحن العملية</string>
+    <string name="tx_packing_charge">رسوم تغليف العملية</string>
+    <string name="save_charges">حفظ الرسوم</string>
+</resources>

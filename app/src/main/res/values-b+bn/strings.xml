@@ -1,0 +1,130 @@
+<resources>
+    <string name="app_name">ডেইলি মানি রেজিস্টার</string>
+
+    <!-- Common Actions -->
+    <string name="continue_btn">চালিয়ে যান</string>
+    <string name="save">সংরক্ষণ করুন</string>
+    <string name="cancel">বাতিল</string>
+    <string name="close">বন্ধ করুন</string>
+    <string name="delete">মুছুন</string>
+    <string name="back">পেছনে</string>
+
+    <!-- Language Selection -->
+    <string name="choose_language">আপনার ভাষা নির্বাচন করুন</string>
+    <string name="preferred_language">পছন্দের ভাষা</string>
+
+    <!-- Setup Flow -->
+    <string name="setup_title">প্রাথমিক ব্যবসায়িক সেটআপ</string>
+    <string name="business_name">ব্যবসার নাম</string>
+    <string name="branch_name">শাখার নাম</string>
+    <string name="branch_code">শাখা কোড (যেমন MAIN)</string>
+    <string name="country">দেশ</string>
+    <string name="currency">মুদ্রা</string>
+    <string name="timezone">টাইমজোন</string>
+    <string name="default_tax_rate">ডিফল্ট ট্যাক্স রেট (%)</string>
+    <string name="admin_name">অ্যাডমিনের পুরো নাম</string>
+    <string name="admin_username">অ্যাডমিন ইউজারনেম</string>
+    <string name="admin_password">অ্যাডমিন পাসওয়ার্ড</string>
+    <string name="create_account">অ্যাকাউন্ট তৈরি করুন ও শেষ করুন</string>
+
+    <!-- Auth / Login -->
+    <string name="login_title">ডেইলি মানি রেজিস্টার</string>
+    <string name="admin_login">অ্যাডমিন লগইন</string>
+    <string name="cashier_login">ক্যাশিয়ার পিন লগইন</string>
+    <string name="username">ইউজারনেম</string>
+    <string name="password">পাসওয়ার্ড</string>
+    <string name="enter_6_digit_pin">৬-সংখ্যার ক্যাশিয়ার পিন লিখুন</string>
+    <string name="login">লগইন</string>
+    <string name="switch_to_cashier">ক্যাশিয়ার লগইনে যান</string>
+    <string name="switch_to_admin">অ্যাডমিন লগইনে যান</string>
+    <string name="invalid_credentials">ভুল ইউজারনেম বা পাসওয়ার্ড</string>
+    <string name="invalid_pin">ভুল ৬-সংখ্যার পিন</string>
+    <string name="account_inactive">ব্যবহারকারীর অ্যাকাউন্ট নিষ্ক্রিয় রয়েছে</string>
+    <string name="locked_out_msg">অতিরিক্ত ব্যর্থ প্রচেষ্টা। %1$d সেকেন্ডের জন্য লক করা হয়েছে।</string>
+
+    <!-- Hub Screen -->
+    <string name="admin_hub_title">ডেইলি মানি রেজিস্টার — অ্যাডমিন</string>
+    <string name="welcome_user">স্বাগতম, %1$s</string>
+    <string name="main_register_admin_controls">মূল রেজিস্টার ও অ্যাডমিন নিয়ন্ত্রণ</string>
+    <string name="open_cash_register">ক্যাশ রেজিস্টার খুলুন</string>
+    <string name="open_cash_register_desc">দ্রুত নগদ বিক্রয়, ক্যালকুলেটর, চালান ও শিপিং</string>
+    <string name="manage_cashiers_desc">পিন, ভাষা ও অনুমতিসহ ক্যাশিয়ার তৈরি করুন</string>
+    <string name="settings_languages_desc">অ্যাপের ভাষা পরিবর্তন করুন বা প্রোফাইল দেখুন</string>
+
+    <!-- Cashier Management -->
+    <string name="manage_cashiers">ক্যাশিয়ার পরিচালনা</string>
+    <string name="create_cashier">নতুন ক্যাশিয়ার যোগ করুন</string>
+    <string name="cashier_name">ক্যাশিয়ারের নাম</string>
+    <string name="cashier_username">ইউজারনেম</string>
+    <string name="cashier_pin">৬-সংখ্যার পিন</string>
+    <string name="cashier_language">পছন্দের ভাষা</string>
+    <string name="save_cashier">ক্যাশিয়ার সংরক্ষণ করুন</string>
+    <string name="permissions">অনুমতিসমূহ</string>
+    <string name="permission_credit_sale">বাকিতে বিক্রয় করতে পারবেন</string>
+    <string name="permission_refund">টাকা ফেরত দিতে পারবেন</string>
+    <string name="permission_void">লেনদেন বাতিল করতে পারবেন</string>
+
+    <!-- Settings -->
+    <string name="settings">সেটিংস</string>
+    <string name="change_language">ভাষা</string>
+    <string name="business_profile">ব্যবসায়িক প্রোফাইল</string>
+    <string name="logout">লগআউট</string>
+
+    <!-- Register Screen -->
+    <string name="note_optional">নোট / বিবরণ (ঐচ্ছিক)</string>
+    <string name="bill">বিল</string>
+    <string name="tax">ট্যাক্স</string>
+    <string name="add_tax">+ট্যাক্স</string>
+    <string name="ship_pack">শিপ/প্যাক</string>
+    <string name="cash_sale">নগদ বিক্রয়</string>
+    <string name="online">অনলাইন</string>
+    <string name="credit">বাকি</string>
+    <string name="coupon">কুপন</string>
+    <string name="upcoming_payment_msg">%1$s পেমেন্ট পরবর্তী ধাপে উপলব্ধ হবে।</string>
+
+    <!-- Success Panel -->
+    <string name="cash_sale_completed">নগদ বিক্রয় সফলভাবে সম্পন্ন হয়েছে!</string>
+    <string name="ref_label">রেফারেন্স: %1$s</string>
+    <string name="total_received_cash">মোট প্রাপ্ত নগদ টাকা</string>
+    <string name="receipt">রসিদ</string>
+    <string name="invoice">চালান (ইনভয়েস)</string>
+    <string name="whatsapp">হোয়াটসঅ্যাপ</string>
+    <string name="new_sale">নতুন বিক্রয়</string>
+
+    <!-- Recent Transactions Panel -->
+    <string name="todays_sales">আজকের বিক্রয় (%1$d)</string>
+    <string name="today_total">মোট: %1$s</string>
+    <string name="no_transactions_today">আজ এখনও কোনো লেনদেন রেকর্ড করা হয়নি।</string>
+    <string name="cash_sale_label">নগদ বিক্রয়</string>
+    <string name="whatsapp_mobile_number">WhatsApp / মোবাইল নম্বর</string>
+    <string name="ship_pack_amount">শিপ/প্যাক: %1$s</string>
+    <string name="online_sale_label">অনলাইন বিক্রয়</string>
+    <string name="credit_sale_label">বাকিতে বিক্রয়</string>
+    <string name="coupon_sale_label">কুপনের মাধ্যমে বিক্রয়</string>
+    <string name="sale_label">বিক্রয়</string>
+    <string name="history">ইতিহাস</string>
+    <string name="customer">গ্রাহক</string>
+    <string name="clear">পরিষ্কার</string>
+    <string name="share">শেয়ার</string>
+
+    <!-- Itemized Bill Dialogs -->
+    <string name="itemized_bill">আইটেমাইজড বিল</string>
+    <string name="add_item">আইটেম যোগ করুন</string>
+    <string name="item_name">আইটেমের নাম</string>
+    <string name="unit_price">একক মূল্য</string>
+    <string name="quantity">পরিমাণ</string>
+    <string name="item_desc_optional">বিবরণ (ঐচ্ছিক)</string>
+    <string name="item_packing_optional">প্যাকিং চার্জ (ঐচ্ছিক)</string>
+    <string name="item_shipping_optional">শিপিং চার্জ (ঐচ্ছিক)</string>
+    <string name="items_count">%1$d আইটেম</string>
+
+    <!-- Tax & Shipping Dialogs -->
+    <string name="tax_config">ট্যাক্স (ঐচ্ছিক)</string>
+    <string name="enable_tax">ট্যাক্স সক্রিয় করুন</string>
+    <string name="tax_rate_percent">ট্যাক্স হার (%)</string>
+    <string name="apply_tax">ট্যাক্স প্রয়োগ করুন</string>
+    <string name="shipping_packing_charges">শিপিং এবং প্যাকিং</string>
+    <string name="tx_shipping_charge">লেনদেন শিপিং চার্জ</string>
+    <string name="tx_packing_charge">লেনদেন প্যাকিং চার্জ</string>
+    <string name="save_charges">চার্জ সংরক্ষণ করুন</string>
+</resources>
