@@ -37,6 +37,12 @@ class AuthRepository @Inject constructor(
     private val languageManager: LanguageManager
 ) {
 
+    private companion object {
+        const val DUMMY_PASSWORD_SALT = "00112233445566778899aabbccddeeff"
+        const val DUMMY_PASSWORD_HASH =
+            "pbkdf2-sha256:600000:c6339c1fdf3e142f79b1a690058124a64946b2e186fda750547c06c94ba2304c"
+    }
+
     private val businessBranchDao =
         database.businessBranchDao()
 
@@ -82,8 +88,30 @@ class AuthRepository @Inject constructor(
                 userDao.getHumanIdentityById(it.identityId ?: it.id)?.canonicalPhone == null
             }
 
+        if (user == null) {
+            PasswordHasher.verifyPassword(
+                passwordPlain,
+                DUMMY_PASSWORD_SALT,
+                DUMMY_PASSWORD_HASH
+            )
+
+            val lockoutSeconds =
+                pinThrottler.recordFailure(
+                    throttleIdentifier
+                )
+
+            return if (lockoutSeconds > 0L) {
+                AuthResult.LockedOut(
+                    lockoutSeconds
+                )
+            } else {
+                AuthResult.InvalidCredentials(
+                    "Invalid username or password"
+                )
+            }
+        }
+
         if (
-            user == null ||
             !user.isActive ||
             user.role != UserRole.ADMIN ||
             user.authType != AuthType.PASSWORD

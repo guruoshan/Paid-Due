@@ -1,6 +1,7 @@
-﻿package com.dailymoneyregister.feature.admin.data
+package com.dailymoneyregister.feature.admin.data
 
 import com.dailymoneyregister.core.command.CommandFingerprint
+import com.dailymoneyregister.core.serialization.DurableEnvelopeCodec
 
 data class CreateCashierRecoveryPayload(
     val operationId: String,
@@ -27,21 +28,21 @@ object CreateCashierPayloadCodec {
 
     fun encode(payload: CreateCashierRecoveryPayload): String = buildString {
         appendLine("v=$CURRENT_SCHEMA_VERSION")
-        appendLine("operationId=${escape(payload.operationId)}")
-        appendLine("businessId=${escape(payload.businessId)}")
-        appendLine("branchId=${escape(payload.branchId)}")
-        appendLine("adminUserId=${escape(payload.adminUserId)}")
-        appendLine("cashierUserId=${escape(payload.cashierUserId)}")
-        appendLine("membershipId=${escape(payload.membershipId)}")
+        appendLine("operationId=${DurableEnvelopeCodec.escape(payload.operationId)}")
+        appendLine("businessId=${DurableEnvelopeCodec.escape(payload.businessId)}")
+        appendLine("branchId=${DurableEnvelopeCodec.escape(payload.branchId)}")
+        appendLine("adminUserId=${DurableEnvelopeCodec.escape(payload.adminUserId)}")
+        appendLine("cashierUserId=${DurableEnvelopeCodec.escape(payload.cashierUserId)}")
+        appendLine("membershipId=${DurableEnvelopeCodec.escape(payload.membershipId)}")
         appendLine("occurredAt=${payload.occurredAt}")
-        appendLine("deviceId=${escape(payload.deviceId)}")
+        appendLine("deviceId=${DurableEnvelopeCodec.escape(payload.deviceId)}")
 
-        appendLine("displayName=${escape(payload.displayName)}")
-        appendLine("username=${escape(payload.username)}")
-        payload.canonicalPhone?.let { appendLine("canonicalPhone=${escape(it)}") }
-        appendLine("credentialHash=${escape(payload.credentialHash)}")
-        appendLine("credentialSalt=${escape(payload.credentialSalt)}")
-        appendLine("preferredLanguage=${escape(payload.preferredLanguage)}")
+        appendLine("displayName=${DurableEnvelopeCodec.escape(payload.displayName)}")
+        appendLine("username=${DurableEnvelopeCodec.escape(payload.username)}")
+        payload.canonicalPhone?.let { appendLine("canonicalPhone=${DurableEnvelopeCodec.escape(it)}") }
+        appendLine("credentialHash=${DurableEnvelopeCodec.escape(payload.credentialHash)}")
+        appendLine("credentialSalt=${DurableEnvelopeCodec.escape(payload.credentialSalt)}")
+        appendLine("preferredLanguage=${DurableEnvelopeCodec.escape(payload.preferredLanguage)}")
 
         appendLine("canCreateSale=${payload.permissions.canCreateSale}")
         appendLine("canAcceptCash=${payload.permissions.canAcceptCash}")
@@ -147,7 +148,7 @@ object CreateCashierPayloadCodec {
             val index = line.indexOf('=')
             if (index > 0) {
                 result[line.substring(0, index)] =
-                    unescape(line.substring(index + 1))
+                    DurableEnvelopeCodec.unescape(line.substring(index + 1))
             }
         }
 
@@ -158,42 +159,4 @@ object CreateCashierPayloadCodec {
         map[key] ?: throw IllegalStateException(
             "Cashier recovery payload is missing '$key'"
         )
-
-    private fun escape(value: String): String =
-        value
-            .replace("\\", "\\\\")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-
-    private fun unescape(value: String): String {
-        val result = StringBuilder()
-        var index = 0
-
-        while (index < value.length) {
-            if (value[index] == '\\' && index + 1 < value.length) {
-                when (value[index + 1]) {
-                    'n' -> {
-                        result.append('\n')
-                        index += 2
-                        continue
-                    }
-                    'r' -> {
-                        result.append('\r')
-                        index += 2
-                        continue
-                    }
-                    '\\' -> {
-                        result.append('\\')
-                        index += 2
-                        continue
-                    }
-                }
-            }
-
-            result.append(value[index])
-            index++
-        }
-
-        return result.toString()
-    }
 }

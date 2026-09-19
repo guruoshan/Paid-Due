@@ -8,6 +8,7 @@ import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.feature.register.domain.DraftState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CashSaleCommandTest {
@@ -141,8 +142,9 @@ class CashSaleCommandTest {
             occurredAt = 1700000000000L
         )
 
-        // Encode to JSON
+        // Encode to the custom durable key=value envelope
         val encodedPayload = originalCmd.intentPayload
+        assertTrue(encodedPayload.startsWith("v=3\n"))
 
         // Decode back
         val decodedCmd = CashSalePayloadCodec.decode(encodedPayload)
@@ -170,5 +172,88 @@ class CashSaleCommandTest {
 
         // Verify canonical fingerprint matches after round trip
         assertEquals(originalCmd.requestFingerprint, decodedCmd.requestFingerprint)
+    }
+
+    @Test
+    fun testCashSalePayloadCodecPreservesEscapedAndControlCharacters() {
+        val value = "slash \\; literal \\n; literal \\r; newline \n carriage \r"
+        val item = com.dailymoneyregister.feature.register.domain.DraftItem(
+            id = "item-escaped",
+            name = value,
+            unitPrice = MoneyMinorUnits(1500L),
+            quantity = 1,
+            itemPackingCharge = MoneyMinorUnits.ZERO,
+            itemShippingCharge = MoneyMinorUnits.ZERO,
+            description = value,
+            barcode = value
+        )
+        val original = CashSaleCommand(
+            operationId = OperationId.generate(),
+            businessId = "biz-escaped",
+            branchId = "branch-escaped",
+            actorUserId = "cashier-escaped",
+            transactionIdVal = TransactionId.generate(),
+            draftState = DraftState(
+                items = listOf(item),
+                manualAmount = MoneyMinorUnits(1500L),
+                manualDescription = value
+            ),
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            deviceId = "test-device",
+            occurredAt = 1700000000000L
+        )
+
+        val decoded = CashSalePayloadCodec.decode(original.intentPayload)
+        assertEquals(value, decoded.draftState.manualDescription)
+        assertEquals(value, decoded.draftState.items.single().name)
+        assertEquals(value, decoded.draftState.items.single().description)
+        assertEquals(value, decoded.draftState.items.single().barcode)
+    }
+
+    @Test
+    fun testHistoricalV2PayloadUsesLegacyUnescapeSemantics() {
+        val payload = buildString {
+            appendLine("v=2")
+            appendLine("commandType=CASH_SALE")
+            appendLine("operationId=op-v2")
+            appendLine("businessId=biz-v2")
+            appendLine("branchId=branch-v2")
+            appendLine("actorUserId=user-v2")
+            appendLine("transactionId=tx-v2")
+            appendLine("currencyCode=OMR")
+            appendLine("currencyDecimalPlaces=3")
+            appendLine("deviceId=device-v2")
+            appendLine("occurredAt=1700000000000")
+            appendLine("manualAmount=1500")
+            appendLine("manualDescription=literal\\r")
+            appendLine("taxRateBps=0")
+            appendLine("isTaxEnabled=false")
+            appendLine("taxRoundingMode=HALF_UP")
+            appendLine("txShipping=0")
+            appendLine("txPacking=0")
+            appendLine("itemCount=1")
+            appendLine("item[0].id=item-v2")
+            appendLine("item[0].name=two\\\\backslashes")
+            appendLine("item[0].desc=historical\\nnewline")
+            appendLine("item[0].unitPrice=1500")
+            appendLine("item[0].qty=1")
+            appendLine("item[0].barcode=barcode-v2")
+            appendLine("item[0].itemPacking=0")
+            appendLine("item[0].itemShipping=0")
+        }
+
+        val decoded = CashSalePayloadCodec.decode(payload)
+        assertEquals("literal\\r", decoded.draftState.manualDescription)
+        assertEquals("two\\\\backslashes", decoded.draftState.items.single().name)
+        assertEquals("historical\nnewline", decoded.draftState.items.single().description)
+
+        val legacyV1 = payload
+            .replace("v=2\n", "v=1\n")
+            .replace("commandType=CASH_SALE\n", "")
+        val decodedV1 = CashSalePayloadCodec.decode(legacyV1)
+        assertEquals("literal\\r", decodedV1.draftState.manualDescription)
+        assertEquals("two\\\\backslashes", decodedV1.draftState.items.single().name)
+        assertEquals("historical\nnewline", decodedV1.draftState.items.single().description)
     }
 }

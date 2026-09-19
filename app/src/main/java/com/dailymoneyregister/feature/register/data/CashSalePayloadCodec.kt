@@ -1,6 +1,7 @@
-﻿package com.dailymoneyregister.feature.register.data
+package com.dailymoneyregister.feature.register.data
 
 import com.dailymoneyregister.core.database.entity.OperationEntity
+import com.dailymoneyregister.core.serialization.DurableEnvelopeCodec
 import com.dailymoneyregister.core.model.enums.OperationStatus
 import com.dailymoneyregister.core.model.enums.OperationType
 import com.dailymoneyregister.core.model.enums.SubjectType
@@ -14,8 +15,9 @@ import com.dailymoneyregister.feature.register.domain.DraftState
 /**
  * Durable Cash Sale payload codec.
  *
- * V1 = legacy Cash Sale payload without an explicit command type.
- * V2 = explicitly identifies itself as CASH_SALE.
+ * V1 = legacy payload without commandType, historical escaping.
+ * V2 = CASH_SALE commandType, historical escaping.
+ * V3 = CASH_SALE commandType, backslash-safe DurableEnvelopeCodec escaping.
  *
  * Recovery fails closed for unsupported versions/types rather than
  * guessing how a financial command should be interpreted.
@@ -25,7 +27,8 @@ object CashSalePayloadCodec {
     const val COMMAND_TYPE = "CASH_SALE"
 
     const val LEGACY_SCHEMA_VERSION = 1
-    const val CURRENT_SCHEMA_VERSION = 2
+    const val LEGACY_CURRENT_SCHEMA_VERSION = 2
+    const val CURRENT_SCHEMA_VERSION = 3
 
     fun encode(cmd: CashSaleCommand): String {
 
@@ -35,27 +38,27 @@ object CashSalePayloadCodec {
         sb.append("commandType=$COMMAND_TYPE\n")
 
         sb.append("operationId=")
-            .append(escape(cmd.operationId.value))
+            .append(DurableEnvelopeCodec.escape(cmd.operationId.value))
             .append("\n")
 
         sb.append("businessId=")
-            .append(escape(cmd.businessId))
+            .append(DurableEnvelopeCodec.escape(cmd.businessId))
             .append("\n")
 
         sb.append("branchId=")
-            .append(escape(cmd.branchId))
+            .append(DurableEnvelopeCodec.escape(cmd.branchId))
             .append("\n")
 
         sb.append("actorUserId=")
-            .append(escape(cmd.actorUserId))
+            .append(DurableEnvelopeCodec.escape(cmd.actorUserId))
             .append("\n")
 
         sb.append("transactionId=")
-            .append(escape(cmd.transactionIdVal.value))
+            .append(DurableEnvelopeCodec.escape(cmd.transactionIdVal.value))
             .append("\n")
 
         sb.append("currencyCode=")
-            .append(escape(cmd.currencyCode))
+            .append(DurableEnvelopeCodec.escape(cmd.currencyCode))
             .append("\n")
 
         sb.append("currencyDecimalPlaces=")
@@ -63,7 +66,7 @@ object CashSalePayloadCodec {
             .append("\n")
 
         sb.append("deviceId=")
-            .append(escape(cmd.deviceId))
+            .append(DurableEnvelopeCodec.escape(cmd.deviceId))
             .append("\n")
 
         sb.append("occurredAt=")
@@ -77,7 +80,7 @@ object CashSalePayloadCodec {
             .append("\n")
 
         sb.append("manualDescription=")
-            .append(escape(d.manualDescription ?: ""))
+            .append(DurableEnvelopeCodec.escape(d.manualDescription ?: ""))
             .append("\n")
 
         sb.append("taxRateBps=")
@@ -107,15 +110,15 @@ object CashSalePayloadCodec {
         d.items.forEachIndexed { i, item ->
 
             sb.append("item[$i].id=")
-                .append(escape(item.id))
+                .append(DurableEnvelopeCodec.escape(item.id))
                 .append("\n")
 
             sb.append("item[$i].name=")
-                .append(escape(item.name))
+                .append(DurableEnvelopeCodec.escape(item.name))
                 .append("\n")
 
             sb.append("item[$i].desc=")
-                .append(escape(item.description ?: ""))
+                .append(DurableEnvelopeCodec.escape(item.description ?: ""))
                 .append("\n")
 
             sb.append("item[$i].unitPrice=")
@@ -127,7 +130,7 @@ object CashSalePayloadCodec {
                 .append("\n")
 
             sb.append("item[$i].barcode=")
-                .append(escape(item.barcode ?: ""))
+                .append(DurableEnvelopeCodec.escape(item.barcode ?: ""))
                 .append("\n")
 
             sb.append("item[$i].itemPacking=")
@@ -158,10 +161,8 @@ object CashSalePayloadCodec {
      */
     fun decode(intentPayload: String): CashSaleCommand {
 
-        val map = parsePayload(intentPayload)
-
-        val schemaVersion =
-            requiredInt(map, "v")
+        val schemaVersion = readSchemaVersion(intentPayload)
+        val map = parsePayload(intentPayload, schemaVersion <= LEGACY_CURRENT_SCHEMA_VERSION)
 
         requireSupportedSchema(schemaVersion)
 
@@ -462,11 +463,11 @@ object CashSalePayloadCodec {
             "Operation '${op.id}' is not a sale operation."
         }
 
-        val map =
-            parsePayload(op.intentPayload)
-
-        val payloadVersion =
-            requiredInt(map, "v")
+        val payloadVersion = readSchemaVersion(op.intentPayload)
+        val map = parsePayload(
+            op.intentPayload,
+            payloadVersion <= LEGACY_CURRENT_SCHEMA_VERSION
+        )
 
         requireSupportedSchema(payloadVersion)
 
@@ -497,6 +498,7 @@ object CashSalePayloadCodec {
                 requireLegacyCashShape(map)
             }
 
+            LEGACY_CURRENT_SCHEMA_VERSION,
             CURRENT_SCHEMA_VERSION -> {
 
                 require(
@@ -550,14 +552,27 @@ object CashSalePayloadCodec {
 
         require(
             version == LEGACY_SCHEMA_VERSION ||
+                version == LEGACY_CURRENT_SCHEMA_VERSION ||
                 version == CURRENT_SCHEMA_VERSION
         ) {
             "Unsupported Cash Sale payload schema version: $version"
         }
     }
 
+    private fun readSchemaVersion(payload: String): Int {
+        val firstLine = payload.lineSequence().firstOrNull()
+            ?: throw IllegalArgumentException("Cash Sale payload is empty.")
+        val index = firstLine.indexOf('=')
+        require(index > 0 && firstLine.substring(0, index) == "v") {
+            "Cash Sale payload is missing schema version."
+        }
+        return firstLine.substring(index + 1).toIntOrNull()
+            ?: throw IllegalArgumentException("Cash Sale payload schema version is invalid.")
+    }
+
     private fun parsePayload(
-        payload: String
+        payload: String,
+        legacyEscaping: Boolean
     ): Map<String, String> {
 
         val map =
@@ -591,12 +606,18 @@ object CashSalePayloadCodec {
                 "Duplicate Cash Sale payload key '$key'."
             }
 
-            map[key] =
-                unescape(value)
+            map[key] = if (legacyEscaping) {
+                legacyUnescape(value)
+            } else {
+                DurableEnvelopeCodec.unescape(value)
+            }
         }
 
         return map
     }
+
+    private fun legacyUnescape(value: String): String =
+        value.replace("\\n", "\n")
 
     private fun required(
         map: Map<String, String>,
@@ -645,22 +666,4 @@ object CashSalePayloadCodec {
             )
     }
 
-    private fun escape(
-        value: String
-    ): String {
-
-        return value
-            .replace("\n", "\\n")
-            .replace("\r", "")
-    }
-
-    private fun unescape(
-        value: String
-    ): String {
-
-        return value.replace(
-            "\\n",
-            "\n"
-        )
-    }
 }

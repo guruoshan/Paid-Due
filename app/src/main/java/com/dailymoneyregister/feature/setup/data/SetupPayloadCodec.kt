@@ -1,6 +1,7 @@
-﻿package com.dailymoneyregister.feature.setup.data
+package com.dailymoneyregister.feature.setup.data
 
 import com.dailymoneyregister.core.command.CommandFingerprint
+import com.dailymoneyregister.core.serialization.DurableEnvelopeCodec
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 
 data class SetupRecoveryPayload(
@@ -37,31 +38,31 @@ object SetupPayloadCodec {
 
     fun encode(payload: SetupRecoveryPayload): String = buildString {
         appendLine("v=$CURRENT_SCHEMA_VERSION")
-        appendLine("operationId=${escape(payload.operationId)}")
-        appendLine("businessId=${escape(payload.businessId)}")
-        appendLine("branchId=${escape(payload.branchId)}")
-        appendLine("adminUserId=${escape(payload.adminUserId)}")
-        appendLine("membershipId=${escape(payload.membershipId)}")
+        appendLine("operationId=${DurableEnvelopeCodec.escape(payload.operationId)}")
+        appendLine("businessId=${DurableEnvelopeCodec.escape(payload.businessId)}")
+        appendLine("branchId=${DurableEnvelopeCodec.escape(payload.branchId)}")
+        appendLine("adminUserId=${DurableEnvelopeCodec.escape(payload.adminUserId)}")
+        appendLine("membershipId=${DurableEnvelopeCodec.escape(payload.membershipId)}")
         appendLine("occurredAt=${payload.occurredAt}")
-        appendLine("deviceId=${escape(payload.deviceId)}")
+        appendLine("deviceId=${DurableEnvelopeCodec.escape(payload.deviceId)}")
 
-        appendLine("businessName=${escape(payload.businessName)}")
-        appendLine("branchName=${escape(payload.branchName)}")
-        appendLine("branchCode=${escape(payload.branchCode)}")
-        appendLine("countryCode=${escape(payload.countryCode)}")
-        appendLine("currencyCode=${escape(payload.currencyCode)}")
+        appendLine("businessName=${DurableEnvelopeCodec.escape(payload.businessName)}")
+        appendLine("branchName=${DurableEnvelopeCodec.escape(payload.branchName)}")
+        appendLine("branchCode=${DurableEnvelopeCodec.escape(payload.branchCode)}")
+        appendLine("countryCode=${DurableEnvelopeCodec.escape(payload.countryCode)}")
+        appendLine("currencyCode=${DurableEnvelopeCodec.escape(payload.currencyCode)}")
         appendLine("currencyDecimalPlaces=${payload.currencyDecimalPlaces}")
-        appendLine("currencySymbol=${escape(payload.currencySymbol)}")
-        appendLine("timezoneId=${escape(payload.timezoneId)}")
+        appendLine("currencySymbol=${DurableEnvelopeCodec.escape(payload.currencySymbol)}")
+        appendLine("timezoneId=${DurableEnvelopeCodec.escape(payload.timezoneId)}")
         appendLine("taxRoundingMode=${payload.taxRoundingMode.name}")
         appendLine("defaultTaxRateBps=${payload.defaultTaxRateBps}")
 
-        appendLine("adminDisplayName=${escape(payload.adminDisplayName)}")
-        appendLine("adminUsername=${escape(payload.adminUsername)}")
-        payload.adminCanonicalPhone?.let { appendLine("adminCanonicalPhone=${escape(it)}") }
-        appendLine("adminCredentialHash=${escape(payload.adminCredentialHash)}")
-        appendLine("adminCredentialSalt=${escape(payload.adminCredentialSalt)}")
-        appendLine("languageCode=${escape(payload.languageCode)}")
+        appendLine("adminDisplayName=${DurableEnvelopeCodec.escape(payload.adminDisplayName)}")
+        appendLine("adminUsername=${DurableEnvelopeCodec.escape(payload.adminUsername)}")
+        payload.adminCanonicalPhone?.let { appendLine("adminCanonicalPhone=${DurableEnvelopeCodec.escape(it)}") }
+        appendLine("adminCredentialHash=${DurableEnvelopeCodec.escape(payload.adminCredentialHash)}")
+        appendLine("adminCredentialSalt=${DurableEnvelopeCodec.escape(payload.adminCredentialSalt)}")
+        appendLine("languageCode=${DurableEnvelopeCodec.escape(payload.languageCode)}")
     }
 
     fun decode(intentPayload: String): SetupRecoveryPayload {
@@ -137,7 +138,7 @@ object SetupPayloadCodec {
             if (index > 0) {
                 val key = line.substring(0, index)
                 val value = line.substring(index + 1)
-                result[key] = unescape(value)
+                result[key] = DurableEnvelopeCodec.unescape(value)
             }
         }
 
@@ -148,44 +149,4 @@ object SetupPayloadCodec {
         return map[key]
             ?: throw IllegalStateException("Setup recovery payload is missing '$key'")
     }
-
-    private fun escape(value: String): String =
-        value
-            .replace("\\", "\\\\")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-
-    private fun unescape(value: String): String {
-        val result = StringBuilder()
-        var index = 0
-
-        while (index < value.length) {
-            if (value[index] == '\\' && index + 1 < value.length) {
-                when (value[index + 1]) {
-                    'n' -> {
-                        result.append('\n')
-                        index += 2
-                        continue
-                    }
-                    'r' -> {
-                        result.append('\r')
-                        index += 2
-                        continue
-                    }
-                    '\\' -> {
-                        result.append('\\')
-                        index += 2
-                        continue
-                    }
-                }
-            }
-
-            result.append(value[index])
-            index++
-        }
-
-        return result.toString()
-    }
 }
-
-
