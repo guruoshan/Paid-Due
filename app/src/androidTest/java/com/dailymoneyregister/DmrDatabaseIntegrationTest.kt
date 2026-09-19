@@ -8,6 +8,7 @@ import com.dailymoneyregister.core.command.CommandExecutor
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.command.OperationCommand
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.security.FinancialImmutabilityCallback
 import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.i18n.LanguageManager
 import com.dailymoneyregister.core.model.enums.OperationStatus
@@ -56,6 +57,7 @@ class DmrDatabaseIntegrationTest {
         trustedSessionStore.clear()
         database = Room.inMemoryDatabaseBuilder(context, DmrDatabase::class.java)
             .allowMainThreadQueries()
+            .addCallback(FinancialImmutabilityCallback)
             .build()
 
         commandExecutor = CommandExecutor(database)
@@ -592,6 +594,133 @@ class DmrDatabaseIntegrationTest {
         languageManager.setLanguage("hi")
         assertEquals("hi", languageManager.currentLanguage.value.code)
         assertFalse(languageManager.isRtl)
+    }
+
+    private fun operationFixture(
+        id: String = OperationId.generate().value,
+        status: OperationStatus = OperationStatus.PENDING
+    ) = com.dailymoneyregister.core.database.entity.OperationEntity(
+        id = id,
+        businessId = "biz-protection",
+        branchId = "branch-protection",
+        operationType = OperationType.CREATE_BUSINESS,
+        subjectType = SubjectType.BUSINESS,
+        subjectId = "subject-protection",
+        transactionId = null,
+        actorUserId = "actor-protection",
+        deviceId = "device-protection",
+        occurredAt = 1000L,
+        requestFingerprint = "fingerprint-protection",
+        commandSchemaVersion = 1,
+        intentPayload = "payload-protection",
+        status = status
+    )
+
+    @Test
+    fun testOperationDurableIdentityDeleteAndDuplicateAreDatabaseProtected() = runBlocking {
+        val operation = operationFixture()
+        database.operationDao().insertOperation(operation)
+
+        val identityUpdates = listOf(
+            "id = 'other-id'",
+            "business_id = 'other-business'",
+            "branch_id = 'other-branch'",
+            "operation_type = 'CREATE_BRANCH'",
+            "subject_type = 'BRANCH'",
+            "subject_id = 'other-subject'",
+            "transaction_id = 'other-transaction'",
+            "actor_user_id = 'other-actor'",
+            "device_id = 'other-device'",
+            "occurred_at = 2000",
+            "request_fingerprint = 'other-fingerprint'",
+            "command_schema_version = 2",
+            "intent_payload = 'other-payload'"
+        )
+        identityUpdates.forEach { assignment ->
+            assertThrows(RuntimeException::class.java) {
+                database.openHelper.writableDatabase.execSQL(
+                    "UPDATE operations SET $assignment WHERE id = ?",
+                    arrayOf(operation.id)
+                )
+            }
+        }
+        assertThrows(RuntimeException::class.java) {
+            database.openHelper.writableDatabase.execSQL(
+                "DELETE FROM operations WHERE id = ?", arrayOf(operation.id)
+            )
+        }
+        assertThrows(RuntimeException::class.java) {
+            database.openHelper.writableDatabase.execSQL(
+                "INSERT OR REPLACE INTO operations (id, business_id, branch_id, operation_type, subject_type, subject_id, transaction_id, actor_user_id, device_id, occurred_at, request_fingerprint, command_schema_version, intent_payload, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                arrayOf(operation.id, operation.businessId, operation.branchId, "CREATE_BUSINESS", "BUSINESS", operation.subjectId, null, operation.actorUserId, operation.deviceId, operation.occurredAt, operation.requestFingerprint, operation.commandSchemaVersion, operation.intentPayload, "PENDING")
+            )
+        }
+        Unit
+    }
+
+    @Test
+    fun testOperationRecursiveTriggersAndIgnoreInsertBehavior() = runBlocking {
+        database.openHelper.readableDatabase.query("PRAGMA recursive_triggers").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(1, cursor.getInt(0))
+        }
+
+        val operation = operationFixture()
+        database.operationDao().insertOperation(operation)
+
+        assertThrows(RuntimeException::class.java) {
+            database.openHelper.writableDatabase.execSQL(
+                "INSERT OR REPLACE INTO operations (id, business_id, branch_id, operation_type, subject_type, subject_id, transaction_id, actor_user_id, device_id, occurred_at, request_fingerprint, command_schema_version, intent_payload, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                arrayOf(operation.id, operation.businessId, operation.branchId, "CREATE_BUSINESS", "BUSINESS", operation.subjectId, null, operation.actorUserId, operation.deviceId, operation.occurredAt, operation.requestFingerprint, operation.commandSchemaVersion, "replacement-payload", "PENDING")
+            )
+        }
+
+        val ignored = database.operationDao().insertOperationIfAbsent(
+            operation.copy(intentPayload = "ignored-payload")
+        )
+        assertEquals(-1L, ignored)
+        assertEquals(operation, database.operationDao().getOperationById(operation.id))
+    }
+
+    @Test
+    fun testOperationAllowedLifecycleTransitionsAreDatabaseProtected() = runBlocking {
+        suspend fun transition(from: OperationStatus, to: OperationStatus) {
+            val operation = operationFixture(status = from)
+            database.operationDao().insertOperation(operation)
+            val resultType = if (to == OperationStatus.SUCCEEDED) "BUSINESS" else null
+            val resultId = if (to == OperationStatus.SUCCEEDED) "result" else null
+            val reason = if (to == OperationStatus.FAILED || to == OperationStatus.REQUIRES_RECONCILIATION) "reason" else null
+            database.openHelper.writableDatabase.execSQL(
+                "UPDATE operations SET status = ?, result_reference_type = ?, result_reference_id = ?, reason = ? WHERE id = ?",
+                arrayOf(to.name, resultType, resultId, reason, operation.id)
+            )
+            assertEquals(to, database.operationDao().getOperationById(operation.id)?.status)
+        }
+        transition(OperationStatus.PENDING, OperationStatus.SUCCEEDED)
+        transition(OperationStatus.PENDING, OperationStatus.FAILED)
+        transition(OperationStatus.PENDING, OperationStatus.REQUIRES_RECONCILIATION)
+        transition(OperationStatus.REQUIRES_RECONCILIATION, OperationStatus.SUCCEEDED)
+        transition(OperationStatus.REQUIRES_RECONCILIATION, OperationStatus.FAILED)
+    }
+
+    @Test
+    fun testOperationInvalidAndSameStatusUpdatesAreRejected() = runBlocking {
+        suspend fun assertRejected(from: OperationStatus, to: OperationStatus) {
+            val operation = operationFixture(status = from)
+            database.operationDao().insertOperation(operation)
+            assertThrows(RuntimeException::class.java) {
+                database.openHelper.writableDatabase.execSQL(
+                    "UPDATE operations SET status = ?, reason = 'changed' WHERE id = ?",
+                    arrayOf(to.name, operation.id)
+                )
+            }
+        }
+        assertRejected(OperationStatus.SUCCEEDED, OperationStatus.PENDING)
+        assertRejected(OperationStatus.SUCCEEDED, OperationStatus.FAILED)
+        assertRejected(OperationStatus.FAILED, OperationStatus.PENDING)
+        assertRejected(OperationStatus.FAILED, OperationStatus.SUCCEEDED)
+        assertRejected(OperationStatus.PENDING, OperationStatus.PENDING)
+        assertRejected(OperationStatus.REQUIRES_RECONCILIATION, OperationStatus.REQUIRES_RECONCILIATION)
     }
 
     @Test
