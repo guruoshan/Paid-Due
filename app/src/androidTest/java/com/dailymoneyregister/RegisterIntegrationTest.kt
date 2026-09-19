@@ -21,6 +21,7 @@ import com.dailymoneyregister.core.model.ids.OperationId
 import com.dailymoneyregister.core.model.ids.TransactionId
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
+import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.feature.register.data.CashSaleCommand
 import com.dailymoneyregister.feature.register.data.RegisterRepository
 import com.dailymoneyregister.feature.register.domain.DraftItem
@@ -605,7 +606,8 @@ class RegisterIntegrationTest {
         val authRepo = com.dailymoneyregister.feature.auth.data.AuthRepository(
             database = database,
             pinThrottler = throttler,
-            languageManager = langManager
+            languageManager = langManager,
+            trustedSessionStore = TrustedSessionStore(context)
         )
 
         val authResult = authRepo.loginCashier("inactive_cashier", "123456")

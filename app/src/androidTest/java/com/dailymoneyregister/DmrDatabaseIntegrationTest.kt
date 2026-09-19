@@ -20,6 +20,7 @@ import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import com.dailymoneyregister.core.security.PinThrottler
 import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.feature.admin.data.CashierManagementRepository
 import com.dailymoneyregister.feature.admin.data.CashierPermissionsConfig
 import com.dailymoneyregister.feature.admin.data.CreateCashierParams
@@ -46,22 +47,27 @@ class DmrDatabaseIntegrationTest {
     private lateinit var authRepository: AuthRepository
     private lateinit var cashierManagementRepository: CashierManagementRepository
     private lateinit var context: Context
+    private lateinit var trustedSessionStore: TrustedSessionStore
 
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
+        trustedSessionStore = TrustedSessionStore(context)
+        trustedSessionStore.clear()
         database = Room.inMemoryDatabaseBuilder(context, DmrDatabase::class.java)
             .allowMainThreadQueries()
             .build()
 
         commandExecutor = CommandExecutor(database)
-        setupRepository = SetupRepository(database, commandExecutor, com.dailymoneyregister.core.device.DeviceIdentityProvider(context))
-        authRepository = AuthRepository(database, PinThrottler(context = context), LanguageManager(context))
+        setupRepository = SetupRepository(database, commandExecutor, com.dailymoneyregister.core.device.DeviceIdentityProvider(context), trustedSessionStore)
+        authRepository = AuthRepository(database, PinThrottler(context = context), LanguageManager(context), trustedSessionStore)
         cashierManagementRepository = CashierManagementRepository(database, commandExecutor, com.dailymoneyregister.core.device.DeviceIdentityProvider(context))
     }
 
     @After
     fun tearDown() {
+        trustedSessionStore.clear()
+        SessionManager.clearSession()
         database.close()
     }
 
@@ -400,6 +406,7 @@ class DmrDatabaseIntegrationTest {
         // Admin login success
         val adminLogin = authRepository.loginAdmin("admin_user", "AdminPassSecret")
         assertTrue(adminLogin is AuthResult.Success)
+        assertEquals((adminLogin as AuthResult.Success).session.user.id, trustedSessionStore.load()?.userId)
 
         // Admin login wrong password
         val adminFail = authRepository.loginAdmin("admin_user", "WrongPass")
@@ -408,6 +415,7 @@ class DmrDatabaseIntegrationTest {
         // Cashier login success
         val cashierLogin = authRepository.loginCashier("bob", "112233")
         assertTrue(cashierLogin is AuthResult.Success)
+        assertEquals((cashierLogin as AuthResult.Success).session.user.id, trustedSessionStore.load()?.userId)
 
         // Cashier login wrong PIN
         val cashierFail = authRepository.loginCashier("bob", "999999")

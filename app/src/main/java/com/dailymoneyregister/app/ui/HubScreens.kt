@@ -1,5 +1,7 @@
 package com.dailymoneyregister.app.ui
 
+import com.dailymoneyregister.core.security.SessionManager
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,7 +19,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dailymoneyregister.R
-import com.dailymoneyregister.core.security.SessionManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -149,7 +150,6 @@ fun AdminHubScreen(
 
             OutlinedButton(
                 onClick = {
-                    SessionManager.clearSession()
                     onLogout()
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp)

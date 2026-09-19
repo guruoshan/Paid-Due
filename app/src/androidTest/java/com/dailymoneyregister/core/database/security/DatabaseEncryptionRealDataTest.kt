@@ -17,6 +17,7 @@ import com.dailymoneyregister.core.model.ids.TransactionId
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import com.dailymoneyregister.core.security.PinThrottler
+import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.feature.admin.data.CashierManagementRepository
 import com.dailymoneyregister.feature.admin.data.CashierPermissionsConfig
 import com.dailymoneyregister.feature.admin.data.CreateCashierParams
@@ -92,7 +93,8 @@ class DatabaseEncryptionRealDataTest {
                 SetupRepository(
                     db,
                     commandExecutor,
-                    DeviceIdentityProvider(context)
+                    DeviceIdentityProvider(context),
+                    TrustedSessionStore(context)
                 )
 
             val cashierRepository =
@@ -106,7 +108,8 @@ class DatabaseEncryptionRealDataTest {
                 AuthRepository(
                     db,
                     PinThrottler(context = context),
-                    LanguageManager(context)
+                    LanguageManager(context),
+                    TrustedSessionStore(context)
                 )
 
             val registerRepository =
@@ -477,7 +480,8 @@ class DatabaseEncryptionRealDataTest {
                 AuthRepository(
                     reopened,
                     PinThrottler(context = context),
-                    LanguageManager(context)
+                    LanguageManager(context),
+                    TrustedSessionStore(context)
                 )
 
             assertTrue(

@@ -10,6 +10,7 @@ import com.dailymoneyregister.core.security.PasswordHasher
 import com.dailymoneyregister.core.security.PinHasher
 import com.dailymoneyregister.core.security.PinThrottler
 import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.core.identity.PhoneNumberNormalizer
 import javax.inject.Inject
 
@@ -34,7 +35,8 @@ sealed class AuthResult {
 class AuthRepository @Inject constructor(
     private val database: DmrDatabase,
     private val pinThrottler: PinThrottler,
-    private val languageManager: LanguageManager
+    private val languageManager: LanguageManager,
+    private val trustedSessionStore: TrustedSessionStore
 ) {
 
     private companion object {
@@ -199,6 +201,12 @@ class AuthRepository @Inject constructor(
 
         SessionManager.setSession(session)
 
+        trustedSessionStore.save(
+            businessId = session.business.id,
+            branchId = session.branch.id,
+            userId = session.user.id
+        )
+
         languageManager.setLanguage(
             authenticatedUser.languageCode
         )
@@ -340,6 +348,12 @@ class AuthRepository @Inject constructor(
             )
 
         SessionManager.setSession(session)
+
+        trustedSessionStore.save(
+            businessId = session.business.id,
+            branchId = session.branch.id,
+            userId = session.user.id
+        )
 
         languageManager.setLanguage(
             authenticatedUser.languageCode

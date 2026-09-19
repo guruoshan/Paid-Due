@@ -23,6 +23,7 @@ import com.dailymoneyregister.core.identity.PhoneNumberNormalizer
 import com.dailymoneyregister.core.device.DeviceIdentityProvider
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.core.security.TrustedSessionStore
 import javax.inject.Inject
 
 data class SetupParams(
@@ -52,7 +53,8 @@ data class SetupResult(
 class SetupRepository @Inject constructor(
     private val database: DmrDatabase,
     private val commandExecutor: CommandExecutor,
-    private val deviceIdentityProvider: DeviceIdentityProvider
+    private val deviceIdentityProvider: DeviceIdentityProvider,
+    private val trustedSessionStore: TrustedSessionStore
 ) {
     private val businessBranchDao = database.businessBranchDao()
     private val userDao = database.userDao()
@@ -67,6 +69,11 @@ class SetupRepository @Inject constructor(
         val membership = userDao.getMembership(user.id, branch.id)
             ?: error("Setup admin membership was not persisted")
         SessionManager.setSession(ActiveSession(business, branch, user, membership))
+        trustedSessionStore.save(
+            businessId = business.id,
+            branchId = branch.id,
+            userId = user.id
+        )
     }
 
     suspend fun isSetupComplete(): Boolean {

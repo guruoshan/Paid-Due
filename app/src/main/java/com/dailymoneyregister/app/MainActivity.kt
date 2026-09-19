@@ -1,4 +1,4 @@
-﻿package com.dailymoneyregister.app
+package com.dailymoneyregister.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -16,6 +16,8 @@ import com.dailymoneyregister.app.ui.DmrApp
 import com.dailymoneyregister.core.i18n.LanguageManager
 import com.dailymoneyregister.core.security.DebugSessionBootstrapper
 import com.dailymoneyregister.core.startup.StartupRecoveryCoordinator
+import com.dailymoneyregister.core.security.TrustedSessionStore
+import com.dailymoneyregister.core.security.TrustedSessionRestorer
 import com.dailymoneyregister.feature.setup.data.SetupRepository
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -34,6 +36,12 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var startupRecoveryCoordinator: StartupRecoveryCoordinator
+
+    @Inject
+    lateinit var trustedSessionStore: TrustedSessionStore
+
+    @Inject
+    lateinit var trustedSessionRestorer: TrustedSessionRestorer
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,7 +68,9 @@ class MainActivity : ComponentActivity() {
                             setupRepository = setupRepository,
                             languageManager = languageManager,
                             debugSessionBootstrapper = debugSessionBootstrapper,
-                            startupRecoveryCoordinator = startupRecoveryCoordinator
+                            startupRecoveryCoordinator = startupRecoveryCoordinator,
+                            trustedSessionStore = trustedSessionStore,
+                            trustedSessionRestorer = trustedSessionRestorer
                         )
                     }
                 }

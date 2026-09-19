@@ -1,4 +1,4 @@
-﻿package com.dailymoneyregister.app.ui
+package com.dailymoneyregister.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,6 +17,9 @@ import androidx.navigation.compose.rememberNavController
 import com.dailymoneyregister.core.i18n.LanguageManager
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.security.DebugSessionBootstrapper
+import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.core.security.TrustedSessionStore
+import com.dailymoneyregister.core.security.TrustedSessionRestorer
 import com.dailymoneyregister.core.startup.StartupRecoveryCoordinator
 import com.dailymoneyregister.feature.admin.ui.CashierManagementScreen
 import com.dailymoneyregister.feature.admin.ui.CashierManagementViewModel
@@ -47,7 +50,9 @@ fun DmrApp(
     setupRepository: SetupRepository,
     languageManager: LanguageManager,
     debugSessionBootstrapper: DebugSessionBootstrapper,
-    startupRecoveryCoordinator: StartupRecoveryCoordinator
+    startupRecoveryCoordinator: StartupRecoveryCoordinator,
+    trustedSessionStore: TrustedSessionStore,
+    trustedSessionRestorer: TrustedSessionRestorer
 ) {
     val navController = rememberNavController()
 
@@ -94,13 +99,29 @@ fun DmrApp(
 
             } else {
 
-                val debugSessionReady =
-                    debugSessionBootstrapper.bootstrapIfDebug()
+                val restoredSession =
+                    trustedSessionRestorer.restore()
 
-                if (debugSessionReady) {
-                    Routes.REGISTER
+                if (restoredSession != null) {
+                    when {
+                        restoredSession.user.role == UserRole.ADMIN ->
+                            Routes.ADMIN_HUB
+
+                        restoredSession.requiresPinChange ->
+                            Routes.CHANGE_PIN
+
+                        else ->
+                            Routes.REGISTER
+                    }
                 } else {
-                    Routes.LOGIN
+                    val debugSessionReady =
+                        debugSessionBootstrapper.bootstrapIfDebug()
+
+                    if (debugSessionReady) {
+                        Routes.REGISTER
+                    } else {
+                        Routes.LOGIN
+                    }
                 }
             }
 
@@ -181,7 +202,6 @@ fun DmrApp(
             LoginScreen(
                 viewModel = loginViewModel,
                 onLoginSuccess = { session ->
-
                     val destination =
                         if (session.user.role == UserRole.ADMIN) {
                             Routes.ADMIN_HUB
@@ -225,6 +245,8 @@ fun DmrApp(
                     navController.navigate(Routes.SETTINGS)
                 },
                 onLogout = {
+                    trustedSessionStore.clear()
+                    SessionManager.clearSession()
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(Routes.ADMIN_HUB) {
                             inclusive = true
@@ -272,6 +294,8 @@ fun DmrApp(
                     navController.popBackStack()
                 },
                 onLogout = {
+                    trustedSessionStore.clear()
+                    SessionManager.clearSession()
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(0) {
                             inclusive = true

@@ -1,5 +1,7 @@
 package com.dailymoneyregister.feature.settings.ui
 
+import com.dailymoneyregister.core.security.SessionManager
+
 import com.dailymoneyregister.core.ui.nativeLabel
 
 import androidx.compose.foundation.clickable
@@ -20,7 +22,6 @@ import androidx.compose.ui.unit.sp
 import com.dailymoneyregister.R
 import com.dailymoneyregister.core.i18n.LanguageManager
 import com.dailymoneyregister.core.i18n.LanguageRegistry
-import com.dailymoneyregister.core.security.SessionManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,7 +107,6 @@ fun SettingsScreen(
             // Logout Button
             OutlinedButton(
                 onClick = {
-                    SessionManager.clearSession()
                     onLogout()
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
