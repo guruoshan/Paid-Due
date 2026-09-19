@@ -2,4 +2,13 @@
 <resources>
     <!-- Localization preparation: new UI strings fall back to values/strings_localization.xml.
          Add entries here when translations are available; existing strings.xml is preserved. -->
+    <string name="cash">نقد</string>
+    <string name="change">تبدیل کریں</string>
+    <string name="profile_business">کاروبار: %1$s</string>
+    <string name="profile_branch">برانچ: %1$s (%2$s)</string>
+    <string name="profile_currency">کرنسی: %1$s (%2$s اعشاریہ)</string>
+    <string name="profile_timezone">ٹائم زون: %1$s</string>
+    <string name="profile_user">لاگ ان بطور: %1$s (%2$s)</string>
+    <string name="role_admin">ایڈمن</string>
+    <string name="role_cashier">کیشیئر</string>
 </resources>
