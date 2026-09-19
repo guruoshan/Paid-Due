@@ -313,6 +313,255 @@ class DmrDatabaseIntegrationTest {
     }
 
     @Test
+    fun testResolvedAccountThrottleIsSharedAcrossEquivalentPhoneInputs() = runBlocking {
+        val setup = (setupRepository.executeSetup(SetupParams(
+            businessName = "Throttle Shop",
+            branchName = "Main",
+            branchCode = "THR",
+            countryCode = "OM",
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat",
+            taxRoundingMode = TaxRoundingMode.HALF_UP,
+            defaultTaxRateBps = 0,
+            adminDisplayName = "Throttle Admin",
+            adminUsername = "throttle_admin",
+            adminPhone = "91234567",
+            adminPasswordPlain = "ThrottleAdminPass123",
+            languageCode = "en"
+        )) as CommandResult.Success).data
+
+        val prefs = context.getSharedPreferences(
+            "test_account_scoped_throttling",
+            Context.MODE_PRIVATE
+        )
+        prefs.edit().clear().commit()
+        val throttledAuth = AuthRepository(
+            database,
+            PinThrottler(context = context, prefs = prefs),
+            LanguageManager(context),
+            trustedSessionStore
+        )
+
+        assertTrue(
+            throttledAuth.loginAdmin("+968 9123 4567", "wrong-password")
+                is AuthResult.InvalidCredentials
+        )
+        assertTrue(
+            throttledAuth.loginAdmin("00968 91234567", "ThrottleAdminPass123")
+                is AuthResult.Success
+        )
+        assertEquals(
+            0L,
+            throttledAuth.getLoginLockoutRemaining("ADMIN", "+96891234567")
+        )
+
+        repeat(4) { index ->
+            val input = if (index % 2 == 0) "+968 9123 4567" else "00968 91234567"
+            assertTrue(
+                throttledAuth.loginAdmin(input, "wrong-password")
+                    is AuthResult.InvalidCredentials
+            )
+        }
+        assertTrue(
+            throttledAuth.loginAdmin("+96891234567", "wrong-password")
+                is AuthResult.LockedOut
+        )
+        assertTrue(
+            throttledAuth.getLoginLockoutRemaining("ADMIN", "00968 91234567") > 0L
+        )
+        assertEquals(setup.adminUserId.value, database.userDao().getFirstAdmin(
+            setup.businessId.value
+        )?.id)
+    }
+
+    @Test
+    fun testResolvedLoginReturnsMaximumPreAndAccountLockout() = runBlocking {
+        val setup = (setupRepository.executeSetup(SetupParams(
+            businessName = "Maximum Lockout Shop",
+            branchName = "Main",
+            branchCode = "MAX",
+            countryCode = "OM",
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat",
+            taxRoundingMode = TaxRoundingMode.HALF_UP,
+            defaultTaxRateBps = 0,
+            adminDisplayName = "Maximum Admin",
+            adminUsername = "maximum_admin",
+            adminPhone = "91234567",
+            adminPasswordPlain = "MaximumAdminPass123",
+            languageCode = "en"
+        )) as CommandResult.Success).data
+        val prefs = context.getSharedPreferences("test_maximum_lockout", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val throttler = PinThrottler(context, prefs, maxAttempts = 1, lockoutDurationMillis = 30_000L)
+        val auth = AuthRepository(database, throttler, LanguageManager(context), trustedSessionStore)
+        val preKey = "pre:v1:ADMIN:${setup.businessId.value}:${setup.branchId.value}:PHONE:+96891234567"
+        val accountKey = "acct:v1:${setup.businessId.value}:${setup.adminUserId.value}"
+        val now = System.currentTimeMillis()
+        throttler.recordFailure(preKey, currentTimeMillis = now - 10_000L)
+        throttler.recordFailure(accountKey, currentTimeMillis = now)
+        val preRemaining = throttler.getRemainingLockoutSeconds(preKey, currentTimeMillis = now)
+        val accountRemaining = throttler.getRemainingLockoutSeconds(accountKey, currentTimeMillis = now)
+        assertTrue(accountRemaining > preRemaining)
+
+        val result = auth.loginAdmin("+968 9123 4567", "wrong-password")
+        assertTrue(result is AuthResult.LockedOut)
+        val returnedRemaining = (result as AuthResult.LockedOut).remainingSeconds
+        assertTrue(returnedRemaining >= accountRemaining - 1L)
+        assertTrue(returnedRemaining >= preRemaining + 5L)
+    }
+
+    @Test
+    fun testCashierEquivalentPhonesShareCanonicalAccountBudget() = runBlocking {
+        val setup = (setupRepository.executeSetup(SetupParams(
+            businessName = "Cashier Throttle Shop",
+            branchName = "Main",
+            branchCode = "CASH",
+            countryCode = "OM",
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat",
+            taxRoundingMode = TaxRoundingMode.HALF_UP,
+            defaultTaxRateBps = 0,
+            adminDisplayName = "Cashier Owner",
+            adminUsername = "cashier_owner",
+            adminPasswordPlain = "CashierOwnerPass123",
+            languageCode = "en"
+        )) as CommandResult.Success).data
+        val cashier = (cashierManagementRepository.createCashier(CreateCashierParams(
+            businessId = setup.businessId.value,
+            branchId = setup.branchId.value,
+            adminUserId = setup.adminUserId.value,
+            displayName = "Phone Cashier",
+            username = "phone_cashier",
+            phone = "92345678",
+            pin = "123456",
+            preferredLanguage = "en"
+        )) as CommandResult.Success).data
+        val prefs = context.getSharedPreferences("test_cashier_account_budget", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val auth = AuthRepository(
+            database,
+            PinThrottler(context, prefs, maxAttempts = 3, lockoutDurationMillis = 30_000L),
+            LanguageManager(context),
+            trustedSessionStore
+        )
+        repeat(2) { index ->
+            val input = if (index == 0) "+968 9234 5678" else "00968 92345678"
+            assertTrue(auth.loginCashier(input, "999999") is AuthResult.InvalidCredentials)
+        }
+        val locked = auth.loginCashier("+96892345678", "999999")
+        assertTrue(locked is AuthResult.LockedOut)
+        assertTrue((locked as AuthResult.LockedOut).remainingSeconds > 0L)
+        assertTrue(auth.getLoginLockoutRemaining("CASHIER", "00968 92345678") > 0L)
+        assertEquals(cashier.value, database.userDao().getUserByUsername(setup.businessId.value, "phone_cashier")?.id)
+    }
+
+    @Test
+    fun testUnknownLoginFailuresUsePreResolutionBudget() = runBlocking {
+        val setup = (setupRepository.executeSetup(SetupParams(
+            businessName = "Unknown Throttle Shop",
+            branchName = "Main",
+            branchCode = "UNK",
+            countryCode = "OM",
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat",
+            taxRoundingMode = TaxRoundingMode.HALF_UP,
+            defaultTaxRateBps = 0,
+            adminDisplayName = "Unknown Owner",
+            adminUsername = "unknown_owner",
+            adminPasswordPlain = "UnknownOwnerPass123",
+            languageCode = "en"
+        )) as CommandResult.Success).data
+        val prefs = context.getSharedPreferences("test_unknown_pre_budget", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val throttler = PinThrottler(context, prefs, maxAttempts = 2, lockoutDurationMillis = 30_000L)
+        val auth = AuthRepository(database, throttler, LanguageManager(context), trustedSessionStore)
+        assertTrue(auth.loginCashier("unknown_cashier", "999999") is AuthResult.InvalidCredentials)
+        val locked = auth.loginCashier("unknown_cashier", "999999")
+        assertTrue(locked is AuthResult.LockedOut)
+        assertTrue(throttler.isLockedOut("pre:v1:CASHIER:${setup.businessId.value}:${setup.branchId.value}:USERNAME:unknown_cashier"))
+        assertNull(database.userDao().getUserByUsername(setup.businessId.value, "unknown_cashier"))
+    }
+
+    @Test
+    fun testResolvedFailureUsesAccountKeyWithoutPreKeyBudget() = runBlocking {
+        val setup = (setupRepository.executeSetup(SetupParams(
+            businessName = "Resolved Failure Shop",
+            branchName = "Main",
+            branchCode = "RES",
+            countryCode = "OM",
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat",
+            taxRoundingMode = TaxRoundingMode.HALF_UP,
+            defaultTaxRateBps = 0,
+            adminDisplayName = "Resolved Owner",
+            adminUsername = "resolved_owner",
+            adminPhone = "93456789",
+            adminPasswordPlain = "ResolvedOwnerPass123",
+            languageCode = "en"
+        )) as CommandResult.Success).data
+        val prefs = context.getSharedPreferences("test_resolved_account_only", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val throttler = PinThrottler(context, prefs, maxAttempts = 2, lockoutDurationMillis = 30_000L)
+        val auth = AuthRepository(database, throttler, LanguageManager(context), trustedSessionStore)
+        val preKey = "pre:v1:ADMIN:${setup.businessId.value}:${setup.branchId.value}:PHONE:+96893456789"
+        val accountKey = "acct:v1:${setup.businessId.value}:${setup.adminUserId.value}"
+        assertTrue(auth.loginAdmin("+96893456789", "wrong-password") is AuthResult.InvalidCredentials)
+        assertFalse(throttler.isLockedOut(preKey))
+        assertFalse(throttler.isLockedOut(accountKey))
+        assertTrue(auth.loginAdmin("+96893456789", "wrong-password") is AuthResult.LockedOut)
+        assertTrue(throttler.isLockedOut(accountKey))
+        assertFalse(throttler.isLockedOut(preKey))
+    }
+
+    @Test
+    fun testSuccessfulResolvedLoginClearsAccountAndCurrentPreKey() = runBlocking {
+        val setup = (setupRepository.executeSetup(SetupParams(
+            businessName = "Success Reset Shop",
+            branchName = "Main",
+            branchCode = "RST",
+            countryCode = "OM",
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat",
+            taxRoundingMode = TaxRoundingMode.HALF_UP,
+            defaultTaxRateBps = 0,
+            adminDisplayName = "Reset Owner",
+            adminUsername = "reset_owner",
+            adminPhone = "94567890",
+            adminPasswordPlain = "ResetOwnerPass123",
+            languageCode = "en"
+        )) as CommandResult.Success).data
+        val prefs = context.getSharedPreferences("test_success_reset_keys", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val throttler = PinThrottler(context, prefs, maxAttempts = 5, lockoutDurationMillis = 30_000L)
+        val auth = AuthRepository(database, throttler, LanguageManager(context), trustedSessionStore)
+        val preKey = "pre:v1:ADMIN:${setup.businessId.value}:${setup.branchId.value}:PHONE:+96894567890"
+        val accountKey = "acct:v1:${setup.businessId.value}:${setup.adminUserId.value}"
+        throttler.recordFailure(preKey)
+        throttler.recordFailure(accountKey)
+        assertTrue(auth.loginAdmin("+968 9456 7890", "ResetOwnerPass123") is AuthResult.Success)
+        assertFalse(throttler.isLockedOut(preKey))
+        assertFalse(throttler.isLockedOut(accountKey))
+        assertFalse(prefs.contains("count_$preKey"))
+        assertFalse(prefs.contains("count_$accountKey"))
+        assertFalse(prefs.contains("lockout_$preKey"))
+        assertFalse(prefs.contains("lockout_$accountKey"))
+        assertEquals(0L, auth.getLoginLockoutRemaining("ADMIN", "00968 94567890"))
+    }
+
+    @Test
     fun testAdminCreatesCashierWithSixDigitPinAndBranchMembership() = runBlocking {
         // First run setup
         val setupParams = SetupParams(

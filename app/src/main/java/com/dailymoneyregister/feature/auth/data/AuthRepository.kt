@@ -51,6 +51,101 @@ class AuthRepository @Inject constructor(
     private val userDao =
         database.userDao()
 
+    private data class LoginIdentifier(
+        val cleanUsername: String,
+        val canonicalPhone: String?,
+        val preResolutionKey: String
+    )
+
+    private fun preResolutionThrottleKey(
+        mode: String,
+        businessId: String,
+        branchId: String,
+        canonicalPhone: String?,
+        cleanUsername: String
+    ): String {
+        val identifierType = if (canonicalPhone != null) "PHONE" else "USERNAME"
+        val normalizedIdentifier = canonicalPhone ?: cleanUsername
+        return "pre:v1:$mode:$businessId:$branchId:$identifierType:$normalizedIdentifier"
+    }
+
+    private fun accountThrottleKey(
+        businessId: String,
+        userId: String
+    ): String = "acct:v1:$businessId:$userId"
+
+    private fun normalizeLoginIdentifier(
+        mode: String,
+        username: String,
+        businessId: String,
+        branch: com.dailymoneyregister.core.database.entity.BranchEntity
+    ): LoginIdentifier {
+        val canonicalPhone = runCatching {
+            PhoneNumberNormalizer.normalize(username, branch.countryCode)
+        }.getOrNull()
+        val cleanUsername = username.trim()
+        val preResolutionKey = preResolutionThrottleKey(
+            mode = mode,
+            businessId = businessId,
+            branchId = branch.id,
+            canonicalPhone = canonicalPhone,
+            cleanUsername = cleanUsername
+        )
+        return LoginIdentifier(cleanUsername, canonicalPhone, preResolutionKey)
+    }
+
+    private suspend fun resolveLoginLookup(
+        identifier: LoginIdentifier,
+        businessId: String
+    ): UserAccountEntity? {
+        return identifier.canonicalPhone?.let {
+            userDao.getUserByCanonicalPhone(businessId, it)
+        } ?: userDao.getUserByUsername(businessId, identifier.cleanUsername)?.takeIf {
+            userDao.getHumanIdentityById(it.identityId ?: it.id)?.canonicalPhone == null
+        }
+    }
+
+    /**
+     * Authoritative lockout query for the login UI. It applies the same
+     * normalization and account lookup semantics as the login methods while
+     * returning only timing state, never account-existence information.
+     */
+    suspend fun getLoginLockoutRemaining(
+        mode: String,
+        username: String
+    ): Long {
+        val business = businessBranchDao.getFirstBusiness() ?: return 0L
+        val branch = businessBranchDao.getFirstBranch(business.id) ?: return 0L
+        val identifier = normalizeLoginIdentifier(mode, username, business.id, branch)
+        val preRemaining = pinThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
+        val user = resolveLoginLookup(identifier, business.id)
+        val accountRemaining = user?.let {
+            pinThrottler.getRemainingLockoutSeconds(
+                accountThrottleKey(business.id, it.id)
+            )
+        } ?: 0L
+        return maxOf(preRemaining, accountRemaining)
+    }
+
+    private fun resolvedFailureKey(
+        businessId: String,
+        identifier: LoginIdentifier,
+        user: UserAccountEntity?
+    ): String = user?.let {
+        accountThrottleKey(businessId, it.id)
+    } ?: identifier.preResolutionKey
+
+    private fun clearSuccessfulLoginThrottle(
+        businessId: String,
+        identifier: LoginIdentifier,
+        user: UserAccountEntity?
+    ) {
+        user?.let {
+            pinThrottler.recordSuccess(accountThrottleKey(businessId, it.id))
+        }
+        pinThrottler.recordSuccess(identifier.preResolutionKey)
+    }
+
     suspend fun loginAdmin(
         username: String,
         passwordPlain: String
@@ -64,31 +159,17 @@ class AuthRepository @Inject constructor(
 
         val branch = businessBranchDao.getFirstBranch(business.id)
             ?: return AuthResult.Error("No branch found for business")
-        val canonicalPhone = runCatching {
-            PhoneNumberNormalizer.normalize(username, branch.countryCode)
-        }.getOrNull()
-        val cleanUsername = username.trim()
+        val identifier = normalizeLoginIdentifier("ADMIN", username, business.id, branch)
+        var remainingLockout = pinThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
+        val user = resolveLoginLookup(identifier, business.id)
+        val accountKey = user?.let { accountThrottleKey(business.id, it.id) }
+        val accountRemaining = accountKey?.let {
+            pinThrottler.getRemainingLockoutSeconds(it)
+        } ?: 0L
+        remainingLockout = maxOf(remainingLockout, accountRemaining)
+        if (remainingLockout > 0L) return AuthResult.LockedOut(remainingLockout)
 
-        val throttleIdentifier =
-            "admin:${canonicalPhone ?: cleanUsername}"
-
-        if (
-            pinThrottler.isLockedOut(
-                throttleIdentifier
-            )
-        ) {
-            return AuthResult.LockedOut(
-                pinThrottler
-                    .getRemainingLockoutSeconds(
-                        throttleIdentifier
-                    )
-            )
-        }
-
-        val user = canonicalPhone?.let { userDao.getUserByCanonicalPhone(business.id, it) }
-            ?: userDao.getUserByUsername(business.id, cleanUsername)?.takeIf {
-                userDao.getHumanIdentityById(it.identityId ?: it.id)?.canonicalPhone == null
-            }
+        val failureKey = resolvedFailureKey(business.id, identifier, user)
 
         if (user == null) {
             PasswordHasher.verifyPassword(
@@ -99,7 +180,7 @@ class AuthRepository @Inject constructor(
 
             val lockoutSeconds =
                 pinThrottler.recordFailure(
-                    throttleIdentifier
+                    failureKey
                 )
 
             return if (lockoutSeconds > 0L) {
@@ -120,7 +201,7 @@ class AuthRepository @Inject constructor(
         ) {
             val lockoutSeconds =
                 pinThrottler.recordFailure(
-                    throttleIdentifier
+                    failureKey
                 )
 
             return if (lockoutSeconds > 0L) {
@@ -144,7 +225,7 @@ class AuthRepository @Inject constructor(
         if (!isValid) {
             val lockoutSeconds =
                 pinThrottler.recordFailure(
-                    throttleIdentifier
+                    failureKey
                 )
 
             return if (lockoutSeconds > 0L) {
@@ -167,7 +248,7 @@ class AuthRepository @Inject constructor(
         if (authenticatedUser == null) {
             val lockoutSeconds =
                 pinThrottler.recordFailure(
-                    throttleIdentifier
+                    failureKey
                 )
 
             return if (lockoutSeconds > 0L) {
@@ -181,9 +262,7 @@ class AuthRepository @Inject constructor(
             }
         }
 
-        pinThrottler.recordSuccess(
-            throttleIdentifier
-        )
+        clearSuccessfulLoginThrottle(business.id, identifier, user)
 
         val membership =
             userDao.getMembership(
@@ -227,29 +306,17 @@ class AuthRepository @Inject constructor(
 
         val branch = businessBranchDao.getFirstBranch(business.id)
             ?: return AuthResult.Error("No branch found for business")
-        val canonicalPhone = runCatching {
-            PhoneNumberNormalizer.normalize(username, branch.countryCode)
-        }.getOrNull()
-        val cleanUsername = username.trim()
-        val throttleIdentifier = canonicalPhone ?: cleanUsername
+        val identifier = normalizeLoginIdentifier("CASHIER", username, business.id, branch)
+        var remainingLockout = pinThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
+        val user = resolveLoginLookup(identifier, business.id)
+        val accountKey = user?.let { accountThrottleKey(business.id, it.id) }
+        val accountRemaining = accountKey?.let {
+            pinThrottler.getRemainingLockoutSeconds(it)
+        } ?: 0L
+        remainingLockout = maxOf(remainingLockout, accountRemaining)
+        if (remainingLockout > 0L) return AuthResult.LockedOut(remainingLockout)
 
-        if (
-            pinThrottler.isLockedOut(
-                throttleIdentifier
-            )
-        ) {
-            return AuthResult.LockedOut(
-                pinThrottler
-                    .getRemainingLockoutSeconds(
-                        cleanUsername
-                    )
-            )
-        }
-
-        val user = canonicalPhone?.let { userDao.getUserByCanonicalPhone(business.id, it) }
-            ?: userDao.getUserByUsername(business.id, cleanUsername)?.takeIf {
-                userDao.getHumanIdentityById(it.identityId ?: it.id)?.canonicalPhone == null
-            }
+        val failureKey = resolvedFailureKey(business.id, identifier, user)
 
         if (
             user == null ||
@@ -258,7 +325,7 @@ class AuthRepository @Inject constructor(
         ) {
             val lockoutSeconds =
                 pinThrottler.recordFailure(
-                    throttleIdentifier
+                    failureKey
                 )
 
             return if (lockoutSeconds > 0L) {
@@ -288,7 +355,7 @@ class AuthRepository @Inject constructor(
         if (!isValid) {
             val lockoutSeconds =
                 pinThrottler.recordFailure(
-                throttleIdentifier
+                failureKey
                 )
 
             return if (lockoutSeconds > 0L) {
@@ -311,7 +378,7 @@ class AuthRepository @Inject constructor(
         if (authenticatedUser == null) {
             val lockoutSeconds =
                 pinThrottler.recordFailure(
-                    throttleIdentifier
+                    failureKey
                 )
 
             return if (lockoutSeconds > 0L) {
@@ -334,9 +401,7 @@ class AuthRepository @Inject constructor(
                     "Cashier is not authorized for this branch"
                 )
 
-        pinThrottler.recordSuccess(
-            throttleIdentifier
-        )
+        clearSuccessfulLoginThrottle(business.id, identifier, user)
 
         val session =
             ActiveSession(

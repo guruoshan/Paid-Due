@@ -41,19 +41,29 @@ class LoginViewModel @Inject constructor(
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
     private var countdownJob: Job? = null
+    private var lockoutQueryJob: Job? = null
 
     fun toggleMode() {
         val nextMode = if (_uiState.value.mode == LoginMode.CASHIER) LoginMode.ADMIN else LoginMode.CASHIER
+        val currentUsername = _uiState.value.username
+        clearLockoutState()
         _uiState.value = _uiState.value.copy(
             mode = nextMode,
             password = "",
             pin = "",
-            errorMessage = null
+            errorMessage = null,
+            lockoutSecondsRemaining = 0L
         )
+        if (currentUsername.isNotBlank()) checkLockout(currentUsername)
     }
 
     fun onUsernameChanged(username: String) {
-        _uiState.value = _uiState.value.copy(username = username, errorMessage = null)
+        clearLockoutState()
+        _uiState.value = _uiState.value.copy(
+            username = username,
+            errorMessage = null,
+            lockoutSecondsRemaining = 0L
+        )
         checkLockout(username)
     }
 
@@ -82,9 +92,17 @@ class LoginViewModel @Inject constructor(
     }
 
     private fun checkLockout(username: String) {
-        val remaining = authRepository.getThrottler().getRemainingLockoutSeconds(username.trim())
-        if (remaining > 0L) {
-            startLockoutCountdown(remaining)
+        lockoutQueryJob?.cancel()
+        val queryMode = _uiState.value.mode
+        val mode = if (queryMode == LoginMode.ADMIN) "ADMIN" else "CASHIER"
+        lockoutQueryJob = viewModelScope.launch {
+            val remaining = authRepository.getLoginLockoutRemaining(mode, username)
+            val isLatest = _uiState.value.username == username && _uiState.value.mode == queryMode
+            if (isLatest && remaining > 0L) {
+                startLockoutCountdown(remaining)
+            } else if (isLatest) {
+                clearLockoutState()
+            }
         }
     }
 
@@ -95,6 +113,8 @@ class LoginViewModel @Inject constructor(
             return
         }
 
+        lockoutQueryJob?.cancel()
+        lockoutQueryJob = null
         _uiState.value = s.copy(isExecuting = true, errorMessage = null)
 
         viewModelScope.launch {
@@ -117,13 +137,28 @@ class LoginViewModel @Inject constructor(
                     )
                 }
                 is AuthResult.LockedOut -> {
-                    startLockoutCountdown(result.remainingSeconds)
+                    if (result.remainingSeconds > 0L) {
+                        startLockoutCountdown(result.remainingSeconds)
+                    } else {
+                        clearLockoutState()
+                    }
                 }
                 is AuthResult.Error -> {
                     _uiState.value = _uiState.value.copy(errorMessage = UiText.Dynamic(result.message))
                 }
             }
         }
+    }
+
+    private fun clearLockoutState() {
+        lockoutQueryJob?.cancel()
+        countdownJob?.cancel()
+        lockoutQueryJob = null
+        countdownJob = null
+        _uiState.value = _uiState.value.copy(
+            lockoutSecondsRemaining = 0L,
+            errorMessage = null
+        )
     }
 
     private fun startLockoutCountdown(seconds: Long) {
