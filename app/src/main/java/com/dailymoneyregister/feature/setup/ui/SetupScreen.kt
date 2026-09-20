@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.dailymoneyregister.R
 import com.dailymoneyregister.core.i18n.LanguageRegistry
 import com.dailymoneyregister.core.i18n.SupportedLanguage
+import com.dailymoneyregister.core.model.timezone.TimezoneRegistry
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -367,15 +368,21 @@ private fun TimezoneStepContent(
         modifier = Modifier.padding(bottom = 16.dp)
     )
 
-    val timezones = listOf(
-        Pair("Asia/Muscat", stringResource(R.string.timezone_muscat)),
-        Pair("Asia/Kolkata", stringResource(R.string.timezone_kolkata)),
-        Pair("Asia/Dubai", stringResource(R.string.timezone_dubai)),
-        Pair("Asia/Riyadh", stringResource(R.string.timezone_riyadh)),
-        Pair("Asia/Dhaka", stringResource(R.string.timezone_dhaka)),
-        Pair("America/New_York", stringResource(R.string.timezone_new_york)),
-        Pair("UTC", stringResource(R.string.timezone_utc))
+    val timezoneLabels = listOf(
+        stringResource(R.string.timezone_muscat),
+        stringResource(R.string.timezone_kolkata),
+        stringResource(R.string.timezone_dubai),
+        stringResource(R.string.timezone_riyadh),
+        stringResource(R.string.timezone_dhaka),
+        stringResource(R.string.timezone_new_york),
+        stringResource(R.string.timezone_utc)
     )
+
+    check(TimezoneRegistry.setupTimezoneIds.size == timezoneLabels.size) {
+        "Setup timezone IDs and labels must stay aligned."
+    }
+
+    val timezones = TimezoneRegistry.setupTimezoneIds.zip(timezoneLabels)
 
     timezones.forEach { (tzId, label) ->
         val isSelected = tzId == timezoneId

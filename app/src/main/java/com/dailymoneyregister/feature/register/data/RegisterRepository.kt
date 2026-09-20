@@ -34,6 +34,7 @@ import com.dailymoneyregister.core.security.PermissionAction
 import com.dailymoneyregister.core.security.PermissionChecker
 import com.dailymoneyregister.core.security.PermissionDeniedException
 import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.core.model.timezone.TimezoneRegistry
 import com.dailymoneyregister.feature.register.domain.DraftState
 import kotlinx.coroutines.flow.Flow
 import java.time.ZoneId
@@ -591,11 +592,7 @@ class RegisterRepository @Inject constructor(
         timezoneId: String
     ): Flow<List<FinancialTransactionView>> {
 
-        val zoneId = try {
-            ZoneId.of(timezoneId)
-        } catch (_: Exception) {
-            ZoneId.systemDefault()
-        }
+        val zoneId = TimezoneRegistry.resolve(timezoneId)
 
         return observeLocalDayStarts(zoneId).flatMapLatest { startOfDayMillis ->
             transactionDao

@@ -86,6 +86,12 @@ class SetupRepository @Inject constructor(
         params: SetupParams,
         operationId: OperationId = OperationId.generate()
     ): CommandResult<SetupResult> {
+        try {
+            com.dailymoneyregister.core.model.timezone.TimezoneRegistry.resolve(params.timezoneId)
+        } catch (error: com.dailymoneyregister.core.model.timezone.InvalidTimezoneException) {
+            return CommandResult.Error(error)
+        }
+
         val requestedFingerprint = SetupPayloadCodec.fingerprint(params)
         val existingOperation = database.operationDao().getOperationById(operationId.value)
 
@@ -187,6 +193,12 @@ class SetupRepository @Inject constructor(
                 adminCredentialSalt = salt,
                 languageCode = params.languageCode
             )
+        }
+
+        try {
+            com.dailymoneyregister.core.model.timezone.TimezoneRegistry.resolve(payload.timezoneId)
+        } catch (error: com.dailymoneyregister.core.model.timezone.InvalidTimezoneException) {
+            return CommandResult.Error(error)
         }
 
         val businessId = BusinessId(payload.businessId)
