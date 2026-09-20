@@ -128,4 +128,24 @@ class CalculatorEngineTest {
         assertEquals("0", state.currentInput)
         assertEquals(MoneyMinorUnits.ZERO, state.evaluatedAmount)
     }
+
+    @Test
+    fun longAdditionChainKeepsFinancialResultStable() {
+        val engine = CalculatorEngine(decimalPlaces = 3)
+        var state = CalculatorState()
+
+        fun press(vararg keys: KeypadKey) {
+            keys.forEach { state = engine.processKey(state, it) }
+        }
+
+        press(KeypadKey.Digit('1'), KeypadKey.Digit('0'), KeypadKey.Plus)
+        press(KeypadKey.Digit('5'), KeypadKey.Plus)
+        press(KeypadKey.Digit('8'), KeypadKey.Plus)
+        press(KeypadKey.Digit('3'), KeypadKey.Plus)
+        press(KeypadKey.Digit('1'), KeypadKey.Digit('2'), KeypadKey.Equals)
+
+        assertEquals(MoneyMinorUnits(38000L), state.evaluatedAmount)
+        assertEquals("38.000", state.currentInput)
+        assertNull(state.pendingOperator)
+    }
 }
