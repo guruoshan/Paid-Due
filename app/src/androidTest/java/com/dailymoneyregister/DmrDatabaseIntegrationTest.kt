@@ -10,6 +10,10 @@ import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.command.OperationCommand
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
+import com.dailymoneyregister.core.database.entity.OperationEntity
+import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
+import com.dailymoneyregister.core.database.entity.TransactionEntity
+import com.dailymoneyregister.core.database.entity.VoidEventEntity
 import com.dailymoneyregister.core.database.security.FinancialImmutabilityCallback
 import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.i18n.LanguageManager
@@ -18,6 +22,11 @@ import com.dailymoneyregister.core.model.enums.OperationType
 import com.dailymoneyregister.core.model.enums.SubjectType
 import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.UserRole
+import com.dailymoneyregister.core.model.enums.ConfirmationType
+import com.dailymoneyregister.core.model.enums.EntryPurpose
+import com.dailymoneyregister.core.model.enums.PaymentCategory
+import com.dailymoneyregister.core.model.enums.PaymentChannel
+import com.dailymoneyregister.core.model.enums.TransactionType
 import com.dailymoneyregister.core.model.ids.OperationId
 import com.dailymoneyregister.core.model.ids.TransactionId
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
@@ -41,6 +50,7 @@ import com.dailymoneyregister.feature.settings.data.SettingsLanguageResult
 import com.dailymoneyregister.feature.settings.data.SettingsRepository
 import com.dailymoneyregister.feature.settings.ui.SettingsViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -48,6 +58,8 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.LocalDate
+import java.time.ZoneId
 
 @RunWith(AndroidJUnit4::class)
 class DmrDatabaseIntegrationTest {
@@ -130,6 +142,136 @@ class DmrDatabaseIntegrationTest {
 
         // Verify setup is complete
         assertTrue(setupRepository.isSetupComplete())
+    }
+
+    @Test
+    fun testRecentTodayCohortExcludesOlderLifecycleActivityAndOrdersByCreatedAt() = runBlocking {
+        val setup = createLanguageTestSetup()
+        val branch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
+        val zoneId = ZoneId.of(branch.timezoneId)
+        val startOfToday = LocalDate.of(2026, 9, 20)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val oldTransactionId = "recent-old"
+        val todayOlderTransactionId = "recent-today-older"
+        val todayNewerTransactionId = "recent-today-newer"
+        val actorUserId = setup.adminUserId.value
+
+        fun transaction(id: String, createdAt: Long, amount: Long) = TransactionEntity(
+            id = id,
+            branchId = branch.id,
+            type = TransactionType.SALE,
+            subtotalMinor = amount,
+            taxRateBps = 0,
+            taxableBaseMinor = amount,
+            taxAmountMinor = 0L,
+            grandTotalMinor = amount,
+            currencyCode = branch.currencyCode,
+            currencyDecimalPlaces = branch.currencyDecimalPlaces,
+            createdByUserId = actorUserId,
+            deviceId = "recent-test-device",
+            createdAt = createdAt,
+            displayRef = "REC-$id"
+        )
+
+        fun saleOperation(transactionId: String, operationId: String, occurredAt: Long) = OperationEntity(
+            id = operationId,
+            businessId = branch.businessId,
+            branchId = branch.id,
+            operationType = OperationType.RECORD_SALE,
+            subjectType = SubjectType.TRANSACTION,
+            subjectId = transactionId,
+            transactionId = transactionId,
+            actorUserId = actorUserId,
+            deviceId = "recent-test-device",
+            occurredAt = occurredAt,
+            requestFingerprint = "fingerprint-$operationId",
+            commandSchemaVersion = 1,
+            intentPayload = "payload-$operationId",
+            status = OperationStatus.SUCCEEDED
+        )
+
+        fun settlement(transactionId: String, operationId: String, occurredAt: Long, amount: Long) =
+            SettlementEntryEntity(
+                id = "settlement-$transactionId",
+                operationId = operationId,
+                subjectType = SubjectType.TRANSACTION,
+                subjectId = transactionId,
+                transactionId = transactionId,
+                entryPurpose = EntryPurpose.SALE_FUNDING,
+                category = PaymentCategory.CASH,
+                channel = PaymentChannel.CASH_TENDER,
+                amountSignedMinor = amount,
+                currencyCode = branch.currencyCode,
+                confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                occurredAt = occurredAt,
+                actorUserId = actorUserId
+            )
+
+        val oldTransaction = transaction(oldTransactionId, startOfToday - 1_000L, 1_000L)
+        val todayOlderTransaction = transaction(todayOlderTransactionId, startOfToday + 1_000L, 2_000L)
+        val todayNewerTransaction = transaction(todayNewerTransactionId, startOfToday + 2_000L, 3_000L)
+        val oldSaleOperationId = "operation-$oldTransactionId-sale"
+        val olderSaleOperationId = "operation-$todayOlderTransactionId-sale"
+        val newerSaleOperationId = "operation-$todayNewerTransactionId-sale"
+        val oldVoidOperationId = "operation-$oldTransactionId-void"
+
+        database.operationDao().insertOperation(saleOperation(oldTransactionId, oldSaleOperationId, oldTransaction.createdAt))
+        database.operationDao().insertOperation(saleOperation(todayOlderTransactionId, olderSaleOperationId, todayOlderTransaction.createdAt))
+        database.operationDao().insertOperation(saleOperation(todayNewerTransactionId, newerSaleOperationId, todayNewerTransaction.createdAt))
+        database.operationDao().insertOperation(
+            OperationEntity(
+                id = oldVoidOperationId,
+                businessId = branch.businessId,
+                branchId = branch.id,
+                operationType = OperationType.RECORD_VOID,
+                subjectType = SubjectType.TRANSACTION,
+                subjectId = oldTransactionId,
+                transactionId = oldTransactionId,
+                actorUserId = actorUserId,
+                deviceId = "recent-test-device",
+                occurredAt = startOfToday + 3_000L,
+                requestFingerprint = "fingerprint-$oldVoidOperationId",
+                commandSchemaVersion = 1,
+                intentPayload = "payload-$oldVoidOperationId",
+                status = OperationStatus.SUCCEEDED
+            )
+        )
+        database.transactionDao().insertTransaction(oldTransaction)
+        database.transactionDao().insertTransaction(todayOlderTransaction)
+        database.transactionDao().insertTransaction(todayNewerTransaction)
+        database.transactionDao().insertSettlements(
+            listOf(
+                settlement(oldTransactionId, oldSaleOperationId, oldTransaction.createdAt, 1_000L),
+                settlement(todayOlderTransactionId, olderSaleOperationId, todayOlderTransaction.createdAt, 2_000L),
+                settlement(todayNewerTransactionId, newerSaleOperationId, todayNewerTransaction.createdAt, 3_000L)
+            )
+        )
+        database.transactionDao().insertVoid(
+            VoidEventEntity(
+                id = "void-$oldTransactionId",
+                transactionId = oldTransactionId,
+                operationId = oldVoidOperationId,
+                actorUserId = actorUserId,
+                occurredAt = startOfToday + 3_000L
+            )
+        )
+        assertEquals(
+            startOfToday + 3_000L,
+            database.transactionDao().getVoidEvent(oldTransactionId)?.occurredAt
+        )
+
+        val records = database.transactionDao()
+            .observeTodayFinancialRecords(branch.id, startOfToday)
+            .first()
+
+        assertEquals(
+            listOf(todayNewerTransactionId, todayOlderTransactionId),
+            records.map { it.transaction.id }
+        )
+        assertTrue(records.none { it.transaction.id == oldTransactionId })
+        assertTrue(records.all { it.transaction.createdAt >= startOfToday })
     }
 
     @Test
