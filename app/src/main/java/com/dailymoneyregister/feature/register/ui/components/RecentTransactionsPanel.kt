@@ -4,7 +4,6 @@ import com.dailymoneyregister.core.model.currency.CurrencyConfig
 
 import com.dailymoneyregister.R
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,6 +21,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -62,7 +65,8 @@ fun RecentTransactionsPanel(
     timezoneId: String = "Asia/Muscat",
     onToggleExpanded: () -> Unit,
     maxListHeight: androidx.compose.ui.unit.Dp = 220.dp,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    compactMaxListHeight: androidx.compose.ui.unit.Dp = 100.dp
 ) {
     val todayTotal = transactions.fold(MoneyMinorUnits.ZERO) { acc, tx ->
         acc + tx.netAmount
@@ -72,12 +76,14 @@ fun RecentTransactionsPanel(
     val newestTransactionId = transactions.firstOrNull()?.id
     val previousNewestId = remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(newestTransactionId) {
+    LaunchedEffect(newestTransactionId, isExpanded) {
         val previous = previousNewestId.value
-        if (newestTransactionId != null && previous != null && newestTransactionId != previous) {
-            listState.animateScrollToItem(0)
+        if (isExpanded && newestTransactionId != null &&
+            (previous == null || newestTransactionId != previous)) {
+            listState.scrollToItem(0)
         }
-        previousNewestId.value = newestTransactionId
+        // Reopening the expanded list starts at the newest row too.
+        previousNewestId.value = if (isExpanded) newestTransactionId else null
     }
 
     Card(
@@ -126,40 +132,82 @@ fun RecentTransactionsPanel(
                 }
             }
 
-            // Expanded List View
-            AnimatedVisibility(visible = isExpanded) {
-                if (transactions.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(100.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = stringResource(com.dailymoneyregister.R.string.no_transactions_today),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 14.sp
-                        )
-                    }
-                } else {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = maxListHeight)
-                            .padding(horizontal = 12.dp, vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(transactions, key = { it.id }) { tx ->
-                            RecentTransactionRow(
-                                transaction = tx,
-                                currency = currency,
-                                timezoneId = timezoneId
-                            )
-                        }
+            // Content stays visible in both modes; only expanded Recent scrolls.
+            if (transactions.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(com.dailymoneyregister.R.string.no_transactions_today),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 14.sp
+                    )
+                }
+            } else if (isExpanded) {
+                LazyColumn(
+                    state = listState,
+                    userScrollEnabled = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = maxListHeight)
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(transactions, key = { it.id }) { tx ->
+                        RecentTransactionRow(tx, currency, timezoneId)
                     }
                 }
+            } else {
+                CompactRecentRows(
+                    transactions = transactions,
+                    currency = currency,
+                    timezoneId = timezoneId,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = compactMaxListHeight)
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                )
             }
+        }
+    }
+}
+
+internal class RecentRowHeightBudget(private val maxHeight: Int, private val spacing: Int) {
+    var usedHeight: Int = 0
+        private set
+
+    fun add(rowHeight: Int): Boolean {
+        val nextHeight = usedHeight + (if (usedHeight == 0) 0 else spacing) + rowHeight
+        if (nextHeight > maxHeight) return false
+        usedHeight = nextHeight
+        return true
+    }
+}
+
+@Composable
+private fun CompactRecentRows(
+    transactions: List<FinancialTransactionView>,
+    currency: CurrencyConfig,
+    timezoneId: String,
+    modifier: Modifier
+) {
+    // Measure real row heights, including badges and font scaling. Stop before
+    // the first incomplete row, without a fixed count or a scroll container.
+    SubcomposeLayout(modifier = modifier) { constraints ->
+        val spacing = 6.dp.roundToPx()
+        val rows = mutableListOf<Pair<Placeable, Int>>()
+        val budget = RecentRowHeightBudget(constraints.maxHeight, spacing)
+        for (transaction in transactions) {
+            val row = subcompose(transaction.id) {
+                RecentTransactionRow(transaction, currency, timezoneId)
+            }.single().measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
+            val top = budget.usedHeight + if (rows.isEmpty()) 0 else spacing
+            if (!budget.add(row.height)) break
+            rows += row to top
+        }
+        layout(constraints.maxWidth, constraints.constrainHeight(budget.usedHeight)) {
+            rows.forEach { (row, top) -> row.placeRelative(0, top) }
         }
     }
 }

@@ -71,7 +71,7 @@
     <string name="logout">لاگ آؤٹ</string>
 
     <!-- Register Screen -->
-    <string name="note_optional">نوٹ / آئٹم کی تفصیل (اختیاری)</string>
+    <string name="note_optional">&#x0641;&#x0631;&#x0648;&#x062E;&#x062A; &#x06A9;&#x0627; &#x0646;&#x0648;&#x0679; (&#x0627;&#x062E;&#x062A;&#x06CC;&#x0627;&#x0631;&#x06CC;)</string>
     <string name="bill">بل</string>
     <string name="tax">ٹیکس</string>
     <string name="add_tax">+ٹیکس</string>

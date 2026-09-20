@@ -72,7 +72,7 @@
     <string name="logout">Log Out</string>
 
     <!-- Register Screen -->
-    <string name="note_optional">Note / Item Description (Optional)</string>
+    <string name="note_optional">Sale note (optional)</string>
     <string name="bill">Bill</string>
     <string name="tax">Tax</string>
     <string name="add_tax">+Tax</string>

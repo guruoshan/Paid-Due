@@ -196,13 +196,18 @@ fun RegisterScreen(
                         onClick = { viewModel.toggleItemizedBillDialog(true) },
                         modifier = Modifier.weight(1f).height(sizing.actionHeight),
                         shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF1EAFE), contentColor = Color(0xFF5B21B6))
                     ) {
                         Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             if (state.draftState.isItemized) stringResource(R.string.bill_with_count, stringResource(R.string.invoice), state.draftState.items.size.toString()) else stringResource(R.string.invoice),
-                            fontSize = 13.sp
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
 
@@ -210,13 +215,18 @@ fun RegisterScreen(
                         onClick = { viewModel.toggleTaxDialog(true) },
                         modifier = Modifier.weight(1f).height(sizing.actionHeight),
                         shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFF4CC), contentColor = Color(0xFF713F12))
                     ) {
                         Icon(Icons.Default.Percent, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             stringResource(R.string.tax),
-                            fontSize = 13.sp
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
 
@@ -229,9 +239,11 @@ fun RegisterScreen(
                     ) {
                         Text(
                             text = stringResource(R.string.ship_pack),
-                            fontSize = 12.sp,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
-                            softWrap = false
+                            softWrap = false,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -275,7 +287,8 @@ fun RegisterScreen(
                     currency = currency,
                     timezoneId = viewModel.activeBranch?.timezoneId ?: "Asia/Muscat",
                     onToggleExpanded = { viewModel.toggleRecentTransactionsExpanded() },
-                    maxListHeight = sizing.recentMaxHeight
+                    maxListHeight = sizing.recentMaxHeight,
+                    compactMaxListHeight = sizing.compactRecentMaxHeight
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }

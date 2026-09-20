@@ -71,7 +71,7 @@
     <string name="logout">लॉग आउट</string>
 
     <!-- Register Screen -->
-    <string name="note_optional">नोट / वस्तु विवरण (वैकल्पिक)</string>
+    <string name="note_optional">&#x092C;&#x093F;&#x0915;&#x094D;&#x0930;&#x0940; &#x0928;&#x094B;&#x091F; (&#x0935;&#x0948;&#x0915;&#x0932;&#x094D;&#x092A;&#x093F;&#x0915;)</string>
     <string name="bill">बिल</string>
     <string name="tax">कर</string>
     <string name="add_tax">+कर</string>

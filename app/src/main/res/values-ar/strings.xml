@@ -71,7 +71,7 @@
     <string name="logout">تسجيل الخروج</string>
 
     <!-- Register Screen -->
-    <string name="note_optional">ملاحظة / وصف الصنف (اختياري)</string>
+    <string name="note_optional">&#x0645;&#x0644;&#x0627;&#x062D;&#x0638;&#x0629; &#x0627;&#x0644;&#x0628;&#x064A;&#x0639; (&#x0627;&#x062E;&#x062A;&#x064A;&#x0627;&#x0631;&#x064A;)</string>
     <string name="bill">الفاتورة</string>
     <string name="tax">الضريبة</string>
     <string name="add_tax">+الضريبة</string>
