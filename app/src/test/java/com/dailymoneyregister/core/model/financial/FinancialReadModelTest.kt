@@ -35,6 +35,9 @@ class FinancialReadModelTest {
         assertEquals(0L, view.refundedAmount.amount)
         assertEquals(10_000L, view.netAmount.amount)
         assertFalse(view.isVoided)
+        assertFalse(view.hasAmountCorrection)
+        assertFalse(view.isPartiallyRefunded)
+        assertFalse(view.isFullyRefunded)
     }
 
     @Test
@@ -74,6 +77,66 @@ class FinancialReadModelTest {
         assertEquals(9_500L, view.currentAmount.amount)
         assertEquals(2_000L, view.refundedAmount.amount)
         assertEquals(7_500L, view.netAmount.amount)
+        assertTrue(view.hasAmountCorrection)
+        assertTrue(view.isPartiallyRefunded)
+        assertFalse(view.isFullyRefunded)
+    }
+
+    @Test
+    fun fullRefundIsClassifiedFromAuthoritativeAmounts() {
+        val transaction = transaction(10_000L)
+        val refund = RefundEventEntity(
+            id = "refund-full",
+            transactionId = transaction.id,
+            operationId = "operation-full-refund",
+            refundAmountMinor = 10_000L,
+            actorUserId = "user-1",
+            occurredAt = 2L
+        )
+
+        val view = FinancialReadModelResolver.resolve(
+            TransactionFinancialRecord(
+                transaction = transaction,
+                refundEvents = listOf(refund)
+            )
+        )
+
+        assertEquals(view.currentAmount, view.refundedAmount)
+        assertTrue(view.isFullyRefunded)
+        assertFalse(view.isPartiallyRefunded)
+    }
+
+    @Test
+    fun correctionHistoryRemainsVisibleWhenCorrectionsRestoreOriginalAmount() {
+        val transaction = transaction(10_000L)
+        val firstCorrection = AmountCorrectionEventEntity(
+            id = "correction-restore-1",
+            transactionId = transaction.id,
+            operationId = "operation-restore-1",
+            previousAmountMinor = 10_000L,
+            correctedAmountMinor = 9_000L,
+            actorUserId = "user-1",
+            occurredAt = 2L
+        )
+        val secondCorrection = AmountCorrectionEventEntity(
+            id = "correction-restore-2",
+            transactionId = transaction.id,
+            operationId = "operation-restore-2",
+            previousAmountMinor = 9_000L,
+            correctedAmountMinor = 10_000L,
+            actorUserId = "user-1",
+            occurredAt = 3L
+        )
+
+        val view = FinancialReadModelResolver.resolve(
+            TransactionFinancialRecord(
+                transaction = transaction,
+                amountCorrections = listOf(firstCorrection, secondCorrection)
+            )
+        )
+
+        assertEquals(view.originalAmount, view.currentAmount)
+        assertTrue(view.hasAmountCorrection)
     }
 
     @Test

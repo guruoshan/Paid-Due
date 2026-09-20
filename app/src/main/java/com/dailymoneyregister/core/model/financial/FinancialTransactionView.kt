@@ -23,6 +23,7 @@ data class FinancialTransactionView(
     val netAmount: MoneyMinorUnits,
     val settlementTotal: MoneyMinorUnits,
     val isVoided: Boolean,
+    val hasAmountCorrection: Boolean,
     val originalPaymentCategory: PaymentCategory?,
     val currentPaymentCategory: PaymentCategory?,
     val latestActivityAt: Long
@@ -31,6 +32,10 @@ data class FinancialTransactionView(
     val displayRef: String get() = transaction.displayRef
     val createdAt: Long get() = transaction.createdAt
     val description: String? get() = transaction.description
+    val isPartiallyRefunded: Boolean
+        get() = refundedAmount.isPositive && refundedAmount < currentAmount
+    val isFullyRefunded: Boolean
+        get() = refundedAmount.isPositive && refundedAmount == currentAmount
 }
 
 object FinancialReadModelResolver {
@@ -186,6 +191,7 @@ object FinancialReadModelResolver {
             netAmount = netAmount,
             settlementTotal = settlementTotal,
             isVoided = isVoided,
+            hasAmountCorrection = record.amountCorrections.isNotEmpty(),
             originalPaymentCategory = originalPaymentCategory,
             currentPaymentCategory = currentPaymentCategory,
             latestActivityAt = latestActivityAt
