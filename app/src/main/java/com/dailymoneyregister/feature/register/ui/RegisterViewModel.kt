@@ -18,6 +18,7 @@ import com.dailymoneyregister.core.model.ids.OperationId
 import com.dailymoneyregister.core.model.ids.TransactionId
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.device.DeviceIdentityProvider
 import com.dailymoneyregister.feature.register.data.CashSaleCommand
 import com.dailymoneyregister.feature.register.data.RegisterRepository
@@ -28,7 +29,8 @@ import com.dailymoneyregister.feature.register.domain.DraftState
 import com.dailymoneyregister.feature.register.domain.KeypadKey
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -61,10 +63,26 @@ internal fun clearedRegisterDraft(branch: BranchEntity?): DraftState = DraftStat
 )
 
 @HiltViewModel
-class RegisterViewModel @Inject constructor(
-    private val registerRepository: RegisterRepository,
-    private val deviceIdentityProvider: DeviceIdentityProvider
+class RegisterViewModel internal constructor(
+    private val observeToday: (String, String) -> Flow<List<FinancialTransactionView>>,
+    private val executeSale: suspend (CashSaleCommand, UserAccountEntity, UserBranchMembershipEntity?) -> CommandResult<TransactionEntity>,
+    private val deviceId: () -> String
 ) : ViewModel() {
+
+    @Inject
+    constructor(
+        registerRepository: RegisterRepository,
+        deviceIdentityProvider: DeviceIdentityProvider
+    ) : this(
+        registerRepository::observeTodayTransactions,
+        registerRepository::executeCashSale,
+        { deviceIdentityProvider.deviceId }
+    )
+
+    private val initialSession = SessionManager.currentSession.value
+    private var financialContext = initialSession.toRegisterFinancialSessionContext()
+    internal var financialSessionGeneration: Long = 0
+        private set
 
     val activeBusiness: BusinessEntity? get() = SessionManager.activeBusiness
     val activeBranch: BranchEntity? get() = SessionManager.activeBranch
@@ -72,7 +90,7 @@ class RegisterViewModel @Inject constructor(
     val activeMembership: UserBranchMembershipEntity? get() = SessionManager.activeMembership
 
     private val decimalPlaces: Int
-        get() = activeBranch?.currencyDecimalPlaces ?: 3
+        get() = financialContext?.currencyDecimalPlaces ?: 3
 
     val currencySymbol: String
         get() = activeBranch?.currencySymbol ?: (activeBranch?.currencyCode ?: "OMR")
@@ -83,39 +101,48 @@ class RegisterViewModel @Inject constructor(
     private var calculatorEngine = CalculatorEngine(decimalPlaces)
 
     private val _uiState = MutableStateFlow(
-        RegisterUiState(
-            calculatorState = CalculatorState(),
-            draftState = DraftState(
-                taxRateBps = activeBranch?.defaultTaxRateBps ?: 0,
-                isTaxEnabled = false, // Tax must NOT be auto-applied unless explicitly enabled
-                taxRoundingMode = activeBranch?.taxRoundingMode ?: com.dailymoneyregister.core.model.tax.TaxRoundingMode.HALF_UP
-            )
-        )
+        resetRegisterUiStateForSession(RegisterUiState(), initialSession)
     )
     val uiState: StateFlow<RegisterUiState> = _uiState.asStateFlow()
 
     val recentTransactions: StateFlow<List<FinancialTransactionView>> =
         observeRecentForSession(SessionManager.currentSession) { branchId, timezoneId ->
-            registerRepository.observeTodayTransactions(
+            observeToday(
                 branchId,
                 timezoneId
             )
         }.stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
+            registerRecentSharingStarted,
             emptyList()
         )
 
     init {
-        updateCalculatorEngine()
+        viewModelScope.launch {
+            SessionManager.currentSession.collect { sessionSnapshot ->
+                synchronizeFinancialSession(sessionSnapshot)
+            }
+        }
     }
 
-    private fun updateCalculatorEngine() {
+    // Called on the UI thread by both the session observer and financial actions.
+    // Generation belongs only to this live Register, never to a durable command.
+    private fun synchronizeFinancialSession(sessionSnapshot: ActiveSession?): Boolean {
+        val nextContext = sessionSnapshot.toRegisterFinancialSessionContext()
+        if (nextContext == financialContext) return false
+        financialContext = nextContext
+        financialSessionGeneration++
         calculatorEngine = CalculatorEngine(decimalPlaces)
+        _uiState.value = resetRegisterUiStateForSession(_uiState.value, sessionSnapshot).copy(
+            infoMessage = if (sessionSnapshot == null) null
+                else UiText.Resource(R.string.register_financial_session_reset)
+        )
+        return true
     }
 
     // Keypad Handler
     fun onKeypadPress(key: KeypadKey) {
+        val sessionChanged = synchronizeFinancialSession(SessionManager.currentSession.value)
         val nextCalcState = calculatorEngine.processKey(_uiState.value.calculatorState, key)
         val nextDraftState = _uiState.value.draftState.copy(
             manualAmount = nextCalcState.evaluatedAmount
@@ -124,11 +151,12 @@ class RegisterViewModel @Inject constructor(
             calculatorState = nextCalcState,
             draftState = nextDraftState,
             errorMessage = null,
-            infoMessage = null
+            infoMessage = if (sessionChanged) _uiState.value.infoMessage else null
         )
     }
 
     fun onManualDescriptionChanged(desc: String) {
+        synchronizeFinancialSession(SessionManager.currentSession.value)
         _uiState.value = _uiState.value.copy(
             manualDescription = desc,
             draftState = _uiState.value.draftState.copy(manualDescription = desc.ifBlank { null })
@@ -148,7 +176,9 @@ class RegisterViewModel @Inject constructor(
 
     /** Resets only the unsaved register draft; no repository or DAO is touched. */
     fun clearDraft() {
-        val branch = activeBranch
+        val sessionSnapshot = SessionManager.currentSession.value
+        if (synchronizeFinancialSession(sessionSnapshot)) return
+        val branch = sessionSnapshot?.branch
         _uiState.value = RegisterUiState(
             calculatorState = CalculatorState(),
             draftState = clearedRegisterDraft(branch),
@@ -158,11 +188,13 @@ class RegisterViewModel @Inject constructor(
 
     // Tax Configuration
     fun setTaxEnabled(enabled: Boolean) {
+        synchronizeFinancialSession(SessionManager.currentSession.value)
         val updatedDraft = _uiState.value.draftState.copy(isTaxEnabled = enabled)
         _uiState.value = _uiState.value.copy(draftState = updatedDraft)
     }
 
     fun updateTaxRatePercent(percentStr: String) {
+        synchronizeFinancialSession(SessionManager.currentSession.value)
         val bps = TaxRateParser.parseToBpsOrNull(percentStr) ?: return
         val updatedDraft = _uiState.value.draftState.copy(
             taxRateBps = bps,
@@ -173,6 +205,7 @@ class RegisterViewModel @Inject constructor(
 
     // Shipping & Packing Configuration
     fun updateTxShippingPacking(shippingText: String, packingText: String) {
+        synchronizeFinancialSession(SessionManager.currentSession.value)
         val shipping = MoneyMinorUnits.parse(shippingText, decimalPlaces).getOrElse { return }
         val packing = MoneyMinorUnits.parse(packingText, decimalPlaces).getOrElse { return }
         if (shipping.isNegative || packing.isNegative) return
@@ -196,6 +229,7 @@ class RegisterViewModel @Inject constructor(
         packingText: String = "0",
         shippingText: String = "0"
     ) {
+        synchronizeFinancialSession(SessionManager.currentSession.value)
         if (name.isBlank() || quantity <= 0) return
         val unitPrice = MoneyMinorUnits.parse(priceText, decimalPlaces).getOrElse { return }
         val packing = MoneyMinorUnits.parse(packingText, decimalPlaces).getOrElse { return }
@@ -223,12 +257,14 @@ class RegisterViewModel @Inject constructor(
     }
 
     fun removeItem(itemId: String) {
+        synchronizeFinancialSession(SessionManager.currentSession.value)
         val currentItems = _uiState.value.draftState.items.filterNot { it.id == itemId }
         val updatedDraft = _uiState.value.draftState.copy(items = currentItems)
         _uiState.value = _uiState.value.copy(draftState = updatedDraft)
     }
 
     fun updateItemQuantity(itemId: String, newQty: Int) {
+        synchronizeFinancialSession(SessionManager.currentSession.value)
         if (newQty <= 0) {
             removeItem(itemId)
             return
@@ -242,15 +278,21 @@ class RegisterViewModel @Inject constructor(
 
     // Payment Trigger: CASH
     fun executeCashSale() {
+        val sessionSnapshot = SessionManager.currentSession.value
+        val sessionChanged = synchronizeFinancialSession(sessionSnapshot)
         val s = _uiState.value
-        val branch = activeBranch
-        val user = activeUser
-        val membership = activeMembership
 
-        if (branch == null || user == null) {
+        if (sessionSnapshot == null) {
             _uiState.value = s.copy(errorMessage = UiText.Resource(R.string.sale_session_missing))
             return
         }
+        // This Cash press must never execute money entered under the old context.
+        if (sessionChanged) return
+        val branch = sessionSnapshot.branch
+        val user = sessionSnapshot.user
+        val membership = sessionSnapshot.membership
+        val executionContext = financialContext
+        val executionGeneration = financialSessionGeneration
 
         if (!s.draftState.grandTotal.isPositive) {
             _uiState.value = s.copy(errorMessage = UiText.Resource(R.string.sale_total_zero))
@@ -262,14 +304,14 @@ class RegisterViewModel @Inject constructor(
             val now = System.currentTimeMillis()
             CashSaleCommand(
                 operationId = OperationId.generate(),
-                businessId = branch.businessId,
+                businessId = sessionSnapshot.business.id,
                 branchId = branch.id,
                 actorUserId = user.id,
                 transactionIdVal = TransactionId.generate(),
                 draftState = s.draftState,
                 currencyCode = branch.currencyCode,
                 currencyDecimalPlaces = branch.currencyDecimalPlaces,
-                deviceId = deviceIdentityProvider.deviceId,
+                deviceId = deviceId(),
                 occurredAt = now
             )
         }
@@ -277,7 +319,14 @@ class RegisterViewModel @Inject constructor(
         _uiState.value = s.copy(isExecuting = true, inFlightSaleCommand = command, errorMessage = null)
 
         viewModelScope.launch {
-            when (val result = registerRepository.executeCashSale(command, user, membership)) {
+            val result = executeSale(command, user, membership)
+            if (!shouldApplyFinancialResultToRegister(
+                    executionContext,
+                    SessionManager.currentSession.value,
+                    executionGeneration,
+                    financialSessionGeneration
+                )) return@launch
+            when (result) {
                 is CommandResult.Success -> {
                     _uiState.value = _uiState.value.copy(
                         isExecuting = false,
@@ -310,7 +359,9 @@ class RegisterViewModel @Inject constructor(
 
     // Success Panel Action: Reset for New Sale
     fun startNewSale() {
-        val branch = activeBranch
+        val sessionSnapshot = SessionManager.currentSession.value
+        if (synchronizeFinancialSession(sessionSnapshot)) return
+        val branch = sessionSnapshot?.branch
         _uiState.value = RegisterUiState(
             calculatorState = CalculatorState(),
             draftState = DraftState(

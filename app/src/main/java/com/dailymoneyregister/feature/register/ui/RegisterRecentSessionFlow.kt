@@ -3,10 +3,17 @@ package com.dailymoneyregister.feature.register.ui
 import com.dailymoneyregister.core.security.ActiveSession
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+
+internal val registerRecentSharingStarted = SharingStarted.WhileSubscribed(
+    stopTimeoutMillis = 5_000,
+    replayExpirationMillis = 0
+)
 
 internal data class RecentBranchContext(
     val branchId: String,
@@ -35,6 +42,6 @@ internal fun <T> observeRecentForSession(
                 observeToday(
                     context.branchId,
                     context.timezoneId
-                )
+                ).onStart { emit(emptyList()) }
             }
         }

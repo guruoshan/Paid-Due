@@ -11,4 +11,5 @@
     <string name="profile_user">تسجيل الدخول باسم: %1$s (%2$s)</string>
     <string name="role_admin">مسؤول</string>
     <string name="role_cashier">أمين الصندوق</string>
+    <string name="register_financial_session_reset">تمت إعادة ضبط سجل البيع بسبب تغيّر الجلسة المالية النشطة.</string>
 </resources>

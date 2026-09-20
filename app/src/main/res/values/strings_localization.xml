@@ -87,4 +87,5 @@
     <string name="payment_coupon_name">COUPON</string>
     <string name="payment_credit_name">CREDIT</string>
     <string name="payment_online_name">ONLINE</string>
+    <string name="register_financial_session_reset">Register reset because the active financial session changed.</string>
 </resources>

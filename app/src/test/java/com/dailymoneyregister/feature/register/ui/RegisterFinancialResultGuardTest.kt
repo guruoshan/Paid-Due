@@ -44,7 +44,7 @@ class RegisterFinancialResultGuardTest {
                 executionContext = executionContext,
                 currentSession = session(branchB, userA),
                 executionGeneration = 4L,
-                currentGeneration = 5L
+                currentGeneration = 4L
             )
         )
 
@@ -53,7 +53,7 @@ class RegisterFinancialResultGuardTest {
                 executionContext = executionContext,
                 currentSession = session(branchA, userB),
                 executionGeneration = 4L,
-                currentGeneration = 5L
+                currentGeneration = 4L
             )
         )
 
@@ -61,6 +61,15 @@ class RegisterFinancialResultGuardTest {
             shouldApplyFinancialResultToRegister(
                 executionContext = executionContext,
                 currentSession = null,
+                executionGeneration = 4L,
+                currentGeneration = 4L
+            )
+        )
+
+        assertFalse(
+            shouldApplyFinancialResultToRegister(
+                executionContext = executionContext,
+                currentSession = session(branchA, userA),
                 executionGeneration = 4L,
                 currentGeneration = 5L
             )
