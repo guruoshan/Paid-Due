@@ -34,6 +34,9 @@ import com.dailymoneyregister.feature.register.data.RegisterRepository
 import com.dailymoneyregister.feature.register.domain.DraftState
 import com.dailymoneyregister.feature.setup.data.SetupParams
 import com.dailymoneyregister.feature.setup.data.SetupRepository
+import com.dailymoneyregister.feature.setup.data.SetupResult
+import com.dailymoneyregister.feature.settings.data.SettingsLanguageResult
+import com.dailymoneyregister.feature.settings.data.SettingsRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*
@@ -960,6 +963,83 @@ class DmrDatabaseIntegrationTest {
         )
         val after = database.userDao().getUserById(setup.adminUserId.value)
         assertEquals(before, after)
+    }
+
+    @Test
+    fun testSettingsRepositoryPersistsCanonicalLanguageAndReturnsAuthoritativeUser() = runBlocking {
+        val setup = createLanguageTestSetup()
+        val beforeUser = database.userDao().getUserById(setup.adminUserId.value)!!
+        val beforeBusiness = database.businessBranchDao().getBusinessById(setup.businessId.value)!!
+        val beforeBranch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
+        val repository = SettingsRepository(database.userDao())
+
+        val result = repository.updateLanguage(
+            userId = beforeUser.id,
+            businessId = beforeUser.businessId,
+            requestedLanguageCode = "AR"
+        )
+
+        assertTrue(result is SettingsLanguageResult.Success)
+        val authoritative = (result as SettingsLanguageResult.Success).user
+        val persisted = database.userDao().getUserById(beforeUser.id)!!
+        assertEquals("ar", authoritative.languageCode)
+        assertEquals(authoritative, persisted)
+        assertEquals("ar", persisted.languageCode)
+        assertNotEquals(beforeUser.updatedAt, persisted.updatedAt)
+        assertEquals(beforeUser.copy(languageCode = "ar", updatedAt = persisted.updatedAt), persisted)
+        assertEquals(beforeBusiness, database.businessBranchDao().getBusinessById(beforeBusiness.id))
+        assertEquals(beforeBranch, database.businessBranchDao().getBranchById(beforeBranch.id))
+    }
+
+    @Test
+    fun testSettingsRepositoryRejectsUnsupportedLanguageWithoutChangingDatabase() = runBlocking {
+        val setup = createLanguageTestSetup()
+        val before = database.userDao().getUserById(setup.adminUserId.value)!!
+        val repository = SettingsRepository(database.userDao())
+
+        val result = repository.updateLanguage(
+            userId = before.id,
+            businessId = before.businessId,
+            requestedLanguageCode = "xx"
+        )
+
+        assertTrue(result is SettingsLanguageResult.UnsupportedLanguage)
+        assertEquals(before, database.userDao().getUserById(before.id))
+    }
+
+    @Test
+    fun testSettingsRepositoryRejectsWrongBusinessWithoutChangingDatabase() = runBlocking {
+        val setup = createLanguageTestSetup()
+        val before = database.userDao().getUserById(setup.adminUserId.value)!!
+        val repository = SettingsRepository(database.userDao())
+
+        val result = repository.updateLanguage(
+            userId = before.id,
+            businessId = "wrong-business",
+            requestedLanguageCode = "hi"
+        )
+
+        assertTrue(result is SettingsLanguageResult.PersistenceFailure)
+        assertEquals(before, database.userDao().getUserById(before.id))
+    }
+
+    private suspend fun createLanguageTestSetup(): SetupResult {
+        return (setupRepository.executeSetup(SetupParams(
+            businessName = "Settings Repository Shop",
+            branchName = "Main",
+            branchCode = "SET",
+            countryCode = "OM",
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat",
+            taxRoundingMode = TaxRoundingMode.HALF_UP,
+            defaultTaxRateBps = 0,
+            adminDisplayName = "Settings Owner",
+            adminUsername = "settings_owner",
+            adminPasswordPlain = "SettingsOwnerPass123",
+            languageCode = "en"
+        )) as CommandResult.Success).data
     }
 
     private fun operationFixture(
