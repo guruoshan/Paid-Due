@@ -20,6 +20,8 @@ import com.dailymoneyregister.feature.auth.data.AuthRepository
 import com.dailymoneyregister.feature.auth.data.AuthResult
 import com.dailymoneyregister.feature.setup.data.SetupParams
 import com.dailymoneyregister.feature.setup.data.SetupRepository
+import com.dailymoneyregister.feature.settings.data.SettingsLanguageResult
+import com.dailymoneyregister.feature.settings.data.SettingsRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -154,6 +156,50 @@ class TrustedSessionIntegrationTest {
         assertNotNull(restoredCashier)
         assertEquals(cashierId.value, restoredCashier?.user?.id)
         assertTrue(restoredCashier?.requiresPinChange == true)
+    }
+
+    @Test
+    fun restoreReappliesPersistedUserLanguageFromRoom() = runBlocking {
+        val setup = createSetup()
+        val testLanguageManager = LanguageManager(context)
+        val originalLanguage = testLanguageManager.currentLanguage.value.code
+        restorer = TrustedSessionRestorer(database, trustedSessionStore, testLanguageManager)
+        val beforeBusiness = database.businessBranchDao().getBusinessById(setup.businessId.value)!!
+        val beforeBranch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
+        val settingsRepository = SettingsRepository(database.userDao())
+
+        try {
+            setupRepository.establishAdminSession(setup)
+            val beforeUser = database.userDao().getUserById(setup.adminUserId.value)!!
+            assertEquals("en", beforeUser.languageCode)
+
+            val updateResult = settingsRepository.updateLanguage(
+                userId = beforeUser.id,
+                businessId = beforeUser.businessId,
+                requestedLanguageCode = "ar"
+            )
+            assertTrue(updateResult is SettingsLanguageResult.Success)
+            val persistedUser = database.userDao().getUserById(beforeUser.id)!!
+            assertEquals("ar", persistedUser.languageCode)
+
+            testLanguageManager.setLanguage("en")
+            assertEquals("en", testLanguageManager.currentLanguage.value.code)
+            assertNotNull(trustedSessionStore.load())
+            SessionManager.clearSession()
+
+            val restored = restorer.restore() ?: error("Trusted session was not restored")
+
+            assertEquals(persistedUser, restored.user)
+            assertEquals("ar", restored.user.languageCode)
+            assertEquals("ar", testLanguageManager.currentLanguage.value.code)
+            assertEquals(beforeBusiness, restored.business)
+            assertEquals(beforeBranch, restored.branch)
+            assertEquals(beforeBranch.currencyCode, restored.branch.currencyCode)
+            assertEquals(beforeBranch.currencyDecimalPlaces, restored.branch.currencyDecimalPlaces)
+        } finally {
+            SessionManager.clearSession()
+            testLanguageManager.setLanguage(originalLanguage)
+        }
     }
 
     @Test
