@@ -102,6 +102,10 @@
     <string name="credit_sale_label">उधार बिक्री</string>
     <string name="coupon_sale_label">कूपन से बिक्री</string>
     <string name="sale_label">बिक्री</string>
+    <string name="recent_status_voided">&#x0930;&#x0926;&#x094D;&#x0926;</string>
+    <string name="recent_status_partially_refunded">&#x0906;&#x0902;&#x0936;&#x093F;&#x0915; &#x0930;&#x093F;&#x092B;&#x0902;&#x0921;</string>
+    <string name="recent_status_fully_refunded">&#x092A;&#x0942;&#x0930;&#x093E; &#x0930;&#x093F;&#x092B;&#x0902;&#x0921;</string>
+    <string name="recent_status_corrected">&#x0938;&#x0941;&#x0927;&#x093E;&#x0930;&#x093F;&#x0924;</string>
     <string name="history">इतिहास</string>
     <string name="customer">ग्राहक</string>
     <string name="clear">साफ़ करें</string>

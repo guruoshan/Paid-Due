@@ -102,6 +102,10 @@
     <string name="credit_sale_label">ادھار فروخت</string>
     <string name="coupon_sale_label">کوپن کے ذریعے فروخت</string>
     <string name="sale_label">فروخت</string>
+    <string name="recent_status_voided">منسوخ</string>
+    <string name="recent_status_partially_refunded">جزوی رقم واپسی</string>
+    <string name="recent_status_fully_refunded">مکمل رقم واپسی</string>
+    <string name="recent_status_corrected">درست شدہ</string>
     <string name="history">ریکارڈ</string>
     <string name="customer">گاہک</string>
     <string name="clear">صاف کریں</string>

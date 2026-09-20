@@ -102,6 +102,10 @@
     <string name="credit_sale_label">Credit Sale</string>
     <string name="coupon_sale_label">Coupon Sale</string>
     <string name="sale_label">Sale</string>
+    <string name="recent_status_voided">Voided</string>
+    <string name="recent_status_partially_refunded">Partially Refunded</string>
+    <string name="recent_status_fully_refunded">Fully Refunded</string>
+    <string name="recent_status_corrected">Corrected</string>
     <string name="history">History</string>
     <string name="customer">Customer</string>
     <string name="clear">Clear</string>

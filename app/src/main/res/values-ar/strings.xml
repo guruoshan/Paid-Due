@@ -102,6 +102,10 @@
     <string name="credit_sale_label">بيع آجل</string>
     <string name="coupon_sale_label">بيع بالقسيمة</string>
     <string name="sale_label">بيع</string>
+    <string name="recent_status_voided">تم الإلغاء</string>
+    <string name="recent_status_partially_refunded">استرداد جزئي</string>
+    <string name="recent_status_fully_refunded">استرداد كامل</string>
+    <string name="recent_status_corrected">تم التصحيح</string>
     <string name="history">السجل</string>
     <string name="customer">العميل</string>
     <string name="clear">مسح</string>

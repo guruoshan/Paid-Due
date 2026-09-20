@@ -35,6 +35,25 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+internal enum class RecentLifecycleBadge {
+    VOIDED,
+    PARTIALLY_REFUNDED,
+    FULLY_REFUNDED,
+    CORRECTED
+}
+
+internal fun recentLifecycleBadges(
+    transaction: FinancialTransactionView
+): List<RecentLifecycleBadge> = buildList {
+    if (transaction.isVoided) add(RecentLifecycleBadge.VOIDED)
+    if (transaction.isFullyRefunded) {
+        add(RecentLifecycleBadge.FULLY_REFUNDED)
+    } else if (transaction.isPartiallyRefunded) {
+        add(RecentLifecycleBadge.PARTIALLY_REFUNDED)
+    }
+    if (transaction.hasAmountCorrection) add(RecentLifecycleBadge.CORRECTED)
+}
+
 @Composable
 fun RecentTransactionsPanel(
     transactions: List<FinancialTransactionView>,
@@ -161,6 +180,7 @@ private fun RecentTransactionRow(
         }
     }
     val amountFormatted = transaction.netAmount.formatDisplay(currency)
+    val lifecycleBadges = recentLifecycleBadges(transaction)
     val paymentLabel = when (transaction.currentPaymentCategory) {
         PaymentCategory.CASH -> stringResource(R.string.cash_sale_label)
         PaymentCategory.ONLINE -> stringResource(R.string.online_sale_label)
@@ -181,13 +201,33 @@ private fun RecentTransactionRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = paymentLabel,
-                modifier = Modifier.weight(1f),
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
-                maxLines = 1
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = paymentLabel,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    maxLines = 1
+                )
+                if (lifecycleBadges.isNotEmpty()) {
+                    val lifecycleLabels = mutableListOf<String>()
+                    for (badge in lifecycleBadges) {
+                        lifecycleLabels += stringResource(
+                            when (badge) {
+                                RecentLifecycleBadge.VOIDED -> R.string.recent_status_voided
+                                RecentLifecycleBadge.PARTIALLY_REFUNDED -> R.string.recent_status_partially_refunded
+                                RecentLifecycleBadge.FULLY_REFUNDED -> R.string.recent_status_fully_refunded
+                                RecentLifecycleBadge.CORRECTED -> R.string.recent_status_corrected
+                            }
+                        )
+                    }
+                    Text(
+                        text = lifecycleLabels.joinToString(" \u2022 "),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
+            }
 
             Text(
                 text = timeStr,

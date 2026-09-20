@@ -102,6 +102,10 @@
     <string name="credit_sale_label">বাকিতে বিক্রয়</string>
     <string name="coupon_sale_label">কুপনের মাধ্যমে বিক্রয়</string>
     <string name="sale_label">বিক্রয়</string>
+    <string name="recent_status_voided">&#x09AC;&#x09BE;&#x09A4;&#x09BF;&#x09B2;</string>
+    <string name="recent_status_partially_refunded">&#x0986;&#x0982;&#x09B6;&#x09BF;&#x0995; &#x09AB;&#x09C7;&#x09B0;&#x09A4;</string>
+    <string name="recent_status_fully_refunded">&#x09B8;&#x09AE;&#x09CD;&#x09AA;&#x09C2;&#x09B0;&#x09CD;&#x09A3; &#x09AB;&#x09C7;&#x09B0;&#x09A4;</string>
+    <string name="recent_status_corrected">&#x09B8;&#x0982;&#x09B6;&#x09CB;&#x09A7;&#x09BF;&#x09A4;</string>
     <string name="history">ইতিহাস</string>
     <string name="customer">গ্রাহক</string>
     <string name="clear">পরিষ্কার</string>
