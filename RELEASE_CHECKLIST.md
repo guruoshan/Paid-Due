@@ -10,6 +10,9 @@
 - [ ] Financial tables/features touched by this release are classified/audited
 - [ ] Idempotency/duplicate prevention verified where relevant
 - [ ] Crash/recovery behavior verified where relevant
+- [ ] Transaction-lifetime identity preserved for all lifecycle actions
+- [ ] Period totals use authoritative signed activity dates and do not double-count prior sales
+- [ ] Refund/void/correction paths preserve the original transaction and pass cross-period lifecycle tests
 
 ## Tests
 - [ ] Unit tests pass
