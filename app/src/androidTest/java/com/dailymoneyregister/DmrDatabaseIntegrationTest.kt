@@ -924,6 +924,44 @@ class DmrDatabaseIntegrationTest {
         assertEquals(updated, afterRejectedWrite)
     }
 
+    @Test
+    fun testUserRereadByIdInBusinessIsTenantScopedAndReadOnly() = runBlocking {
+        val setup = (setupRepository.executeSetup(SetupParams(
+            businessName = "Tenant Read Shop",
+            branchName = "Main",
+            branchCode = "TEN",
+            countryCode = "OM",
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat",
+            taxRoundingMode = TaxRoundingMode.HALF_UP,
+            defaultTaxRateBps = 0,
+            adminDisplayName = "Tenant Owner",
+            adminUsername = "tenant_owner",
+            adminPasswordPlain = "TenantOwnerPass123",
+            languageCode = "en"
+        )) as CommandResult.Success).data
+        val before = database.userDao().getUserById(setup.adminUserId.value)!!
+
+        val found = database.userDao().getUserByIdInBusiness(
+            userId = setup.adminUserId.value,
+            businessId = setup.businessId.value
+        )
+        assertNotNull(found)
+        assertEquals(setup.adminUserId.value, found?.id)
+        assertEquals(setup.businessId.value, found?.businessId)
+
+        assertNull(
+            database.userDao().getUserByIdInBusiness(
+                userId = setup.adminUserId.value,
+                businessId = "wrong-business"
+            )
+        )
+        val after = database.userDao().getUserById(setup.adminUserId.value)
+        assertEquals(before, after)
+    }
+
     private fun operationFixture(
         id: String = OperationId.generate().value,
         status: OperationStatus = OperationStatus.PENDING

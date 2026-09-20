@@ -48,6 +48,20 @@ interface UserDao {
         updatedAt: Long
     ): Int
 
+    @Query(
+        """
+        SELECT *
+        FROM user_accounts
+        WHERE id = :userId
+          AND business_id = :businessId
+        LIMIT 1
+        """
+    )
+    suspend fun getUserByIdInBusiness(
+        userId: String,
+        businessId: String
+    ): UserAccountEntity?
+
     /**
      * Credential upgrades must not overwrite unrelated User fields.
      *
