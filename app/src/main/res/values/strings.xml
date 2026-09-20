@@ -131,4 +131,11 @@
     <string name="tx_shipping_charge">Transaction Shipping Charge</string>
     <string name="tx_packing_charge">Transaction Packing Charge</string>
     <string name="save_charges">Save Charges</string>
+    <string name="startup_recovery_required">Financial recovery must finish before the register can open.</string>
+    <string name="startup_recovery_failed">Pending financial operations could not be safely recovered.</string>
+    <string name="retry">Retry</string>
+    <string name="change_pin_title">Create New PIN</string>
+    <string name="change_pin_new">New 6-digit PIN</string>
+    <string name="change_pin_confirm">Confirm New PIN</string>
+    <string name="change_pin_save">Save PIN</string>
 </resources>

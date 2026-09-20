@@ -131,4 +131,11 @@
     <string name="tx_shipping_charge">ٹرانزیکشن شپنگ چارج</string>
     <string name="tx_packing_charge">ٹرانزیکشن پیکنگ چارج</string>
     <string name="save_charges">چارجز محفوظ کریں</string>
+    <string name="startup_recovery_required">رجسٹر کھولنے سے پہلے مالی بحالی مکمل ہونی چاہیے</string>
+    <string name="startup_recovery_failed">زیر التوا مالی کارروائیوں کو محفوظ طریقے سے بحال نہیں کیا جا سکا</string>
+    <string name="retry">دوبارہ کوشش کریں</string>
+    <string name="change_pin_title">نیا پن بنائیں</string>
+    <string name="change_pin_new">نیا 6 ہندسوں کا پن</string>
+    <string name="change_pin_confirm">نئے پن کی تصدیق کریں</string>
+    <string name="change_pin_save">پن محفوظ کریں</string>
 </resources>

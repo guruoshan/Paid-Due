@@ -53,6 +53,9 @@ fun RegisterScreen(
     val couponName = stringResource(R.string.payment_coupon_name)
     val creditName = stringResource(R.string.payment_credit_name)
     val onlineName = stringResource(R.string.payment_online_name)
+    val historyName = stringResource(R.string.history)
+    val customerName = stringResource(R.string.customer)
+    val shareName = stringResource(R.string.share)
 
     LaunchedEffect(state.infoMessage) {
         state.infoMessage?.let {
@@ -260,10 +263,10 @@ fun RegisterScreen(
                     buttonHeight = sizing.actionHeight
                 )
                 RegisterSecondaryActionBar(
-                    onHistory = { viewModel.triggerDisabledPaymentMethod("History") },
-                    onCustomer = { viewModel.triggerDisabledPaymentMethod("Customer") },
+                    onHistory = { viewModel.triggerDisabledPaymentMethod(historyName) },
+                    onCustomer = { viewModel.triggerDisabledPaymentMethod(customerName) },
                     onClear = { viewModel.clearDraft() },
-                    onShare = { viewModel.triggerDisabledPaymentMethod("Share") },
+                    onShare = { viewModel.triggerDisabledPaymentMethod(shareName) },
                     buttonHeight = sizing.actionHeight
                 )
                 RecentTransactionsPanel(

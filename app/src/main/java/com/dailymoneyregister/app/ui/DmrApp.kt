@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
@@ -16,6 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.dailymoneyregister.core.i18n.LanguageManager
 import com.dailymoneyregister.core.model.enums.UserRole
+import com.dailymoneyregister.R
 import com.dailymoneyregister.core.security.DebugSessionBootstrapper
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
@@ -59,6 +61,7 @@ fun DmrApp(
     var isCheckingStartup by remember { mutableStateOf(true) }
     var startupRecoveryError by remember { mutableStateOf<String?>(null) }
     var recoveryAttempt by remember { mutableIntStateOf(0) }
+    val startupRecoveryFailedMessage = stringResource(R.string.startup_recovery_failed)
 
     var startDestination by remember {
         mutableStateOf(Routes.SETUP)
@@ -82,7 +85,7 @@ fun DmrApp(
 
             startupRecoveryError =
                 recoveryResult.exceptionOrNull()?.message
-                    ?: "Pending financial operations could not be safely recovered."
+                    ?: startupRecoveryFailedMessage
 
             isCheckingStartup = false
 
@@ -151,7 +154,7 @@ fun DmrApp(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Financial recovery must finish before the register can open."
+                text = stringResource(R.string.startup_recovery_required)
             )
 
             Text(
@@ -165,7 +168,7 @@ fun DmrApp(
                 },
                 modifier = Modifier.padding(top = 20.dp)
             ) {
-                Text("Retry")
+                Text(stringResource(R.string.retry))
             }
         }
 

@@ -131,4 +131,11 @@
     <string name="tx_shipping_charge">رسوم شحن العملية</string>
     <string name="tx_packing_charge">رسوم تغليف العملية</string>
     <string name="save_charges">حفظ الرسوم</string>
+    <string name="startup_recovery_required">يجب إكمال استعادة البيانات المالية قبل فتح السجل.</string>
+    <string name="startup_recovery_failed">تعذر استعادة العمليات المالية المعلقة بأمان.</string>
+    <string name="retry">إعادة المحاولة</string>
+    <string name="change_pin_title">إنشاء رمز PIN جديد</string>
+    <string name="change_pin_new">رمز PIN جديد من 6 أرقام</string>
+    <string name="change_pin_confirm">تأكيد رمز PIN الجديد</string>
+    <string name="change_pin_save">حفظ رمز PIN</string>
 </resources>

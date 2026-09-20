@@ -131,4 +131,11 @@
     <string name="tx_shipping_charge">লেনদেন শিপিং চার্জ</string>
     <string name="tx_packing_charge">লেনদেন প্যাকিং চার্জ</string>
     <string name="save_charges">চার্জ সংরক্ষণ করুন</string>
+    <string name="startup_recovery_required">&#x09B0;&#x09C7;&#x099C;&#x09BF;&#x09B8;&#x09CD;&#x099F;&#x09BE;&#x09B0; &#x0996;&#x09CB;&#x09B2;&#x09BE;&#x09B0; &#x0986;&#x0997;&#x09C7; &#x0986;&#x09B0;&#x09CD;&#x09A5;&#x09BF;&#x0995; &#x09AA;&#x09C1;&#x09A8;&#x09B0;&#x09C1;&#x09A6;&#x09CD;&#x09A7;&#x09BE;&#x09B0; &#x09B8;&#x09AE;&#x09CD;&#x09AA;&#x09C2;&#x09B0;&#x09CD;&#x09A3; &#x09B9;&#x09A4;&#x09C7; &#x09B9;&#x09AC;&#x09C7;&#x0964;</string>
+    <string name="startup_recovery_failed">&#x0985;&#x09AA;&#x09C7;&#x0995;&#x09CD;&#x09B7;&#x09AE;&#x09BE;&#x09A3; &#x0986;&#x09B0;&#x09CD;&#x09A5;&#x09BF;&#x0995; &#x0995;&#x09BE;&#x09B0;&#x09CD;&#x09AF;&#x0995;&#x09CD;&#x09B0;&#x09AE; &#x09A8;&#x09BF;&#x09B0;&#x09BE;&#x09AA;&#x09A6;&#x09C7; &#x09AA;&#x09C1;&#x09A8;&#x09B0;&#x09C1;&#x09A6;&#x09CD;&#x09A7;&#x09BE;&#x09B0; &#x0995;&#x09B0;&#x09BE; &#x09AF;&#x09BE;&#x09AF;&#x09BC;&#x09A8;&#x09BF;&#x0964;</string>
+    <string name="retry">&#x0986;&#x09AC;&#x09BE;&#x09B0; &#x099A;&#x09C7;&#x09B7;&#x09CD;&#x099F;&#x09BE; &#x0995;&#x09B0;&#x09C1;&#x09A8;</string>
+    <string name="change_pin_title">&#x09A8;&#x09A4;&#x09C1;&#x09A8; &#x09AA;&#x09BF;&#x09A8; &#x09A4;&#x09C8;&#x09B0;&#x09BF; &#x0995;&#x09B0;&#x09C1;&#x09A8;</string>
+    <string name="change_pin_new">&#x09A8;&#x09A4;&#x09C1;&#x09A8; &#x09EC;-&#x09B8;&#x0982;&#x0996;&#x09CD;&#x09AF;&#x09BE;&#x09B0; &#x09AA;&#x09BF;&#x09A8;</string>
+    <string name="change_pin_confirm">&#x09A8;&#x09A4;&#x09C1;&#x09A8; &#x09AA;&#x09BF;&#x09A8; &#x09A8;&#x09BF;&#x09B6;&#x09CD;&#x099A;&#x09BF;&#x09A4; &#x0995;&#x09B0;&#x09C1;&#x09A8;</string>
+    <string name="change_pin_save">&#x09AA;&#x09BF;&#x09A8; &#x09B8;&#x0982;&#x09B0;&#x0995;&#x09CD;&#x09B7;&#x09A3; &#x0995;&#x09B0;&#x09C1;&#x09A8;</string>
 </resources>

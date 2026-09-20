@@ -9,8 +9,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.dailymoneyregister.R
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailymoneyregister.core.ui.UiText
@@ -50,10 +52,10 @@ fun ChangePinScreen(viewModel: ChangePinViewModel, onSuccess: () -> Unit) {
         modifier = Modifier.padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Create New PIN")
+        Text(stringResource(R.string.change_pin_title))
         viewModel.error?.let { Text(it) }
-        OutlinedTextField(viewModel.newPin, { if (it.length <= 6 && it.all(Char::isDigit)) viewModel.newPin = it }, label = { Text("New 6-digit PIN") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(viewModel.confirmPin, { if (it.length <= 6 && it.all(Char::isDigit)) viewModel.confirmPin = it }, label = { Text("Confirm New PIN") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-        Button(onClick = { viewModel.save(onSuccess) }, enabled = !viewModel.saving, modifier = Modifier.fillMaxWidth()) { Text("Save PIN") }
+        OutlinedTextField(viewModel.newPin, { if (it.length <= 6 && it.all(Char::isDigit)) viewModel.newPin = it }, label = { Text(stringResource(R.string.change_pin_new)) }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(viewModel.confirmPin, { if (it.length <= 6 && it.all(Char::isDigit)) viewModel.confirmPin = it }, label = { Text(stringResource(R.string.change_pin_confirm)) }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+        Button(onClick = { viewModel.save(onSuccess) }, enabled = !viewModel.saving, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.change_pin_save)) }
     }
 }
