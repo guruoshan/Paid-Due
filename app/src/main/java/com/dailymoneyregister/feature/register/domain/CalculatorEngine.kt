@@ -56,12 +56,7 @@ class CalculatorEngine(val decimalPlaces: Int = 3) {
         }
 
         val parsed = MoneyMinorUnits.parse(newInput, decimalPlaces).getOrElse { return state }
-        val newExpr = if (state.pendingOperator != null && state.previousAmount != null) {
-            val prevStr = state.previousAmount.formatDisplay(decimalPlaces, "").trim()
-            "$prevStr ${state.pendingOperator} $newInput"
-        } else {
-            newInput
-        }
+        val newExpr = expressionWithUpdatedCurrentInput(state, newInput)
 
         return state.copy(
             currentInput = newInput,
@@ -75,12 +70,7 @@ class CalculatorEngine(val decimalPlaces: Int = 3) {
         if (state.currentInput.contains('.')) return state
 
         val newInput = "${state.currentInput}."
-        val newExpr = if (state.pendingOperator != null && state.previousAmount != null) {
-            val prevStr = state.previousAmount.formatDisplay(decimalPlaces, "").trim()
-            "$prevStr ${state.pendingOperator} $newInput"
-        } else {
-            newInput
-        }
+        val newExpr = expressionWithUpdatedCurrentInput(state, newInput)
 
         return state.copy(
             currentInput = newInput,
@@ -96,8 +86,11 @@ class CalculatorEngine(val decimalPlaces: Int = 3) {
             currentVal = evaluateBinary(state.previousAmount, state.pendingOperator, currentVal)
         }
 
-        val prevStr = currentVal.formatDisplay(decimalPlaces, "").trim()
-        val newExpr = "$prevStr $op "
+        val newExpr = if (state.pendingOperator != null && state.previousAmount != null) {
+            "${state.expression.trimEnd()} $op "
+        } else {
+            "${state.currentInput} $op "
+        }
 
         return state.copy(
             expression = newExpr,
@@ -124,11 +117,10 @@ class CalculatorEngine(val decimalPlaces: Int = 3) {
             val percentAmount = MoneyMinorUnits(calculatedPercentMinor)
             val evaluated = evaluateBinary(state.previousAmount, state.pendingOperator, percentAmount)
 
-            val prevStr = state.previousAmount.formatDisplay(decimalPlaces, "").trim()
             val percentStr = state.currentInput
 
             return CalculatorState(
-                expression = "$prevStr ${state.pendingOperator} $percentStr% = ${evaluated.formatDisplay(decimalPlaces, "").trim()}",
+                expression = "${state.expression.trimEnd()}% = ${evaluated.formatDisplay(decimalPlaces, "").trim()}",
                 currentInput = evaluated.formatDisplay(decimalPlaces, "").trim(),
                 evaluatedAmount = evaluated,
                 pendingOperator = null,
@@ -170,10 +162,7 @@ class CalculatorEngine(val decimalPlaces: Int = 3) {
             return state.copy(
                 currentInput = "0",
                 evaluatedAmount = parsed,
-                expression = if (state.pendingOperator != null && state.previousAmount != null) {
-                    val prevStr = state.previousAmount.formatDisplay(decimalPlaces, "").trim()
-                    "$prevStr ${state.pendingOperator} 0"
-                } else "0"
+                expression = expressionWithUpdatedCurrentInput(state, "0")
             )
         }
 
@@ -181,18 +170,32 @@ class CalculatorEngine(val decimalPlaces: Int = 3) {
         val cleanInput = if (newInput.endsWith(".")) newInput.dropLast(1) else newInput
         val parsed = MoneyMinorUnits.parse(cleanInput, decimalPlaces).getOrElse { return state }
 
-        val newExpr = if (state.pendingOperator != null && state.previousAmount != null) {
-            val prevStr = state.previousAmount.formatDisplay(decimalPlaces, "").trim()
-            "$prevStr ${state.pendingOperator} $newInput"
-        } else {
-            newInput
-        }
+        val newExpr = expressionWithUpdatedCurrentInput(state, newInput)
 
         return state.copy(
             currentInput = newInput,
             evaluatedAmount = parsed,
             expression = newExpr
         )
+    }
+
+    private fun expressionWithUpdatedCurrentInput(
+        state: CalculatorState,
+        newInput: String
+    ): String {
+        if (state.pendingOperator == null || state.previousAmount == null) {
+            return newInput
+        }
+
+        val currentInput = state.currentInput
+        return when {
+            currentInput.isNotEmpty() && state.expression.endsWith(currentInput) ->
+                state.expression.dropLast(currentInput.length) + newInput
+            state.expression.endsWith(" ") ->
+                state.expression + newInput
+            else ->
+                state.expression
+        }
     }
 
     private fun evaluateBinary(left: MoneyMinorUnits, operator: String, right: MoneyMinorUnits): MoneyMinorUnits {

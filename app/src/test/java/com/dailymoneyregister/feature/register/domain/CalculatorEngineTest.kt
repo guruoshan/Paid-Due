@@ -146,6 +146,7 @@ class CalculatorEngineTest {
 
         assertEquals(MoneyMinorUnits(38000L), state.evaluatedAmount)
         assertEquals("38.000", state.currentInput)
+        assertEquals("10 + 5 + 8 + 3 + 12 = 38.000", state.expression)
         assertNull(state.pendingOperator)
     }
 }
