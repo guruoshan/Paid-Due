@@ -46,7 +46,7 @@ data class RegisterUiState(
     val isTaxDialogOpen: Boolean = false,
     val isShippingPackingDialogOpen: Boolean = false,
     val isAddItemDialogOpen: Boolean = false,
-    val isRecentTransactionsExpanded: Boolean = true,
+    val isRecentTransactionsExpanded: Boolean = false,
     val lastCompletedTransaction: TransactionEntity? = null,
     val isExecuting: Boolean = false,
     val errorMessage: UiText? = null,

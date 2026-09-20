@@ -8,6 +8,11 @@ import org.junit.Test
 
 class RegisterDraftActionsTest {
     @Test
+    fun registerUiStateStartsWithRecentTransactionsCollapsed() {
+        assertFalse(RegisterUiState().isRecentTransactionsExpanded)
+    }
+
+    @Test
     fun clearDraftStateContainsNoUnsavedFinancialValues() {
         val cleared = clearedRegisterDraft(null)
 
