@@ -1,5 +1,10 @@
 package com.dailymoneyregister.feature.register.data
 
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import com.dailymoneyregister.core.model.financial.FinancialTransactionView
 import com.dailymoneyregister.core.model.financial.FinancialReadModelResolver
@@ -31,9 +36,27 @@ import com.dailymoneyregister.core.security.PermissionDeniedException
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.feature.register.domain.DraftState
 import kotlinx.coroutines.flow.Flow
-import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
+
+internal fun observeLocalDayStarts(
+    zoneId: ZoneId,
+    nowMillis: () -> Long = { System.currentTimeMillis() },
+    waitFor: suspend (Long) -> Unit = { delay(it) }
+): Flow<Long> = flow {
+    while (currentCoroutineContext().isActive) {
+        val now = nowMillis()
+        val currentDate = java.time.Instant.ofEpochMilli(now).atZone(zoneId).toLocalDate()
+        val startOfDay = currentDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        emit(startOfDay)
+
+        val nextStartOfDay = currentDate.plusDays(1)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        waitFor((nextStartOfDay - now).coerceAtLeast(1L))
+    }
+}
 
 data class CashSaleCommand(
     override val operationId: OperationId,
@@ -562,6 +585,7 @@ class RegisterRepository @Inject constructor(
         return transactionDao.observeRecentTransactions(branchId, limit)
     }
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun observeTodayTransactions(
         branchId: String,
         timezoneId: String
@@ -573,21 +597,15 @@ class RegisterRepository @Inject constructor(
             ZoneId.systemDefault()
         }
 
-        val startOfDayMillis =
-            LocalDate.now(zoneId)
-                .atStartOfDay(zoneId)
-                .toInstant()
-                .toEpochMilli()
-
-        return transactionDao
-            .observeTodayFinancialRecords(
-                branchId,
-                startOfDayMillis
-            )
-            .map { records ->
-                records.map(
-                    FinancialReadModelResolver::resolve
+        return observeLocalDayStarts(zoneId).flatMapLatest { startOfDayMillis ->
+            transactionDao
+                .observeTodayFinancialRecords(
+                    branchId,
+                    startOfDayMillis
                 )
+                .map { records ->
+                    records.map(FinancialReadModelResolver::resolve)
+                }
             }
     }
 
