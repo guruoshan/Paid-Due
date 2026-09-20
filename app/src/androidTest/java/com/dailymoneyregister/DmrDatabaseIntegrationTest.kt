@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.dailymoneyregister.core.command.CommandExecutor
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.command.OperationCommand
@@ -22,6 +23,7 @@ import com.dailymoneyregister.core.model.ids.TransactionId
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import com.dailymoneyregister.core.security.PinThrottler
+import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.feature.admin.data.CashierManagementRepository
@@ -37,7 +39,10 @@ import com.dailymoneyregister.feature.setup.data.SetupRepository
 import com.dailymoneyregister.feature.setup.data.SetupResult
 import com.dailymoneyregister.feature.settings.data.SettingsLanguageResult
 import com.dailymoneyregister.feature.settings.data.SettingsRepository
+import com.dailymoneyregister.feature.settings.ui.SettingsViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -1021,6 +1026,87 @@ class DmrDatabaseIntegrationTest {
 
         assertTrue(result is SettingsLanguageResult.PersistenceFailure)
         assertEquals(before, database.userDao().getUserById(before.id))
+    }
+
+    @Test
+    fun testSettingsViewModelPersistsLanguageThenRefreshesSessionAndRuntime() = runBlocking {
+        val setup = createLanguageTestSetup()
+        val beforeUser = database.userDao().getUserById(setup.adminUserId.value)!!
+        val beforeBusiness = database.businessBranchDao().getBusinessById(setup.businessId.value)!!
+        val beforeBranch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
+        val languageManager = LanguageManager(context)
+        val originalLanguage = languageManager.currentLanguage.value.code
+        val viewModel = SettingsViewModel(languageManager, SettingsRepository(database.userDao()))
+        val initialSession = ActiveSession(
+            business = beforeBusiness,
+            branch = beforeBranch,
+            user = beforeUser,
+            membership = null
+        )
+
+        try {
+            languageManager.setLanguage("en")
+            SessionManager.setSession(initialSession)
+
+            viewModel.updateLanguage("ar")
+
+            withTimeout(3_000L) {
+                while (
+                    database.userDao().getUserById(beforeUser.id)?.languageCode != "ar" ||
+                    SessionManager.currentSession.value?.user?.languageCode != "ar" ||
+                    languageManager.currentLanguage.value.code != "ar"
+                ) {
+                    delay(10L)
+                }
+            }
+
+            val persisted = database.userDao().getUserById(beforeUser.id)!!
+            val sessionUser = SessionManager.currentSession.value?.user
+            assertEquals("ar", persisted.languageCode)
+            assertEquals(persisted, sessionUser)
+            assertEquals("ar", languageManager.currentLanguage.value.code)
+            assertEquals(
+                beforeUser.copy(languageCode = "ar", updatedAt = persisted.updatedAt),
+                persisted
+            )
+            assertEquals(beforeBusiness, database.businessBranchDao().getBusinessById(beforeBusiness.id))
+            assertEquals(beforeBranch, database.businessBranchDao().getBranchById(beforeBranch.id))
+        } finally {
+            SessionManager.clearSession()
+            languageManager.setLanguage(originalLanguage)
+        }
+    }
+
+    @Test
+    fun testSettingsViewModelUnsupportedLanguageLeavesDatabaseSessionAndRuntimeUnchanged() = runBlocking {
+        val setup = createLanguageTestSetup()
+        val beforeUser = database.userDao().getUserById(setup.adminUserId.value)!!
+        val beforeBusiness = database.businessBranchDao().getBusinessById(setup.businessId.value)!!
+        val beforeBranch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
+        val languageManager = LanguageManager(context)
+        val originalLanguage = languageManager.currentLanguage.value.code
+        val viewModel = SettingsViewModel(languageManager, SettingsRepository(database.userDao()))
+        val initialSession = ActiveSession(
+            business = beforeBusiness,
+            branch = beforeBranch,
+            user = beforeUser,
+            membership = null
+        )
+
+        try {
+            languageManager.setLanguage("en")
+            SessionManager.setSession(initialSession)
+
+            viewModel.updateLanguage("xx")
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+
+            assertEquals(beforeUser, database.userDao().getUserById(beforeUser.id))
+            assertEquals(initialSession, SessionManager.currentSession.value)
+            assertEquals("en", languageManager.currentLanguage.value.code)
+        } finally {
+            SessionManager.clearSession()
+            languageManager.setLanguage(originalLanguage)
+        }
     }
 
     private suspend fun createLanguageTestSetup(): SetupResult {
