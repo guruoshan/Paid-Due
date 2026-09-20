@@ -95,10 +95,16 @@ class RegisterViewModel @Inject constructor(
     val uiState: StateFlow<RegisterUiState> = _uiState.asStateFlow()
 
     val recentTransactions: StateFlow<List<FinancialTransactionView>> =
-        registerRepository.observeTodayTransactions(
-            activeBranch?.id ?: "",
-            activeBranch?.timezoneId ?: "Asia/Muscat"
-        ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        observeRecentForSession(SessionManager.currentSession) { branchId, timezoneId ->
+            registerRepository.observeTodayTransactions(
+                branchId,
+                timezoneId
+            )
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
 
     init {
         updateCalculatorEngine()
