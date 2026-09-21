@@ -2,7 +2,6 @@ package com.dailymoneyregister
 
 import android.content.Context
 import android.util.Log
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dailymoneyregister.core.command.CommandExecutor
@@ -52,9 +51,7 @@ class CashSaleFinancialCharacterizationTest {
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        database = Room.inMemoryDatabaseBuilder(context, DmrDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
+        database = DmrDatabase.createInMemory(context)
         repository = RegisterRepository(database, CommandExecutor(database))
         runBlocking { seedAuthoritativeFixture() }
     }
