@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="receive_payment">ادائیگی وصول کریں</string>
+    <string name="send_credit_via_whatsapp">واٹس ایپ پر ادھار بھیجیں</string>
+    <string name="credit_balance">ادھار بیلنس</string>
+    <string name="payment_reminder">ادائیگی کی یاد دہانی</string>
+    <string name="send_coupon_via_whatsapp">واٹس ایپ پر کوپن بھیجیں</string>
+    <string name="coupon_balance">کوپن بیلنس</string>
+    <string name="coupon_purchase_top_up_option">کوپن خریداری / ٹاپ اپ</string>
+    <string name="whatsapp_preview">واٹس ایپ پیش منظر</string>
+    <string name="send_via_whatsapp">واٹس ایپ کے ذریعے بھیجیں</string>
+    <string name="find_customer">گاہک تلاش کریں</string>
+    <string name="create_new_customer">نیا گاہک بنائیں</string>
+    <string name="find_existing_customer">موجودہ گاہک تلاش کریں</string>
+    <string name="search_results">تلاش کے نتائج</string>
+    <string name="coupon_wallet_title">کوپن والیٹ</string>
+    <string name="coupon_wallet_none_for_customer">اس گاہک کے لیے کوئی کوپن والیٹ نہیں ملا۔</string>
+    <string name="authorized_users_title">مجاز صارفین</string>
+    <string name="transaction_history">لین دین کی تاریخ</string>
+    <string name="activity_title">سرگرمی</string>
+    <string name="return_title">واپسی</string>
+    <string name="no_items_added_yet">ابھی تک کوئی آئٹم شامل نہیں کیا گیا</string>
+    <string name="coupon_purchaser_tag">خریدار</string>
+    <string name="new_customer">نیا گاہک</string>
+    <string name="done">ہو گیا</string>
+    <string name="name">نام</string>
+    <string name="phone">فون</string>
+</resources>

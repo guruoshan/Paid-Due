@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="receive_payment">भुगतान प्राप्त करें</string>
+    <string name="send_credit_via_whatsapp">WhatsApp पर उधार भेजें</string>
+    <string name="credit_balance">उधार बैलेंस</string>
+    <string name="payment_reminder">भुगतान अनुस्मारक</string>
+    <string name="send_coupon_via_whatsapp">WhatsApp पर कूपन भेजें</string>
+    <string name="coupon_balance">कूपन बैलेंस</string>
+    <string name="coupon_purchase_top_up_option">कूपन खरीद / टॉप अप</string>
+    <string name="whatsapp_preview">WhatsApp पूर्वावलोकन</string>
+    <string name="send_via_whatsapp">WhatsApp से भेजें</string>
+    <string name="find_customer">ग्राहक खोजें</string>
+    <string name="create_new_customer">नया ग्राहक बनाएं</string>
+    <string name="find_existing_customer">मौजूदा ग्राहक खोजें</string>
+    <string name="search_results">खोज परिणाम</string>
+    <string name="coupon_wallet_title">कूपन वॉलेट</string>
+    <string name="coupon_wallet_none_for_customer">इस ग्राहक के लिए कोई कूपन वॉलेट नहीं मिला।</string>
+    <string name="authorized_users_title">अधिकृत उपयोगकर्ता</string>
+    <string name="transaction_history">लेन-देन का इतिहास</string>
+    <string name="activity_title">गतिविधि</string>
+    <string name="return_title">वापसी</string>
+    <string name="no_items_added_yet">अभी तक कोई आइटम नहीं जोड़ा गया</string>
+    <string name="coupon_purchaser_tag">खरीदार</string>
+    <string name="new_customer">नया ग्राहक</string>
+    <string name="done">हो गया</string>
+    <string name="name">नाम</string>
+    <string name="phone">फोन</string>
+</resources>

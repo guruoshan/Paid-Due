@@ -724,7 +724,7 @@ fun TransactionDetailsScreen(
                                         selected =
                                             refundDestination.value ==
                                                 PaymentCategory.CASH,
-                                        label = "Cash",
+                                        label = stringResource(R.string.tx_payment_cash),
                                         enabled =
                                             !actionInProgress,
                                         onClick = {
@@ -737,7 +737,7 @@ fun TransactionDetailsScreen(
                                         selected =
                                             refundDestination.value ==
                                                 PaymentCategory.ONLINE,
-                                        label = "Online",
+                                        label = stringResource(R.string.tx_payment_online),
                                         enabled =
                                             !actionInProgress,
                                         onClick = {
@@ -974,7 +974,7 @@ fun TransactionDetailsScreen(
         }
 
         Text(
-            text = "Activity",
+            text = stringResource(R.string.activity_title),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
@@ -1139,7 +1139,7 @@ private fun CreditRepaymentTimelineCard(
     timezoneId: String
 ) {
     TimelineCard(
-        title = "Payment Received"
+        title = stringResource(R.string.payment_received)
     ) {
         Text(
             MoneyMinorUnits(
@@ -1258,7 +1258,7 @@ private fun RefundTimelineCard(
     timezoneId: String
 ) {
     TimelineCard(
-        title = "Return"
+        title = stringResource(R.string.return_title)
     ) {
         Text(
             stringResource(

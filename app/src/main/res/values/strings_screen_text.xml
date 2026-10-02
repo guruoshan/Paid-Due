@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="receive_payment">Receive Payment</string>
+    <string name="send_credit_via_whatsapp">Send Credit via WhatsApp</string>
+    <string name="credit_balance">Credit Balance</string>
+    <string name="payment_reminder">Payment Reminder</string>
+    <string name="send_coupon_via_whatsapp">Send Coupon via WhatsApp</string>
+    <string name="coupon_balance">Coupon Balance</string>
+    <string name="coupon_purchase_top_up_option">Coupon Purchase / Top-up</string>
+    <string name="whatsapp_preview">WhatsApp Preview</string>
+    <string name="send_via_whatsapp">Send via WhatsApp</string>
+    <string name="find_customer">Find Customer</string>
+    <string name="create_new_customer">Create New Customer</string>
+    <string name="find_existing_customer">Find Existing Customer</string>
+    <string name="search_results">Search Results</string>
+    <string name="coupon_wallet_title">Coupon Wallet</string>
+    <string name="coupon_wallet_none_for_customer">No coupon wallet found for this customer.</string>
+    <string name="authorized_users_title">Authorized Users</string>
+    <string name="transaction_history">Transaction History</string>
+    <string name="activity_title">Activity</string>
+    <string name="return_title">Return</string>
+    <string name="no_items_added_yet">No items added yet</string>
+    <string name="coupon_purchaser_tag">Purchaser</string>
+    <string name="new_customer">New Customer</string>
+    <string name="done">Done</string>
+    <string name="name">Name</string>
+    <string name="phone">Phone</string>
+</resources>

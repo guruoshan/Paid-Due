@@ -213,7 +213,7 @@ fun RegisterScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Paid&Due",
+                        text = stringResource(R.string.app_name),
                         modifier = Modifier.weight(0.28f),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
@@ -481,7 +481,7 @@ fun RegisterScreen(
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Text(
-                                    text = "Sale Saved",
+                                    text = stringResource(R.string.sale_saved),
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = RegisterColors.CashPrimary
@@ -843,7 +843,7 @@ fun RegisterScreen(
                                         contentColor = Color.White
                                     )
                                 ) {
-                                    Text("WhatsApp")
+                                    Text(stringResource(R.string.whatsapp))
                                 }
 
                                 TextButton(
@@ -851,7 +851,7 @@ fun RegisterScreen(
                                         viewModel.startNewSale()
                                     }
                                 ) {
-                                    Text("Done")
+                                    Text(stringResource(R.string.done))
                                 }
                             }
                         }
@@ -1137,7 +1137,7 @@ private fun CreditSaleDialog(
 
         title = {
             Text(
-                text = "Credit Sale",
+                text = stringResource(R.string.credit_sale_label),
                 fontWeight = FontWeight.Bold
             )
         },
@@ -1175,7 +1175,7 @@ private fun CreditSaleDialog(
                     !createCustomer
                 ) {
                     Text(
-                        text = "Find Customer",
+                        text = stringResource(R.string.find_customer),
                         fontWeight = FontWeight.SemiBold
                     )
 
@@ -1197,7 +1197,7 @@ private fun CreditSaleDialog(
                             },
 
                             label = {
-                                Text("Phone")
+                                Text(stringResource(R.string.phone))
                             }
                         )
 
@@ -1212,7 +1212,7 @@ private fun CreditSaleDialog(
                             },
 
                             label = {
-                                Text("Name")
+                                Text(stringResource(R.string.name))
                             }
                         )
                     }
@@ -1250,7 +1250,7 @@ private fun CreditSaleDialog(
                             singleLine = true,
 
                             label = {
-                                Text("Customer Name")
+                                Text(stringResource(R.string.coupon_purchase_name))
                             }
                         )
                     }
@@ -1319,7 +1319,7 @@ private fun CreditSaleDialog(
 
                         } else {
                             Text(
-                                text = "Search Results",
+                                text = stringResource(R.string.search_results),
                                 fontWeight =
                                     FontWeight.SemiBold
                             )
@@ -1392,13 +1392,13 @@ private fun CreditSaleDialog(
 
                         enabled = !locked
                     ) {
-                        Text("Create New Customer")
+                        Text(stringResource(R.string.create_new_customer))
                     }
                 }
 
                 if (createCustomer) {
                     Text(
-                        text = "New Customer",
+                        text = stringResource(R.string.new_customer),
                         fontWeight =
                             FontWeight.SemiBold
                     )
@@ -1418,7 +1418,7 @@ private fun CreditSaleDialog(
                         singleLine = true,
 
                         label = {
-                            Text("Customer Name")
+                            Text(stringResource(R.string.coupon_purchase_name))
                         }
                     )
 
@@ -1446,7 +1446,7 @@ private fun CreditSaleDialog(
 
                         enabled = !locked
                     ) {
-                        Text("Find Existing Customer")
+                        Text(stringResource(R.string.find_existing_customer))
                     }
                 }
 
@@ -1493,7 +1493,7 @@ private fun CreditSaleDialog(
 
                         enabled = !locked
                     ) {
-                        Text("Change Customer")
+                        Text(stringResource(R.string.coupon_change_customer))
                     }
                 }
 
@@ -1541,7 +1541,7 @@ private fun CreditSaleDialog(
 
                 enabled = !locked
             ) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -1556,25 +1556,25 @@ private fun CouponWalletDialog(viewModel: RegisterViewModel, state: RegisterUiSt
     val locked = state.isExecuting || state.inFlightCouponUserCommand != null
     AlertDialog(
         onDismissRequest = viewModel::closeCouponWallet,
-        title = { Text("Coupon Wallet") },
+        title = { Text(stringResource(R.string.coupon_wallet_title)) },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 state.errorMessage?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
                 if (state.couponWalletLoading) {
-                    Text("Loading...")
+                    Text(stringResource(R.string.coupon_loading))
                 } else if (details == null) {
-                    Text("No coupon wallet found for this customer.")
+                    Text(stringResource(R.string.coupon_wallet_none_for_customer))
                 } else {
                     Text(
                         com.dailymoneyregister.core.model.money.MoneyMinorUnits(details.balanceMinor)
                             .formatDisplay(decimalPlaces, viewModel.currencySymbol),
                         fontWeight = FontWeight.Bold, fontSize = 20.sp
                     )
-                    Text("Authorized Users", fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.authorized_users_title), fontWeight = FontWeight.SemiBold)
                     details.authorizedUsers.forEach { authUser ->
                         val latestName = authUser.name
-                        Text("• $latestName${if (authUser.user.isPurchaser) " (Purchaser)" else ""}")
+                        Text("• $latestName${if (authUser.user.isPurchaser) " (" + stringResource(R.string.coupon_purchaser_tag) + ")" else ""}")
                         if (authUser.isActive) {
                             Row {
                                 TextButton(onClick = { editingId = authUser.user.id; userName = latestName }, enabled = !locked) {
@@ -1605,7 +1605,7 @@ private fun CouponWalletDialog(viewModel: RegisterViewModel, state: RegisterUiSt
                             openCouponWhatsApp(context, customer.canonicalPhone, message)
                         }, enabled = !locked) { Text(stringResource(R.string.coupon_share_updated_balance)) }
                     }
-                    Text("Transaction History", fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.transaction_history), fontWeight = FontWeight.SemiBold)
                     details.ledgerEvents.forEach { event ->
                         Text("${event.type}: " + com.dailymoneyregister.core.model.money.MoneyMinorUnits(event.amountSignedMinor)
                             .formatDisplay(decimalPlaces, viewModel.currencySymbol))

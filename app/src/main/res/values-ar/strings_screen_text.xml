@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="receive_payment">استلام دفعة</string>
+    <string name="send_credit_via_whatsapp">إرسال الآجل عبر واتساب</string>
+    <string name="credit_balance">رصيد الآجل</string>
+    <string name="payment_reminder">تذكير بالدفع</string>
+    <string name="send_coupon_via_whatsapp">إرسال القسيمة عبر واتساب</string>
+    <string name="coupon_balance">رصيد القسيمة</string>
+    <string name="coupon_purchase_top_up_option">شراء القسيمة / الشحن</string>
+    <string name="whatsapp_preview">معاينة واتساب</string>
+    <string name="send_via_whatsapp">إرسال عبر واتساب</string>
+    <string name="find_customer">البحث عن عميل</string>
+    <string name="create_new_customer">إنشاء عميل جديد</string>
+    <string name="find_existing_customer">البحث عن عميل حالي</string>
+    <string name="search_results">نتائج البحث</string>
+    <string name="coupon_wallet_title">محفظة القسيمة</string>
+    <string name="coupon_wallet_none_for_customer">لم يتم العثور على محفظة قسيمة لهذا العميل.</string>
+    <string name="authorized_users_title">المستخدمون المفوّضون</string>
+    <string name="transaction_history">سجل المعاملات</string>
+    <string name="activity_title">النشاط</string>
+    <string name="return_title">إرجاع</string>
+    <string name="no_items_added_yet">لم تتم إضافة أي أصناف بعد</string>
+    <string name="coupon_purchaser_tag">المشتري</string>
+    <string name="new_customer">عميل جديد</string>
+    <string name="done">تم</string>
+    <string name="name">الاسم</string>
+    <string name="phone">الهاتف</string>
+</resources>

@@ -444,7 +444,7 @@ fun CustomerDetailScreen(
                                                 contentColor = Color.White
                                             )
                                     ) {
-                                        Text("WhatsApp")
+                                        Text(stringResource(R.string.whatsapp))
                                     }
 
                                     if (coupon.ledgerEvents.isEmpty()) {
@@ -634,7 +634,7 @@ fun CustomerDetailScreen(
                                         modifier =
                                             Modifier.fillMaxWidth()
                                     ) {
-                                        Text("Receive Payment")
+                                        Text(stringResource(R.string.receive_payment))
                                     }
                                     }
 
@@ -653,7 +653,7 @@ fun CustomerDetailScreen(
                                                 contentColor = Color.White
                                             )
                                     ) {
-                                        Text("WhatsApp")
+                                        Text(stringResource(R.string.whatsapp))
                                     }
 
                                     state.repaymentSuccess
@@ -885,7 +885,7 @@ fun CustomerDetailScreen(
                 whatsappChoice = null
             },
             title = {
-                Text("Send Credit via WhatsApp")
+                Text(stringResource(R.string.send_credit_via_whatsapp))
             },
             text = {
                 Column(
@@ -918,7 +918,7 @@ fun CustomerDetailScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Credit Balance")
+                        Text(stringResource(R.string.credit_balance))
                     }
 
                     if (state.creditOutstandingMinor > 0L) {
@@ -950,7 +950,7 @@ fun CustomerDetailScreen(
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Payment Reminder")
+                            Text(stringResource(R.string.payment_reminder))
                         }
                     }
                 }
@@ -962,7 +962,7 @@ fun CustomerDetailScreen(
                         whatsappChoice = null
                     }
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -985,7 +985,7 @@ fun CustomerDetailScreen(
                 whatsappChoice = null
             },
             title = {
-                Text("Send Coupon via WhatsApp")
+                Text(stringResource(R.string.send_coupon_via_whatsapp))
             },
             text = {
                 Column(
@@ -1029,7 +1029,7 @@ fun CustomerDetailScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Coupon Balance")
+                        Text(stringResource(R.string.coupon_balance))
                     }
 
                     if (
@@ -1083,7 +1083,7 @@ fun CustomerDetailScreen(
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Coupon Purchase / Top-up")
+                            Text(stringResource(R.string.coupon_purchase_top_up_option))
                         }
                     }
                 }
@@ -1095,7 +1095,7 @@ fun CustomerDetailScreen(
                         whatsappChoice = null
                     }
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -1107,7 +1107,7 @@ fun CustomerDetailScreen(
                 whatsappPreview = null
             },
             title = {
-                Text("WhatsApp Preview")
+                Text(stringResource(R.string.whatsapp_preview))
             },
             text = {
                 LazyColumn {
@@ -1151,7 +1151,7 @@ fun CustomerDetailScreen(
                                 Color.White
                         )
                 ) {
-                    Text("Send via WhatsApp")
+                    Text(stringResource(R.string.send_via_whatsapp))
                 }
             },
             dismissButton = {
@@ -1160,7 +1160,7 @@ fun CustomerDetailScreen(
                         whatsappPreview = null
                     }
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )

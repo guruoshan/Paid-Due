@@ -76,7 +76,7 @@ fun ItemizedBillDialog(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "No items added yet",
+                            text = stringResource(R.string.no_items_added_yet),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
