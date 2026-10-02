@@ -17,3 +17,10 @@ local.properties
 /extracted_tables.txt
 /session7-dex-failure.txt
 _local-reviews/
+
+.boardlock-backups/
+CREDIT_PHASE_1A/
+CREDIT_PHASE_1A.zip
+audit-report-*/
+*.bak
+*.BEFORE-*

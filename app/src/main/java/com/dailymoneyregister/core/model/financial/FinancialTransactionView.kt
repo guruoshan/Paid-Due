@@ -3,10 +3,12 @@ package com.dailymoneyregister.core.model.financial
 import com.dailymoneyregister.core.database.entity.AmountCorrectionEventEntity
 import com.dailymoneyregister.core.database.entity.PaymentMethodChangeEventEntity
 import com.dailymoneyregister.core.database.entity.RefundEventEntity
-import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
 import com.dailymoneyregister.core.database.readmodel.TransactionFinancialRecord
 import com.dailymoneyregister.core.database.entity.TransactionEntity
+import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.PaymentCategory
+import com.dailymoneyregister.core.model.enums.PaymentChannel
+import com.dailymoneyregister.core.model.enums.TransactionType
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 
 /**
@@ -25,8 +27,15 @@ data class FinancialTransactionView(
     val isVoided: Boolean,
     val hasAmountCorrection: Boolean,
     val originalPaymentCategory: PaymentCategory?,
+    val originalPaymentChannel: PaymentChannel?,
     val currentPaymentCategory: PaymentCategory?,
-    val latestActivityAt: Long
+    val currentPaymentChannel: PaymentChannel?,
+    val latestActivityAt: Long,
+    /** Signed financial impact whose authoritative activity occurred in the requested period. */
+    val periodFinancialEffect: MoneyMinorUnits = netAmount,
+    /** Lifecycle meaning resolved from the authoritative transaction record. */
+    val lifecycleStates: Set<FinancialLifecycleState> = emptySet(),
+    val fundingBreakdown: List<FinancialFundingPart> = emptyList()
 ) {
     val id: String get() = transaction.id
     val displayRef: String get() = transaction.displayRef
@@ -38,13 +47,36 @@ data class FinancialTransactionView(
         get() = refundedAmount.isPositive && refundedAmount == currentAmount
 }
 
+enum class FinancialLifecycleState {
+    CORRECTED,
+    PAYMENT_METHOD_CHANGED,
+    PARTIALLY_REFUNDED,
+    FULLY_REFUNDED,
+    VOIDED
+}
+
+data class FinancialFundingPart(val category: PaymentCategory, val channel: PaymentChannel, val amountMinor: Long)
+
 object FinancialReadModelResolver {
 
     fun resolve(
-        record: TransactionFinancialRecord
+        record: TransactionFinancialRecord,
+        periodStartMillis: Long? = null,
+        periodEndMillis: Long? = null
     ): FinancialTransactionView {
 
         val transaction = record.transaction
+        val periodStart = periodStartMillis ?: Long.MIN_VALUE
+        val periodEnd = periodEndMillis ?: Long.MAX_VALUE
+        require(periodStart < periodEnd) { "Invalid financial activity period" }
+
+        record.settlements.forEach { settlement ->
+            if (settlement.currencyCode != transaction.currencyCode) {
+                throw IllegalStateException(
+                    "Currency mismatch for transaction ${transaction.id}"
+                )
+            }
+        }
 
         val corrections = record.amountCorrections.sortedWith(
             compareBy<AmountCorrectionEventEntity> { it.occurredAt }
@@ -124,20 +156,63 @@ object FinancialReadModelResolver {
                     .thenBy { it.id }
             )
 
-        val firstPositiveSettlement =
+        /*
+         * Payment identity comes from authoritative SALE_FUNDING, never from an
+         * unrelated positive settlement such as a repayment collection. Multiple
+         * sale-funding rows are acceptable only when they represent the same
+         * category + channel identity; mixed funding is intentionally fail-closed
+         * until the read model grows an explicit split-tender representation.
+         */
+        val fundingPurpose = if (transaction.type == TransactionType.COUPON_PURCHASE)
+            EntryPurpose.COUPON_PURCHASE_FUNDING else EntryPurpose.SALE_FUNDING
+        val saleFundingIdentities =
             record.settlements
-                .filter { it.amountSignedMinor > 0L }
-                .minWithOrNull(
-                    compareBy<SettlementEntryEntity> { it.occurredAt }
-                        .thenBy { it.id }
-                )
+                .asSequence()
+                .filter {
+                    it.entryPurpose == fundingPurpose &&
+                        it.amountSignedMinor > 0L
+                }
+                .map { it.category to it.channel }
+                .distinct()
+                .toList()
+
+        val fundingBreakdown = record.settlements.filter {
+            it.entryPurpose == fundingPurpose && it.amountSignedMinor > 0
+        }.groupBy { it.category to it.channel }.map { (identity, entries) ->
+            FinancialFundingPart(identity.first, identity.second,
+                entries.fold(0L) { total, entry -> Math.addExact(total, entry.amountSignedMinor) })
+        }
+        val couponSplit = saleFundingIdentities.size == 2 &&
+            saleFundingIdentities.contains(PaymentCategory.COUPON to PaymentChannel.COUPON_WALLET) &&
+            saleFundingIdentities.all { it in listOf(
+                PaymentCategory.COUPON to PaymentChannel.COUPON_WALLET,
+                PaymentCategory.CASH to PaymentChannel.CASH_TENDER,
+                PaymentCategory.ONLINE to PaymentChannel.MANUAL_QR,
+                PaymentCategory.CREDIT to PaymentChannel.CREDIT_ACCOUNT) } &&
+            fundingBreakdown.fold(0L) { total, part -> Math.addExact(total, part.amountMinor) } == transaction.grandTotalMinor &&
+            paymentChanges.isEmpty()
+        if (saleFundingIdentities.size > 1 && !couponSplit) {
+            throw IllegalStateException(
+                "Ambiguous sale-funding identity for transaction ${transaction.id}"
+            )
+        }
+
+        val authoritativeOriginalIdentity =
+            saleFundingIdentities.singleOrNull()
 
         val originalPaymentCategory =
-            firstPositiveSettlement?.category
+            authoritativeOriginalIdentity?.first
                 ?: paymentChanges.firstOrNull()?.previousMethod
+
+        val originalPaymentChannel =
+            authoritativeOriginalIdentity?.second
+                ?: paymentChanges.firstOrNull()?.previousChannel
 
         var currentPaymentCategory =
             originalPaymentCategory
+
+        var currentPaymentChannel =
+            originalPaymentChannel
 
         paymentChanges.forEach { change ->
 
@@ -146,12 +221,24 @@ object FinancialReadModelResolver {
                 change.previousMethod != currentPaymentCategory
             ) {
                 throw IllegalStateException(
-                    "Broken payment-method chain for transaction ${transaction.id}"
+                    "Broken payment-method category chain for transaction ${transaction.id}"
+                )
+            }
+
+            if (
+                currentPaymentChannel != null &&
+                change.previousChannel != currentPaymentChannel
+            ) {
+                throw IllegalStateException(
+                    "Broken payment-method channel chain for transaction ${transaction.id}"
                 )
             }
 
             currentPaymentCategory =
                 change.newMethod
+
+            currentPaymentChannel =
+                change.newChannel
         }
 
         var latestActivityAt =
@@ -182,6 +269,60 @@ object FinancialReadModelResolver {
                 maxOf(latestActivityAt, it.occurredAt)
         }
 
+        val lifecycleStates = buildSet {
+            if (record.amountCorrections.isNotEmpty()) add(FinancialLifecycleState.CORRECTED)
+            if (paymentChanges.isNotEmpty()) add(FinancialLifecycleState.PAYMENT_METHOD_CHANGED)
+            if (isVoided) add(FinancialLifecycleState.VOIDED)
+            if (refundedAmount == currentAmount && refundedAmount.isPositive) {
+                add(FinancialLifecycleState.FULLY_REFUNDED)
+            } else if (refundedAmount.isPositive) {
+                add(FinancialLifecycleState.PARTIALLY_REFUNDED)
+            }
+        }
+
+        val periodSettlements = record.settlements.filter {
+            it.occurredAt >= periodStart && it.occurredAt < periodEnd
+        }
+        var periodFinancialEffect = periodSettlements.fold(MoneyMinorUnits.ZERO) { total, settlement ->
+            total + MoneyMinorUnits(settlement.amountSignedMinor)
+        }
+        val settlementOperationIds = record.settlements.mapTo(mutableSetOf()) { it.operationId }
+        val hasAuthoritativeSaleFunding = record.settlements.any {
+            it.entryPurpose == fundingPurpose
+        }
+
+        if (transaction.createdAt >= periodStart && transaction.createdAt < periodEnd &&
+            !hasAuthoritativeSaleFunding
+        ) {
+            periodFinancialEffect += MoneyMinorUnits(transaction.grandTotalMinor)
+        }
+
+        corrections.forEach { correction ->
+            if (correction.occurredAt in periodStart until periodEnd &&
+                correction.operationId !in settlementOperationIds
+            ) {
+                periodFinancialEffect += MoneyMinorUnits(
+                    correction.correctedAmountMinor - correction.previousAmountMinor
+                )
+            }
+        }
+
+        refunds.forEach { refund ->
+            if (refund.occurredAt in periodStart until periodEnd &&
+                refund.operationId !in settlementOperationIds
+            ) {
+                periodFinancialEffect -= MoneyMinorUnits(refund.refundAmountMinor)
+            }
+        }
+
+        record.voidEvents.forEach { void ->
+            if (void.occurredAt in periodStart until periodEnd &&
+                void.operationId !in settlementOperationIds
+            ) {
+                periodFinancialEffect -= amountAfterRefunds
+            }
+        }
+
         return FinancialTransactionView(
             transaction = transaction,
             originalAmount =
@@ -193,8 +334,13 @@ object FinancialReadModelResolver {
             isVoided = isVoided,
             hasAmountCorrection = record.amountCorrections.isNotEmpty(),
             originalPaymentCategory = originalPaymentCategory,
+            originalPaymentChannel = originalPaymentChannel,
             currentPaymentCategory = currentPaymentCategory,
-            latestActivityAt = latestActivityAt
+            currentPaymentChannel = currentPaymentChannel,
+            latestActivityAt = latestActivityAt,
+            periodFinancialEffect = periodFinancialEffect,
+            lifecycleStates = lifecycleStates,
+            fundingBreakdown = fundingBreakdown
         )
     }
 }

@@ -1,4 +1,4 @@
-﻿package com.dailymoneyregister.core.startup
+package com.dailymoneyregister.core.startup
 
 import android.util.Log
 import com.dailymoneyregister.feature.register.data.RegisterRepository
@@ -37,7 +37,13 @@ class StartupRecoveryCoordinator @Inject constructor(
 
             try {
                 withContext(Dispatchers.IO) {
+                    registerRepository.recoverPendingCouponSales()
+                    registerRepository.recoverPendingRefunds()
+                    registerRepository.recoverPendingRegisterShifts()
+                    registerRepository.recoverPendingCreditSales()
+                    registerRepository.recoverPendingCreditRepayments()
                     registerRepository.recoverPendingCashSales()
+                    registerRepository.recoverPendingAmountCorrections()
                 }
 
                 recoveryCompleted = true

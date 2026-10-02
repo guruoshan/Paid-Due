@@ -19,6 +19,8 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "com.dailymoneyregister.HiltTestRunner"
+        // Orchestrated tests clear app data: run only on disposable test devices.
+        testInstrumentationRunnerArguments["clearPackageData"] = "true"
     }
 
     buildTypes {
@@ -39,6 +41,9 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    testOptions {
+        execution = "HOST"
     }
     sourceSets {
         getByName("androidTest").assets.srcDir("$projectDir/schemas")
@@ -86,6 +91,8 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
+    // InvoiceSnapshotCodec persists JSON on-device; provide the same implementation to JVM tests.
+    testImplementation(libs.json)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.room.testing)
 
@@ -96,6 +103,7 @@ dependencies {
     androidTestImplementation(libs.androidx.room.testing)
     androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.hilt.android.testing)
+    androidTestUtil(libs.androidx.test.orchestrator)
     kspAndroidTest(libs.hilt.compiler)
 
     debugImplementation(libs.androidx.compose.ui.test.manifest)

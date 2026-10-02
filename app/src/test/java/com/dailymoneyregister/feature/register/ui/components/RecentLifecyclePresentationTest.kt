@@ -2,8 +2,10 @@ package com.dailymoneyregister.feature.register.ui.components
 
 import com.dailymoneyregister.core.database.entity.TransactionEntity
 import com.dailymoneyregister.core.model.enums.PaymentCategory
+import com.dailymoneyregister.core.model.enums.PaymentChannel
 import com.dailymoneyregister.core.model.enums.TransactionType
 import com.dailymoneyregister.core.model.financial.FinancialTransactionView
+import com.dailymoneyregister.core.model.financial.FinancialLifecycleState
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -43,10 +45,21 @@ class RecentLifecyclePresentationTest {
         )
     }
 
+    @Test
+    fun paymentMethodChangeUsesResolverLifecycleState() {
+        assertEquals(
+            listOf(RecentLifecycleBadge.PAYMENT_METHOD_CHANGED),
+            recentLifecycleBadges(
+                view(states = setOf(FinancialLifecycleState.PAYMENT_METHOD_CHANGED))
+            )
+        )
+    }
+
     private fun view(
         isVoided: Boolean = false,
         refunded: Long = 0L,
-        hasCorrection: Boolean = false
+        hasCorrection: Boolean = false,
+        states: Set<FinancialLifecycleState> = emptySet()
     ): FinancialTransactionView {
         val current = MoneyMinorUnits(100L)
         return FinancialTransactionView(
@@ -74,8 +87,11 @@ class RecentLifecyclePresentationTest {
             isVoided = isVoided,
             hasAmountCorrection = hasCorrection,
             originalPaymentCategory = PaymentCategory.CASH,
+            originalPaymentChannel = PaymentChannel.CASH_TENDER,
             currentPaymentCategory = PaymentCategory.CASH,
-            latestActivityAt = 1L
+            currentPaymentChannel = PaymentChannel.CASH_TENDER,
+            latestActivityAt = 1L,
+            lifecycleStates = states
         )
     }
 }

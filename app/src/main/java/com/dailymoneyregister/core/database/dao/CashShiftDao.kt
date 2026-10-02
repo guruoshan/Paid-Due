@@ -24,4 +24,7 @@ interface CashShiftDao {
 
     @Query("SELECT * FROM cash_shift_events WHERE shift_id = :shiftId ORDER BY occurred_at ASC")
     suspend fun getEventsForShift(shiftId: String): List<CashShiftEventEntity>
+
+    @Query("SELECT * FROM cash_shift_events WHERE operation_id = :operationId LIMIT 1")
+    suspend fun getEventByOperationId(operationId: String): CashShiftEventEntity?
 }

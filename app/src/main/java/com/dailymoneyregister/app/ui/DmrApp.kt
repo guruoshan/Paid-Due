@@ -1,4 +1,4 @@
-package com.dailymoneyregister.app.ui
+﻿package com.dailymoneyregister.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,7 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
+import androidx.navigation.navArgument
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.dailymoneyregister.core.i18n.LanguageManager
@@ -29,6 +31,10 @@ import com.dailymoneyregister.feature.auth.ui.LoginScreen
 import com.dailymoneyregister.feature.auth.ui.LoginViewModel
 import com.dailymoneyregister.feature.auth.ui.ChangePinScreen
 import com.dailymoneyregister.feature.auth.ui.ChangePinViewModel
+import com.dailymoneyregister.feature.customers.ui.CustomerDetailScreen
+import com.dailymoneyregister.feature.customers.ui.CustomerDetailViewModel
+import com.dailymoneyregister.feature.customers.ui.CustomersScreen
+import com.dailymoneyregister.feature.customers.ui.CustomersViewModel
 import com.dailymoneyregister.feature.register.ui.RegisterScreen
 import com.dailymoneyregister.feature.register.ui.RegisterViewModel
 import com.dailymoneyregister.feature.settings.ui.SettingsScreen
@@ -45,6 +51,8 @@ object Routes {
     const val REGISTER = "register"
     const val MANAGE_CASHIERS = "manage_cashiers"
     const val SETTINGS = "settings"
+    const val CUSTOMERS = "customers"
+    const val CUSTOMER_DETAIL = "customers/{customerId}"
 }
 
 @Composable
@@ -244,6 +252,9 @@ fun DmrApp(
                 onNavigateToCashierManagement = {
                     navController.navigate(Routes.MANAGE_CASHIERS)
                 },
+                onNavigateToCustomers = {
+                    navController.navigate(Routes.CUSTOMERS)
+                },
                 onNavigateToSettings = {
                     navController.navigate(Routes.SETTINGS)
                 },
@@ -268,7 +279,8 @@ fun DmrApp(
                 viewModel = registerViewModel,
                 onNavigateToSettings = {
                     navController.navigate(Routes.SETTINGS)
-                }
+                },
+                onNavigateToCustomers = { navController.navigate(Routes.CUSTOMERS) }
             )
         }
 
@@ -296,6 +308,9 @@ fun DmrApp(
                 onNavigateBack = {
                     navController.popBackStack()
                 },
+                onNavigateToCustomers = {
+                    navController.navigate(Routes.CUSTOMERS)
+                },
                 onLogout = {
                     trustedSessionStore.clear()
                     SessionManager.clearSession()
@@ -307,5 +322,41 @@ fun DmrApp(
                 }
             )
         }
+
+        composable(Routes.CUSTOMERS) {
+
+            val customersViewModel: CustomersViewModel =
+                hiltViewModel()
+
+            CustomersScreen(
+                viewModel = customersViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onOpenCustomer = { customerId ->
+                    navController.navigate("customers/$customerId")
+                }
+            )
+        }
+
+        composable(
+            route = Routes.CUSTOMER_DETAIL,
+            arguments = listOf(
+                navArgument("customerId") { type = NavType.StringType }
+            )
+        ) {
+
+            val customerDetailViewModel: CustomerDetailViewModel =
+                hiltViewModel()
+
+            CustomerDetailScreen(
+                viewModel = customerDetailViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
     }
 }
+
+

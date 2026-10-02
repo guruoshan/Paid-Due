@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="global_phone_country">দেশ / কলিং কোড</string>
+    <string name="global_phone_number">ফোন নম্বর</string>
+    <string name="global_phone_invalid">একটি সঠিক ফোন নম্বর লিখুন</string>
+    <string name="global_phone_search">দেশ বা কলিং কোড খুঁজুন</string>
+    <string name="global_phone_no_results">কোনো দেশ পাওয়া যায়নি</string>
+</resources>

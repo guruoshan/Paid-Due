@@ -43,7 +43,7 @@
     <string name="locked_out_msg">محاولات خاطئة كثيرة. تم قفل الحساب لمدة %1$d ثانية.</string>
 
     <!-- Hub Screen -->
-    <string name="admin_hub_title">سجل الأموال اليومي — المشرف</string>
+    <string name="admin_hub_title">سجل الأموال اليومي - المشرف</string>
     <string name="welcome_user">مرحبًا، %1$s</string>
     <string name="main_register_admin_controls">سجل المبيعات الرئيسي ولوحة التحكم</string>
     <string name="open_cash_register">فتح سجل الصندوق</string>
@@ -93,7 +93,10 @@
 
     <!-- Recent Transactions Panel -->
     <string name="todays_sales">مبيعات اليوم (%1$d)</string>
+    <string name="recent_activity_count">نشاط اليوم (%1$d)</string>
     <string name="today_total">الإجمالي: %1$s</string>
+    <string name="recent_activity_refund">استرداد</string>
+    <string name="recent_activity_refund_coupon">استرداد إلى القسيمة</string>
     <string name="no_transactions_today">لم تُسجل مبيعات اليوم بعد.</string>
     <string name="cash_sale_label">بيع نقدي</string>
     <string name="whatsapp_mobile_number">واتساب / رقم الهاتف المحمول</string>
@@ -106,6 +109,7 @@
     <string name="recent_status_partially_refunded">استرداد جزئي</string>
     <string name="recent_status_fully_refunded">استرداد كامل</string>
     <string name="recent_status_corrected">تم التصحيح</string>
+    <string name="recent_status_payment_method_changed">تم تغيير طريقة الدفع</string>
     <string name="history">السجل</string>
     <string name="customer">العميل</string>
     <string name="clear">مسح</string>
@@ -138,4 +142,210 @@
     <string name="change_pin_new">رمز PIN جديد من 6 أرقام</string>
     <string name="change_pin_confirm">تأكيد رمز PIN الجديد</string>
     <string name="change_pin_save">حفظ رمز PIN</string>
+
+    <!-- Invoice form (added) -->
+    <string name="inv_create">إنشاء فاتورة</string>
+    <string name="inv_form_title">فاتورة جديدة</string>
+    <string name="inv_form_intro">أدخل بيانات العميل. ستتضمن هذه الفاتورة %1$d صنف، والإجمالي %2$s.</string>
+    <string name="inv_customer_title">اللقب (اختياري)</string>
+    <string name="inv_title_mr">السيد</string>
+    <string name="inv_title_mrs">السيدة</string>
+    <string name="inv_title_ms">الآنسة</string>
+    <string name="inv_title_dr">الدكتور</string>
+    <string name="inv_customer_name">اسم العميل</string>
+    <string name="inv_customer_address">العنوان / ملاحظة (اختياري)</string>
+    <string name="inv_existing_customer">عميل حالي: %1$s</string>
+    <string name="inv_save">حفظ الفاتورة</string>
+    <string name="inv_saving">جارٍ الحفظ…</string>
+    <string name="inv_saved_title">تم حفظ الفاتورة</string>
+    <string name="inv_saved_message">تم حفظ الفاتورة %1$s. هي مستند للعميل ولا تسجّل دفعة أو إيرادات مبيعات.</string>
+    <string name="inv_error_no_items">أضف صنفًا واحدًا على الأقل لإنشاء فاتورة.</string>
+    <string name="inv_error_session">يرجى تسجيل الدخول مرة أخرى لإنشاء فاتورة.</string>
+    <string name="inv_error_customer">اسم العميل ورقم هاتف صالح مطلوبان.</string>
+    <string name="inv_error_generic">تعذّر حفظ الفاتورة: %1$s</string>
+
+    <!-- Invoice PDF + share (added) -->
+    <string name="inv_pdf_footer">بدعم من %1$s</string>
+    <string name="inv_pdf_items">الأصناف</string>
+    <string name="inv_pdf_qty">الكمية</string>
+    <string name="inv_pdf_unit_price">سعر الوحدة</string>
+    <string name="inv_pdf_line_total">إجمالي السطر</string>
+    <string name="inv_pdf_registration">رقم السجل: %1$s</string>
+    <string name="inv_pdf_tax_id">الرقم الضريبي: %1$s</string>
+    <string name="inv_pdf_reference">رقم الفاتورة: %1$s</string>
+    <string name="inv_pdf_date_time">التاريخ: %1$s</string>
+    <string name="inv_pdf_bill_to">إلى العميل</string>
+    <string name="inv_pdf_item_charges">لكل صنف - الشحن %1$s • التغليف %2$s</string>
+    <string name="inv_pdf_subtotal">المجموع الفرعي</string>
+    <string name="inv_pdf_tax">الضريبة (%1$s%%)</string>
+    <string name="inv_pdf_item_shipping">شحن الأصناف</string>
+    <string name="inv_pdf_item_packing">تغليف الأصناف</string>
+    <string name="inv_pdf_shipping">الشحن</string>
+    <string name="inv_pdf_packing">التغليف</string>
+    <string name="inv_pdf_grand_total">الإجمالي</string>
+    <string name="inv_pdf_note">ملاحظة</string>
+    <string name="inv_pdf_notice">هذا مستند فاتورة للعميل. لا يسجّل دفعة أو إيرادات مبيعات.</string>
+    <string name="inv_pdf_share_chooser">مشاركة الفاتورة</string>
+    <string name="inv_pdf_share_pdf">مشاركة PDF</string>
+    <string name="inv_pdf_share_whatsapp">واتساب</string>
+    <string name="inv_pdf_whatsapp_message">مرحبًا %1$s، مرفق الفاتورة %2$s من %3$s.</string>
+    <string name="inv_pdf_message_copied">تم نسخ رسالة الفاتورة</string>
+
+    <!-- Business details (added) -->
+    <string name="biz_details_title">تفاصيل النشاط التجاري</string>
+    <string name="biz_details_entry_subtitle">الاسم والعنوان والهاتف والرقم الضريبي الظاهرة في الفواتير</string>
+    <string name="biz_details_intro">تظهر هذه التفاصيل في ترويسة كل فاتورة تُنشئها.</string>
+    <string name="biz_details_name">اسم النشاط التجاري</string>
+    <string name="biz_details_name_required">اسم النشاط التجاري مطلوب</string>
+    <string name="biz_details_address">العنوان (اختياري)</string>
+    <string name="biz_details_phone">الهاتف (اختياري)</string>
+    <string name="biz_details_tax_id">الرقم الضريبي (اختياري)</string>
+    <string name="biz_details_save">حفظ</string>
+    <string name="biz_details_saving">جارٍ الحفظ…</string>
+
+    <!-- Add Item / Bill screen additions (added) -->
+    <string name="tax_with_rate">الضريبة (%1$s)</string>
+    <string name="grand_total">الإجمالي الكلي</string>
+    <string name="edit_item">تعديل الصنف</string>
+    <string name="add_optional">إضافة (اختياري)</string>
+    <string name="tax_for_whole_sale">ينطبق معدل الضريبة هذا على كامل عملية البيع (إجمالي الأصناف فقط، وليس الشحن أو التغليف).</string>
+    <!-- Transaction Details -->
+    <string name="tx_details_title">تفاصيل المعاملة</string>
+    <string name="tx_details_transaction_id">معرّف المعاملة</string>
+    <string name="tx_details_original_date">التاريخ الأصلي</string>
+    <string name="tx_details_original_amount">المبلغ الأصلي</string>
+    <string name="tx_details_current_amount">مبلغ البيع الحالي</string>
+    <string name="tx_details_refunded_amount">المبلغ المسترد</string>
+    <string name="tx_details_effective_amount">المبلغ الفعلي</string>
+    <string name="tx_details_status">حالة دورة المعاملة</string>
+    <string name="tx_details_original_payment">طريقة الدفع الأصلية</string>
+    <string name="tx_details_current_payment">طريقة الدفع الحالية</string>
+    <string name="tx_details_active">نشطة</string>
+
+    <string name="tx_details_items">الأصناف</string>
+    <string name="tx_details_no_items">لم تُسجل أصناف مفصلة لهذه المعاملة.</string>
+    <string name="tx_details_quantity">الكمية: %1$d</string>
+    <string name="tx_details_unit_price">سعر الوحدة: %1$s</string>
+    <string name="tx_details_line_total">إجمالي السطر: %1$s</string>
+    <string name="tx_details_item_packing">التغليف: %1$s</string>
+    <string name="tx_details_item_shipping">الشحن: %1$s</string>
+
+    <string name="tx_details_credit_repayments">دفعات الائتمان</string>
+    <string name="tx_details_credit_applied">المطبق على هذا البيع: %1$s</string>
+    <string name="tx_details_payment_method">طريقة الدفع: %1$s</string>
+    <string name="tx_details_actor_id">معرّف الكاشير: %1$s</string>
+    <string name="tx_details_operation_id">معرّف العملية: %1$s</string>
+    <string name="tx_details_repayment_id">معرّف السداد: %1$s</string>
+
+    <string name="tx_details_activity">نشاط المعاملة</string>
+    <string name="tx_details_activity_operation">معرّف العملية: %1$s</string>
+
+    <string name="tx_details_correct_amount">تصحيح المبلغ</string>
+    <string name="tx_details_refund">استرداد</string>
+    <string name="tx_details_void">إلغاء</string>
+    <string name="tx_details_change_payment">تغيير طريقة الدفع</string>
+
+    <string name="tx_payment_cash">نقدي</string>
+    <string name="tx_payment_online">إلكتروني</string>
+    <string name="tx_payment_credit">آجل</string>
+    <string name="tx_payment_coupon">قسيمة</string>
+
+    <string name="tx_channel_cash_tender">دفع نقدي</string>
+    <string name="tx_channel_manual_qr">QR يدوي</string>
+    <string name="tx_channel_softpos">SoftPOS</string>
+    <string name="tx_channel_coupon_wallet">محفظة القسيمة</string>
+    <string name="tx_channel_credit_account">حساب آجل</string>
+
+    <string name="tx_activity_sale">بيع</string>
+    <string name="tx_activity_coupon_sell">بيع قسيمة</string>
+    <string name="tx_activity_coupon_top_up">شحن القسيمة</string>
+    <string name="tx_activity_refund">استرداد</string>
+    <string name="tx_activity_refund_coupon">استرداد إلى القسيمة</string>
+    <string name="tx_activity_void">إلغاء</string>
+    <string name="tx_activity_correction">تصحيح المبلغ</string>
+    <string name="tx_activity_payment_change">تم تغيير طريقة الدفع</string>
+    <!-- Transaction Details unified lifetime timeline -->
+    <string name="tx_details_not_available">غير متاح</string>
+    <string name="tx_details_timezone_unavailable">لا يمكن عرض تفاصيل المعاملة لأن المنطقة الزمنية للفرع النشط غير متاحة أو غير صالحة.</string>
+    <string name="tx_details_lifetime_timeline">السجل الكامل للمعاملة</string>
+    <string name="tx_details_original_transaction">المعاملة الأصلية</string>
+    <string name="tx_details_credit_repayment_event">سداد ائتمان مطبق</string>
+    <string name="tx_details_amount_correction_event">تصحيح المبلغ</string>
+    <string name="tx_details_payment_change_event">تغيير طريقة الدفع</string>
+    <string name="tx_details_refund_event">حدث الاسترداد</string>
+    <string name="tx_details_void_event">حدث الإلغاء</string>
+    <string name="tx_details_settlement_event">حركة التسوية</string>
+    <string name="tx_details_before">قبل: %1$s</string>
+    <string name="tx_details_after">بعد: %1$s</string>
+    <string name="tx_details_reason">السبب: %1$s</string>
+    <string name="tx_details_actor">معرّف المستخدم: %1$s</string>
+    <string name="tx_details_operation">معرّف العملية: %1$s</string>
+    <string name="tx_details_settlement_id">معرّف التسوية: %1$s</string>
+    <string name="tx_details_refund_amount">مبلغ الاسترداد: %1$s</string>
+    <string name="tx_details_settlement_amount">الحركة الموقعة: %1$s</string>
+    <string name="tx_details_settlement_purpose">الغرض: %1$s</string>
+    <string name="tx_details_confirmation">التأكيد: %1$s</string>
+    <string name="tx_details_provider_ref">مرجع المزود: %1$s</string>
+    <string name="tx_settlement_sale_funding">تمويل البيع</string>
+    <string name="tx_settlement_credit_repayment">تحصيل سداد الائتمان</string>
+    <string name="tx_settlement_coupon_purchase">تمويل شراء القسيمة</string>
+    <string name="tx_settlement_refund_outflow">تدفق الاسترداد</string>
+    <string name="tx_settlement_funding_correction">تصحيح التمويل</string>
+    <string name="tx_settlement_payment_reclassification">إعادة تصنيف طريقة الدفع</string>
+    <string name="tx_settlement_void_reversal">عكس الإلغاء</string>
+    <string name="tx_confirmation_cashier">تم التأكيد بواسطة الكاشير</string>
+    <string name="tx_confirmation_provider">تمت الموافقة بواسطة المزود</string>
+    <string name="history_back">رجوع</string>
+    <string name="history_search_hint">ابحث بالتاريخ أو الهاتف أو الاسم أو المبلغ</string>
+    <string name="history_filter_all">الكل</string>
+    <string name="history_filter_date">التاريخ</string>
+    <string name="history_filter_phone">الهاتف</string>
+    <string name="history_filter_name">الاسم</string>
+    <string name="history_filter_amount">المبلغ</string>
+    <string name="history_loading">جارٍ تحميل السجل…</string>
+    <string name="history_empty">لا توجد معاملات بعد.</string>
+    <string name="history_no_match">لا توجد معاملات مطابقة.</string>
+    <string name="history_permission_denied">ليس لديك إذن لعرض سجل المعاملات الكامل.</string>
+    <string name="history_load_failed">تعذر تحميل سجل المعاملات.</string>
+    <string name="history_payment_not_available">طريقة الدفع غير متاحة</string>
+    <!-- تفاصيل المعاملة: تصحيح المبلغ -->
+    <string name="tx_correct_amount_title">تصحيح مبلغ المعاملة</string>
+    <string name="tx_correct_amount_current">المبلغ الحالي: %1$s</string>
+    <string name="tx_correct_amount_new">المبلغ المصحح</string>
+    <string name="tx_correct_amount_reason">السبب (اختياري)</string>
+    <string name="tx_correct_amount_confirm">حفظ التصحيح</string>
+    <string name="tx_correct_amount_invalid">أدخل مبلغًا صحيحًا غير سالب.</string>
+    <string name="tx_correct_amount_same">يجب أن يختلف المبلغ المصحح عن المبلغ الحالي.</string>
+    <string name="tx_correct_amount_saved">تم حفظ تصحيح المبلغ.</string>
+    <string name="tx_correct_amount_permission">ليس لديك إذن لتصحيح مبلغ هذه المعاملة.</string>
+    <string name="tx_correct_amount_conflict">تغيرت المعاملة قبل إكمال التصحيح. راجع أحدث التفاصيل وحاول مرة أخرى.</string>
+    <string name="tx_correct_amount_failed">تعذر تأكيد التصحيح. أعد محاولة طلب التصحيح نفسه.</string>
+    <string name="tx_action_reason">السبب (اختياري)</string>
+    <string name="tx_refund_title">استرداد المعاملة</string>
+    <string name="tx_refund_available">المبلغ القابل للاسترداد: %1$s</string>
+    <string name="tx_refund_amount_input">مبلغ الاسترداد</string>
+    <string name="tx_refund_destination">وجهة الاسترداد</string>
+    <string name="tx_refund_original_destination">الدفع الأصلي (%1$s)</string>
+    <string name="tx_refund_to_coupon">محفظة القسيمة</string>
+    <string name="tx_refund_confirm">تأكيد الاسترداد</string>
+    <string name="tx_refund_invalid">أدخل مبلغًا موجبًا لا يتجاوز المبلغ القابل للاسترداد.</string>
+    <string name="tx_refund_invalid_destination">اختر طريقة الدفع الأصلية أو محفظة القسيمة.</string>
+    <string name="tx_refund_saved">تم حفظ الاسترداد.</string>
+    <string name="tx_refund_permission">ليس لديك إذن لاسترداد هذه المعاملة.</string>
+    <string name="tx_refund_failed">تعذر حفظ الاسترداد. راجع الحالة الحالية للمعاملة.</string>
+    <string name="tx_void_title">إلغاء المعاملة</string>
+    <string name="tx_void_confirmation">هل تريد إلغاء الأثر المالي المتبقي %1$s؟ ستبقى المعاملة الأصلية وسيُسجل حدث إلغاء دائم.</string>
+    <string name="tx_void_confirm">تأكيد الإلغاء</string>
+    <string name="tx_void_saved">تم حفظ الإلغاء.</string>
+    <string name="tx_void_permission">ليس لديك إذن لإلغاء هذه المعاملة.</string>
+    <string name="tx_void_failed">تعذر إلغاء المعاملة. راجع حالة دورة حياتها الحالية.</string>
+    <string name="tx_change_payment_title">تغيير طريقة الدفع</string>
+    <string name="tx_change_payment_current">الدفع الحالي: %1$s</string>
+    <string name="tx_change_payment_confirm">تأكيد التغيير</string>
+    <string name="tx_change_payment_invalid">يدعم التغيير بين النقد والدفع الإلكتروني فقط.</string>
+    <string name="tx_change_payment_same">اختر طريقة دفع مختلفة عن الطريقة الحالية.</string>
+    <string name="tx_change_payment_saved">تم حفظ تغيير طريقة الدفع.</string>
+    <string name="tx_change_payment_permission">ليس لديك إذن لتغيير طريقة الدفع هذه.</string>
+    <string name="tx_change_payment_failed">تعذر تغيير طريقة الدفع. راجع الحالة الحالية للمعاملة.</string>
+    <string name="tx_lifecycle_conflict">تغيرت هذه المعاملة. راجع أحدث التفاصيل وحاول مرة أخرى.</string>
 </resources>

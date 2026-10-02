@@ -17,13 +17,20 @@ import com.dailymoneyregister.core.model.enums.SubjectType
             parentColumns = ["id"],
             childColumns = ["operation_id"],
             onDelete = ForeignKey.RESTRICT
+        ),
+        ForeignKey(
+            entity = CustomerEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["customer_id"],
+            onDelete = ForeignKey.RESTRICT
         )
     ],
     indices = [
         Index(value = ["operation_id"]),
         Index(value = ["transaction_id"]),
         Index(value = ["subject_type", "subject_id"]),
-        Index(value = ["display_number"])
+        Index(value = ["display_number"]),
+        Index(value = ["customer_id"])
     ]
 )
 data class DocumentEntity(
@@ -56,7 +63,14 @@ data class DocumentEntity(
     val createdAt: Long,
 
     @ColumnInfo(name = "created_by_user_id")
-    val createdByUserId: String
+    val createdByUserId: String,
+
+    /**
+     * The customer this document was issued to. Nullable: receipts and
+     * invoices created before schema v9 have no link.
+     */
+    @ColumnInfo(name = "customer_id")
+    val customerId: String? = null
 )
 
 @Entity(

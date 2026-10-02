@@ -3,6 +3,7 @@ package com.dailymoneyregister.core.database.readmodel
 import androidx.room.Embedded
 import androidx.room.Relation
 import com.dailymoneyregister.core.database.entity.AmountCorrectionEventEntity
+import com.dailymoneyregister.core.database.entity.CustomerEntity
 import com.dailymoneyregister.core.database.entity.PaymentMethodChangeEventEntity
 import com.dailymoneyregister.core.database.entity.RefundEventEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
@@ -19,6 +20,12 @@ import com.dailymoneyregister.core.database.entity.VoidEventEntity
 data class TransactionFinancialRecord(
     @Embedded
     val transaction: TransactionEntity,
+
+    @Relation(
+        parentColumn = "customer_id",
+        entityColumn = "id"
+    )
+    val customer: CustomerEntity? = null,
 
     @Relation(
         parentColumn = "id",

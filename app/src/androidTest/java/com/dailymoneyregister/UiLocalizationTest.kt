@@ -45,7 +45,7 @@ class UiLocalizationTest {
                 }
             }
         }
-        compose.onNodeWithText("e.g. 5, 18, 7.5").assertIsDisplayed()
+        compose.onNodeWithText("Tax Rate (%)").assertIsDisplayed()
         compose.onNodeWithText("Tax Rate (%)").performTextInput("7.5")
         compose.onNodeWithText("Save").performClick()
         compose.runOnIdle {

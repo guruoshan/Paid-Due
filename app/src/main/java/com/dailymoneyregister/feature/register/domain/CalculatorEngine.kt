@@ -9,6 +9,7 @@ sealed class KeypadKey {
     data object Plus : KeypadKey() // '+'
     data object Minus : KeypadKey() // '−'
     data object Multiply : KeypadKey() // '×'
+    data object Divide : KeypadKey() // '÷'
     data object Percent : KeypadKey() // '%'
     data object Equals : KeypadKey() // '='
     data object Backspace : KeypadKey() // '⌫'
@@ -33,6 +34,7 @@ class CalculatorEngine(val decimalPlaces: Int = 3) {
             KeypadKey.Plus -> handleOperator(state, "+")
             KeypadKey.Minus -> handleOperator(state, "−")
             KeypadKey.Multiply -> handleOperator(state, "×")
+            KeypadKey.Divide -> handleOperator(state, "÷")
             KeypadKey.Percent -> handlePercent(state)
             KeypadKey.Equals -> handleEquals(state)
             KeypadKey.Backspace -> handleBackspace(state)
@@ -210,7 +212,20 @@ class CalculatorEngine(val decimalPlaces: Int = 3) {
                 val res = prod.divide(BigInteger.valueOf(divisor))
                 MoneyMinorUnits(res.longValueExact())
             }
-            else -> right
+            "÷" -> {
+                if (right.amount == 0L) {
+                    throw ArithmeticException("Division by zero")
+                }
+
+                val scale = BigInteger.TEN.pow(decimalPlaces)
+
+                MoneyMinorUnits(
+                    BigInteger.valueOf(left.amount)
+                        .multiply(scale)
+                        .divide(BigInteger.valueOf(right.amount))
+                        .longValueExact()
+                )
+            }            else -> right
         }
     }
 }

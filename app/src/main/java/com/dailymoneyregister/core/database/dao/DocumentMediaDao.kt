@@ -25,6 +25,38 @@ interface DocumentMediaDao {
     @Query("SELECT * FROM documents WHERE subject_type = :subjectType AND subject_id = :subjectId")
     suspend fun getDocumentsForSubject(subjectType: String, subjectId: String): List<DocumentEntity>
 
+    // ---- Invoice support (added) -------------------------------------------------
+
+    @Query("SELECT * FROM documents WHERE operation_id = :operationId LIMIT 1")
+    suspend fun getDocumentByOperationId(operationId: String): DocumentEntity?
+
+    /** Invoices issued by a branch inside [fromMillis, toMillis) - used for numbering. */
+    @Query(
+        """
+        SELECT COUNT(*)
+        FROM documents AS d
+        INNER JOIN operations AS o ON o.id = d.operation_id
+        WHERE d.document_type = 'INVOICE'
+          AND o.branch_id = :branchId
+          AND d.created_at >= :fromMillis
+          AND d.created_at < :toMillis
+        """
+    )
+    suspend fun countInvoicesInRange(branchId: String, fromMillis: Long, toMillis: Long): Int
+
+    @Query(
+        """
+        SELECT d.*
+        FROM documents AS d
+        INNER JOIN operations AS o ON o.id = d.operation_id
+        WHERE d.document_type = 'INVOICE'
+          AND o.branch_id = :branchId
+        ORDER BY d.created_at DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun getInvoicesForBranch(branchId: String, limit: Int): List<DocumentEntity>
+
     // Media Assets
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertMedia(media: MediaAssetEntity)

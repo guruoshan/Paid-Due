@@ -1,4 +1,4 @@
-﻿package com.dailymoneyregister.feature.register.ui
+package com.dailymoneyregister.feature.register.ui
 
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
@@ -107,7 +107,7 @@ class RegisterSessionContextSafetyTest {
 
         val cleared = clearedRegisterDraft(branch)
 
-        assertEquals(725, cleared.taxRateBps)
+        assertEquals(0, cleared.taxRateBps)
         assertEquals(TaxRoundingMode.FLOOR, cleared.taxRoundingMode)
         assertFalse(cleared.isTaxEnabled)
 

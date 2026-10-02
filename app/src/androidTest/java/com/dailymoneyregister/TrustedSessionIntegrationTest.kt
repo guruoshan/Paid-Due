@@ -1,7 +1,7 @@
 package com.dailymoneyregister
 
 import android.content.Context
-import androidx.room.Room
+import android.util.Log
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dailymoneyregister.core.command.CommandExecutor
@@ -46,36 +46,56 @@ class TrustedSessionIntegrationTest {
 
     @Before
     fun setUp() {
+        Log.i("BOARDLOCK", "setUp: start")
+
         context = ApplicationProvider.getApplicationContext()
+        Log.i("BOARDLOCK", "setUp: got context")
+
         trustedSessionStore = TrustedSessionStore(context)
+        Log.i("BOARDLOCK", "setUp: created TrustedSessionStore")
+
         trustedSessionStore.clear()
+        Log.i("BOARDLOCK", "setUp: cleared TrustedSessionStore")
+
         SessionManager.clearSession()
-        database = Room.inMemoryDatabaseBuilder(context, DmrDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
+        Log.i("BOARDLOCK", "setUp: cleared SessionManager")
+
+        Log.i("BOARDLOCK", "setUp: before createInMemory")
+        database = DmrDatabase.createInMemory(context)
+        Log.i("BOARDLOCK", "setUp: after createInMemory")
+
         val commandExecutor = CommandExecutor(database)
+        Log.i("BOARDLOCK", "setUp: created CommandExecutor")
+
         setupRepository = SetupRepository(
             database,
             commandExecutor,
             DeviceIdentityProvider(context),
             trustedSessionStore
         )
+        Log.i("BOARDLOCK", "setUp: created SetupRepository")
+
         authRepository = AuthRepository(
             database,
             PinThrottler(context = context),
             LanguageManager(context),
             trustedSessionStore
         )
+        Log.i("BOARDLOCK", "setUp: created AuthRepository")
+
         cashierRepository = CashierManagementRepository(
             database,
             commandExecutor,
             DeviceIdentityProvider(context)
         )
+        Log.i("BOARDLOCK", "setUp: created CashierManagementRepository")
+
         restorer = TrustedSessionRestorer(
             database,
             trustedSessionStore,
             LanguageManager(context)
         )
+        Log.i("BOARDLOCK", "setUp: done")
     }
 
     @After
@@ -87,10 +107,30 @@ class TrustedSessionIntegrationTest {
 
     @Test
     fun authenticationPersistsAdminAndCashierIdsWithoutCredentials() = runBlocking {
+        Log.i("BOARDLOCK", "TEST: authenticationPersistsAdminAndCashierIdsWithoutCredentials - start")
+        Log.i("BOARDLOCK", "test: before createSetup")
         val setup = createSetup()
+        Log.i("BOARDLOCK", "test: after createSetup")
+
+        val insertedAdmin = database.userDao().getUserByUsername(
+            setup.businessId.value,
+            "admin@example"
+        )
+        check(insertedAdmin != null) {
+            "BOARDLOCK: Admin was NOT inserted into user_accounts"
+        }
+        Log.i(
+            "BOARDLOCK",
+            "BOARDLOCK: hash=${insertedAdmin.credentialHash} salt=${insertedAdmin.credentialSalt}"
+        )
         setupRepository.establishAdminSession(setup)
+        Log.i("BOARDLOCK", "test: after establishAdminSession")
         val admin = authRepository.loginAdmin("admin@example", "AdminPass123")
-        assertTrue(admin is AuthResult.Success)
+        Log.i("BOARDLOCK", "test: after loginAdmin, result=$admin")
+
+       assertTrue(
+       "loginAdmin returned: $admin",
+       admin is AuthResult.Success)
         val adminIds = trustedSessionStore.load()
         assertNotNull(adminIds)
         assertEquals(setup.businessId.value, adminIds?.businessId)
@@ -128,11 +168,15 @@ class TrustedSessionIntegrationTest {
 
     @Test
     fun restoreRebuildsAdminAndRestrictedCashierFromRoom() = runBlocking {
+        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - start")
         val setup = createSetup()
+        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after createSetup")
         setupRepository.establishAdminSession(setup)
+        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after establishAdminSession")
         SessionManager.clearSession()
 
         val adminRestored = restorer.restore()
+        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after first restore")
         assertNotNull(adminRestored)
         assertEquals(setup.adminUserId.value, adminRestored?.user?.id)
         assertEquals(setup.businessId.value, adminRestored?.business?.id)
@@ -148,11 +192,14 @@ class TrustedSessionIntegrationTest {
                 pin = "246810"
             )
         ) as CommandResult.Success).data
+        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after createCashier")
         val cashier = authRepository.loginCashier("92345678", "246810") as AuthResult.Success
+        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after loginCashier")
         assertTrue(cashier.session.requiresPinChange)
         SessionManager.clearSession()
 
         val restoredCashier = restorer.restore()
+        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after second restore - DONE")
         assertNotNull(restoredCashier)
         assertEquals(cashierId.value, restoredCashier?.user?.id)
         assertTrue(restoredCashier?.requiresPinChange == true)
@@ -160,16 +207,19 @@ class TrustedSessionIntegrationTest {
 
     @Test
     fun restoreReappliesPersistedUserLanguageFromRoom() = runBlocking {
+        Log.i("BOARDLOCK", "TEST: restoreReappliesPersistedUserLanguageFromRoom - start")
         val setup = createSetup()
         val testLanguageManager = LanguageManager(context)
         val originalLanguage = testLanguageManager.currentLanguage.value.code
         restorer = TrustedSessionRestorer(database, trustedSessionStore, testLanguageManager)
         val beforeBusiness = database.businessBranchDao().getBusinessById(setup.businessId.value)!!
         val beforeBranch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
-        val settingsRepository = SettingsRepository(database.userDao())
+        val settingsRepository = SettingsRepository(database.userDao(), database.businessBranchDao())
+        Log.i("BOARDLOCK", "TEST: restoreReappliesPersistedUserLanguageFromRoom - before try block")
 
         try {
             setupRepository.establishAdminSession(setup)
+            Log.i("BOARDLOCK", "TEST: restoreReappliesPersistedUserLanguageFromRoom - after establishAdminSession")
             val beforeUser = database.userDao().getUserById(setup.adminUserId.value)!!
             assertEquals("en", beforeUser.languageCode)
 
@@ -178,6 +228,7 @@ class TrustedSessionIntegrationTest {
                 businessId = beforeUser.businessId,
                 requestedLanguageCode = "ar"
             )
+            Log.i("BOARDLOCK", "TEST: restoreReappliesPersistedUserLanguageFromRoom - after updateLanguage")
             assertTrue(updateResult is SettingsLanguageResult.Success)
             val persistedUser = database.userDao().getUserById(beforeUser.id)!!
             assertEquals("ar", persistedUser.languageCode)
@@ -188,6 +239,7 @@ class TrustedSessionIntegrationTest {
             SessionManager.clearSession()
 
             val restored = restorer.restore() ?: error("Trusted session was not restored")
+            Log.i("BOARDLOCK", "TEST: restoreReappliesPersistedUserLanguageFromRoom - after restore - DONE")
 
             assertEquals(persistedUser, restored.user)
             assertEquals("ar", restored.user.languageCode)
@@ -204,19 +256,23 @@ class TrustedSessionIntegrationTest {
 
     @Test
     fun invalidRememberedIdentityIsClearedFailClosed() = runBlocking {
+        Log.i("BOARDLOCK", "TEST: invalidRememberedIdentityIsClearedFailClosed - start")
         trustedSessionStore.save("missing-business", "missing-branch", "missing-user")
         SessionManager.clearSession()
 
         assertNull(restorer.restore())
+        Log.i("BOARDLOCK", "TEST: invalidRememberedIdentityIsClearedFailClosed - after restore - DONE")
         assertNull(trustedSessionStore.load())
         assertNull(SessionManager.currentSession.value)
     }
 
     @Test
     fun explicitTrustedStoreClearRevokesRememberedSession() {
+        Log.i("BOARDLOCK", "TEST: explicitTrustedStoreClearRevokesRememberedSession - start")
         trustedSessionStore.save("biz", "branch", "user")
         SessionManager.clearSession()
         trustedSessionStore.clear()
+        Log.i("BOARDLOCK", "TEST: explicitTrustedStoreClearRevokesRememberedSession - DONE")
 
         assertNull(trustedSessionStore.load())
         assertFalse(context.getSharedPreferences(TrustedSessionStore.PREFS_NAME, Context.MODE_PRIVATE).contains("password"))

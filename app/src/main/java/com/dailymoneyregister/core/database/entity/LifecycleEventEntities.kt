@@ -6,6 +6,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.dailymoneyregister.core.model.enums.PaymentCategory
+import com.dailymoneyregister.core.model.enums.PaymentChannel
 
 @Entity(
     tableName = "amount_correction_events",
@@ -74,7 +75,7 @@ data class AmountCorrectionEventEntity(
     ],
     indices = [
         Index(value = ["transaction_id"]),
-        Index(value = ["operation_id"]),
+        Index(value = ["operation_id"], unique = true),
         Index(value = ["occurred_at"])
     ]
 )
@@ -92,8 +93,14 @@ data class PaymentMethodChangeEventEntity(
     @ColumnInfo(name = "previous_method")
     val previousMethod: PaymentCategory,
 
+    @ColumnInfo(name = "previous_channel")
+    val previousChannel: PaymentChannel?,
+
     @ColumnInfo(name = "new_method")
     val newMethod: PaymentCategory,
+
+    @ColumnInfo(name = "new_channel")
+    val newChannel: PaymentChannel?,
 
     @ColumnInfo(name = "reason")
     val reason: String? = null,
@@ -122,8 +129,8 @@ data class PaymentMethodChangeEventEntity(
         )
     ],
     indices = [
-        Index(value = ["transaction_id"]),
-        Index(value = ["operation_id"]),
+        Index(value = ["transaction_id"], unique = true),
+        Index(value = ["operation_id"], unique = true),
         Index(value = ["occurred_at"])
     ]
 )
@@ -166,7 +173,7 @@ data class VoidEventEntity(
     ],
     indices = [
         Index(value = ["transaction_id"]),
-        Index(value = ["operation_id"]),
+        Index(value = ["operation_id"], unique = true),
         Index(value = ["occurred_at"])
     ]
 )

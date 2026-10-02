@@ -43,7 +43,7 @@
     <string name="locked_out_msg">बहुत सारे असफल प्रयास। %1$d सेकंड के लिए लॉक किया गया।</string>
 
     <!-- Hub Screen -->
-    <string name="admin_hub_title">डेली मनी रजिस्टर — व्यवस्थापक</string>
+    <string name="admin_hub_title">डेली मनी रजिस्टर - व्यवस्थापक</string>
     <string name="welcome_user">स्वागत है, %1$s</string>
     <string name="main_register_admin_controls">मुख्य रजिस्टर और व्यवस्थापक नियंत्रण</string>
     <string name="open_cash_register">कैश रजिस्टर खोलें</string>
@@ -93,7 +93,10 @@
 
     <!-- Recent Transactions Panel -->
     <string name="todays_sales">आज की बिक्री (%1$d)</string>
+    <string name="recent_activity_count">आज की गतिविधि (%1$d)</string>
     <string name="today_total">कुल: %1$s</string>
+    <string name="recent_activity_refund">धनवापसी</string>
+    <string name="recent_activity_refund_coupon">कूपन में धनवापसी</string>
     <string name="no_transactions_today">आज अभी तक कोई लेनदेन दर्ज नहीं किया गया है।</string>
     <string name="cash_sale_label">नकद बिक्री</string>
     <string name="whatsapp_mobile_number">WhatsApp / मोबाइल नंबर</string>
@@ -106,6 +109,7 @@
     <string name="recent_status_partially_refunded">&#x0906;&#x0902;&#x0936;&#x093F;&#x0915; &#x0930;&#x093F;&#x092B;&#x0902;&#x0921;</string>
     <string name="recent_status_fully_refunded">&#x092A;&#x0942;&#x0930;&#x093E; &#x0930;&#x093F;&#x092B;&#x0902;&#x0921;</string>
     <string name="recent_status_corrected">&#x0938;&#x0941;&#x0927;&#x093E;&#x0930;&#x093F;&#x0924;</string>
+    <string name="recent_status_payment_method_changed">भुगतान विधि बदली गई</string>
     <string name="history">इतिहास</string>
     <string name="customer">ग्राहक</string>
     <string name="clear">साफ़ करें</string>
@@ -138,4 +142,209 @@
     <string name="change_pin_new">&#x0928;&#x092F;&#x093E; 6-&#x0905;&#x0902;&#x0915;&#x0940;&#x092F; &#x092A;&#x093F;&#x0928;</string>
     <string name="change_pin_confirm">&#x0928;&#x090F; &#x092A;&#x093F;&#x0928; &#x0915;&#x0940; &#x092A;&#x0941;&#x0937;&#x094D;&#x091F;&#x093F; &#x0915;&#x0930;&#x0947;&#x0902;</string>
     <string name="change_pin_save">&#x092A;&#x093F;&#x0928; &#x0938;&#x0941;&#x0930;&#x0915;&#x094D;&#x0937;&#x093F;&#x0924; &#x0915;&#x0930;&#x0947;&#x0902;</string>
+
+    <!-- Invoice form (added) -->
+    <string name="inv_create">इनवॉइस बनाएँ</string>
+    <string name="inv_form_title">नया इनवॉइस</string>
+    <string name="inv_form_intro">ग्राहक का विवरण दर्ज करें। इस इनवॉइस में %1$d आइटम हैं, कुल %2$s।</string>
+    <string name="inv_customer_title">उपाधि (वैकल्पिक)</string>
+    <string name="inv_title_mr">श्री</string>
+    <string name="inv_title_mrs">श्रीमती</string>
+    <string name="inv_title_ms">सुश्री</string>
+    <string name="inv_title_dr">डॉ.</string>
+    <string name="inv_customer_name">ग्राहक का नाम</string>
+    <string name="inv_customer_address">पता / नोट (वैकल्पिक)</string>
+    <string name="inv_existing_customer">मौजूदा ग्राहक: %1$s</string>
+    <string name="inv_save">इनवॉइस सहेजें</string>
+    <string name="inv_saving">सहेजा जा रहा है…</string>
+    <string name="inv_saved_title">इनवॉइस सहेजा गया</string>
+    <string name="inv_saved_message">इनवॉइस %1$s सहेजा गया। यह ग्राहक का दस्तावेज़ है और इससे कोई भुगतान या बिक्री आय दर्ज नहीं होती।</string>
+    <string name="inv_error_no_items">इनवॉइस बनाने के लिए कम से कम एक आइटम जोड़ें।</string>
+    <string name="inv_error_session">इनवॉइस बनाने के लिए कृपया फिर से साइन इन करें।</string>
+    <string name="inv_error_customer">ग्राहक का नाम और मान्य फ़ोन नंबर आवश्यक हैं।</string>
+    <string name="inv_error_generic">इनवॉइस सहेजा नहीं जा सका: %1$s</string>
+
+    <!-- Invoice PDF + share (added) -->
+    <string name="inv_pdf_footer">%1$s द्वारा संचालित</string>
+    <string name="inv_pdf_items">आइटम</string>
+    <string name="inv_pdf_qty">मात्रा</string>
+    <string name="inv_pdf_unit_price">इकाई मूल्य</string>
+    <string name="inv_pdf_line_total">लाइन कुल</string>
+    <string name="inv_pdf_registration">रजि. नंबर: %1$s</string>
+    <string name="inv_pdf_tax_id">कर आईडी: %1$s</string>
+    <string name="inv_pdf_reference">इनवॉइस नंबर: %1$s</string>
+    <string name="inv_pdf_date_time">तारीख: %1$s</string>
+    <string name="inv_pdf_bill_to">बिल प्राप्तकर्ता</string>
+    <string name="inv_pdf_item_charges">प्रति आइटम - शिपिंग %1$s • पैकिंग %2$s</string>
+    <string name="inv_pdf_subtotal">उप-योग</string>
+    <string name="inv_pdf_tax">कर (%1$s%%)</string>
+    <string name="inv_pdf_item_shipping">आइटम शिपिंग</string>
+    <string name="inv_pdf_item_packing">आइटम पैकिंग</string>
+    <string name="inv_pdf_shipping">शिपिंग</string>
+    <string name="inv_pdf_packing">पैकिंग</string>
+    <string name="inv_pdf_grand_total">कुल</string>
+    <string name="inv_pdf_note">नोट</string>
+    <string name="inv_pdf_notice">यह ग्राहक इनवॉइस दस्तावेज़ है। इससे कोई भुगतान या बिक्री आय दर्ज नहीं होती।</string>
+    <string name="inv_pdf_share_chooser">इनवॉइस साझा करें</string>
+    <string name="inv_pdf_share_pdf">PDF साझा करें</string>
+    <string name="inv_pdf_share_whatsapp">व्हाट्सऐप</string>
+    <string name="inv_pdf_whatsapp_message">नमस्ते %1$s, %3$s की ओर से इनवॉइस %2$s संलग्न है।</string>
+    <string name="inv_pdf_message_copied">इनवॉइस संदेश कॉपी हो गया</string>
+
+    <!-- Business details (added) -->
+    <string name="biz_details_title">व्यवसाय विवरण</string>
+    <string name="biz_details_entry_subtitle">नाम, पता, फ़ोन और टैक्स आईडी जो इनवॉइस पर दिखते हैं</string>
+    <string name="biz_details_intro">ये विवरण आपके बनाए हर इनवॉइस के ऊपरी हिस्से में दिखाई देंगे।</string>
+    <string name="biz_details_name">व्यवसाय का नाम</string>
+    <string name="biz_details_name_required">व्यवसाय का नाम आवश्यक है</string>
+    <string name="biz_details_address">पता (वैकल्पिक)</string>
+    <string name="biz_details_phone">फ़ोन (वैकल्पिक)</string>
+    <string name="biz_details_tax_id">कर पंजीकरण संख्या (वैकल्पिक)</string>
+    <string name="biz_details_save">सहेजें</string>
+    <string name="biz_details_saving">सहेजा जा रहा है…</string>
+
+    <!-- Add Item / Bill screen additions (added) -->
+    <string name="tax_with_rate">कर (%1$s)</string>
+    <string name="grand_total">कुल जोड़</string>
+    <string name="edit_item">आइटम संपादित करें</string>
+    <string name="add_optional">जोड़ें (वैकल्पिक)</string>
+    <string name="tax_for_whole_sale">यह कर दर पूरी बिक्री पर लागू होती है (केवल आइटम कुल पर, शिपिंग या पैकिंग पर नहीं)।</string>
+    <!-- Transaction Details -->
+    <string name="tx_details_title">लेन-देन विवरण</string>
+    <string name="tx_details_transaction_id">लेन-देन आईडी</string>
+    <string name="tx_details_original_date">मूल तारीख</string>
+    <string name="tx_details_original_amount">मूल राशि</string>
+    <string name="tx_details_current_amount">वर्तमान बिक्री राशि</string>
+    <string name="tx_details_refunded_amount">वापस की गई राशि</string>
+    <string name="tx_details_effective_amount">प्रभावी राशि</string>
+    <string name="tx_details_status">लेन-देन जीवनचक्र स्थिति</string>
+    <string name="tx_details_original_payment">मूल भुगतान विधि</string>
+    <string name="tx_details_current_payment">वर्तमान भुगतान विधि</string>
+    <string name="tx_details_active">सक्रिय</string>
+
+    <string name="tx_details_items">आइटम</string>
+    <string name="tx_details_no_items">इस लेन-देन के लिए कोई मदवार उत्पाद दर्ज नहीं हुआ।</string>
+    <string name="tx_details_quantity">मात्रा: %1$d</string>
+    <string name="tx_details_unit_price">इकाई मूल्य: %1$s</string>
+    <string name="tx_details_line_total">पंक्ति कुल: %1$s</string>
+    <string name="tx_details_item_packing">पैकिंग: %1$s</string>
+    <string name="tx_details_item_shipping">शिपिंग: %1$s</string>
+
+    <string name="tx_details_credit_repayments">उधार भुगतान</string>
+    <string name="tx_details_credit_applied">इस बिक्री पर लागू: %1$s</string>
+    <string name="tx_details_payment_method">भुगतान विधि: %1$s</string>
+    <string name="tx_details_actor_id">कैशियर आईडी: %1$s</string>
+    <string name="tx_details_operation_id">ऑपरेशन आईडी: %1$s</string>
+    <string name="tx_details_repayment_id">भुगतान आईडी: %1$s</string>
+
+    <string name="tx_details_activity">लेन-देन गतिविधि</string>
+    <string name="tx_details_activity_operation">ऑपरेशन आईडी: %1$s</string>
+
+    <string name="tx_details_correct_amount">राशि सुधारें</string>
+    <string name="tx_details_refund">रिफंड</string>
+    <string name="tx_details_void">रद्द करें</string>
+    <string name="tx_details_change_payment">भुगतान विधि बदलें</string>
+
+    <string name="tx_payment_cash">नकद</string>
+    <string name="tx_payment_online">ऑनलाइन</string>
+    <string name="tx_payment_credit">उधार</string>
+    <string name="tx_payment_coupon">कूपन</string>
+
+    <string name="tx_channel_cash_tender">नकद भुगतान</string>
+    <string name="tx_channel_manual_qr">मैनुअल QR</string>
+    <string name="tx_channel_softpos">SoftPOS</string>
+    <string name="tx_channel_coupon_wallet">कूपन वॉलेट</string>
+    <string name="tx_channel_credit_account">उधार खाता</string>
+
+    <string name="tx_activity_sale">बिक्री</string>
+    <string name="tx_activity_coupon_sell">कूपन बिक्री</string>
+    <string name="tx_activity_coupon_top_up">कूपन टॉप अप</string>
+    <string name="tx_activity_refund">रिफंड</string>
+    <string name="tx_activity_refund_coupon">कूपन में रिफंड</string>
+    <string name="tx_activity_void">रद्द</string>
+    <string name="tx_activity_correction">राशि सुधार</string>
+    <string name="tx_activity_payment_change">भुगतान विधि बदली गई</string>
+    <!-- Transaction Details unified lifetime timeline -->
+    <string name="tx_details_not_available">उपलब्ध नहीं</string>
+    <string name="tx_details_timezone_unavailable">लेन-देन विवरण प्रदर्शित नहीं किया जा सकता क्योंकि सक्रिय शाखा का समय क्षेत्र उपलब्ध नहीं है या अमान्य है।</string>
+    <string name="tx_details_lifetime_timeline">पूर्ण लेन-देन समयरेखा</string>
+    <string name="tx_details_original_transaction">मूल लेन-देन</string>
+    <string name="tx_details_credit_repayment_event">उधार भुगतान लागू</string>
+    <string name="tx_details_amount_correction_event">राशि सुधार</string>
+    <string name="tx_details_payment_change_event">भुगतान विधि परिवर्तन</string>
+    <string name="tx_details_refund_event">रिफंड घटना</string>
+    <string name="tx_details_void_event">रद्द घटना</string>
+    <string name="tx_details_settlement_event">सेटलमेंट मूवमेंट</string>
+    <string name="tx_details_before">पहले: %1$s</string>
+    <string name="tx_details_after">बाद में: %1$s</string>
+    <string name="tx_details_reason">कारण: %1$s</string>
+    <string name="tx_details_actor">उपयोगकर्ता आईडी: %1$s</string>
+    <string name="tx_details_operation">ऑपरेशन आईडी: %1$s</string>
+    <string name="tx_details_settlement_id">सेटलमेंट आईडी: %1$s</string>
+    <string name="tx_details_refund_amount">रिफंड राशि: %1$s</string>
+    <string name="tx_details_settlement_amount">हस्ताक्षरित मूवमेंट: %1$s</string>
+    <string name="tx_details_settlement_purpose">उद्देश्य: %1$s</string>
+    <string name="tx_details_confirmation">पुष्टि: %1$s</string>
+    <string name="tx_details_provider_ref">प्रदाता संदर्भ: %1$s</string>
+    <string name="tx_settlement_sale_funding">बिक्री फंडिंग</string>
+    <string name="tx_settlement_credit_repayment">उधार भुगतान संग्रह</string>
+    <string name="tx_settlement_coupon_purchase">कूपन खरीद फंडिंग</string>
+    <string name="tx_settlement_refund_outflow">रिफंड आउटफ्लो</string>
+    <string name="tx_settlement_funding_correction">फंडिंग सुधार</string>
+    <string name="tx_settlement_payment_reclassification">भुगतान विधि पुनर्वर्गीकरण</string>
+    <string name="tx_settlement_void_reversal">रद्दीकरण उलटाव</string>
+    <string name="tx_confirmation_cashier">कैशियर द्वारा पुष्टि</string>
+    <string name="tx_confirmation_provider">प्रदाता द्वारा अनुमोदित</string>
+    <string name="history_back">वापस</string>
+    <string name="history_search_hint">तारीख, फोन, नाम या राशि खोजें</string>
+    <string name="history_filter_all">सभी</string>
+    <string name="history_filter_date">तारीख</string>
+    <string name="history_filter_phone">फोन</string>
+    <string name="history_filter_name">नाम</string>
+    <string name="history_filter_amount">राशि</string>
+    <string name="history_loading">इतिहास लोड हो रहा है…</string>
+    <string name="history_empty">अभी कोई लेनदेन नहीं है।</string>
+    <string name="history_no_match">कोई मिलता हुआ लेनदेन नहीं मिला।</string>
+    <string name="history_permission_denied">आपको पूरा लेनदेन इतिहास देखने की अनुमति नहीं है।</string>
+    <string name="history_load_failed">लेनदेन इतिहास लोड नहीं हो सका।</string>
+    <string name="history_payment_not_available">भुगतान विधि उपलब्ध नहीं है</string>
+    <string name="tx_correct_amount_title">लेनदेन राशि सुधारें</string>
+    <string name="tx_correct_amount_current">वर्तमान राशि: %1$s</string>
+    <string name="tx_correct_amount_new">सुधारी गई राशि</string>
+    <string name="tx_correct_amount_reason">कारण (वैकल्पिक)</string>
+    <string name="tx_correct_amount_confirm">सुधार सहेजें</string>
+    <string name="tx_correct_amount_invalid">एक मान्य गैर-ऋणात्मक राशि दर्ज करें।</string>
+    <string name="tx_correct_amount_same">सुधारी गई राशि वर्तमान राशि से अलग होनी चाहिए।</string>
+    <string name="tx_correct_amount_saved">राशि सुधार सहेजा गया।</string>
+    <string name="tx_correct_amount_permission">आपको इस लेनदेन की राशि सुधारने की अनुमति नहीं है।</string>
+    <string name="tx_correct_amount_conflict">सुधार पूरा होने से पहले लेनदेन बदल गया। नवीनतम विवरण देखें और फिर प्रयास करें।</string>
+    <string name="tx_correct_amount_failed">सुधार की पुष्टि नहीं हो सकी। उसी सुधार अनुरोध को दोबारा प्रयास करें।</string>
+    <string name="tx_action_reason">कारण (वैकल्पिक)</string>
+    <string name="tx_refund_title">लेन-देन रिफंड करें</string>
+    <string name="tx_refund_available">रिफंड योग्य राशि: %1$s</string>
+    <string name="tx_refund_amount_input">रिफंड राशि</string>
+    <string name="tx_refund_destination">रिफंड का माध्यम</string>
+    <string name="tx_refund_original_destination">मूल भुगतान (%1$s)</string>
+    <string name="tx_refund_to_coupon">कूपन वॉलेट</string>
+    <string name="tx_refund_confirm">रिफंड की पुष्टि करें</string>
+    <string name="tx_refund_invalid">रिफंड योग्य राशि से अधिक न होने वाली धनात्मक राशि दर्ज करें।</string>
+    <string name="tx_refund_invalid_destination">मूल भुगतान विधि या कूपन वॉलेट चुनें।</string>
+    <string name="tx_refund_saved">रिफंड सहेजा गया।</string>
+    <string name="tx_refund_permission">आपको इस लेन-देन का रिफंड करने की अनुमति नहीं है।</string>
+    <string name="tx_refund_failed">रिफंड सहेजा नहीं जा सका। लेन-देन की वर्तमान स्थिति देखें।</string>
+    <string name="tx_void_title">लेन-देन रद्द करें</string>
+    <string name="tx_void_confirmation">शेष %1$s वित्तीय प्रभाव रद्द करें? मूल लेन-देन बना रहेगा और स्थायी रद्द घटना दर्ज होगी।</string>
+    <string name="tx_void_confirm">रद्द करने की पुष्टि करें</string>
+    <string name="tx_void_saved">रद्दीकरण सहेजा गया।</string>
+    <string name="tx_void_permission">आपको यह लेन-देन रद्द करने की अनुमति नहीं है।</string>
+    <string name="tx_void_failed">लेन-देन रद्द नहीं किया जा सका। इसकी वर्तमान जीवनचक्र स्थिति देखें।</string>
+    <string name="tx_change_payment_title">भुगतान विधि बदलें</string>
+    <string name="tx_change_payment_current">वर्तमान भुगतान: %1$s</string>
+    <string name="tx_change_payment_confirm">बदलाव की पुष्टि करें</string>
+    <string name="tx_change_payment_invalid">केवल नकद और ऑनलाइन भुगतान बदलाव समर्थित हैं।</string>
+    <string name="tx_change_payment_same">वर्तमान विधि से अलग भुगतान विधि चुनें।</string>
+    <string name="tx_change_payment_saved">भुगतान विधि बदलाव सहेजा गया।</string>
+    <string name="tx_change_payment_permission">आपको यह भुगतान विधि बदलने की अनुमति नहीं है।</string>
+    <string name="tx_change_payment_failed">भुगतान विधि बदली नहीं जा सकी। लेन-देन की वर्तमान स्थिति देखें।</string>
+    <string name="tx_lifecycle_conflict">यह लेन-देन बदल गया है। नवीनतम विवरण देखकर फिर प्रयास करें।</string>
 </resources>

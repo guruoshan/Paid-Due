@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="global_phone_country">ملک / کالنگ کوڈ</string>
+    <string name="global_phone_number">فون نمبر</string>
+    <string name="global_phone_invalid">درست فون نمبر درج کریں</string>
+    <string name="global_phone_search">ملک یا کالنگ کوڈ تلاش کریں</string>
+    <string name="global_phone_no_results">کوئی ملک نہیں ملا</string>
+</resources>

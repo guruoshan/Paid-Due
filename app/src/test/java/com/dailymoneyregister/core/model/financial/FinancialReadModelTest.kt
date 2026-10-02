@@ -166,11 +166,10 @@ class FinancialReadModelTest {
 
     @Test
     fun paymentMethodChangeProducesCurrentMethodWithoutChangingHistory() {
-        val categories = enumValues<PaymentCategory>()
-        assertTrue(categories.size >= 2)
-
-        val originalCategory = categories[0]
-        val newCategory = categories[1]
+        val originalCategory = PaymentCategory.CASH
+        val originalChannel = PaymentChannel.CASH_TENDER
+        val newCategory = PaymentCategory.ONLINE
+        val newChannel = PaymentChannel.MANUAL_QR
 
         val transaction = transaction(10_000L)
 
@@ -181,9 +180,9 @@ class FinancialReadModelTest {
                 subjectType = enumValues<SubjectType>().first(),
                 subjectId = transaction.id,
                 transactionId = transaction.id,
-                entryPurpose = enumValues<EntryPurpose>().first(),
+                entryPurpose = EntryPurpose.SALE_FUNDING,
                 category = originalCategory,
-                channel = enumValues<PaymentChannel>().first(),
+                channel = originalChannel,
                 amountSignedMinor = 10_000L,
                 currencyCode = "OMR",
                 confirmationType = enumValues<ConfirmationType>().first(),
@@ -197,7 +196,9 @@ class FinancialReadModelTest {
                 transactionId = transaction.id,
                 operationId = "operation-2",
                 previousMethod = originalCategory,
+                previousChannel = originalChannel,
                 newMethod = newCategory,
+                newChannel = newChannel,
                 actorUserId = "user-1",
                 occurredAt = 2L
             )
@@ -216,8 +217,18 @@ class FinancialReadModelTest {
         )
 
         assertEquals(
+            originalChannel,
+            view.originalPaymentChannel
+        )
+
+        assertEquals(
             newCategory,
             view.currentPaymentCategory
+        )
+
+        assertEquals(
+            newChannel,
+            view.currentPaymentChannel
         )
 
         assertEquals(
@@ -257,6 +268,311 @@ class FinancialReadModelTest {
 
         assertTrue(failed)
     }
+
+    @Test
+    fun yesterdaySaleAndTodayRefundUseOnlyTodaysNegativeEffect() {
+        val transaction = transaction(10_000L).copy(createdAt = 1_000L)
+        val saleSettlement = settlement("sale", 1_000L, 10_000L)
+        val refund = RefundEventEntity(
+            id = "refund-today",
+            transactionId = transaction.id,
+            operationId = "refund-operation",
+            refundAmountMinor = 3_000L,
+            actorUserId = "user-1",
+            occurredAt = 2_000L
+        )
+
+        val view = FinancialReadModelResolver.resolve(
+            TransactionFinancialRecord(transaction, refundEvents = listOf(refund), settlements = listOf(saleSettlement)),
+            periodStartMillis = 2_000L,
+            periodEndMillis = 3_000L
+        )
+
+        assertEquals(7_000L, view.netAmount.amount)
+        assertEquals(-3_000L, view.periodFinancialEffect.amount)
+        assertEquals(2_000L, view.latestActivityAt)
+    }
+
+    @Test
+    fun saleTodayHasPositivePeriodEffect() {
+        val view = FinancialReadModelResolver.resolve(
+            TransactionFinancialRecord(transaction(10_000L).copy(createdAt = 2_000L)),
+            periodStartMillis = 2_000L,
+            periodEndMillis = 3_000L
+        )
+
+        assertEquals(10_000L, view.periodFinancialEffect.amount)
+    }
+
+    @Test
+    fun saleFundingSettlementAtSaleTimestampIsCountedOnce() {
+        val transaction = transaction(10_000L).copy(createdAt = 2_000L)
+        val view = FinancialReadModelResolver.resolve(
+            TransactionFinancialRecord(
+                transaction = transaction,
+                settlements = listOf(settlement("sale-funding", 2_000L, 10_000L))
+            ),
+            periodStartMillis = 2_000L,
+            periodEndMillis = 3_000L
+        )
+
+        assertEquals(10_000L, view.periodFinancialEffect.amount)
+    }
+
+    @Test
+    fun saleFundingSettlementAtDifferentTimestampIsCountedOnce() {
+        val transaction = transaction(10_000L).copy(createdAt = 2_000L)
+        val view = FinancialReadModelResolver.resolve(
+            TransactionFinancialRecord(
+                transaction = transaction,
+                settlements = listOf(settlement("sale-funding", 2_500L, 10_000L))
+            ),
+            periodStartMillis = 2_000L,
+            periodEndMillis = 3_000L
+        )
+
+        assertEquals(10_000L, view.periodFinancialEffect.amount)
+    }
+
+    @Test
+    fun multipleSaleFundingSettlementsUseSignedSettlementSumOnce() {
+        val transaction = transaction(10_000L).copy(createdAt = 2_000L)
+        val first = settlement("sale-funding-1", 2_100L, 6_000L)
+        val second = settlement("sale-funding-2", 2_200L, 4_000L)
+
+        val view = FinancialReadModelResolver.resolve(
+            TransactionFinancialRecord(transaction = transaction, settlements = listOf(first, second)),
+            periodStartMillis = 2_000L,
+            periodEndMillis = 3_000L
+        )
+
+        assertEquals(10_000L, view.periodFinancialEffect.amount)
+    }
+
+    @Test
+    fun lifecycleSettlementOperationIsCountedOnlyInSettlementPeriod() {
+        val transaction = transaction(10_000L).copy(createdAt = 500L)
+        val refund = RefundEventEntity(
+            id = "refund-cross-period",
+            transactionId = transaction.id,
+            operationId = "refund-cross-period-operation",
+            refundAmountMinor = 3_000L,
+            actorUserId = "user-1",
+            occurredAt = 1_500L
+        )
+        val refundSettlement = settlement(
+            operationId = "refund-cross-period-operation",
+            occurredAt = 2_500L,
+            amount = -3_000L
+        ).copy(entryPurpose = EntryPurpose.REFUND_OUTFLOW)
+        val record = TransactionFinancialRecord(
+            transaction = transaction,
+            refundEvents = listOf(refund),
+            settlements = listOf(refundSettlement)
+        )
+
+        val lifecyclePeriod = FinancialReadModelResolver.resolve(
+            record,
+            periodStartMillis = 1_000L,
+            periodEndMillis = 2_000L
+        )
+        val settlementPeriod = FinancialReadModelResolver.resolve(
+            record,
+            periodStartMillis = 2_000L,
+            periodEndMillis = 3_000L
+        )
+
+        assertEquals(0L, lifecyclePeriod.periodFinancialEffect.amount)
+        assertEquals(-3_000L, settlementPeriod.periodFinancialEffect.amount)
+    }
+
+    @Test
+    fun todayVoidReversesOnlyRemainingValueAfterEarlierRefund() {
+        val transaction = transaction(10_000L).copy(createdAt = 1_000L)
+        val refund = RefundEventEntity(
+            id = "refund-before-void",
+            transactionId = transaction.id,
+            operationId = "refund-operation",
+            refundAmountMinor = 3_000L,
+            actorUserId = "user-1",
+            occurredAt = 1_500L
+        )
+        val void = VoidEventEntity(
+            id = "void-today",
+            transactionId = transaction.id,
+            operationId = "void-operation",
+            actorUserId = "user-1",
+            occurredAt = 2_000L
+        )
+
+        val view = FinancialReadModelResolver.resolve(
+            TransactionFinancialRecord(transaction, refundEvents = listOf(refund), voidEvents = listOf(void)),
+            periodStartMillis = 2_000L,
+            periodEndMillis = 3_000L
+        )
+
+        assertEquals(-7_000L, view.periodFinancialEffect.amount)
+        assertTrue(FinancialLifecycleState.VOIDED in view.lifecycleStates)
+    }
+
+    @Test
+    fun todayCorrectionContributesOnlyItsSignedDelta() {
+        val transaction = transaction(10_000L).copy(createdAt = 1_000L)
+        val correction = AmountCorrectionEventEntity(
+            id = "correction-today",
+            transactionId = transaction.id,
+            operationId = "correction-operation",
+            previousAmountMinor = 10_000L,
+            correctedAmountMinor = 12_000L,
+            actorUserId = "user-1",
+            occurredAt = 2_000L
+        )
+
+        val view = FinancialReadModelResolver.resolve(
+            TransactionFinancialRecord(transaction, amountCorrections = listOf(correction)),
+            periodStartMillis = 2_000L,
+            periodEndMillis = 3_000L
+        )
+
+        assertEquals(12_000L, view.netAmount.amount)
+        assertEquals(2_000L, view.periodFinancialEffect.amount)
+        assertTrue(FinancialLifecycleState.CORRECTED in view.lifecycleStates)
+    }
+
+    @Test
+    fun paymentMethodChangeUpdatesActivityWithoutAddingRevenue() {
+        val transaction = transaction(10_000L).copy(createdAt = 1_000L)
+        val change = PaymentMethodChangeEventEntity(
+            id = "payment-change-today",
+            transactionId = transaction.id,
+            operationId = "payment-change-operation",
+            previousMethod = PaymentCategory.CASH,
+            previousChannel = PaymentChannel.CASH_TENDER,
+            newMethod = PaymentCategory.ONLINE,
+            newChannel = PaymentChannel.MANUAL_QR,
+            actorUserId = "user-1",
+            occurredAt = 2_000L
+        )
+
+        val view = FinancialReadModelResolver.resolve(
+            TransactionFinancialRecord(transaction, paymentMethodChanges = listOf(change)),
+            periodStartMillis = 2_000L,
+            periodEndMillis = 3_000L
+        )
+
+        assertEquals(0L, view.periodFinancialEffect.amount)
+        assertEquals(2_000L, view.latestActivityAt)
+        assertTrue(FinancialLifecycleState.PAYMENT_METHOD_CHANGED in view.lifecycleStates)
+    }
+
+    @Test
+    fun paymentIdentityUsesSaleFundingNotUnrelatedPositiveSettlement() {
+        val transaction = transaction(10_000L)
+
+        val unrelatedPositive = settlement(
+            operationId = "repayment-operation",
+            occurredAt = 1L,
+            amount = 2_000L
+        ).copy(
+            entryPurpose = EntryPurpose.CREDIT_REPAYMENT_COLLECTION,
+            category = PaymentCategory.ONLINE,
+            channel = PaymentChannel.SOFTPOS
+        )
+
+        val saleFunding = settlement(
+            operationId = "sale-operation",
+            occurredAt = 2L,
+            amount = 10_000L
+        )
+
+        val view = FinancialReadModelResolver.resolve(
+            TransactionFinancialRecord(
+                transaction = transaction,
+                settlements = listOf(unrelatedPositive, saleFunding)
+            )
+        )
+
+        assertEquals(PaymentCategory.CASH, view.originalPaymentCategory)
+        assertEquals(PaymentChannel.CASH_TENDER, view.originalPaymentChannel)
+        assertEquals(PaymentCategory.CASH, view.currentPaymentCategory)
+        assertEquals(PaymentChannel.CASH_TENDER, view.currentPaymentChannel)
+    }
+
+    @Test
+    fun paymentMethodChangeBrokenChannelChainFailsClosed() {
+        val transaction = transaction(10_000L)
+        val saleFunding = settlement(
+            operationId = "sale-operation",
+            occurredAt = 1L,
+            amount = 10_000L
+        )
+        val change = PaymentMethodChangeEventEntity(
+            id = "payment-change-broken-channel",
+            transactionId = transaction.id,
+            operationId = "payment-change-operation",
+            previousMethod = PaymentCategory.CASH,
+            previousChannel = PaymentChannel.MANUAL_QR,
+            newMethod = PaymentCategory.ONLINE,
+            newChannel = PaymentChannel.SOFTPOS,
+            actorUserId = "user-1",
+            occurredAt = 2L
+        )
+
+        var failed = false
+        try {
+            FinancialReadModelResolver.resolve(
+                TransactionFinancialRecord(
+                    transaction = transaction,
+                    paymentMethodChanges = listOf(change),
+                    settlements = listOf(saleFunding)
+                )
+            )
+        } catch (_: IllegalStateException) {
+            failed = true
+        }
+
+        assertTrue(failed)
+    }
+
+    @Test
+    fun settlementCurrencyMismatchFailsClosed() {
+        val transaction = transaction(10_000L)
+        val mismatchedSettlement = settlement("wrong-currency", 2_000L, 10_000L)
+            .copy(currencyCode = "INR")
+
+        var failed = false
+        try {
+            FinancialReadModelResolver.resolve(
+                TransactionFinancialRecord(transaction, settlements = listOf(mismatchedSettlement)),
+                periodStartMillis = 2_000L,
+                periodEndMillis = 3_000L
+            )
+        } catch (_: IllegalStateException) {
+            failed = true
+        }
+
+        assertTrue(failed)
+    }
+
+    private fun settlement(
+        operationId: String,
+        occurredAt: Long,
+        amount: Long
+    ) = SettlementEntryEntity(
+        id = "settlement-$operationId",
+        operationId = operationId,
+        subjectType = SubjectType.TRANSACTION,
+        subjectId = "transaction-1",
+        transactionId = "transaction-1",
+        entryPurpose = EntryPurpose.SALE_FUNDING,
+        category = PaymentCategory.CASH,
+        channel = PaymentChannel.CASH_TENDER,
+        amountSignedMinor = amount,
+        currencyCode = "OMR",
+        confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+        occurredAt = occurredAt,
+        actorUserId = "user-1"
+    )
 
     private fun transaction(
         totalMinor: Long

@@ -100,9 +100,7 @@ class AuthRepository @Inject constructor(
     ): UserAccountEntity? {
         return identifier.canonicalPhone?.let {
             userDao.getUserByCanonicalPhone(businessId, it)
-        } ?: userDao.getUserByUsername(businessId, identifier.cleanUsername)?.takeIf {
-            userDao.getHumanIdentityById(it.identityId ?: it.id)?.canonicalPhone == null
-        }
+        } ?: userDao.getUserByUsername(businessId, identifier.cleanUsername)
     }
 
     /**

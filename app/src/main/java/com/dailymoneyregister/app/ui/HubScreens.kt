@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VerifiedUser
@@ -25,6 +26,7 @@ import com.dailymoneyregister.R
 fun AdminHubScreen(
     onNavigateToRegister: () -> Unit,
     onNavigateToCashierManagement: () -> Unit,
+    onNavigateToCustomers: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -120,6 +122,28 @@ fun AdminHubScreen(
                     Column {
                         Text(stringResource(R.string.manage_cashiers), fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                         Text(stringResource(R.string.manage_cashiers_desc), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+
+            Card(
+                onClick = onNavigateToCustomers,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(36.dp).padding(end = 16.dp)
+                    )
+                    Column {
+                        Text(stringResource(R.string.customers_title), fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                        Text(stringResource(R.string.customers_entry_desc), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

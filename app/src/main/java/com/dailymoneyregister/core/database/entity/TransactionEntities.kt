@@ -155,6 +155,12 @@ data class TransactionItemEntity(
             parentColumns = ["id"],
             childColumns = ["operation_id"],
             onDelete = ForeignKey.RESTRICT
+        ),
+        ForeignKey(
+            entity = TransactionEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["transaction_id"],
+            onDelete = ForeignKey.RESTRICT
         )
     ],
     indices = [

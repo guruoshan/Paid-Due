@@ -1,7 +1,6 @@
 ﻿package com.dailymoneyregister
 
 import android.content.Context
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dailymoneyregister.core.command.CommandExecutor
@@ -91,9 +90,7 @@ class RegisterIntegrationTest {
     @Before
     fun setUp() = runBlocking {
         context = ApplicationProvider.getApplicationContext()
-        database = Room.inMemoryDatabaseBuilder(context, DmrDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
+        database = DmrDatabase.createInMemory(context)
 
         commandExecutor = CommandExecutor(database)
         repository = RegisterRepository(database, commandExecutor)
@@ -869,6 +866,11 @@ class RegisterIntegrationTest {
             // A real operation parent keeps FK enforcement enabled for the wrong-link fixture.
             val original = seedRecovery(settlements = emptyList())
             database.operationDao().insertOperation(original.copy(id = "other-op", status = OperationStatus.SUCCEEDED))
+            if (variant.transactionId == "other-tx") {
+                database.transactionDao().insertTransaction(
+                    recoveryTransaction().copy(id = "other-tx")
+                )
+            }
             database.transactionDao().insertSettlement(variant)
             assertRecoveryBlocked(original)
         }
@@ -900,8 +902,50 @@ class RegisterIntegrationTest {
     }
 
     @Test
-    fun testAbsentTransactionWithOrphanSettlementDoesNotInsertMoney() = runBlocking {
-        assertRecoveryBlocked(seedRecovery(transaction = null, items = emptyList()))
+    fun testDatabaseRejectsOrphanSettlementBeforeRecovery() = runBlocking {
+        val original = seedRecovery(
+            transaction = null,
+            items = emptyList(),
+            settlements = emptyList()
+        )
+
+        var failure: Throwable? = null
+
+        try {
+            database.transactionDao()
+                .insertSettlement(recoverySettlement())
+        } catch (throwable: Throwable) {
+            failure = throwable
+        }
+
+        assertNotNull(
+            "Database must reject settlement linked to a missing transaction",
+            failure
+        )
+
+        assertNull(
+            database.transactionDao()
+                .getTransactionById("recovery-tx")
+        )
+
+        assertTrue(
+            database.transactionDao()
+                .getItemsForTransaction("recovery-tx")
+                .isEmpty()
+        )
+
+        assertTrue(
+            database.transactionDao()
+                .getSettlementsForTransaction("recovery-tx")
+                .isEmpty()
+        )
+
+        assertEquals(
+            OperationStatus.PENDING,
+            database.operationDao()
+                .getOperationById(original.id)!!
+                .status
+        )
     }
 
     @Test
@@ -978,6 +1022,9 @@ class RegisterIntegrationTest {
     fun testRecoveryDetectsSettlementLinkedOnlyBySubject() = runBlocking {
         val original = seedRecovery(settlements = emptyList())
         database.operationDao().insertOperation(original.copy(id = "other-op", status = OperationStatus.SUCCEEDED))
+        database.transactionDao().insertTransaction(
+            recoveryTransaction().copy(id = "other-tx")
+        )
         database.transactionDao().insertSettlement(recoverySettlement().copy(
             operationId = "other-op", transactionId = "other-tx"
         ))

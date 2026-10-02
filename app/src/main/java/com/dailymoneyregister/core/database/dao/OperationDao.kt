@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface OperationDao {
+    @Query("SELECT * FROM operations WHERE operation_type = 'RECORD_COUPON_PURCHASE' AND status = 'REQUIRES_RECONCILIATION'")
+    suspend fun getCouponOperationsRequiringReconciliation(): List<OperationEntity>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertOperation(operation: OperationEntity)

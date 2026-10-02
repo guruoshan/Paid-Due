@@ -75,7 +75,7 @@ import com.dailymoneyregister.core.database.entity.VoidEventEntity
         CreditRepaymentEntity::class,
         CreditRepaymentAllocationEntity::class
     ],
-    version = 3,
+    version = 9,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -112,6 +112,310 @@ abstract class DmrDatabase : RoomDatabase() {
                 FinancialImmutabilityCallback.installGuards(db)
             }
         }
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.query(
+                    """
+                    SELECT 1
+                    FROM settlement_entries AS s
+                    LEFT JOIN transactions AS t
+                        ON t.id = s.transaction_id
+                    WHERE s.transaction_id IS NOT NULL
+                      AND t.id IS NULL
+                    LIMIT 1
+                    """.trimIndent()
+                ).use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        throw IllegalStateException(
+                            "MIGRATION_3_4 blocked: settlement_entries contains an orphan transaction_id"
+                        )
+                    }
+                }
+
+                db.execSQL(
+                    "DROP TRIGGER IF EXISTS immutable_settlement_entries_no_update"
+                )
+                db.execSQL(
+                    "DROP TRIGGER IF EXISTS immutable_settlement_entries_no_delete"
+                )
+                db.execSQL(
+                    "DROP TRIGGER IF EXISTS immutable_settlement_entries_no_replace"
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE settlement_entries_new (
+                        id TEXT NOT NULL,
+                        operation_id TEXT NOT NULL,
+                        subject_type TEXT NOT NULL,
+                        subject_id TEXT NOT NULL,
+                        transaction_id TEXT,
+                        entry_purpose TEXT NOT NULL,
+                        category TEXT NOT NULL,
+                        channel TEXT NOT NULL,
+                        amount_signed_minor INTEGER NOT NULL,
+                        currency_code TEXT NOT NULL,
+                        confirmation_type TEXT NOT NULL,
+                        qr_profile_id_snapshot TEXT,
+                        occurred_at INTEGER NOT NULL,
+                        actor_user_id TEXT NOT NULL,
+                        provider_ref TEXT,
+                        PRIMARY KEY(id),
+                        FOREIGN KEY(operation_id) REFERENCES operations(id)
+                            ON UPDATE NO ACTION ON DELETE RESTRICT,
+                        FOREIGN KEY(transaction_id) REFERENCES transactions(id)
+                            ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    INSERT INTO settlement_entries_new (
+                        id,
+                        operation_id,
+                        subject_type,
+                        subject_id,
+                        transaction_id,
+                        entry_purpose,
+                        category,
+                        channel,
+                        amount_signed_minor,
+                        currency_code,
+                        confirmation_type,
+                        qr_profile_id_snapshot,
+                        occurred_at,
+                        actor_user_id,
+                        provider_ref
+                    )
+                    SELECT
+                        id,
+                        operation_id,
+                        subject_type,
+                        subject_id,
+                        transaction_id,
+                        entry_purpose,
+                        category,
+                        channel,
+                        amount_signed_minor,
+                        currency_code,
+                        confirmation_type,
+                        qr_profile_id_snapshot,
+                        occurred_at,
+                        actor_user_id,
+                        provider_ref
+                    FROM settlement_entries
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    "DROP TABLE settlement_entries"
+                )
+
+                db.execSQL(
+                    "ALTER TABLE settlement_entries_new RENAME TO settlement_entries"
+                )
+
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_settlement_entries_operation_id " +
+                        "ON settlement_entries(operation_id)"
+                )
+
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_settlement_entries_transaction_id " +
+                        "ON settlement_entries(transaction_id)"
+                )
+
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_settlement_entries_subject_type_subject_id " +
+                        "ON settlement_entries(subject_type, subject_id)"
+                )
+
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_settlement_entries_category " +
+                        "ON settlement_entries(category)"
+                )
+
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_settlement_entries_entry_purpose " +
+                        "ON settlement_entries(entry_purpose)"
+                )
+
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_settlement_entries_occurred_at " +
+                        "ON settlement_entries(occurred_at)"
+                )
+
+                FinancialImmutabilityCallback.installGuards(db)
+            }
+        }
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.query(
+                    """
+                    SELECT transaction_id
+                    FROM void_events
+                    GROUP BY transaction_id
+                    HAVING COUNT(*) > 1
+                    LIMIT 1
+                    """.trimIndent()
+                ).use { cursor ->
+                    check(!cursor.moveToFirst()) {
+                        "MIGRATION_4_5 blocked: duplicate void_events.transaction_id"
+                    }
+                }
+
+                db.query(
+                    """
+                    SELECT operation_id
+                    FROM void_events
+                    GROUP BY operation_id
+                    HAVING COUNT(*) > 1
+                    LIMIT 1
+                    """.trimIndent()
+                ).use { cursor ->
+                    check(!cursor.moveToFirst()) {
+                        "MIGRATION_4_5 blocked: duplicate void_events.operation_id"
+                    }
+                }
+
+                db.execSQL(
+                    "DROP INDEX IF EXISTS index_void_events_transaction_id"
+                )
+                db.execSQL(
+                    "DROP INDEX IF EXISTS index_void_events_operation_id"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX index_void_events_transaction_id " +
+                        "ON void_events(transaction_id)"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX index_void_events_operation_id " +
+                        "ON void_events(operation_id)"
+                )
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                /*
+                 * Multiple partial refunds for one transaction are valid,
+                 * therefore refund_events.transaction_id remains NON-UNIQUE.
+                 *
+                 * One durable Refund operation may materialize exactly one
+                 * RefundEvent, therefore operation_id must be UNIQUE.
+                 *
+                 * Refuse migration before modifying the schema when legacy
+                 * v5 data already violates that invariant.
+                 */
+                db.query(
+                    """
+                    SELECT operation_id
+                    FROM refund_events
+                    GROUP BY operation_id
+                    HAVING COUNT(*) > 1
+                    LIMIT 1
+                    """.trimIndent()
+                ).use { cursor ->
+                    check(!cursor.moveToFirst()) {
+                        "MIGRATION_5_6 blocked: duplicate refund_events.operation_id"
+                    }
+                }
+
+                db.execSQL(
+                    "DROP INDEX IF EXISTS index_refund_events_operation_id"
+                )
+
+                db.execSQL(
+                    "CREATE UNIQUE INDEX index_refund_events_operation_id " +
+                        "ON refund_events(operation_id)"
+                )
+            }
+        }
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                /*
+                 * Multiple chronological payment-method changes for one
+                 * transaction are valid.
+                 *
+                 * One durable operation may produce exactly one
+                 * PaymentMethodChangeEvent.
+                 */
+                db.query(
+                    """
+                    SELECT operation_id
+                    FROM payment_method_change_events
+                    GROUP BY operation_id
+                    HAVING COUNT(*) > 1
+                    LIMIT 1
+                    """.trimIndent()
+                ).use { cursor ->
+                    check(!cursor.moveToFirst()) {
+                        "MIGRATION_6_7 blocked: duplicate payment_method_change_events.operation_id"
+                    }
+                }
+
+                db.execSQL(
+                    "DROP INDEX IF EXISTS index_payment_method_change_events_operation_id"
+                )
+
+                db.execSQL(
+                    "CREATE UNIQUE INDEX " +
+                        "index_payment_method_change_events_operation_id " +
+                        "ON payment_method_change_events(operation_id)"
+                )
+            }
+        }
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                /*
+                 * Room v7 stores only PaymentCategory for payment-method
+                 * changes. ONLINE is not enough to reconstruct whether the
+                 * authoritative channel was MANUAL_QR or SOFTPOS. Never invent
+                 * historical payment identity during migration.
+                 */
+                db.query(
+                    """
+                    SELECT id
+                    FROM payment_method_change_events
+                    LIMIT 1
+                    """.trimIndent()
+                ).use { cursor ->
+                    check(!cursor.moveToFirst()) {
+                        "MIGRATION_7_8 blocked: legacy payment_method_change_events lack channel identity"
+                    }
+                }
+
+                db.execSQL(
+                    "ALTER TABLE payment_method_change_events " +
+                        "ADD COLUMN previous_channel TEXT"
+                )
+
+                db.execSQL(
+                    "ALTER TABLE payment_method_change_events " +
+                        "ADD COLUMN new_channel TEXT"
+                )
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                /*
+                 * Links a document to the customer it was issued to.
+                 * Nullable, so every existing document stays valid.
+                 * No data is copied, moved or rewritten.
+                 */
+                db.execSQL(
+                    "ALTER TABLE documents ADD COLUMN customer_id TEXT " +
+                        "REFERENCES customers(id) ON UPDATE NO ACTION ON DELETE RESTRICT"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_documents_customer_id " +
+                        "ON documents(customer_id)"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: DmrDatabase? = null
 
@@ -143,6 +447,12 @@ abstract class DmrDatabase : RoomDatabase() {
                             )
                             .addMigrations(MIGRATION_1_2)
                             .addMigrations(MIGRATION_2_3)
+                            .addMigrations(MIGRATION_3_4)
+                            .addMigrations(MIGRATION_4_5)
+                .addMigrations(MIGRATION_5_6)
+                .addMigrations(MIGRATION_6_7)
+                .addMigrations(MIGRATION_7_8)
+                .addMigrations(MIGRATION_8_9)
                             .addCallback(FinancialImmutabilityCallback)
                             .build()
                     } catch (e: Exception) {
@@ -162,6 +472,12 @@ abstract class DmrDatabase : RoomDatabase() {
             )
                 .addMigrations(MIGRATION_1_2)
                 .addMigrations(MIGRATION_2_3)
+                .addMigrations(MIGRATION_3_4)
+                .addMigrations(MIGRATION_4_5)
+                .addMigrations(MIGRATION_5_6)
+                .addMigrations(MIGRATION_6_7)
+                .addMigrations(MIGRATION_7_8)
+                .addMigrations(MIGRATION_8_9)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()

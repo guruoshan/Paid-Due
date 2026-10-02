@@ -6,7 +6,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Pure JVM unit tests for DeviceIdentityProvider — no Android framework required.
+ * Pure JVM unit tests for DeviceIdentityProvider - no Android framework required.
  *
  * DeviceIdentityProvider accepts a [prefsProvider] lambda for testability.
  * The in-memory SharedPreferences stub below fulfils the same contract as
@@ -76,10 +76,10 @@ class DeviceIdentityProviderTest {
 
     @Test
     fun `new provider instance reads persisted ID simulating app restart`() {
-        // First app launch — generates and persists the ID
+        // First app launch - generates and persists the ID
         val id1 = DeviceIdentityProvider { makePrefs() }.deviceId
 
-        // Second app launch — same backing store, new provider instance
+        // Second app launch - same backing store, new provider instance
         val id2 = DeviceIdentityProvider { makePrefs() }.deviceId
 
         assertEquals(

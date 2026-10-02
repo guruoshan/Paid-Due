@@ -43,7 +43,7 @@
     <string name="locked_out_msg">بہت سی ناکام کوششیں۔ %1$d سیکنڈ کے لیے لاک کر دیا گیا ہے۔</string>
 
     <!-- Hub Screen -->
-    <string name="admin_hub_title">ڈیلی منی رجسٹر — ایڈمن</string>
+    <string name="admin_hub_title">ڈیلی منی رجسٹر - ایڈمن</string>
     <string name="welcome_user">خوش آمدید، %1$s</string>
     <string name="main_register_admin_controls">مین رجسٹر اور ایڈمن کنٹرولز</string>
     <string name="open_cash_register">کیش رجسٹر کھولیں</string>
@@ -93,7 +93,10 @@
 
     <!-- Recent Transactions Panel -->
     <string name="todays_sales">آج کی فروخت (%1$d)</string>
+    <string name="recent_activity_count">آج کی سرگرمی (%1$d)</string>
     <string name="today_total">کل: %1$s</string>
+    <string name="recent_activity_refund">رقم واپسی</string>
+    <string name="recent_activity_refund_coupon">کوپن میں رقم واپسی</string>
     <string name="no_transactions_today">آج ابھی تک کوئی لین دین درج نہیں ہوا۔</string>
     <string name="cash_sale_label">نقد فروخت</string>
     <string name="whatsapp_mobile_number">واٹس ایپ / موبائل نمبر</string>
@@ -106,6 +109,7 @@
     <string name="recent_status_partially_refunded">جزوی رقم واپسی</string>
     <string name="recent_status_fully_refunded">مکمل رقم واپسی</string>
     <string name="recent_status_corrected">درست شدہ</string>
+    <string name="recent_status_payment_method_changed">ادائیگی کا طریقہ تبدیل کر دیا گیا</string>
     <string name="history">ریکارڈ</string>
     <string name="customer">گاہک</string>
     <string name="clear">صاف کریں</string>
@@ -138,4 +142,209 @@
     <string name="change_pin_new">نیا 6 ہندسوں کا پن</string>
     <string name="change_pin_confirm">نئے پن کی تصدیق کریں</string>
     <string name="change_pin_save">پن محفوظ کریں</string>
+
+    <!-- Invoice form (added) -->
+    <string name="inv_create">انوائس بنائیں</string>
+    <string name="inv_form_title">نیا انوائس</string>
+    <string name="inv_form_intro">گاہک کی تفصیلات درج کریں۔ اس انوائس میں %1$d آئٹم ہیں، کل %2$s۔</string>
+    <string name="inv_customer_title">خطاب (اختیاری)</string>
+    <string name="inv_title_mr">جناب</string>
+    <string name="inv_title_mrs">بیگم</string>
+    <string name="inv_title_ms">محترمہ</string>
+    <string name="inv_title_dr">ڈاکٹر</string>
+    <string name="inv_customer_name">گاہک کا نام</string>
+    <string name="inv_customer_address">پتہ / نوٹ (اختیاری)</string>
+    <string name="inv_existing_customer">موجودہ گاہک: %1$s</string>
+    <string name="inv_save">انوائس محفوظ کریں</string>
+    <string name="inv_saving">محفوظ ہو رہا ہے…</string>
+    <string name="inv_saved_title">انوائس محفوظ ہو گیا</string>
+    <string name="inv_saved_message">انوائس %1$s محفوظ ہو گیا۔ یہ گاہک کی دستاویز ہے اور اس سے کوئی ادائیگی یا فروخت کی آمدنی درج نہیں ہوتی۔</string>
+    <string name="inv_error_no_items">انوائس بنانے کے لیے کم از کم ایک آئٹم شامل کریں۔</string>
+    <string name="inv_error_session">انوائس بنانے کے لیے براہ کرم دوبارہ سائن اِن کریں۔</string>
+    <string name="inv_error_customer">گاہک کا نام اور درست فون نمبر درکار ہیں۔</string>
+    <string name="inv_error_generic">انوائس محفوظ نہیں ہو سکا: %1$s</string>
+
+    <!-- Invoice PDF + share (added) -->
+    <string name="inv_pdf_footer">%1$s کی جانب سے</string>
+    <string name="inv_pdf_items">آئٹمز</string>
+    <string name="inv_pdf_qty">مقدار</string>
+    <string name="inv_pdf_unit_price">یونٹ قیمت</string>
+    <string name="inv_pdf_line_total">لائن کل</string>
+    <string name="inv_pdf_registration">رجسٹریشن نمبر: %1$s</string>
+    <string name="inv_pdf_tax_id">ٹیکس آئی ڈی: %1$s</string>
+    <string name="inv_pdf_reference">انوائس نمبر: %1$s</string>
+    <string name="inv_pdf_date_time">تاریخ: %1$s</string>
+    <string name="inv_pdf_bill_to">بل موصول کنندہ</string>
+    <string name="inv_pdf_item_charges">فی آئٹم - شپنگ %1$s • پیکنگ %2$s</string>
+    <string name="inv_pdf_subtotal">ذیلی مجموعہ</string>
+    <string name="inv_pdf_tax">ٹیکس (%1$s%%)</string>
+    <string name="inv_pdf_item_shipping">آئٹم شپنگ</string>
+    <string name="inv_pdf_item_packing">آئٹم پیکنگ</string>
+    <string name="inv_pdf_shipping">شپنگ</string>
+    <string name="inv_pdf_packing">پیکنگ</string>
+    <string name="inv_pdf_grand_total">کل</string>
+    <string name="inv_pdf_note">نوٹ</string>
+    <string name="inv_pdf_notice">یہ گاہک کی انوائس دستاویز ہے۔ اس سے کوئی ادائیگی یا فروخت کی آمدنی درج نہیں ہوتی۔</string>
+    <string name="inv_pdf_share_chooser">انوائس شیئر کریں</string>
+    <string name="inv_pdf_share_pdf">PDF شیئر کریں</string>
+    <string name="inv_pdf_share_whatsapp">واٹس ایپ</string>
+    <string name="inv_pdf_whatsapp_message">السلام علیکم %1$s، %3$s کی جانب سے انوائس %2$s منسلک ہے۔</string>
+    <string name="inv_pdf_message_copied">انوائس پیغام کاپی ہو گیا</string>
+
+    <!-- Business details (added) -->
+    <string name="biz_details_title">کاروباری تفصیلات</string>
+    <string name="biz_details_entry_subtitle">نام، پتہ، فون اور ٹیکس آئی ڈی جو انوائس پر ظاہر ہوتے ہیں</string>
+    <string name="biz_details_intro">یہ تفصیلات آپ کے بنائے ہر انوائس کے اوپری حصے میں ظاہر ہوں گی۔</string>
+    <string name="biz_details_name">کاروبار کا نام</string>
+    <string name="biz_details_name_required">کاروبار کا نام درکار ہے</string>
+    <string name="biz_details_address">پتہ (اختیاری)</string>
+    <string name="biz_details_phone">فون (اختیاری)</string>
+    <string name="biz_details_tax_id">ٹیکس رجسٹریشن نمبر (اختیاری)</string>
+    <string name="biz_details_save">محفوظ کریں</string>
+    <string name="biz_details_saving">محفوظ ہو رہا ہے…</string>
+
+    <!-- Add Item / Bill screen additions (added) -->
+    <string name="tax_with_rate">ٹیکس (%1$s)</string>
+    <string name="grand_total">مجموعی کل</string>
+    <string name="edit_item">آئٹم میں ترمیم کریں</string>
+    <string name="add_optional">شامل کریں (اختیاری)</string>
+    <string name="tax_for_whole_sale">یہ ٹیکس ریٹ پوری فروخت پر لاگو ہوتا ہے (صرف آئٹمز کے کل پر، شپنگ یا پیکنگ پر نہیں)۔</string>
+    <!-- Transaction Details -->
+    <string name="tx_details_title">لین دین کی تفصیلات</string>
+    <string name="tx_details_transaction_id">لین دین آئی ڈی</string>
+    <string name="tx_details_original_date">اصل تاریخ</string>
+    <string name="tx_details_original_amount">اصل رقم</string>
+    <string name="tx_details_current_amount">موجودہ فروخت کی رقم</string>
+    <string name="tx_details_refunded_amount">واپس کی گئی رقم</string>
+    <string name="tx_details_effective_amount">مؤثر رقم</string>
+    <string name="tx_details_status">لین دین کی زندگی کی حالت</string>
+    <string name="tx_details_original_payment">اصل ادائیگی کا طریقہ</string>
+    <string name="tx_details_current_payment">موجودہ ادائیگی کا طریقہ</string>
+    <string name="tx_details_active">فعال</string>
+
+    <string name="tx_details_items">آئٹمز</string>
+    <string name="tx_details_no_items">اس لین دین کے لیے کوئی آئٹمائزڈ مصنوعات ریکارڈ نہیں ہوئیں۔</string>
+    <string name="tx_details_quantity">مقدار: %1$d</string>
+    <string name="tx_details_unit_price">فی یونٹ قیمت: %1$s</string>
+    <string name="tx_details_line_total">لائن کل: %1$s</string>
+    <string name="tx_details_item_packing">پیکنگ: %1$s</string>
+    <string name="tx_details_item_shipping">شپنگ: %1$s</string>
+
+    <string name="tx_details_credit_repayments">ادھار کی ادائیگیاں</string>
+    <string name="tx_details_credit_applied">اس فروخت پر لاگو: %1$s</string>
+    <string name="tx_details_payment_method">ادائیگی کا طریقہ: %1$s</string>
+    <string name="tx_details_actor_id">کیشیئر آئی ڈی: %1$s</string>
+    <string name="tx_details_operation_id">آپریشن آئی ڈی: %1$s</string>
+    <string name="tx_details_repayment_id">ادائیگی آئی ڈی: %1$s</string>
+
+    <string name="tx_details_activity">لین دین کی سرگرمی</string>
+    <string name="tx_details_activity_operation">آپریشن آئی ڈی: %1$s</string>
+
+    <string name="tx_details_correct_amount">رقم درست کریں</string>
+    <string name="tx_details_refund">رقم واپس کریں</string>
+    <string name="tx_details_void">منسوخ کریں</string>
+    <string name="tx_details_change_payment">ادائیگی کا طریقہ بدلیں</string>
+
+    <string name="tx_payment_cash">نقد</string>
+    <string name="tx_payment_online">آن لائن</string>
+    <string name="tx_payment_credit">ادھار</string>
+    <string name="tx_payment_coupon">کوپن</string>
+
+    <string name="tx_channel_cash_tender">نقد ادائیگی</string>
+    <string name="tx_channel_manual_qr">مینول QR</string>
+    <string name="tx_channel_softpos">SoftPOS</string>
+    <string name="tx_channel_coupon_wallet">کوپن والیٹ</string>
+    <string name="tx_channel_credit_account">ادھار اکاؤنٹ</string>
+
+    <string name="tx_activity_sale">فروخت</string>
+    <string name="tx_activity_coupon_sell">کوپن فروخت</string>
+    <string name="tx_activity_coupon_top_up">کوپن ٹاپ اپ</string>
+    <string name="tx_activity_refund">رقم واپسی</string>
+    <string name="tx_activity_refund_coupon">کوپن میں رقم واپسی</string>
+    <string name="tx_activity_void">منسوخ</string>
+    <string name="tx_activity_correction">رقم کی تصحیح</string>
+    <string name="tx_activity_payment_change">ادائیگی کا طریقہ تبدیل کیا گیا</string>
+    <!-- Transaction Details unified lifetime timeline -->
+    <string name="tx_details_not_available">دستیاب نہیں</string>
+    <string name="tx_details_timezone_unavailable">لین دین کی تفصیلات نہیں دکھائی جا سکتیں کیونکہ فعال برانچ کا ٹائم زون دستیاب نہیں یا درست نہیں ہے۔</string>
+    <string name="tx_details_lifetime_timeline">مکمل لین دین ٹائم لائن</string>
+    <string name="tx_details_original_transaction">اصل لین دین</string>
+    <string name="tx_details_credit_repayment_event">ادھار ادائیگی لاگو</string>
+    <string name="tx_details_amount_correction_event">رقم کی تصحیح</string>
+    <string name="tx_details_payment_change_event">ادائیگی کے طریقے میں تبدیلی</string>
+    <string name="tx_details_refund_event">رقم واپسی کا واقعہ</string>
+    <string name="tx_details_void_event">منسوخی کا واقعہ</string>
+    <string name="tx_details_settlement_event">سیٹلمنٹ موومنٹ</string>
+    <string name="tx_details_before">پہلے: %1$s</string>
+    <string name="tx_details_after">بعد میں: %1$s</string>
+    <string name="tx_details_reason">وجہ: %1$s</string>
+    <string name="tx_details_actor">صارف آئی ڈی: %1$s</string>
+    <string name="tx_details_operation">آپریشن آئی ڈی: %1$s</string>
+    <string name="tx_details_settlement_id">سیٹلمنٹ آئی ڈی: %1$s</string>
+    <string name="tx_details_refund_amount">واپسی کی رقم: %1$s</string>
+    <string name="tx_details_settlement_amount">دستخط شدہ موومنٹ: %1$s</string>
+    <string name="tx_details_settlement_purpose">مقصد: %1$s</string>
+    <string name="tx_details_confirmation">تصدیق: %1$s</string>
+    <string name="tx_details_provider_ref">فراہم کنندہ حوالہ: %1$s</string>
+    <string name="tx_settlement_sale_funding">فروخت فنڈنگ</string>
+    <string name="tx_settlement_credit_repayment">ادھار ادائیگی وصولی</string>
+    <string name="tx_settlement_coupon_purchase">کوپن خرید فنڈنگ</string>
+    <string name="tx_settlement_refund_outflow">رقم واپسی آؤٹ فلو</string>
+    <string name="tx_settlement_funding_correction">فنڈنگ کی تصحیح</string>
+    <string name="tx_settlement_payment_reclassification">ادائیگی کے طریقے کی دوبارہ درجہ بندی</string>
+    <string name="tx_settlement_void_reversal">منسوخی ریورسل</string>
+    <string name="tx_confirmation_cashier">کیشیئر سے تصدیق شدہ</string>
+    <string name="tx_confirmation_provider">فراہم کنندہ سے منظور شدہ</string>
+    <string name="history_back">واپس</string>
+    <string name="history_search_hint">تاریخ، فون، نام یا رقم تلاش کریں</string>
+    <string name="history_filter_all">سب</string>
+    <string name="history_filter_date">تاریخ</string>
+    <string name="history_filter_phone">فون</string>
+    <string name="history_filter_name">نام</string>
+    <string name="history_filter_amount">رقم</string>
+    <string name="history_loading">ہسٹری لوڈ ہو رہی ہے…</string>
+    <string name="history_empty">ابھی کوئی لین دین نہیں ہے۔</string>
+    <string name="history_no_match">کوئی مماثل لین دین نہیں ملا۔</string>
+    <string name="history_permission_denied">آپ کو مکمل لین دین کی ہسٹری دیکھنے کی اجازت نہیں ہے۔</string>
+    <string name="history_load_failed">لین دین کی ہسٹری لوڈ نہیں ہو سکی۔</string>
+    <string name="history_payment_not_available">ادائیگی کا طریقہ دستیاب نہیں</string>
+    <string name="tx_correct_amount_title">ٹرانزیکشن کی رقم درست کریں</string>
+    <string name="tx_correct_amount_current">موجودہ رقم: %1$s</string>
+    <string name="tx_correct_amount_new">درست کی گئی رقم</string>
+    <string name="tx_correct_amount_reason">وجہ (اختیاری)</string>
+    <string name="tx_correct_amount_confirm">تصحیح محفوظ کریں</string>
+    <string name="tx_correct_amount_invalid">درست غیر منفی رقم درج کریں۔</string>
+    <string name="tx_correct_amount_same">درست کی گئی رقم موجودہ رقم سے مختلف ہونی چاہیے۔</string>
+    <string name="tx_correct_amount_saved">رقم کی تصحیح محفوظ ہو گئی۔</string>
+    <string name="tx_correct_amount_permission">آپ کو اس ٹرانزیکشن کی رقم درست کرنے کی اجازت نہیں ہے۔</string>
+    <string name="tx_correct_amount_conflict">تصحیح مکمل ہونے سے پہلے ٹرانزیکشن تبدیل ہو گئی۔ تازہ تفصیلات دیکھیں اور دوبارہ کوشش کریں۔</string>
+    <string name="tx_correct_amount_failed">تصحیح کی تصدیق نہیں ہو سکی۔ اسی تصحیح کی درخواست دوبارہ آزمائیں۔</string>
+    <string name="tx_action_reason">وجہ (اختیاری)</string>
+    <string name="tx_refund_title">لین دین کی رقم واپس کریں</string>
+    <string name="tx_refund_available">قابل واپسی رقم: %1$s</string>
+    <string name="tx_refund_amount_input">واپسی کی رقم</string>
+    <string name="tx_refund_destination">واپسی کی منزل</string>
+    <string name="tx_refund_original_destination">اصل ادائیگی (%1$s)</string>
+    <string name="tx_refund_to_coupon">کوپن والیٹ</string>
+    <string name="tx_refund_confirm">واپسی کی تصدیق کریں</string>
+    <string name="tx_refund_invalid">قابل واپسی رقم سے زیادہ نہ ہونے والی مثبت رقم درج کریں۔</string>
+    <string name="tx_refund_invalid_destination">اصل ادائیگی کا طریقہ یا کوپن والیٹ منتخب کریں۔</string>
+    <string name="tx_refund_saved">واپسی محفوظ ہو گئی۔</string>
+    <string name="tx_refund_permission">آپ کو اس لین دین کی رقم واپس کرنے کی اجازت نہیں ہے۔</string>
+    <string name="tx_refund_failed">واپسی محفوظ نہیں ہو سکی۔ لین دین کی موجودہ حالت دیکھیں۔</string>
+    <string name="tx_void_title">لین دین منسوخ کریں</string>
+    <string name="tx_void_confirmation">باقی %1$s مالی اثر منسوخ کریں؟ اصل لین دین برقرار رہے گا اور مستقل منسوخی واقعہ درج ہوگا۔</string>
+    <string name="tx_void_confirm">منسوخی کی تصدیق کریں</string>
+    <string name="tx_void_saved">منسوخی محفوظ ہو گئی۔</string>
+    <string name="tx_void_permission">آپ کو یہ لین دین منسوخ کرنے کی اجازت نہیں ہے۔</string>
+    <string name="tx_void_failed">لین دین منسوخ نہیں ہو سکا۔ اس کی موجودہ لائف سائیکل حالت دیکھیں۔</string>
+    <string name="tx_change_payment_title">ادائیگی کا طریقہ تبدیل کریں</string>
+    <string name="tx_change_payment_current">موجودہ ادائیگی: %1$s</string>
+    <string name="tx_change_payment_confirm">تبدیلی کی تصدیق کریں</string>
+    <string name="tx_change_payment_invalid">صرف نقد اور آن لائن ادائیگی کی تبدیلیاں معاون ہیں۔</string>
+    <string name="tx_change_payment_same">موجودہ طریقے سے مختلف ادائیگی کا طریقہ منتخب کریں۔</string>
+    <string name="tx_change_payment_saved">ادائیگی کے طریقے کی تبدیلی محفوظ ہو گئی۔</string>
+    <string name="tx_change_payment_permission">آپ کو ادائیگی کا یہ طریقہ تبدیل کرنے کی اجازت نہیں ہے۔</string>
+    <string name="tx_change_payment_failed">ادائیگی کا طریقہ تبدیل نہیں ہو سکا۔ لین دین کی موجودہ حالت دیکھیں۔</string>
+    <string name="tx_lifecycle_conflict">یہ لین دین تبدیل ہو گیا ہے۔ تازہ تفصیلات دیکھ کر دوبارہ کوشش کریں۔</string>
 </resources>

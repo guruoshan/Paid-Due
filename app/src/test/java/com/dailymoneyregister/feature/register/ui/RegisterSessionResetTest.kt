@@ -60,7 +60,7 @@ class RegisterSessionResetTest {
         assertEquals(MoneyMinorUnits.ZERO, reset.draftState.txPacking)
         assertEquals(MoneyMinorUnits.ZERO, reset.draftState.grandTotal)
 
-        assertEquals(725, reset.draftState.taxRateBps)
+        assertEquals(0, reset.draftState.taxRateBps)
         assertEquals(TaxRoundingMode.FLOOR, reset.draftState.taxRoundingMode)
         assertFalse(reset.draftState.isTaxEnabled)
 

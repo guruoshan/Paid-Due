@@ -43,7 +43,7 @@
     <string name="locked_out_msg">অতিরিক্ত ব্যর্থ প্রচেষ্টা। %1$d সেকেন্ডের জন্য লক করা হয়েছে।</string>
 
     <!-- Hub Screen -->
-    <string name="admin_hub_title">ডেইলি মানি রেজিস্টার — অ্যাডমিন</string>
+    <string name="admin_hub_title">ডেইলি মানি রেজিস্টার - অ্যাডমিন</string>
     <string name="welcome_user">স্বাগতম, %1$s</string>
     <string name="main_register_admin_controls">মূল রেজিস্টার ও অ্যাডমিন নিয়ন্ত্রণ</string>
     <string name="open_cash_register">ক্যাশ রেজিস্টার খুলুন</string>
@@ -93,7 +93,10 @@
 
     <!-- Recent Transactions Panel -->
     <string name="todays_sales">আজকের বিক্রয় (%1$d)</string>
+    <string name="recent_activity_count">আজকের কার্যক্রম (%1$d)</string>
     <string name="today_total">মোট: %1$s</string>
+    <string name="recent_activity_refund">ফেরত</string>
+    <string name="recent_activity_refund_coupon">কুপনে ফেরত</string>
     <string name="no_transactions_today">আজ এখনও কোনো লেনদেন রেকর্ড করা হয়নি।</string>
     <string name="cash_sale_label">নগদ বিক্রয়</string>
     <string name="whatsapp_mobile_number">WhatsApp / মোবাইল নম্বর</string>
@@ -106,6 +109,7 @@
     <string name="recent_status_partially_refunded">&#x0986;&#x0982;&#x09B6;&#x09BF;&#x0995; &#x09AB;&#x09C7;&#x09B0;&#x09A4;</string>
     <string name="recent_status_fully_refunded">&#x09B8;&#x09AE;&#x09CD;&#x09AA;&#x09C2;&#x09B0;&#x09CD;&#x09A3; &#x09AB;&#x09C7;&#x09B0;&#x09A4;</string>
     <string name="recent_status_corrected">&#x09B8;&#x0982;&#x09B6;&#x09CB;&#x09A7;&#x09BF;&#x09A4;</string>
+    <string name="recent_status_payment_method_changed">পেমেন্ট পদ্ধতি পরিবর্তন করা হয়েছে</string>
     <string name="history">ইতিহাস</string>
     <string name="customer">গ্রাহক</string>
     <string name="clear">পরিষ্কার</string>
@@ -138,4 +142,209 @@
     <string name="change_pin_new">&#x09A8;&#x09A4;&#x09C1;&#x09A8; &#x09EC;-&#x09B8;&#x0982;&#x0996;&#x09CD;&#x09AF;&#x09BE;&#x09B0; &#x09AA;&#x09BF;&#x09A8;</string>
     <string name="change_pin_confirm">&#x09A8;&#x09A4;&#x09C1;&#x09A8; &#x09AA;&#x09BF;&#x09A8; &#x09A8;&#x09BF;&#x09B6;&#x09CD;&#x099A;&#x09BF;&#x09A4; &#x0995;&#x09B0;&#x09C1;&#x09A8;</string>
     <string name="change_pin_save">&#x09AA;&#x09BF;&#x09A8; &#x09B8;&#x0982;&#x09B0;&#x0995;&#x09CD;&#x09B7;&#x09A3; &#x0995;&#x09B0;&#x09C1;&#x09A8;</string>
+
+    <!-- Invoice form (added) -->
+    <string name="inv_create">ইনভয়েস তৈরি করুন</string>
+    <string name="inv_form_title">নতুন ইনভয়েস</string>
+    <string name="inv_form_intro">গ্রাহকের তথ্য লিখুন। এই ইনভয়েসে %1$dটি আইটেম আছে, মোট %2$s।</string>
+    <string name="inv_customer_title">উপাধি (ঐচ্ছিক)</string>
+    <string name="inv_title_mr">জনাব</string>
+    <string name="inv_title_mrs">শ্রীমতী</string>
+    <string name="inv_title_ms">মিস</string>
+    <string name="inv_title_dr">ডা.</string>
+    <string name="inv_customer_name">গ্রাহকের নাম</string>
+    <string name="inv_customer_address">ঠিকানা / নোট (ঐচ্ছিক)</string>
+    <string name="inv_existing_customer">বিদ্যমান গ্রাহক: %1$s</string>
+    <string name="inv_save">ইনভয়েস সংরক্ষণ করুন</string>
+    <string name="inv_saving">সংরক্ষণ হচ্ছে…</string>
+    <string name="inv_saved_title">ইনভয়েস সংরক্ষিত হয়েছে</string>
+    <string name="inv_saved_message">ইনভয়েস %1$s সংরক্ষিত হয়েছে। এটি গ্রাহকের নথি; এতে কোনো পেমেন্ট বা বিক্রয় আয় রেকর্ড হয় না।</string>
+    <string name="inv_error_no_items">ইনভয়েস তৈরি করতে অন্তত একটি আইটেম যোগ করুন।</string>
+    <string name="inv_error_session">ইনভয়েস তৈরি করতে অনুগ্রহ করে আবার সাইন ইন করুন।</string>
+    <string name="inv_error_customer">গ্রাহকের নাম এবং একটি বৈধ ফোন নম্বর প্রয়োজন।</string>
+    <string name="inv_error_generic">ইনভয়েস সংরক্ষণ করা যায়নি: %1$s</string>
+
+    <!-- Invoice PDF + share (added) -->
+    <string name="inv_pdf_footer">%1$s দ্বারা পরিচালিত</string>
+    <string name="inv_pdf_items">আইটেম</string>
+    <string name="inv_pdf_qty">পরিমাণ</string>
+    <string name="inv_pdf_unit_price">একক মূল্য</string>
+    <string name="inv_pdf_line_total">লাইন মোট</string>
+    <string name="inv_pdf_registration">রেজি. নং: %1$s</string>
+    <string name="inv_pdf_tax_id">কর আইডি: %1$s</string>
+    <string name="inv_pdf_reference">ইনভয়েস নং: %1$s</string>
+    <string name="inv_pdf_date_time">তারিখ: %1$s</string>
+    <string name="inv_pdf_bill_to">প্রাপক</string>
+    <string name="inv_pdf_item_charges">প্রতি আইটেম - শিপিং %1$s • প্যাকিং %2$s</string>
+    <string name="inv_pdf_subtotal">উপ-মোট</string>
+    <string name="inv_pdf_tax">কর (%1$s%%)</string>
+    <string name="inv_pdf_item_shipping">আইটেম শিপিং</string>
+    <string name="inv_pdf_item_packing">আইটেম প্যাকিং</string>
+    <string name="inv_pdf_shipping">শিপিং</string>
+    <string name="inv_pdf_packing">প্যাকিং</string>
+    <string name="inv_pdf_grand_total">মোট</string>
+    <string name="inv_pdf_note">নোট</string>
+    <string name="inv_pdf_notice">এটি গ্রাহকের ইনভয়েস নথি। এতে কোনো পেমেন্ট বা বিক্রয় আয় রেকর্ড হয় না।</string>
+    <string name="inv_pdf_share_chooser">ইনভয়েস শেয়ার করুন</string>
+    <string name="inv_pdf_share_pdf">PDF শেয়ার করুন</string>
+    <string name="inv_pdf_share_whatsapp">হোয়াটসঅ্যাপ</string>
+    <string name="inv_pdf_whatsapp_message">হ্যালো %1$s, %3$s থেকে ইনভয়েস %2$s সংযুক্ত।</string>
+    <string name="inv_pdf_message_copied">ইনভয়েস বার্তা কপি হয়েছে</string>
+
+    <!-- Business details (added) -->
+    <string name="biz_details_title">ব্যবসার বিবরণ</string>
+    <string name="biz_details_entry_subtitle">নাম, ঠিকানা, ফোন ও কর আইডি যা ইনভয়েসে দেখানো হয়</string>
+    <string name="biz_details_intro">আপনি তৈরি করা প্রতিটি ইনভয়েসের শীর্ষে এই তথ্য দেখা যাবে।</string>
+    <string name="biz_details_name">ব্যবসার নাম</string>
+    <string name="biz_details_name_required">ব্যবসার নাম আবশ্যক</string>
+    <string name="biz_details_address">ঠিকানা (ঐচ্ছিক)</string>
+    <string name="biz_details_phone">ফোন (ঐচ্ছিক)</string>
+    <string name="biz_details_tax_id">কর নিবন্ধন নম্বর (ঐচ্ছিক)</string>
+    <string name="biz_details_save">সংরক্ষণ করুন</string>
+    <string name="biz_details_saving">সংরক্ষণ হচ্ছে…</string>
+
+    <!-- Add Item / Bill screen additions (added) -->
+    <string name="tax_with_rate">কর (%1$s)</string>
+    <string name="grand_total">সর্বমোট</string>
+    <string name="edit_item">আইটেম সম্পাদনা করুন</string>
+    <string name="add_optional">যোগ করুন (ঐচ্ছিক)</string>
+    <string name="tax_for_whole_sale">এই কর হার পুরো বিক্রয়ের উপর প্রযোজ্য (শুধু আইটেমের মোট, শিপিং বা প্যাকিং নয়)।</string>
+    <!-- Transaction Details -->
+    <string name="tx_details_title">লেনদেনের বিবরণ</string>
+    <string name="tx_details_transaction_id">লেনদেন আইডি</string>
+    <string name="tx_details_original_date">মূল তারিখ</string>
+    <string name="tx_details_original_amount">মূল পরিমাণ</string>
+    <string name="tx_details_current_amount">বর্তমান বিক্রয় পরিমাণ</string>
+    <string name="tx_details_refunded_amount">ফেরত দেওয়া পরিমাণ</string>
+    <string name="tx_details_effective_amount">কার্যকর পরিমাণ</string>
+    <string name="tx_details_status">লেনদেন জীবনচক্রের অবস্থা</string>
+    <string name="tx_details_original_payment">মূল পেমেন্ট পদ্ধতি</string>
+    <string name="tx_details_current_payment">বর্তমান পেমেন্ট পদ্ধতি</string>
+    <string name="tx_details_active">সক্রিয়</string>
+
+    <string name="tx_details_items">আইটেম</string>
+    <string name="tx_details_no_items">এই লেনদেনের জন্য কোনো আইটেমাইজড পণ্য রেকর্ড করা হয়নি।</string>
+    <string name="tx_details_quantity">পরিমাণ: %1$d</string>
+    <string name="tx_details_unit_price">একক মূল্য: %1$s</string>
+    <string name="tx_details_line_total">লাইন মোট: %1$s</string>
+    <string name="tx_details_item_packing">প্যাকিং: %1$s</string>
+    <string name="tx_details_item_shipping">শিপিং: %1$s</string>
+
+    <string name="tx_details_credit_repayments">বাকি পরিশোধ</string>
+    <string name="tx_details_credit_applied">এই বিক্রয়ে প্রয়োগ: %1$s</string>
+    <string name="tx_details_payment_method">পেমেন্ট পদ্ধতি: %1$s</string>
+    <string name="tx_details_actor_id">ক্যাশিয়ার আইডি: %1$s</string>
+    <string name="tx_details_operation_id">অপারেশন আইডি: %1$s</string>
+    <string name="tx_details_repayment_id">পরিশোধ আইডি: %1$s</string>
+
+    <string name="tx_details_activity">লেনদেন কার্যক্রম</string>
+    <string name="tx_details_activity_operation">অপারেশন আইডি: %1$s</string>
+
+    <string name="tx_details_correct_amount">পরিমাণ সংশোধন</string>
+    <string name="tx_details_refund">ফেরত</string>
+    <string name="tx_details_void">বাতিল</string>
+    <string name="tx_details_change_payment">পেমেন্ট পদ্ধতি পরিবর্তন</string>
+
+    <string name="tx_payment_cash">নগদ</string>
+    <string name="tx_payment_online">অনলাইন</string>
+    <string name="tx_payment_credit">বাকি</string>
+    <string name="tx_payment_coupon">কুপন</string>
+
+    <string name="tx_channel_cash_tender">নগদ পেমেন্ট</string>
+    <string name="tx_channel_manual_qr">ম্যানুয়াল QR</string>
+    <string name="tx_channel_softpos">SoftPOS</string>
+    <string name="tx_channel_coupon_wallet">কুপন ওয়ালেট</string>
+    <string name="tx_channel_credit_account">বাকি অ্যাকাউন্ট</string>
+
+    <string name="tx_activity_sale">বিক্রয়</string>
+    <string name="tx_activity_coupon_sell">কুপন বিক্রয়</string>
+    <string name="tx_activity_coupon_top_up">কুপন টপ আপ</string>
+    <string name="tx_activity_refund">ফেরত</string>
+    <string name="tx_activity_refund_coupon">কুপনে ফেরত</string>
+    <string name="tx_activity_void">বাতিল</string>
+    <string name="tx_activity_correction">পরিমাণ সংশোধন</string>
+    <string name="tx_activity_payment_change">পেমেন্ট পদ্ধতি পরিবর্তিত হয়েছে</string>
+    <!-- Transaction Details unified lifetime timeline -->
+    <string name="tx_details_not_available">উপলভ্য নয়</string>
+    <string name="tx_details_timezone_unavailable">সক্রিয় শাখার টাইম জোন অনুপলভ্য বা অবৈধ হওয়ায় লেনদেনের বিবরণ দেখানো যাচ্ছে না।</string>
+    <string name="tx_details_lifetime_timeline">সম্পূর্ণ লেনদেন টাইমলাইন</string>
+    <string name="tx_details_original_transaction">মূল লেনদেন</string>
+    <string name="tx_details_credit_repayment_event">বাকি পরিশোধ প্রয়োগ</string>
+    <string name="tx_details_amount_correction_event">পরিমাণ সংশোধন</string>
+    <string name="tx_details_payment_change_event">পেমেন্ট পদ্ধতি পরিবর্তন</string>
+    <string name="tx_details_refund_event">ফেরত ইভেন্ট</string>
+    <string name="tx_details_void_event">বাতিল ইভেন্ট</string>
+    <string name="tx_details_settlement_event">সেটেলমেন্ট মুভমেন্ট</string>
+    <string name="tx_details_before">আগে: %1$s</string>
+    <string name="tx_details_after">পরে: %1$s</string>
+    <string name="tx_details_reason">কারণ: %1$s</string>
+    <string name="tx_details_actor">ব্যবহারকারী আইডি: %1$s</string>
+    <string name="tx_details_operation">অপারেশন আইডি: %1$s</string>
+    <string name="tx_details_settlement_id">সেটেলমেন্ট আইডি: %1$s</string>
+    <string name="tx_details_refund_amount">ফেরতের পরিমাণ: %1$s</string>
+    <string name="tx_details_settlement_amount">স্বাক্ষরিত মুভমেন্ট: %1$s</string>
+    <string name="tx_details_settlement_purpose">উদ্দেশ্য: %1$s</string>
+    <string name="tx_details_confirmation">নিশ্চিতকরণ: %1$s</string>
+    <string name="tx_details_provider_ref">প্রদানকারী রেফারেন্স: %1$s</string>
+    <string name="tx_settlement_sale_funding">বিক্রয় ফান্ডিং</string>
+    <string name="tx_settlement_credit_repayment">বাকি পরিশোধ সংগ্রহ</string>
+    <string name="tx_settlement_coupon_purchase">কুপন ক্রয় ফান্ডিং</string>
+    <string name="tx_settlement_refund_outflow">ফেরত আউটফ্লো</string>
+    <string name="tx_settlement_funding_correction">ফান্ডিং সংশোধন</string>
+    <string name="tx_settlement_payment_reclassification">পেমেন্ট পদ্ধতি পুনঃশ্রেণীবিন্যাস</string>
+    <string name="tx_settlement_void_reversal">বাতিল রিভার্সাল</string>
+    <string name="tx_confirmation_cashier">ক্যাশিয়ার দ্বারা নিশ্চিত</string>
+    <string name="tx_confirmation_provider">প্রদানকারী দ্বারা অনুমোদিত</string>
+    <string name="history_back">ফিরে যান</string>
+    <string name="history_search_hint">তারিখ, ফোন, নাম বা পরিমাণ খুঁজুন</string>
+    <string name="history_filter_all">সব</string>
+    <string name="history_filter_date">তারিখ</string>
+    <string name="history_filter_phone">ফোন</string>
+    <string name="history_filter_name">নাম</string>
+    <string name="history_filter_amount">পরিমাণ</string>
+    <string name="history_loading">ইতিহাস লোড হচ্ছে…</string>
+    <string name="history_empty">এখনও কোনো লেনদেন নেই।</string>
+    <string name="history_no_match">মিলযুক্ত কোনো লেনদেন পাওয়া যায়নি।</string>
+    <string name="history_permission_denied">সম্পূর্ণ লেনদেনের ইতিহাস দেখার অনুমতি আপনার নেই।</string>
+    <string name="history_load_failed">লেনদেনের ইতিহাস লোড করা যায়নি।</string>
+    <string name="history_payment_not_available">পেমেন্ট পদ্ধতি উপলব্ধ নয়</string>
+    <string name="tx_correct_amount_title">লেনদেনের পরিমাণ সংশোধন করুন</string>
+    <string name="tx_correct_amount_current">বর্তমান পরিমাণ: %1$s</string>
+    <string name="tx_correct_amount_new">সংশোধিত পরিমাণ</string>
+    <string name="tx_correct_amount_reason">কারণ (ঐচ্ছিক)</string>
+    <string name="tx_correct_amount_confirm">সংশোধন সংরক্ষণ করুন</string>
+    <string name="tx_correct_amount_invalid">একটি বৈধ অঋণাত্মক পরিমাণ লিখুন।</string>
+    <string name="tx_correct_amount_same">সংশোধিত পরিমাণ বর্তমান পরিমাণ থেকে ভিন্ন হতে হবে।</string>
+    <string name="tx_correct_amount_saved">পরিমাণ সংশোধন সংরক্ষিত হয়েছে।</string>
+    <string name="tx_correct_amount_permission">এই লেনদেনের পরিমাণ সংশোধনের অনুমতি আপনার নেই।</string>
+    <string name="tx_correct_amount_conflict">সংশোধন শেষ হওয়ার আগে লেনদেনটি পরিবর্তিত হয়েছে। সর্বশেষ বিবরণ দেখে আবার চেষ্টা করুন।</string>
+    <string name="tx_correct_amount_failed">সংশোধন নিশ্চিত করা যায়নি। একই সংশোধন অনুরোধ আবার চেষ্টা করুন।</string>
+    <string name="tx_action_reason">কারণ (ঐচ্ছিক)</string>
+    <string name="tx_refund_title">লেনদেন ফেরত দিন</string>
+    <string name="tx_refund_available">ফেরতযোগ্য পরিমাণ: %1$s</string>
+    <string name="tx_refund_amount_input">ফেরতের পরিমাণ</string>
+    <string name="tx_refund_destination">ফেরতের মাধ্যম</string>
+    <string name="tx_refund_original_destination">মূল পেমেন্ট (%1$s)</string>
+    <string name="tx_refund_to_coupon">কুপন ওয়ালেট</string>
+    <string name="tx_refund_confirm">ফেরত নিশ্চিত করুন</string>
+    <string name="tx_refund_invalid">ফেরতযোগ্য পরিমাণের বেশি নয় এমন ধনাত্মক পরিমাণ লিখুন।</string>
+    <string name="tx_refund_invalid_destination">মূল পেমেন্ট পদ্ধতি বা কুপন ওয়ালেট নির্বাচন করুন।</string>
+    <string name="tx_refund_saved">ফেরত সংরক্ষিত হয়েছে।</string>
+    <string name="tx_refund_permission">এই লেনদেন ফেরত দেওয়ার অনুমতি আপনার নেই।</string>
+    <string name="tx_refund_failed">ফেরত সংরক্ষণ করা যায়নি। লেনদেনের বর্তমান অবস্থা দেখুন।</string>
+    <string name="tx_void_title">লেনদেন বাতিল করুন</string>
+    <string name="tx_void_confirmation">অবশিষ্ট %1$s আর্থিক প্রভাব বাতিল করবেন? মূল লেনদেন থাকবে এবং স্থায়ী বাতিল ঘটনা রেকর্ড হবে।</string>
+    <string name="tx_void_confirm">বাতিল নিশ্চিত করুন</string>
+    <string name="tx_void_saved">বাতিল সংরক্ষিত হয়েছে।</string>
+    <string name="tx_void_permission">এই লেনদেন বাতিল করার অনুমতি আপনার নেই।</string>
+    <string name="tx_void_failed">লেনদেন বাতিল করা যায়নি। এর বর্তমান জীবনচক্রের অবস্থা দেখুন।</string>
+    <string name="tx_change_payment_title">পেমেন্ট পদ্ধতি পরিবর্তন করুন</string>
+    <string name="tx_change_payment_current">বর্তমান পেমেন্ট: %1$s</string>
+    <string name="tx_change_payment_confirm">পরিবর্তন নিশ্চিত করুন</string>
+    <string name="tx_change_payment_invalid">শুধু নগদ এবং অনলাইন পেমেন্ট পরিবর্তন সমর্থিত।</string>
+    <string name="tx_change_payment_same">বর্তমান পদ্ধতি থেকে আলাদা পেমেন্ট পদ্ধতি নির্বাচন করুন।</string>
+    <string name="tx_change_payment_saved">পেমেন্ট পদ্ধতির পরিবর্তন সংরক্ষিত হয়েছে।</string>
+    <string name="tx_change_payment_permission">এই পেমেন্ট পদ্ধতি পরিবর্তনের অনুমতি আপনার নেই।</string>
+    <string name="tx_change_payment_failed">পেমেন্ট পদ্ধতি পরিবর্তন করা যায়নি। লেনদেনের বর্তমান অবস্থা দেখুন।</string>
+    <string name="tx_lifecycle_conflict">এই লেনদেন পরিবর্তিত হয়েছে। সর্বশেষ বিবরণ দেখে আবার চেষ্টা করুন।</string>
 </resources>

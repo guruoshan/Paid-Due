@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Daily Money Register</string>
+    <string name="app_name">Paid&amp;Due</string>
 
     <!-- Common Actions -->
     <string name="continue_btn">Continue</string>
@@ -28,7 +28,7 @@
     <string name="create_account">Create Account &amp; Finish Setup</string>
 
     <!-- Auth / Login -->
-    <string name="login_title">Daily Money Register</string>
+    <string name="login_title">Paid&amp;Due</string>
     <string name="admin_login">Admin Login</string>
     <string name="cashier_login">Cashier PIN Login</string>
     <string name="username">Username</string>
@@ -44,7 +44,7 @@
     <string name="locked_out_msg">Too many failed attempts. Locked out for %1$d seconds.</string>
 
     <!-- Hub Screen -->
-    <string name="admin_hub_title">Daily Money Register — Admin</string>
+    <string name="admin_hub_title">Paid&amp;Due - Admin</string>
     <string name="welcome_user">Welcome, %1$s</string>
     <string name="main_register_admin_controls">Main Register &amp; Admin Controls</string>
     <string name="open_cash_register">Open Cash Register</string>
@@ -95,10 +95,29 @@
 
     <!-- Recent Transactions Panel -->
     <string name="todays_sales">Today\'s Sales (%1$d)</string>
+    <string name="recent_activity_count">Today\'s Activity (%1$d)</string>
     <string name="today_total">Total: %1$s</string>
+    <string name="recent_activity_refund">Refund</string>
+    <string name="recent_activity_refund_coupon">Refund to Coupon</string>
     <string name="no_transactions_today">No transactions recorded today yet.</string>
     <string name="cash_sale_label">Cash Sale</string>
     <string name="online_sale_label">Online Sale</string>
+    <string name="online_payment_settings">Online Payment Settings</string>
+    <string name="online_payment_settings_desc">Set the merchant QR that customers use to pay this branch.</string>
+    <string name="choose_merchant_qr">Choose merchant QR</string>
+    <string name="replace_merchant_qr">Replace merchant QR</string>
+    <string name="save_merchant_qr">Save merchant QR</string>
+    <string name="merchant_qr_preview">Merchant payment QR preview</string>
+    <string name="qr_display_label">Display label</string>
+    <string name="qr_bank_app_label">Bank or app label</string>
+    <string name="qr_account_label">Account label (optional)</string>
+    <string name="online_payment_title">Online Payment</string>
+    <string name="amount_due">Amount due: %1$s</string>
+    <string name="online_qr_not_configured">Online payment QR has not been set up.</string>
+    <string name="online_qr_unavailable">QR image unavailable</string>
+    <string name="open_online_payment_settings">Open Online Payment Settings</string>
+    <string name="online_payment_instruction">Ask the customer to scan this QR and complete the payment.</string>
+    <string name="payment_received">Payment Received</string>
     <string name="credit_sale_label">Credit Sale</string>
     <string name="coupon_sale_label">Coupon Sale</string>
     <string name="sale_label">Sale</string>
@@ -106,6 +125,7 @@
     <string name="recent_status_partially_refunded">Partially Refunded</string>
     <string name="recent_status_fully_refunded">Fully Refunded</string>
     <string name="recent_status_corrected">Corrected</string>
+    <string name="recent_status_payment_method_changed">Payment method changed</string>
     <string name="history">History</string>
     <string name="customer">Customer</string>
     <string name="clear">Clear</string>
@@ -138,4 +158,258 @@
     <string name="change_pin_new">New 6-digit PIN</string>
     <string name="change_pin_confirm">Confirm New PIN</string>
     <string name="change_pin_save">Save PIN</string>
+    <string name="coupon_purchase_title">Sell Coupon</string>
+    <string name="coupon_cashier_choose_flow">Choose how to use Coupon for this cashier action.</string>
+    <string name="coupon_sell_top_up_action">Sell / Top Up Coupon</string>
+    <string name="coupon_use_action">Use Coupon</string>
+    <string name="coupon_search_name">Search by name</string>
+    <string name="coupon_search_phone">Search by phone</string>
+    <string name="coupon_no_matching_customer">No matching customer found.</string>
+    <string name="coupon_create_customer">Create Customer</string>
+    <string name="coupon_change_customer">Change customer</string>
+    <string name="coupon_new_wallet_sell">No wallet found. This customer will receive a new Coupon wallet.</string>
+    <string name="coupon_existing_wallet_top_up">Existing Coupon wallet found. This payment will top up the same wallet.</string>
+    <string name="coupon_purchase_saved">Coupon purchase saved</string>
+    <string name="coupon_purchase_draft_preserved">This purchase adds coupon value. Your register bill remains unchanged.</string>
+    <string name="coupon_purchase_search">Customer name or phone</string>
+    <string name="coupon_purchase_search_button">Search customers</string>
+    <string name="coupon_wallet_not_found">No coupon wallet in %1$s</string>
+    <string name="coupon_wallet_inactive">Coupon wallet is inactive</string>
+    <string name="coupon_wallet_balance">Coupon balance: %1$s</string>
+    <string name="coupon_purchase_new_customer">New customer</string>
+    <string name="coupon_purchase_name">Customer name</string>
+    <string name="coupon_purchase_phone">International phone (+country code)</string>
+    <string name="coupon_purchase_amount">Coupon value (%1$s)</string>
+    <string name="coupon_purchase_users">Additional authorized names (one per line)</string>
+    <string name="coupon_purchase_purchaser_included">The purchaser is included as an authorized user.</string>
+    <string name="coupon_purchase_confirm">Payment received - sell coupon</string>
+    <string name="coupon_purchase_retry">Retry purchase</string>
+    <string name="coupon_purchase_retry_hint">Retry uses the same purchase identity. Details are locked until the outcome is confirmed.</string>
+    <string name="coupon_purchase_done">Done</string>
+    <string name="coupon_top_up_action">Top up wallet</string>
+    <string name="coupon_top_up_label">Coupon top up</string>
+    <string name="coupon_share_updated_balance">Share updated balance on WhatsApp</string>
+    <string name="coupon_edit_user">Edit</string>
+    <string name="coupon_deactivate_user">Deactivate</string>
+    <string name="coupon_user_inactive">Inactive</string>
+    <string name="coupon_authorized_user_name">Authorized user name</string>
+    <string name="coupon_add_user">Add authorized user</string>
+    <string name="coupon_save_user">Save name</string>
+    <string name="coupon_whatsapp_balance_message">Hello %1$s,\n\nYour current coupon balance at %2$s is %3$s.\n\nThank you!\n\nPowered by Paid&amp;Due</string>
+    <string name="coupon_whatsapp_invalid_phone">A valid international phone number is required.</string>
+    <string name="coupon_whatsapp_open_failed">Could not open WhatsApp.</string>
+    <string name="coupon_loading">Loading…</string>
+    <string name="coupon_remainder_amount">Remaining payment: %1$s</string>
+    <string name="coupon_redemption_receipt">Used by: %1$s\nCoupon used: %2$s\nRemaining balance: %3$s</string>
+    <string name="coupon_send_receipt">Send receipt on WhatsApp</string>
+    <string name="coupon_whatsapp_redemption">Hello %1$s,\n\nCoupon used at %2$s: %3$s\nDate/time: %4$s\nUsed by: %5$s\n\nRemaining balance: %6$s\n\nThank you!\n\nPowered by Paid&amp;Due</string>
+
+    <!-- Invoice form (added) -->
+    <string name="inv_create">Create invoice</string>
+    <string name="inv_form_title">New invoice</string>
+    <string name="inv_form_intro">Enter the customer details. This invoice will list %1$d item(s), total %2$s.</string>
+    <string name="inv_customer_title">Title (optional)</string>
+    <string name="inv_title_mr">Mr.</string>
+    <string name="inv_title_mrs">Mrs.</string>
+    <string name="inv_title_ms">Ms.</string>
+    <string name="inv_title_dr">Dr.</string>
+    <string name="inv_customer_name">Customer name</string>
+    <string name="inv_customer_address">Address / note (optional)</string>
+    <string name="inv_existing_customer">Existing customer: %1$s</string>
+    <string name="inv_save">Save invoice</string>
+    <string name="inv_saving">Saving…</string>
+    <string name="inv_saved_title">Invoice saved</string>
+    <string name="inv_saved_message">Invoice %1$s was saved. It is a customer document and does not record a payment or sales revenue.</string>
+    <string name="inv_error_no_items">Add at least one item to create an invoice.</string>
+    <string name="inv_error_session">Please sign in again to create an invoice.</string>
+    <string name="inv_error_customer">Customer name and a valid phone number are required.</string>
+    <string name="inv_error_generic">Invoice could not be saved: %1$s</string>
+
+    <!-- Invoice PDF + share (added) -->
+    <string name="inv_pdf_footer">Powered by %1$s</string>
+    <string name="inv_pdf_items">Items</string>
+    <string name="inv_pdf_qty">Qty</string>
+    <string name="inv_pdf_unit_price">Unit price</string>
+    <string name="inv_pdf_line_total">Line total</string>
+    <string name="inv_pdf_registration">Reg. no.: %1$s</string>
+    <string name="inv_pdf_tax_id">Tax ID: %1$s</string>
+    <string name="inv_pdf_reference">Invoice no.: %1$s</string>
+    <string name="inv_pdf_date_time">Date: %1$s</string>
+    <string name="inv_pdf_bill_to">Bill to</string>
+    <string name="inv_pdf_item_charges">Per item - Shipping %1$s • Packing %2$s</string>
+    <string name="inv_pdf_subtotal">Subtotal</string>
+    <string name="inv_pdf_tax">Tax (%1$s%%)</string>
+    <string name="inv_pdf_item_shipping">Item shipping</string>
+    <string name="inv_pdf_item_packing">Item packing</string>
+    <string name="inv_pdf_shipping">Shipping</string>
+    <string name="inv_pdf_packing">Packing</string>
+    <string name="inv_pdf_grand_total">Total</string>
+    <string name="inv_pdf_note">Note</string>
+    <string name="inv_pdf_notice">This is a customer invoice document. It does not record a payment or sales revenue.</string>
+    <string name="inv_pdf_share_chooser">Share invoice</string>
+    <string name="inv_pdf_share_pdf">Share PDF</string>
+    <string name="inv_pdf_share_whatsapp">WhatsApp</string>
+    <string name="inv_pdf_whatsapp_message">Hi %1$s, please find invoice %2$s from %3$s attached.</string>
+    <string name="inv_pdf_message_copied">Invoice message copied</string>
+
+    <!-- Business details (added) -->
+    <string name="biz_details_title">Business details</string>
+    <string name="biz_details_entry_subtitle">Name, address, phone and tax ID shown on invoices</string>
+    <string name="biz_details_intro">These details appear on the header of every invoice you create.</string>
+    <string name="biz_details_name">Business name</string>
+    <string name="biz_details_name_required">Business name is required</string>
+    <string name="biz_details_address">Address (optional)</string>
+    <string name="biz_details_phone">Phone (optional)</string>
+    <string name="biz_details_tax_id">Tax registration number (optional)</string>
+    <string name="biz_details_save">Save</string>
+    <string name="biz_details_saving">Saving…</string>
+
+    <!-- Add Item / Bill screen additions (added) -->
+    <string name="tax_with_rate">Tax (%1$s)</string>
+    <string name="grand_total">Grand total</string>
+    <string name="edit_item">Edit item</string>
+    <string name="add_optional">Add (optional)</string>
+    <string name="tax_for_whole_sale">This tax rate applies to the whole sale (item total only, not shipping or packing).</string>
+    <!-- Transaction Details -->
+    <string name="tx_details_title">Transaction Details</string>
+    <string name="tx_details_transaction_id">Transaction ID</string>
+    <string name="tx_details_original_date">Original date</string>
+    <string name="tx_details_original_amount">Original amount</string>
+    <string name="tx_details_current_amount">Current sale amount</string>
+    <string name="tx_details_refunded_amount">Refunded amount</string>
+    <string name="tx_details_effective_amount">Effective amount</string>
+    <string name="tx_details_status">Lifecycle status</string>
+    <string name="tx_details_original_payment">Original payment method</string>
+    <string name="tx_details_current_payment">Current payment method</string>
+    <string name="tx_details_active">Active</string>
+
+    <string name="tx_details_items">Items</string>
+    <string name="tx_details_no_items">No itemized products were recorded for this transaction.</string>
+    <string name="tx_details_quantity">Quantity: %1$d</string>
+    <string name="tx_details_unit_price">Unit price: %1$s</string>
+    <string name="tx_details_line_total">Line total: %1$s</string>
+    <string name="tx_details_item_packing">Packing: %1$s</string>
+    <string name="tx_details_item_shipping">Shipping: %1$s</string>
+
+    <string name="tx_details_credit_repayments">Credit Repayments</string>
+    <string name="tx_details_credit_applied">Applied to this sale: %1$s</string>
+    <string name="tx_details_payment_method">Payment method: %1$s</string>
+    <string name="tx_details_actor_id">Cashier ID: %1$s</string>
+    <string name="tx_details_operation_id">Operation ID: %1$s</string>
+    <string name="tx_details_repayment_id">Repayment ID: %1$s</string>
+
+    <string name="tx_details_activity">Transaction Activity</string>
+    <string name="tx_details_activity_operation">Operation ID: %1$s</string>
+
+    <string name="tx_details_correct_amount">Correct Amount</string>
+    <string name="tx_details_refund">Refund</string>
+    <string name="tx_details_void">Void</string>
+    <string name="tx_details_change_payment">Change payment method</string>
+
+    <string name="tx_payment_cash">Cash</string>
+    <string name="tx_payment_online">Online</string>
+    <string name="tx_payment_credit">Credit</string>
+    <string name="tx_payment_coupon">Coupon</string>
+
+    <string name="tx_channel_cash_tender">Cash tender</string>
+    <string name="tx_channel_manual_qr">Manual QR</string>
+    <string name="tx_channel_softpos">SoftPOS</string>
+    <string name="tx_channel_coupon_wallet">Coupon wallet</string>
+    <string name="tx_channel_credit_account">Credit account</string>
+
+    <string name="tx_activity_sale">Sale</string>
+    <string name="tx_activity_coupon_sell">Coupon Sale</string>
+    <string name="tx_activity_coupon_top_up">Coupon Top Up</string>
+    <string name="tx_activity_refund">Refund</string>
+    <string name="tx_activity_refund_coupon">Refund to Coupon</string>
+    <string name="tx_activity_void">Void</string>
+    <string name="tx_activity_correction">Amount Correction</string>
+    <string name="tx_activity_payment_change">Payment method changed</string>
+    <!-- Transaction Details unified lifetime timeline -->
+    <string name="tx_details_not_available">Not available</string>
+    <string name="tx_details_timezone_unavailable">Transaction details cannot be displayed because the active branch timezone is unavailable or invalid.</string>
+    <string name="tx_details_lifetime_timeline">Lifetime Timeline</string>
+    <string name="tx_details_original_transaction">Original Transaction</string>
+    <string name="tx_details_credit_repayment_event">Credit Repayment Applied</string>
+    <string name="tx_details_amount_correction_event">Amount Correction</string>
+    <string name="tx_details_payment_change_event">Payment Method Change</string>
+    <string name="tx_details_refund_event">Refund Event</string>
+    <string name="tx_details_void_event">Void Event</string>
+    <string name="tx_details_settlement_event">Settlement Movement</string>
+    <string name="tx_details_before">Before: %1$s</string>
+    <string name="tx_details_after">After: %1$s</string>
+    <string name="tx_details_reason">Reason: %1$s</string>
+    <string name="tx_details_actor">Actor ID: %1$s</string>
+    <string name="tx_details_operation">Operation ID: %1$s</string>
+    <string name="tx_details_settlement_id">Settlement ID: %1$s</string>
+    <string name="tx_details_refund_amount">Refund amount: %1$s</string>
+    <string name="tx_details_settlement_amount">Signed movement: %1$s</string>
+    <string name="tx_details_settlement_purpose">Purpose: %1$s</string>
+    <string name="tx_details_confirmation">Confirmation: %1$s</string>
+    <string name="tx_details_provider_ref">Provider reference: %1$s</string>
+    <string name="tx_settlement_sale_funding">Sale funding</string>
+    <string name="tx_settlement_credit_repayment">Credit repayment collection</string>
+    <string name="tx_settlement_coupon_purchase">Coupon purchase funding</string>
+    <string name="tx_settlement_refund_outflow">Refund outflow</string>
+    <string name="tx_settlement_funding_correction">Funding correction</string>
+    <string name="tx_settlement_payment_reclassification">Payment method reclassification</string>
+    <string name="tx_settlement_void_reversal">Void reversal</string>
+    <string name="tx_confirmation_cashier">Cashier confirmed</string>
+    <string name="tx_confirmation_provider">Provider approved</string>
+    <string name="history_back">Back</string>
+    <string name="history_search_hint">Search date, phone, name or amount</string>
+    <string name="history_filter_all">All</string>
+    <string name="history_filter_date">Date</string>
+    <string name="history_filter_phone">Phone</string>
+    <string name="history_filter_name">Name</string>
+    <string name="history_filter_amount">Amount</string>
+    <string name="history_loading">Loading history…</string>
+    <string name="history_empty">No transactions yet.</string>
+    <string name="history_no_match">No matching transactions.</string>
+    <string name="history_permission_denied">You do not have permission to view full transaction history.</string>
+    <string name="history_load_failed">Transaction history could not be loaded.</string>
+    <string name="history_payment_not_available">Payment method unavailable</string>
+    <string name="tx_correct_amount_title">Correct transaction amount</string>
+    <string name="tx_correct_amount_current">Current amount: %1$s</string>
+    <string name="tx_correct_amount_new">Corrected amount</string>
+    <string name="tx_correct_amount_reason">Reason (optional)</string>
+    <string name="tx_correct_amount_confirm">Save correction</string>
+    <string name="tx_correct_amount_invalid">Enter a valid non-negative amount.</string>
+    <string name="tx_correct_amount_same">The corrected amount must be different from the current amount.</string>
+    <string name="tx_correct_amount_saved">Amount correction saved.</string>
+    <string name="tx_correct_amount_permission">You do not have permission to correct this transaction amount.</string>
+    <string name="tx_correct_amount_conflict">This transaction changed. Review the latest details and try again.</string>
+    <string name="tx_correct_amount_failed">The correction could not be saved.</string>
+    <string name="tx_action_reason">Reason (optional)</string>
+    <string name="tx_refund_title">Refund transaction</string>
+    <string name="tx_refund_available">Refundable amount: %1$s</string>
+    <string name="tx_refund_amount_input">Refund amount</string>
+    <string name="tx_refund_destination">Refund destination</string>
+    <string name="tx_refund_original_destination">Original payment (%1$s)</string>
+    <string name="tx_refund_to_coupon">Coupon wallet</string>
+    <string name="tx_refund_confirm">Confirm refund</string>
+    <string name="tx_refund_invalid">Enter a positive amount no greater than the refundable amount.</string>
+    <string name="tx_refund_invalid_destination">Select the original payment method or Coupon wallet.</string>
+    <string name="tx_refund_saved">Refund saved.</string>
+    <string name="tx_refund_permission">You do not have permission to refund this transaction.</string>
+    <string name="tx_refund_failed">The refund could not be saved. Review the current transaction state.</string>
+    <string name="tx_void_title">Void transaction</string>
+    <string name="tx_void_confirmation">Void the remaining %1$s financial effect? This keeps the original transaction and records a permanent Void event.</string>
+    <string name="tx_void_confirm">Confirm void</string>
+    <string name="tx_void_saved">Void saved.</string>
+    <string name="tx_void_permission">You do not have permission to void this transaction.</string>
+    <string name="tx_void_failed">The transaction could not be voided. Review its current lifecycle state.</string>
+    <string name="tx_change_payment_title">Change payment method</string>
+    <string name="tx_change_payment_current">Current payment: %1$s</string>
+    <string name="tx_change_payment_confirm">Confirm change</string>
+    <string name="tx_change_payment_invalid">Only Cash and Online payment changes are supported.</string>
+    <string name="tx_change_payment_same">Select a payment method different from the current method.</string>
+    <string name="tx_change_payment_saved">Payment method change saved.</string>
+    <string name="tx_change_payment_permission">You do not have permission to change this payment method.</string>
+    <string name="tx_change_payment_failed">The payment method could not be changed. Review the current transaction state.</string>
+    <string name="tx_lifecycle_conflict">This transaction changed. Review the latest details and try again.</string>
+    <string name="online_no_qr_configured">No payment QR configured. You can still confirm an online payment manually after verifying it was received.</string>
+    <string name="online_add_qr">Add payment QR</string>
+    <string name="online_customer_choice_hint">The customer may scan this QR or pay using another online or bank method.</string>
+    <string name="online_cashier_confirmation_warning">Confirm only after you have verified that payment was received.</string>
 </resources>

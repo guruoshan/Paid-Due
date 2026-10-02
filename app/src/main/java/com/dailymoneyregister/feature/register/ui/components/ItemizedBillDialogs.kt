@@ -2,6 +2,7 @@ package com.dailymoneyregister.feature.register.ui.components
 
 import com.dailymoneyregister.core.model.currency.CurrencyConfig
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,7 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dailymoneyregister.core.database.entity.ProductEntity
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
+import com.dailymoneyregister.core.model.tax.TaxRateParser
 import com.dailymoneyregister.feature.register.domain.DraftItem
 import com.dailymoneyregister.feature.register.domain.DraftState
 
@@ -32,9 +36,21 @@ fun ItemizedBillDialog(
     currency: CurrencyConfig,
     onDismiss: () -> Unit,
     onOpenAddItem: () -> Unit,
+    onEditItem: (String) -> Unit,
     onUpdateQuantity: (String, Int) -> Unit,
-    onRemoveItem: (String) -> Unit
+    onRemoveItem: (String) -> Unit,
+    onOpenShippingPacking: () -> Unit,
+    onCreateInvoice: (() -> Unit)? = null
 ) {
+    val invoiceButton: (@Composable () -> Unit)? =
+        if (onCreateInvoice != null && draftState.items.isNotEmpty()) {
+            @Composable {
+                TextButton(onClick = onCreateInvoice) {
+                    Text(stringResource(R.string.inv_create))
+                }
+            }
+        } else null
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -52,14 +68,28 @@ fun ItemizedBillDialog(
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 if (draftState.items.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(120.dp),
-                        contentAlignment = Alignment.Center
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            stringResource(R.string.no_bill_items),
+                            text = "No items added yet",
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+
+                        Button(
+                            onClick = onOpenAddItem
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.add_item))
+                        }
                     }
                 } else {
                     LazyColumn(
@@ -70,6 +100,7 @@ fun ItemizedBillDialog(
                             DraftItemRow(
                                 item = item,
                                 currency = currency,
+                                onEdit = { onEditItem(item.id) },
                                 onUpdateQuantity = { qty -> onUpdateQuantity(item.id, qty) },
                                 onRemoveItem = { onRemoveItem(item.id) }
                             )
@@ -89,6 +120,64 @@ fun ItemizedBillDialog(
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
+
+                    if (draftState.isTaxEnabled && draftState.taxRateBps > 0) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                stringResource(R.string.tax_with_rate, TaxRateParser.formatBps(draftState.taxRateBps)),
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(draftState.taxAmount.formatDisplay(currency), fontSize = 13.sp)
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+
+                    // Shipping & packing (transaction-level) - lives here, on the bill
+                    // screen, separate from the per-item Add Item form.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onOpenShippingPacking),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.shipping_packing_charges),
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        val hasCharges = !draftState.txShipping.isZero || !draftState.txPacking.isZero
+                        Text(
+                            if (hasCharges) {
+                                (draftState.txShipping + draftState.txPacking).formatDisplay(currency)
+                            } else {
+                                stringResource(R.string.add_optional)
+                            },
+                            fontSize = 14.sp,
+                            color = if (hasCharges) MaterialTheme.colorScheme.onSurface
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(stringResource(R.string.grand_total), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            draftState.grandTotal.formatDisplay(currency),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
         },
@@ -96,7 +185,8 @@ fun ItemizedBillDialog(
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.save))
             }
-        }
+        },
+        dismissButton = invoiceButton
     )
 }
 
@@ -104,11 +194,12 @@ fun ItemizedBillDialog(
 private fun DraftItemRow(
     item: DraftItem,
     currency: CurrencyConfig,
+    onEdit: () -> Unit,
     onUpdateQuantity: (Int) -> Unit,
     onRemoveItem: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
@@ -131,6 +222,13 @@ private fun DraftItemRow(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit_item))
+                    }
+
                     IconButton(
                         onClick = { onUpdateQuantity(item.quantity - 1) },
                         modifier = Modifier.size(32.dp)
@@ -163,34 +261,105 @@ private fun DraftItemRow(
     }
 }
 
+/**
+ * Add Item / Edit Item form.
+ *
+ * Deliberately holds ONLY name, price, quantity, description and (for the
+ * whole sale) the tax rate. Shipping & packing are transaction-level and
+ * live on the bill screen instead (see ItemizedBillDialog).
+ *
+ * Tax here is a single, sale-wide rate (there is no per-item tax rate in
+ * this app) - it is surfaced in this form because the cashier is already
+ * looking at product entry, and the resulting tax is always computed on
+ * the item subtotal only, never on shipping or packing.
+ */
 @Composable
 fun AddItemDialog(
     currency: CurrencyConfig,
+    draftState: DraftState,
+    editingItem: DraftItem?,
+    suggestions: List<ProductEntity>,
+    onNameQueryChange: (String) -> Unit,
     onDismiss: () -> Unit,
-    onAddItem: (name: String, priceText: String, qty: Int, desc: String?, packingText: String, shippingText: String) -> Unit
+    onSaveTaxRate: (String) -> Unit,
+    onAddItem: (name: String, priceText: String, qty: Int, desc: String?) -> Unit,
+    onUpdateItem: (name: String, priceText: String, qty: Int, desc: String?) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var priceText by remember { mutableStateOf("") }
-    var quantityText by remember { mutableStateOf("1") }
-    var description by remember { mutableStateOf("") }
-    var packingText by remember { mutableStateOf("0") }
-    var shippingText by remember { mutableStateOf("0") }
+    var name by remember(editingItem?.id) { mutableStateOf(editingItem?.name.orEmpty()) }
+    var priceText by remember(editingItem?.id) {
+        mutableStateOf(
+            editingItem?.unitPrice?.let { if (it.isZero) "" else it.formatDisplay(currency.decimalPlaces, "").trim() }.orEmpty()
+        )
+    }
+    var quantityText by remember(editingItem?.id) { mutableStateOf((editingItem?.quantity ?: 1).toString()) }
+    var description by remember(editingItem?.id) { mutableStateOf(editingItem?.description.orEmpty()) }
+    var taxPercentText by remember(draftState.taxRateBps) {
+        mutableStateOf(
+            if (draftState.taxRateBps > 0) TaxRateParser.bpsToInputString(draftState.taxRateBps) else ""
+        )
+    }
+    var showSuggestions by remember(editingItem?.id) { mutableStateOf(false) }
+
+    val isEditing = editingItem != null
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.add_item)) },
+        title = { Text(stringResource(if (isEditing) R.string.edit_item else R.string.add_item)) },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.required_field, stringResource(R.string.item_name))) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = {
+                                name = it
+                                showSuggestions = it.isNotBlank()
+                                onNameQueryChange(it)
+                            },
+                            label = { Text(stringResource(R.string.required_field, stringResource(R.string.item_name))) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        if (showSuggestions && suggestions.isNotEmpty()) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            ) {
+                                Column {
+                                    suggestions.take(5).forEach { product ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    name = product.name
+                                                    priceText = MoneyMinorUnits(product.unitPriceMinor)
+                                                        .formatDisplay(currency.decimalPlaces, "").trim()
+                                                    description = product.description.orEmpty()
+                                                    showSuggestions = false
+                                                }
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(product.name, fontSize = 14.sp)
+                                            Text(
+                                                MoneyMinorUnits(product.unitPriceMinor)
+                                                    .formatDisplay(currency),
+                                                fontSize = 13.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 OutlinedTextField(
                     value = priceText,
@@ -216,18 +385,22 @@ fun AddItemDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                OutlinedTextField(
-                    value = packingText,
-                    onValueChange = { packingText = it },
-                    label = { Text(stringResource(R.string.currency_field, stringResource(R.string.item_packing_optional), currency.symbol)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                Text(
+                    stringResource(R.string.tax_for_whole_sale),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 OutlinedTextField(
-                    value = shippingText,
-                    onValueChange = { shippingText = it },
-                    label = { Text(stringResource(R.string.currency_field, stringResource(R.string.item_shipping_optional), currency.symbol)) },
+                    value = taxPercentText,
+                    onValueChange = {
+                        taxPercentText = it
+                        onSaveTaxRate(it)
+                    },
+                    label = { Text(stringResource(R.string.tax_rate_percent)) },
+                    placeholder = { Text(stringResource(R.string.tax_rate_hint)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -237,11 +410,15 @@ fun AddItemDialog(
             Button(
                 onClick = {
                     val qty = quantityText.toIntOrNull() ?: 1
-                    onAddItem(name, priceText, qty, description, packingText, shippingText)
+                    if (isEditing) {
+                        onUpdateItem(name, priceText, qty, description)
+                    } else {
+                        onAddItem(name, priceText, qty, description)
+                    }
                 },
                 enabled = name.isNotBlank() && priceText.isNotBlank()
             ) {
-                Text(stringResource(R.string.add_item))
+                Text(stringResource(if (isEditing) R.string.save else R.string.add_item))
             }
         },
         dismissButton = {

@@ -31,6 +31,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dailymoneyregister.core.model.financial.FinancialTransactionView
+import com.dailymoneyregister.core.model.financial.FinancialLifecycleState
+import com.dailymoneyregister.core.model.financial.RecentActivityType
+import com.dailymoneyregister.core.model.financial.RecentActivityTotals
+import com.dailymoneyregister.core.model.financial.RecentFinancialActivity
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.ui.theme.RegisterColors
@@ -42,38 +46,56 @@ internal enum class RecentLifecycleBadge {
     VOIDED,
     PARTIALLY_REFUNDED,
     FULLY_REFUNDED,
-    CORRECTED
+    CORRECTED,
+    PAYMENT_METHOD_CHANGED
 }
 
 internal fun recentLifecycleBadges(
     transaction: FinancialTransactionView
 ): List<RecentLifecycleBadge> = buildList {
-    if (transaction.isVoided) add(RecentLifecycleBadge.VOIDED)
-    if (transaction.isFullyRefunded) {
-        add(RecentLifecycleBadge.FULLY_REFUNDED)
-    } else if (transaction.isPartiallyRefunded) {
-        add(RecentLifecycleBadge.PARTIALLY_REFUNDED)
+    val states = transaction.lifecycleStates
+    if (states.isNotEmpty()) {
+        if (FinancialLifecycleState.VOIDED in states) add(RecentLifecycleBadge.VOIDED)
+        if (FinancialLifecycleState.FULLY_REFUNDED in states) {
+            add(RecentLifecycleBadge.FULLY_REFUNDED)
+        } else if (FinancialLifecycleState.PARTIALLY_REFUNDED in states) {
+            add(RecentLifecycleBadge.PARTIALLY_REFUNDED)
+        }
+        if (FinancialLifecycleState.CORRECTED in states) add(RecentLifecycleBadge.CORRECTED)
+        if (FinancialLifecycleState.PAYMENT_METHOD_CHANGED in states) {
+            add(RecentLifecycleBadge.PAYMENT_METHOD_CHANGED)
+        }
+    } else {
+        if (transaction.isVoided) add(RecentLifecycleBadge.VOIDED)
+        if (transaction.isFullyRefunded) {
+            add(RecentLifecycleBadge.FULLY_REFUNDED)
+        } else if (transaction.isPartiallyRefunded) {
+            add(RecentLifecycleBadge.PARTIALLY_REFUNDED)
+        }
+        if (transaction.hasAmountCorrection) add(RecentLifecycleBadge.CORRECTED)
     }
-    if (transaction.hasAmountCorrection) add(RecentLifecycleBadge.CORRECTED)
 }
 
 @Composable
 fun RecentTransactionsPanel(
-    transactions: List<FinancialTransactionView>,
+    transactions: List<RecentFinancialActivity>,
     isExpanded: Boolean,
     currency: CurrencyConfig,
     timezoneId: String = "Asia/Muscat",
     onToggleExpanded: () -> Unit,
+    onTransactionSelected: (String) -> Unit = {},
     maxListHeight: androidx.compose.ui.unit.Dp = 220.dp,
     modifier: Modifier = Modifier,
     compactMaxListHeight: androidx.compose.ui.unit.Dp = 100.dp
 ) {
-    val todayTotal = transactions.fold(MoneyMinorUnits.ZERO) { acc, tx ->
-        acc + tx.netAmount
-    }
+    // BOARDLOCK_COUPON_TODAY_TOTAL
+    // Do not sum raw signedEffect here: Coupon redemption is an
+    // internal settlement of previously funded value.
+    val todayTotal =
+        RecentActivityTotals.todayTotal(transactions)
     val todayTotalFormatted = todayTotal.formatDisplay(currency)
     val listState = rememberLazyListState()
-    val newestTransactionId = transactions.firstOrNull()?.id
+    val newestTransactionId = transactions.firstOrNull()?.activityId
     val previousNewestId = remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(newestTransactionId, isExpanded) {
@@ -111,7 +133,7 @@ fun RecentTransactionsPanel(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = stringResource(com.dailymoneyregister.R.string.todays_sales, transactions.size),
+                        text = stringResource(com.dailymoneyregister.R.string.recent_activity_count, transactions.size),
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
@@ -154,8 +176,13 @@ fun RecentTransactionsPanel(
                         .padding(horizontal = 12.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(transactions, key = { it.id }) { tx ->
-                        RecentTransactionRow(tx, currency, timezoneId)
+                    items(transactions, key = { it.activityId }) { tx ->
+                        RecentTransactionRow(
+                        transaction = tx,
+                        currency = currency,
+                        timezoneId = timezoneId,
+                        onTransactionSelected = onTransactionSelected
+                    )
                     }
                 }
             } else {
@@ -163,6 +190,7 @@ fun RecentTransactionsPanel(
                     transactions = transactions,
                     currency = currency,
                     timezoneId = timezoneId,
+                    onTransactionSelected = onTransactionSelected,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = compactMaxListHeight)
@@ -187,9 +215,10 @@ internal class RecentRowHeightBudget(private val maxHeight: Int, private val spa
 
 @Composable
 private fun CompactRecentRows(
-    transactions: List<FinancialTransactionView>,
+    transactions: List<RecentFinancialActivity>,
     currency: CurrencyConfig,
     timezoneId: String,
+    onTransactionSelected: (String) -> Unit,
     modifier: Modifier
 ) {
     // Measure real row heights, including badges and font scaling. Stop before
@@ -199,8 +228,13 @@ private fun CompactRecentRows(
         val rows = mutableListOf<Pair<Placeable, Int>>()
         val budget = RecentRowHeightBudget(constraints.maxHeight, spacing)
         for (transaction in transactions) {
-            val row = subcompose(transaction.id) {
-                RecentTransactionRow(transaction, currency, timezoneId)
+            val row = subcompose(transaction.activityId) {
+                RecentTransactionRow(
+                    transaction = transaction,
+                    currency = currency,
+                    timezoneId = timezoneId,
+                    onTransactionSelected = onTransactionSelected
+                )
             }.single().measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
             val top = budget.usedHeight + if (rows.isEmpty()) 0 else spacing
             if (!budget.add(row.height)) break
@@ -214,31 +248,82 @@ private fun CompactRecentRows(
 
 @Composable
 private fun RecentTransactionRow(
-    transaction: FinancialTransactionView,
+    transaction: RecentFinancialActivity,
     currency: CurrencyConfig,
-    timezoneId: String
+    timezoneId: String,
+    onTransactionSelected: (String) -> Unit
 ) {
-    val timeStr = remember(transaction.createdAt, timezoneId) {
-        try {
-            val zoneId = ZoneId.of(timezoneId)
-            val zonedDateTime = Instant.ofEpochMilli(transaction.createdAt).atZone(zoneId)
-            zonedDateTime.format(DateTimeFormatter.ofPattern("hh:mm a", java.util.Locale.getDefault()))
-        } catch (_: Exception) {
-            java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(transaction.createdAt))
-        }
+    val timeStr = remember(transaction.occurredAt, timezoneId) {
+        val zoneId = ZoneId.of(timezoneId)
+        val zonedDateTime = Instant.ofEpochMilli(transaction.occurredAt).atZone(zoneId)
+        zonedDateTime.format(DateTimeFormatter.ofPattern("hh:mm a", java.util.Locale.getDefault()))
     }
-    val amountFormatted = transaction.netAmount.formatDisplay(currency)
-    val lifecycleBadges = recentLifecycleBadges(transaction)
-    val paymentLabel = when (transaction.currentPaymentCategory) {
-        PaymentCategory.CASH -> stringResource(R.string.cash_sale_label)
-        PaymentCategory.ONLINE -> stringResource(R.string.online_sale_label)
-        PaymentCategory.CREDIT -> stringResource(R.string.credit_sale_label)
-        PaymentCategory.COUPON -> stringResource(R.string.coupon_sale_label)
-        null -> stringResource(R.string.sale_label)
+    val amountFormatted = transaction.signedEffect.formatDisplay(currency)
+    val amountText = if (transaction.signedEffect.isPositive) {
+        stringResource(R.string.positive_amount, amountFormatted)
+    } else {
+        amountFormatted
+    }
+    val methodLabel = transaction.fundingBreakdown
+        .map { it.category }
+        .distinct()
+        .joinToString(" + ") { it.name }
+
+    val refundBreakdownLabel =
+        if (
+            transaction.type == RecentActivityType.REFUND ||
+            transaction.type == RecentActivityType.REFUND_TO_COUPON
+        ) {
+            transaction.fundingBreakdown
+                .filter { it.amountMinor != 0L }
+                .joinToString(" · ") { part ->
+                    val amount =
+                        MoneyMinorUnits(
+                            kotlin.math.abs(part.amountMinor)
+                        ).formatDisplay(currency)
+
+                    when (part.category) {
+                        PaymentCategory.CREDIT ->
+                            "$amount Credit reduced"
+
+                        PaymentCategory.COUPON ->
+                            "$amount Coupon refunded"
+
+                        PaymentCategory.CASH ->
+                            "$amount Cash refunded"
+
+                        PaymentCategory.ONLINE ->
+                            "$amount Online refunded"
+                    }
+                }
+        } else {
+            ""
+        }
+
+    val paymentLabel = when (transaction.type) {
+        RecentActivityType.COUPON_SELL -> stringResource(R.string.coupon_purchase_title)
+        RecentActivityType.COUPON_TOP_UP -> stringResource(R.string.coupon_top_up_label)
+        RecentActivityType.CREDIT_REPAYMENT -> "Credit Payment"
+        RecentActivityType.REFUND -> stringResource(R.string.recent_activity_refund)
+        RecentActivityType.REFUND_TO_COUPON -> stringResource(R.string.recent_activity_refund_coupon)
+        RecentActivityType.VOID -> stringResource(R.string.recent_status_voided)
+        RecentActivityType.AMOUNT_CORRECTION -> stringResource(R.string.recent_status_corrected)
+        RecentActivityType.PAYMENT_METHOD_CHANGE -> stringResource(R.string.recent_status_payment_method_changed)
+        RecentActivityType.MERCHANDISE_SALE -> if (transaction.fundingBreakdown.size > 1) {
+            methodLabel
+        } else when (transaction.fundingBreakdown.singleOrNull()?.category) {
+            PaymentCategory.CASH -> stringResource(R.string.cash_sale_label)
+            PaymentCategory.ONLINE -> stringResource(R.string.online_sale_label)
+            PaymentCategory.CREDIT -> stringResource(R.string.credit_sale_label)
+            PaymentCategory.COUPON -> stringResource(R.string.coupon_sale_label)
+            null -> stringResource(R.string.sale_label)
+        }
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onTransactionSelected(transaction.transactionId) },
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
@@ -249,27 +334,48 @@ private fun RecentTransactionRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1.7f)) {
                 Text(
                     text = paymentLabel,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp,
                     maxLines = 1
                 )
-                if (lifecycleBadges.isNotEmpty()) {
-                    val lifecycleLabels = mutableListOf<String>()
-                    for (badge in lifecycleBadges) {
-                        lifecycleLabels += stringResource(
-                            when (badge) {
-                                RecentLifecycleBadge.VOIDED -> R.string.recent_status_voided
-                                RecentLifecycleBadge.PARTIALLY_REFUNDED -> R.string.recent_status_partially_refunded
-                                RecentLifecycleBadge.FULLY_REFUNDED -> R.string.recent_status_fully_refunded
-                                RecentLifecycleBadge.CORRECTED -> R.string.recent_status_corrected
-                            }
-                        )
+                val lifecycleMethodLabel =
+                    if (
+                        (
+                            transaction.type == RecentActivityType.REFUND ||
+                            transaction.type == RecentActivityType.REFUND_TO_COUPON
+                        ) &&
+                        refundBreakdownLabel.isNotBlank()
+                    ) {
+                        refundBreakdownLabel
+                    } else {
+                        methodLabel
                     }
+
+                if (
+                    lifecycleMethodLabel.isNotBlank() &&
+                    transaction.type != RecentActivityType.MERCHANDISE_SALE
+                ) {
                     Text(
-                        text = lifecycleLabels.joinToString(" \u2022 "),
+                        text = lifecycleMethodLabel,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines =
+                            if (
+                                transaction.type == RecentActivityType.REFUND ||
+                                transaction.type == RecentActivityType.REFUND_TO_COUPON
+                            ) {
+                                2
+                            } else {
+                                1
+                            }
+                    )
+                }
+                transaction.customerName?.let { customerName ->
+                    Text(
+                        text = customerName,
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1
@@ -279,7 +385,7 @@ private fun RecentTransactionRow(
 
             Text(
                 text = timeStr,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(0.75f),
                 textAlign = TextAlign.Center,
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -287,11 +393,15 @@ private fun RecentTransactionRow(
             )
 
             Text(
-                text = stringResource(R.string.positive_amount, amountFormatted),
-                modifier = Modifier.weight(1f),
+                text = amountText,
+                modifier = Modifier.weight(1.05f),
                 textAlign = TextAlign.End,
                 fontWeight = FontWeight.Bold,
-                color = RegisterColors.CashPrimary,
+                color = when {
+                    transaction.signedEffect.isNegative -> MaterialTheme.colorScheme.error
+                    transaction.signedEffect.isPositive -> RegisterColors.CashPrimary
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 fontSize = 15.sp,
                 maxLines = 1
             )

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="global_phone_country">Country / calling code</string>
+    <string name="global_phone_number">Phone number</string>
+    <string name="global_phone_invalid">Enter a valid phone number</string>
+    <string name="global_phone_search">Search country or calling code</string>
+    <string name="global_phone_no_results">No countries found</string>
+</resources>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="customers_title">گاہک</string>
+    <string name="customers_entry_desc">گاہکوں کی فہرست اور انوائس کی تاریخ</string>
+    <string name="customers_search_hint">نام یا فون نمبر سے تلاش کریں</string>
+    <string name="customers_empty">ابھی کوئی گاہک نہیں۔ انوائس جاری کرنے پر گاہک شامل ہو جاتے ہیں۔</string>
+    <string name="customers_no_match">آپ کی تلاش سے کوئی گاہک نہیں ملا۔</string>
+    <string name="customers_invoices_count">انوائسز: %1$d</string>
+    <string name="customers_last_invoice">آخری انوائس: %1$s</string>
+    <string name="customers_no_invoices_yet">ابھی کوئی انوائس نہیں</string>
+    <string name="customers_history_title">انوائس کی تاریخ</string>
+    <string name="customers_history_empty">اس گاہک سے ابھی کوئی انوائس منسلک نہیں۔ گاہکوں کو منسلک کرنے سے پہلے جاری کی گئی انوائسز یہاں نظر نہیں آتیں۔</string>
+    <string name="customers_total_invoiced">کل انوائس کی رقم: %1$s</string>
+    <string name="customers_invoice_paid">ادا شدہ</string>
+    <string name="customers_invoice_unpaid">غیر ادا شدہ</string>
+    <string name="customers_amount_unavailable">رقم دستیاب نہیں</string>
+    <string name="customers_error_generic">گاہک لوڈ نہیں ہو سکے: %1$s</string>
+    <string name="customers_error_no_access">آپ کو گاہک دیکھنے کی اجازت نہیں۔</string>
+    <string name="customers_not_found">گاہک نہیں ملا۔</string>
+</resources>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="customers_title">العملاء</string>
+    <string name="customers_entry_desc">قائمة العملاء وسجل الفواتير</string>
+    <string name="customers_search_hint">ابحث بالاسم أو رقم الهاتف</string>
+    <string name="customers_empty">لا يوجد عملاء بعد. تتم إضافة العملاء عند إصدار فاتورة.</string>
+    <string name="customers_no_match">لا يوجد عملاء مطابقون لبحثك.</string>
+    <string name="customers_invoices_count">الفواتير: %1$d</string>
+    <string name="customers_last_invoice">آخر فاتورة: %1$s</string>
+    <string name="customers_no_invoices_yet">لا توجد فواتير بعد</string>
+    <string name="customers_history_title">سجل الفواتير</string>
+    <string name="customers_history_empty">لا توجد فواتير مرتبطة بهذا العميل بعد. الفواتير الصادرة قبل ربط العملاء لا تظهر هنا.</string>
+    <string name="customers_total_invoiced">إجمالي الفواتير: %1$s</string>
+    <string name="customers_invoice_paid">مدفوعة</string>
+    <string name="customers_invoice_unpaid">غير مدفوعة</string>
+    <string name="customers_amount_unavailable">المبلغ غير متاح</string>
+    <string name="customers_error_generic">تعذر تحميل العملاء: %1$s</string>
+    <string name="customers_error_no_access">ليس لديك صلاحية عرض العملاء.</string>
+    <string name="customers_not_found">لم يتم العثور على العميل.</string>
+</resources>

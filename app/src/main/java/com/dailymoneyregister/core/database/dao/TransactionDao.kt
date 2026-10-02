@@ -40,11 +40,89 @@ interface TransactionDao {
     fun observeTodayTransactions(branchId: String, sinceTimestamp: Long): Flow<List<TransactionEntity>>
 
     @Transaction
-    @Query("SELECT * FROM transactions WHERE branch_id = :branchId AND created_at >= :sinceTimestamp ORDER BY created_at DESC")
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE branch_id = :branchId
+          AND (
+              (created_at >= :sinceTimestamp AND created_at < :untilTimestamp)
+              OR EXISTS (
+                  SELECT 1 FROM amount_correction_events
+                  WHERE amount_correction_events.transaction_id = transactions.id
+                    AND occurred_at >= :sinceTimestamp AND occurred_at < :untilTimestamp
+              )
+              OR EXISTS (
+                  SELECT 1 FROM payment_method_change_events
+                  WHERE payment_method_change_events.transaction_id = transactions.id
+                    AND occurred_at >= :sinceTimestamp AND occurred_at < :untilTimestamp
+              )
+              OR EXISTS (
+                  SELECT 1 FROM void_events
+                  WHERE void_events.transaction_id = transactions.id
+                    AND occurred_at >= :sinceTimestamp AND occurred_at < :untilTimestamp
+              )
+              OR EXISTS (
+                  SELECT 1 FROM refund_events
+                  WHERE refund_events.transaction_id = transactions.id
+                    AND occurred_at >= :sinceTimestamp AND occurred_at < :untilTimestamp
+              )
+              OR EXISTS (
+                  SELECT 1 FROM settlement_entries
+                  WHERE settlement_entries.transaction_id = transactions.id
+                    AND occurred_at >= :sinceTimestamp AND occurred_at < :untilTimestamp
+              )
+          )
+        ORDER BY created_at DESC
+        """
+    )
     fun observeTodayFinancialRecords(
         branchId: String,
-        sinceTimestamp: Long
+        sinceTimestamp: Long,
+        untilTimestamp: Long
     ): Flow<List<TransactionFinancialRecord>>
+
+    /**
+     * Read-only broad History source for the active branch.
+     *
+     * One row per immutable transaction. Lifecycle relations are loaded through
+     * TransactionFinancialRecord and resolved by FinancialReadModelResolver.
+     */
+    @Transaction
+    @Query(
+        """
+        SELECT *
+        FROM transactions
+        WHERE branch_id = :branchId
+        ORDER BY created_at DESC
+        """
+    )
+    fun observeHistoryFinancialRecords(
+        branchId: String
+    ): Flow<List<TransactionFinancialRecord>>
+
+    /**
+     * Read-only customer transaction history for the active branch.
+     *
+     * BOARDLOCK:
+     * - TransactionEntity remains immutable.
+     * - Lifecycle relations are loaded through TransactionFinancialRecord.
+     * - Financial meaning is resolved by FinancialReadModelResolver.
+     * - No financial state is written or independently recalculated here.
+     */
+    @Transaction
+    @Query(
+        """
+        SELECT *
+        FROM transactions
+        WHERE branch_id = :branchId
+          AND customer_id = :customerId
+        ORDER BY created_at DESC
+        """
+    )
+    suspend fun getCustomerFinancialRecords(
+        branchId: String,
+        customerId: String
+    ): List<TransactionFinancialRecord>
 
     @Transaction
     @Query("SELECT * FROM transactions WHERE id = :transactionId LIMIT 1")
@@ -61,6 +139,9 @@ interface TransactionDao {
 
     @Query("SELECT * FROM settlement_entries WHERE transaction_id = :transactionId")
     suspend fun getSettlementsForTransaction(transactionId: String): List<SettlementEntryEntity>
+
+    @Query("SELECT * FROM settlement_entries WHERE operation_id = :operationId")
+    suspend fun getSettlementsForOperation(operationId: String): List<SettlementEntryEntity>
 
     @Query(
         """
@@ -85,6 +166,11 @@ interface TransactionDao {
     @Query("SELECT * FROM amount_correction_events WHERE transaction_id = :transactionId ORDER BY occurred_at ASC")
     suspend fun getAmountCorrections(transactionId: String): List<AmountCorrectionEventEntity>
 
+    @Query("SELECT * FROM amount_correction_events WHERE operation_id = :operationId ORDER BY occurred_at ASC LIMIT 2")
+    suspend fun getAmountCorrectionsByOperationId(
+        operationId: String
+    ): List<AmountCorrectionEventEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertPaymentMethodChange(event: PaymentMethodChangeEventEntity)
 
@@ -97,9 +183,15 @@ interface TransactionDao {
     @Query("SELECT * FROM void_events WHERE transaction_id = :transactionId LIMIT 1")
     suspend fun getVoidEvent(transactionId: String): VoidEventEntity?
 
+    @Query("SELECT * FROM void_events WHERE operation_id = :operationId LIMIT 1")
+    suspend fun getVoidEventByOperationId(operationId: String): VoidEventEntity?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertRefund(event: RefundEventEntity)
 
     @Query("SELECT * FROM refund_events WHERE transaction_id = :transactionId ORDER BY occurred_at ASC")
     suspend fun getRefundEvents(transactionId: String): List<RefundEventEntity>
+
+    @Query("SELECT * FROM refund_events WHERE operation_id = :operationId LIMIT 1")
+    suspend fun getRefundEventByOperationId(operationId: String): RefundEventEntity?
 }

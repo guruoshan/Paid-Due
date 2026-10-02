@@ -111,7 +111,7 @@ class RegisterViewModelSessionTest {
             runCurrent()
             assertEquals(MoneyMinorUnits.ZERO, vm.uiState.value.draftState.grandTotal)
             assertEquals((index + 1).toLong(), vm.financialSessionGeneration)
-            assertEquals(session.branch.defaultTaxRateBps, vm.uiState.value.draftState.taxRateBps)
+            assertEquals(0, vm.uiState.value.draftState.taxRateBps)
             assertEquals(session.branch.taxRoundingMode, vm.uiState.value.draftState.taxRoundingMode)
         }
     }
@@ -385,7 +385,7 @@ class RegisterViewModelSessionTest {
         assertTrue(state.draftState.items.isEmpty())
         assertNull(state.draftState.manualDescription)
         assertEquals("", state.manualDescription)
-        assertEquals(tax, state.draftState.taxRateBps)
+        assertEquals(0, state.draftState.taxRateBps)
         assertEquals(rounding, state.draftState.taxRoundingMode)
         assertFalse(state.draftState.isTaxEnabled)
         assertFalse(state.isTaxDialogOpen)

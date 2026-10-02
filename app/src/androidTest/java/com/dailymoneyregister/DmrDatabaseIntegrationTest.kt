@@ -1,10 +1,11 @@
 package com.dailymoneyregister
 
 import android.content.Context
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
 import com.dailymoneyregister.core.command.CommandExecutor
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.command.OperationCommand
@@ -14,7 +15,6 @@ import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
 import com.dailymoneyregister.core.database.entity.VoidEventEntity
-import com.dailymoneyregister.core.database.security.FinancialImmutabilityCallback
 import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.i18n.LanguageManager
 import com.dailymoneyregister.core.model.enums.OperationStatus
@@ -30,6 +30,7 @@ import com.dailymoneyregister.core.model.enums.TransactionType
 import com.dailymoneyregister.core.model.ids.OperationId
 import com.dailymoneyregister.core.model.ids.TransactionId
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
+import com.dailymoneyregister.core.model.financial.FinancialReadModelResolver
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import com.dailymoneyregister.core.security.PinThrottler
 import com.dailymoneyregister.core.security.ActiveSession
@@ -47,6 +48,7 @@ import com.dailymoneyregister.feature.setup.data.SetupParams
 import com.dailymoneyregister.feature.setup.data.SetupRepository
 import com.dailymoneyregister.feature.setup.data.SetupResult
 import com.dailymoneyregister.feature.settings.data.SettingsLanguageResult
+import com.dailymoneyregister.feature.settings.data.MerchantQrRepository
 import com.dailymoneyregister.feature.settings.data.SettingsRepository
 import com.dailymoneyregister.feature.settings.ui.SettingsViewModel
 import kotlinx.coroutines.delay
@@ -56,13 +58,18 @@ import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDate
 import java.time.ZoneId
 
 @RunWith(AndroidJUnit4::class)
+@HiltAndroidTest
 class DmrDatabaseIntegrationTest {
+
+    @get:Rule
+    val hiltRule = HiltAndroidRule(this)
 
     private lateinit var database: DmrDatabase
     private lateinit var commandExecutor: CommandExecutor
@@ -77,10 +84,7 @@ class DmrDatabaseIntegrationTest {
         context = ApplicationProvider.getApplicationContext()
         trustedSessionStore = TrustedSessionStore(context)
         trustedSessionStore.clear()
-        database = Room.inMemoryDatabaseBuilder(context, DmrDatabase::class.java)
-            .allowMainThreadQueries()
-            .addCallback(FinancialImmutabilityCallback)
-            .build()
+        database = DmrDatabase.createInMemory(context)
 
         commandExecutor = CommandExecutor(database)
         setupRepository = SetupRepository(database, commandExecutor, com.dailymoneyregister.core.device.DeviceIdentityProvider(context), trustedSessionStore)
@@ -145,7 +149,7 @@ class DmrDatabaseIntegrationTest {
     }
 
     @Test
-    fun testRecentTodayCohortExcludesOlderLifecycleActivityAndOrdersByCreatedAt() = runBlocking {
+    fun testRecentTodayCohortIncludesOlderLifecycleActivity() = runBlocking {
         val setup = createLanguageTestSetup()
         val branch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
         val zoneId = ZoneId.of(branch.timezoneId)
@@ -263,15 +267,25 @@ class DmrDatabaseIntegrationTest {
         )
 
         val records = database.transactionDao()
-            .observeTodayFinancialRecords(branch.id, startOfToday)
+            .observeTodayFinancialRecords(
+                branch.id,
+                startOfToday,
+                startOfToday + 86_400_000L
+            )
             .first()
 
         assertEquals(
-            listOf(todayNewerTransactionId, todayOlderTransactionId),
+            listOf(todayNewerTransactionId, todayOlderTransactionId, oldTransactionId),
             records.map { it.transaction.id }
         )
-        assertTrue(records.none { it.transaction.id == oldTransactionId })
-        assertTrue(records.all { it.transaction.createdAt >= startOfToday })
+        assertEquals(
+            -1_000L,
+            FinancialReadModelResolver.resolve(
+                records.single { it.transaction.id == oldTransactionId },
+                startOfToday,
+                startOfToday + 86_400_000L
+            ).periodFinancialEffect.amount
+        )
     }
 
     @Test
@@ -783,7 +797,7 @@ class DmrDatabaseIntegrationTest {
             countryCode = "IN",
             currencyCode = "INR",
             currencyDecimalPlaces = 2,
-            currencySymbol = "Ã¢â€šÂ¹",
+            currencySymbol = "₹",
             timezoneId = "Asia/Kolkata",
             taxRoundingMode = TaxRoundingMode.HALF_EVEN,
             defaultTaxRateBps = 1800,
@@ -975,26 +989,31 @@ class DmrDatabaseIntegrationTest {
     @Test
     fun testLanguageManagerRtlAndLanguageSwitch() {
         val languageManager = LanguageManager(context)
+        val originalLanguage = languageManager.currentLanguage.value.code
 
-        // English -> LTR
-        languageManager.setLanguage("en")
-        assertEquals("en", languageManager.currentLanguage.value.code)
-        assertFalse(languageManager.isRtl)
+        try {
+            // English -> LTR
+            languageManager.setLanguage("en")
+            assertEquals("en", languageManager.currentLanguage.value.code)
+            assertFalse(languageManager.isRtl)
 
-        // Arabic -> RTL
-        languageManager.setLanguage("ar")
-        assertEquals("ar", languageManager.currentLanguage.value.code)
-        assertTrue(languageManager.isRtl)
+            // Arabic -> RTL
+            languageManager.setLanguage("ar")
+            assertEquals("ar", languageManager.currentLanguage.value.code)
+            assertTrue(languageManager.isRtl)
 
-        // Urdu -> RTL
-        languageManager.setLanguage("ur")
-        assertEquals("ur", languageManager.currentLanguage.value.code)
-        assertTrue(languageManager.isRtl)
+            // Urdu -> RTL
+            languageManager.setLanguage("ur")
+            assertEquals("ur", languageManager.currentLanguage.value.code)
+            assertTrue(languageManager.isRtl)
 
-        // Hindi -> LTR
-        languageManager.setLanguage("hi")
-        assertEquals("hi", languageManager.currentLanguage.value.code)
-        assertFalse(languageManager.isRtl)
+            // Hindi -> LTR
+            languageManager.setLanguage("hi")
+            assertEquals("hi", languageManager.currentLanguage.value.code)
+            assertFalse(languageManager.isRtl)
+        } finally {
+            languageManager.setLanguage(originalLanguage)
+        }
     }
 
     @Test
@@ -1118,7 +1137,7 @@ class DmrDatabaseIntegrationTest {
         val beforeUser = database.userDao().getUserById(setup.adminUserId.value)!!
         val beforeBusiness = database.businessBranchDao().getBusinessById(setup.businessId.value)!!
         val beforeBranch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
-        val repository = SettingsRepository(database.userDao())
+        val repository = SettingsRepository(database.userDao(), database.businessBranchDao())
 
         val result = repository.updateLanguage(
             userId = beforeUser.id,
@@ -1142,7 +1161,7 @@ class DmrDatabaseIntegrationTest {
     fun testSettingsRepositoryRejectsUnsupportedLanguageWithoutChangingDatabase() = runBlocking {
         val setup = createLanguageTestSetup()
         val before = database.userDao().getUserById(setup.adminUserId.value)!!
-        val repository = SettingsRepository(database.userDao())
+        val repository = SettingsRepository(database.userDao(), database.businessBranchDao())
 
         val result = repository.updateLanguage(
             userId = before.id,
@@ -1158,7 +1177,7 @@ class DmrDatabaseIntegrationTest {
     fun testSettingsRepositoryRejectsWrongBusinessWithoutChangingDatabase() = runBlocking {
         val setup = createLanguageTestSetup()
         val before = database.userDao().getUserById(setup.adminUserId.value)!!
-        val repository = SettingsRepository(database.userDao())
+        val repository = SettingsRepository(database.userDao(), database.businessBranchDao())
 
         val result = repository.updateLanguage(
             userId = before.id,
@@ -1178,7 +1197,11 @@ class DmrDatabaseIntegrationTest {
         val beforeBranch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
         val languageManager = LanguageManager(context)
         val originalLanguage = languageManager.currentLanguage.value.code
-        val viewModel = SettingsViewModel(languageManager, SettingsRepository(database.userDao()))
+        val viewModel = SettingsViewModel(
+            languageManager,
+            SettingsRepository(database.userDao(), database.businessBranchDao()),
+            MerchantQrRepository(database.documentMediaDao(), context), database.businessBranchDao()
+        )
         val initialSession = ActiveSession(
             business = beforeBusiness,
             branch = beforeBranch,
@@ -1227,7 +1250,11 @@ class DmrDatabaseIntegrationTest {
         val beforeBranch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
         val languageManager = LanguageManager(context)
         val originalLanguage = languageManager.currentLanguage.value.code
-        val viewModel = SettingsViewModel(languageManager, SettingsRepository(database.userDao()))
+        val viewModel = SettingsViewModel(
+            languageManager,
+            SettingsRepository(database.userDao(), database.businessBranchDao()),
+            MerchantQrRepository(database.documentMediaDao(), context), database.businessBranchDao()
+        )
         val initialSession = ActiveSession(
             business = beforeBusiness,
             branch = beforeBranch,
@@ -1289,6 +1316,122 @@ class DmrDatabaseIntegrationTest {
         intentPayload = "payload-protection",
         status = status
     )
+
+    @Test
+    fun testSettlementTransactionForeignKeyRejectsOrphanAndAllowsNull() = runBlocking {
+        database.openHelper.readableDatabase
+            .query("PRAGMA foreign_keys")
+            .use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(
+                    "Foreign-key enforcement must be enabled",
+                    1,
+                    cursor.getInt(0)
+                )
+            }
+
+        val missingTransactionId =
+            "settlement-fk-missing-transaction"
+
+        val orphanOperation =
+            operationFixture(
+                id = "settlement-fk-orphan-operation"
+            ).copy(
+                operationType = OperationType.RECORD_SALE,
+                subjectType = SubjectType.TRANSACTION,
+                subjectId = missingTransactionId,
+                transactionId = missingTransactionId
+            )
+
+        database.operationDao()
+            .insertOperation(orphanOperation)
+
+        val orphanSettlement =
+            SettlementEntryEntity(
+                id = "settlement-fk-orphan",
+                operationId = orphanOperation.id,
+                subjectType = SubjectType.TRANSACTION,
+                subjectId = missingTransactionId,
+                transactionId = missingTransactionId,
+                entryPurpose = EntryPurpose.SALE_FUNDING,
+                category = PaymentCategory.CASH,
+                channel = PaymentChannel.CASH_TENDER,
+                amountSignedMinor = 100L,
+                currencyCode = "OMR",
+                confirmationType =
+                    ConfirmationType.CASHIER_CONFIRMED,
+                occurredAt = 1_000L,
+                actorUserId = orphanOperation.actorUserId
+            )
+
+        var orphanFailure: Throwable? = null
+
+        try {
+            database.transactionDao()
+                .insertSettlement(orphanSettlement)
+        } catch (throwable: Throwable) {
+            orphanFailure = throwable
+        }
+
+        assertNotNull(
+            "Fresh v4 database must reject a settlement whose non-null transaction_id has no parent transaction",
+            orphanFailure
+        )
+
+        assertTrue(
+            "Rejected orphan settlement must not be persisted",
+            database.transactionDao()
+                .getSettlementsForTransaction(
+                    missingTransactionId
+                )
+                .isEmpty()
+        )
+
+        val nullableOperation =
+            operationFixture(
+                id = "settlement-fk-null-operation"
+            ).copy(
+                operationType = OperationType.RECORD_SALE,
+                subjectType = SubjectType.TRANSACTION,
+                subjectId = "settlement-fk-null-subject",
+                transactionId = null
+            )
+
+        database.operationDao()
+            .insertOperation(nullableOperation)
+
+        val nullableSettlement =
+            orphanSettlement.copy(
+                id = "settlement-fk-null",
+                operationId = nullableOperation.id,
+                subjectId = "settlement-fk-null-subject",
+                transactionId = null,
+                actorUserId = nullableOperation.actorUserId
+            )
+
+        database.transactionDao()
+            .insertSettlement(nullableSettlement)
+
+        database.openHelper.readableDatabase
+            .query(
+                """
+                SELECT transaction_id
+                FROM settlement_entries
+                WHERE id = 'settlement-fk-null'
+                """.trimIndent()
+            )
+            .use { cursor ->
+                assertTrue(
+                    "Settlement with NULL transaction_id must be persisted",
+                    cursor.moveToFirst()
+                )
+
+                assertTrue(
+                    "transaction_id must remain NULL",
+                    cursor.isNull(0)
+                )
+            }
+    }
 
     @Test
     fun testOperationDurableIdentityDeleteAndDuplicateAreDatabaseProtected() = runBlocking {

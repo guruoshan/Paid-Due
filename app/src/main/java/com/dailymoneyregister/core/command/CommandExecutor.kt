@@ -1,10 +1,13 @@
-﻿package com.dailymoneyregister.core.command
+package com.dailymoneyregister.core.command
 
 import androidx.room.withTransaction
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.model.enums.OperationStatus
 import kotlinx.coroutines.CancellationException
+
+class CommandRequiresReconciliationException(message: String) :
+    IllegalStateException(message)
 
 /**
  * Universal Command Execution Spine.
@@ -73,6 +76,12 @@ class CommandExecutor(
             )
         }
 
+        if (!persisted.matchesDurableIntent(command)) {
+            return CommandResult.Conflict(
+                "Conflict: Operation ID '$opId' has a different durable intent."
+            )
+        }
+
         when (persisted.status) {
 
             OperationStatus.SUCCEEDED -> {
@@ -116,6 +125,12 @@ class CommandExecutor(
                 if (current.requestFingerprint != command.requestFingerprint) {
                     return@withTransaction CommandResult.Conflict(
                         "Conflict: Operation ID '$opId' has a different request fingerprint."
+                    )
+                }
+
+                if (!current.matchesDurableIntent(command)) {
+                    return@withTransaction CommandResult.Conflict(
+                        "Conflict: Operation ID '$opId' has a different durable intent."
                     )
                 }
 
@@ -188,6 +203,73 @@ class CommandExecutor(
              */
             throw cancelled
 
+        } catch (reconciliation: CommandRequiresReconciliationException) {
+
+            /*
+             * A proven mismatch between durable intent and current financial
+             * evidence is not an ordinary execution failure. The operation
+             * must remain visible for explicit reconciliation and must never
+             * be silently retried against a different financial state.
+             */
+            val reconciliationRows = try {
+                OperationStateMachine.assertTransitionAllowed(
+                    OperationStatus.PENDING,
+                    OperationStatus.REQUIRES_RECONCILIATION
+                )
+
+                operationDao.markRequiresReconciliationIfPending(
+                    operationId = opId,
+                    requestFingerprint = command.requestFingerprint,
+                    reason = reconciliation.message ?: "Financial reconciliation required"
+                )
+            } catch (_: Throwable) {
+                0
+            }
+
+            if (reconciliationRows == 1) {
+                return CommandResult.Conflict(
+                    "Conflict: Operation ID '$opId' requires reconciliation: " +
+                        (reconciliation.message ?: "financial evidence changed")
+                )
+            }
+
+            val latest = operationDao.getOperationById(opId)
+
+            if (
+                latest != null &&
+                latest.requestFingerprint == command.requestFingerprint
+            ) {
+                when (latest.status) {
+                    OperationStatus.SUCCEEDED -> {
+                        return CommandResult.Success(
+                            data = replayResolver(latest),
+                            isIdempotentReplay = true
+                        )
+                    }
+
+                    OperationStatus.REQUIRES_RECONCILIATION -> {
+                        return CommandResult.Conflict(
+                            "Conflict: Operation ID '$opId' requires reconciliation."
+                        )
+                    }
+
+                    OperationStatus.FAILED -> {
+                        return CommandResult.Conflict(
+                            "Conflict: Operation ID '$opId' is already FAILED."
+                        )
+                    }
+
+                    OperationStatus.PENDING -> Unit
+                }
+            }
+
+            CommandResult.Error(
+                IllegalStateException(
+                    "Operation '$opId' could not enter reconciliation state.",
+                    reconciliation
+                )
+            )
+
         } catch (error: Throwable) {
 
             /*
@@ -253,6 +335,23 @@ class CommandExecutor(
 
             CommandResult.Error(error)
         }
+    }
+
+    private fun OperationEntity.matchesDurableIntent(
+        command: OperationCommand
+    ): Boolean {
+        return businessId == command.businessId &&
+            branchId == command.branchId &&
+            operationType == command.operationType &&
+            subjectType == command.subjectType &&
+            subjectId == command.subjectId &&
+            transactionId == command.transactionId &&
+            actorUserId == command.actorUserId &&
+            deviceId == command.deviceId &&
+            occurredAt == command.occurredAt &&
+            requestFingerprint == command.requestFingerprint &&
+            commandSchemaVersion == command.commandSchemaVersion &&
+            intentPayload == command.intentPayload
     }
 
     /**

@@ -377,7 +377,7 @@ class DatabaseEncryptionRealDataTest {
             /*
              * STEP 9:
              * Reopen the migrated database through Room using
-             * SQLCipher — this is the important compatibility proof.
+             * SQLCipher - this is the important compatibility proof.
              */
             roomPassphrase =
                 passphrase.copyOf()

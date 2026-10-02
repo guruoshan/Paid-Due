@@ -27,7 +27,7 @@ fun TaxDialog(
             if (draftState.taxRateBps > 0) {
                 TaxRateParser.bpsToInputString(draftState.taxRateBps)
             } else {
-                ""
+                "0"
             }
         )
     }

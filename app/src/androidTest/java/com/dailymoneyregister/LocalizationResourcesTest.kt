@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dailymoneyregister.core.ui.UiText
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.Locale
@@ -13,19 +14,34 @@ import java.util.Locale
 @RunWith(AndroidJUnit4::class)
 class LocalizationResourcesTest {
     @Test
-    fun untranslatedMessagesFallBackToEnglishInEveryPreparedLocale() {
+    fun localizedResourcesResolveInEveryPreparedLocale() {
         val base = ApplicationProvider.getApplicationContext<Context>()
         for (code in listOf("en", "ar", "hi", "bn", "ur")) {
             val context = base.createConfigurationContext(Configuration(base.resources.configuration).apply {
                 setLocale(Locale.forLanguageTag(code))
             })
-            assertEquals("Sale saved", context.getString(R.string.sale_saved))
-            assertEquals("Cashier 'Sam' created successfully",
-                UiText.Resource(R.string.cashier_created, listOf("Sam")).resolve(context))
-            assertEquals("Currency: OMR (3 decimals)",
-                context.getString(R.string.profile_currency, "OMR", "3"))
-            assertEquals("@sam • Language: English",
-                context.getString(R.string.cashier_language_summary, "sam", "English"))
+            val saleSaved = context.getString(R.string.sale_saved)
+            val cashierCreated =
+                UiText.Resource(R.string.cashier_created, listOf("Sam")).resolve(context)
+            val currency = context.getString(R.string.profile_currency, "OMR", "3")
+            val languageSummary =
+                context.getString(R.string.cashier_language_summary, "sam", "English")
+
+            if (code == "en") {
+                assertEquals("Sale saved", saleSaved)
+                assertEquals("Cashier 'Sam' created successfully", cashierCreated)
+                assertEquals("Currency: OMR (3 decimals)", currency)
+            } else {
+                assertTrue("sale_saved must resolve for $code", saleSaved.isNotBlank())
+                assertTrue("cashier_created must resolve for $code", cashierCreated.isNotBlank())
+                assertTrue("cashier_created must preserve the name for $code", cashierCreated.contains("Sam"))
+                assertTrue("profile_currency must preserve the currency for $code", currency.contains("OMR"))
+                assertTrue("profile_currency must preserve the precision for $code", currency.contains("3"))
+            }
+
+            assertTrue("cashier_language_summary must resolve for $code", languageSummary.isNotBlank())
+            assertTrue("cashier_language_summary must preserve the username for $code", languageSummary.contains("sam"))
+            assertTrue("cashier_language_summary must preserve the language for $code", languageSummary.contains("English"))
             assertEquals("Repository detail", UiText.Dynamic("Repository detail").resolve(context))
             assertEquals(if (code == "ar" || code == "ur") 1 else 0,
                 context.resources.configuration.layoutDirection)

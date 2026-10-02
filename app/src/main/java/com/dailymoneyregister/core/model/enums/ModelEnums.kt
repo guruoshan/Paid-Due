@@ -53,7 +53,9 @@ enum class PaymentCategory {
 enum class PaymentChannel {
     CASH_TENDER,
     MANUAL_QR,
-    SOFTPOS
+    SOFTPOS,
+    COUPON_WALLET,
+    CREDIT_ACCOUNT
 }
 
 enum class ConfirmationType {
@@ -67,6 +69,7 @@ enum class EntryPurpose {
     COUPON_PURCHASE_FUNDING,
     REFUND_OUTFLOW,
     FUNDING_CORRECTION,
+    PAYMENT_METHOD_RECLASSIFICATION,
     VOID_REVERSAL
 }
 

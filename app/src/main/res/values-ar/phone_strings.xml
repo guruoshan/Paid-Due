@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="global_phone_country">الدولة / رمز الاتصال</string>
+    <string name="global_phone_number">رقم الهاتف</string>
+    <string name="global_phone_invalid">أدخل رقم هاتف صالحًا</string>
+    <string name="global_phone_search">ابحث عن الدولة أو رمز الاتصال</string>
+    <string name="global_phone_no_results">لم يتم العثور على دول</string>
+</resources>
