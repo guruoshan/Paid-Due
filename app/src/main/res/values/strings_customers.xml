@@ -8,11 +8,6 @@
     <string name="customers_invoices_count">Invoices: %1$d</string>
     <string name="customers_last_invoice">Last invoice: %1$s</string>
     <string name="customers_no_invoices_yet">No invoices yet</string>
-    <string name="customers_history_title">Invoice history</string>
-    <string name="customers_history_empty">No invoices are linked to this customer yet. Invoices issued before customer linking was added do not appear here.</string>
-    <string name="customers_total_invoiced">Total invoiced: %1$s</string>
-    <string name="customers_invoice_paid">Paid</string>
-    <string name="customers_invoice_unpaid">Unpaid</string>
     <string name="customers_amount_unavailable">Amount unavailable</string>
     <string name="customers_error_generic">Could not load customers: %1$s</string>
     <string name="customers_error_no_access">You do not have permission to view customers.</string>

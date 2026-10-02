@@ -8,11 +8,6 @@
     <string name="customers_invoices_count">ইনভয়েস: %1$d</string>
     <string name="customers_last_invoice">সর্বশেষ ইনভয়েস: %1$s</string>
     <string name="customers_no_invoices_yet">এখনও কোনো ইনভয়েস নেই</string>
-    <string name="customers_history_title">ইনভয়েসের ইতিহাস</string>
-    <string name="customers_history_empty">এই গ্রাহকের সাথে এখনও কোনো ইনভয়েস যুক্ত নেই। গ্রাহক সংযোগের আগে ইস্যু করা ইনভয়েস এখানে দেখা যায় না।</string>
-    <string name="customers_total_invoiced">মোট ইনভয়েস: %1$s</string>
-    <string name="customers_invoice_paid">পরিশোধিত</string>
-    <string name="customers_invoice_unpaid">অপরিশোধিত</string>
     <string name="customers_amount_unavailable">পরিমাণ পাওয়া যায়নি</string>
     <string name="customers_error_generic">গ্রাহক লোড করা যায়নি: %1$s</string>
     <string name="customers_error_no_access">গ্রাহক দেখার অনুমতি আপনার নেই।</string>

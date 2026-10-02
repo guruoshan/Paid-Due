@@ -18,12 +18,7 @@
     <string name="business_name">व्यवसाय का नाम</string>
     <string name="branch_name">शाखा का नाम</string>
     <string name="branch_code">शाखा कोड (उदा. MAIN)</string>
-    <string name="country">देश</string>
-    <string name="currency">मुद्रा</string>
-    <string name="timezone">समय क्षेत्र</string>
-    <string name="default_tax_rate">डिफ़ॉल्ट कर दर (%)</string>
     <string name="admin_name">व्यवस्थापक का पूरा नाम</string>
-    <string name="admin_username">व्यवस्थापक यूज़रनेम</string>
     <string name="admin_password">व्यवस्थापक पासवर्ड</string>
     <string name="create_account">खाता बनाएं और सेटअप पूरा करें</string>
 
@@ -31,15 +26,9 @@
     <string name="login_title">डेली मनी रजिस्टर</string>
     <string name="admin_login">व्यवस्थापक लॉगिन</string>
     <string name="cashier_login">कैशियर पिन लॉगिन</string>
-    <string name="username">यूज़रनेम</string>
     <string name="password">पासवर्ड</string>
     <string name="enter_6_digit_pin">6-अंकों का कैशियर पिन दर्ज करें</string>
     <string name="login">लॉगिन</string>
-    <string name="switch_to_cashier">कैशियर लॉगिन पर जाएं</string>
-    <string name="switch_to_admin">व्यवस्थापक लॉगिन पर जाएं</string>
-    <string name="invalid_credentials">अमान्य यूज़रनेम या पासवर्ड</string>
-    <string name="invalid_pin">अमान्य 6-अंकीय पिन</string>
-    <string name="account_inactive">उपयोगकर्ता खाता निष्क्रिय है</string>
     <string name="locked_out_msg">बहुत सारे असफल प्रयास। %1$d सेकंड के लिए लॉक किया गया।</string>
 
     <!-- Hub Screen -->
@@ -55,9 +44,7 @@
     <string name="manage_cashiers">कैशियर प्रबंधन</string>
     <string name="create_cashier">नया कैशियर बनाएं</string>
     <string name="cashier_name">कैशियर का नाम</string>
-    <string name="cashier_username">यूज़रनेम</string>
     <string name="cashier_pin">6-अंकीय पिन</string>
-    <string name="cashier_language">पसंदीदा भाषा</string>
     <string name="save_cashier">कैशियर सुरक्षित करें</string>
     <string name="permissions">अनुमतियां</string>
     <string name="permission_credit_sale">उधार बिक्री बना सकते हैं</string>
@@ -72,27 +59,18 @@
 
     <!-- Register Screen -->
     <string name="note_optional">&#x092C;&#x093F;&#x0915;&#x094D;&#x0930;&#x0940; &#x0928;&#x094B;&#x091F; (&#x0935;&#x0948;&#x0915;&#x0932;&#x094D;&#x092A;&#x093F;&#x0915;)</string>
-    <string name="bill">बिल</string>
     <string name="tax">कर</string>
-    <string name="add_tax">+कर</string>
     <string name="ship_pack">शिप/पैक</string>
-    <string name="cash_sale">नकद बिक्री</string>
     <string name="online">ऑनलाइन</string>
     <string name="credit">उधार</string>
     <string name="coupon">कूपन</string>
     <string name="upcoming_payment_msg">%1$s भुगतान आगामी चरण में उपलब्ध होगा।</string>
 
     <!-- Success Panel -->
-    <string name="cash_sale_completed">नकद बिक्री पूर्ण हुई!</string>
-    <string name="ref_label">संदर्भ: %1$s</string>
-    <string name="total_received_cash">कुल प्राप्त राशि (नकद)</string>
-    <string name="receipt">रसीद</string>
     <string name="invoice">चालान (इनवॉइस)</string>
     <string name="whatsapp">व्हाट्सएप</string>
-    <string name="new_sale">नई बिक्री</string>
 
     <!-- Recent Transactions Panel -->
-    <string name="todays_sales">आज की बिक्री (%1$d)</string>
     <string name="recent_activity_count">आज की गतिविधि (%1$d)</string>
     <string name="today_total">कुल: %1$s</string>
     <string name="recent_activity_refund">धनवापसी</string>
@@ -122,19 +100,13 @@
     <string name="unit_price">इकाई मूल्य</string>
     <string name="quantity">मात्रा</string>
     <string name="item_desc_optional">विवरण (वैकल्पिक)</string>
-    <string name="item_packing_optional">पैकिंग शुल्क (वैकल्पिक)</string>
-    <string name="item_shipping_optional">शिपिंग शुल्क (वैकल्पिक)</string>
     <string name="items_count">%1$d वस्तुएं</string>
 
     <!-- Tax & Shipping Dialogs -->
-    <string name="tax_config">कर (वैकल्पिक)</string>
-    <string name="enable_tax">कर सक्षम करें</string>
     <string name="tax_rate_percent">कर दर (%)</string>
-    <string name="apply_tax">कर लागू करें</string>
     <string name="shipping_packing_charges">शिपिंग और पैकिंग</string>
     <string name="tx_shipping_charge">लेनदेन शिपिंग शुल्क</string>
     <string name="tx_packing_charge">लेनदेन पैकिंग शुल्क</string>
-    <string name="save_charges">शुल्क सुरक्षित करें</string>
     <string name="startup_recovery_required">&#x0930;&#x091C;&#x093F;&#x0938;&#x094D;&#x091F;&#x0930; &#x0916;&#x094B;&#x0932;&#x0928;&#x0947; &#x0938;&#x0947; &#x092A;&#x0939;&#x0932;&#x0947; &#x0935;&#x093F;&#x0924;&#x094D;&#x0924;&#x0940;&#x092F; &#x092A;&#x0941;&#x0928;&#x0930;&#x094D;&#x092A;&#x094D;&#x0930;&#x093E;&#x092A;&#x094D;&#x0924;&#x093F; &#x092A;&#x0942;&#x0930;&#x0940; &#x0939;&#x094B;&#x0928;&#x0940; &#x091A;&#x093E;&#x0939;&#x093F;&#x090F;&#x0964;</string>
     <string name="startup_recovery_failed">&#x0932;&#x0902;&#x092C;&#x093F;&#x0924; &#x0935;&#x093F;&#x0924;&#x094D;&#x0924;&#x0940;&#x092F; &#x0932;&#x0947;&#x0928;&#x0926;&#x0947;&#x0928; &#x0938;&#x0941;&#x0930;&#x0915;&#x094D;&#x0937;&#x093F;&#x0924; &#x0930;&#x0942;&#x092A; &#x0938;&#x0947; &#x092A;&#x0941;&#x0928;&#x0930;&#x094D;&#x092A;&#x094D;&#x0930;&#x093E;&#x092A;&#x094D;&#x0924; &#x0928;&#x0939;&#x0940;&#x0902; &#x0915;&#x093F;&#x090F; &#x091C;&#x093E; &#x0938;&#x0915;&#x0947;&#x0964;</string>
     <string name="retry">&#x092A;&#x0941;&#x0928;&#x0903; &#x092A;&#x094D;&#x0930;&#x092F;&#x093E;&#x0938; &#x0915;&#x0930;&#x0947;&#x0902;</string>
@@ -211,15 +183,6 @@
     <string name="tax_for_whole_sale">यह कर दर पूरी बिक्री पर लागू होती है (केवल आइटम कुल पर, शिपिंग या पैकिंग पर नहीं)।</string>
     <!-- Transaction Details -->
     <string name="tx_details_title">लेन-देन विवरण</string>
-    <string name="tx_details_transaction_id">लेन-देन आईडी</string>
-    <string name="tx_details_original_date">मूल तारीख</string>
-    <string name="tx_details_original_amount">मूल राशि</string>
-    <string name="tx_details_current_amount">वर्तमान बिक्री राशि</string>
-    <string name="tx_details_refunded_amount">वापस की गई राशि</string>
-    <string name="tx_details_effective_amount">प्रभावी राशि</string>
-    <string name="tx_details_status">लेन-देन जीवनचक्र स्थिति</string>
-    <string name="tx_details_original_payment">मूल भुगतान विधि</string>
-    <string name="tx_details_current_payment">वर्तमान भुगतान विधि</string>
     <string name="tx_details_active">सक्रिय</string>
 
     <string name="tx_details_items">आइटम</string>
@@ -230,15 +193,7 @@
     <string name="tx_details_item_packing">पैकिंग: %1$s</string>
     <string name="tx_details_item_shipping">शिपिंग: %1$s</string>
 
-    <string name="tx_details_credit_repayments">उधार भुगतान</string>
-    <string name="tx_details_credit_applied">इस बिक्री पर लागू: %1$s</string>
-    <string name="tx_details_payment_method">भुगतान विधि: %1$s</string>
-    <string name="tx_details_actor_id">कैशियर आईडी: %1$s</string>
-    <string name="tx_details_operation_id">ऑपरेशन आईडी: %1$s</string>
-    <string name="tx_details_repayment_id">भुगतान आईडी: %1$s</string>
 
-    <string name="tx_details_activity">लेन-देन गतिविधि</string>
-    <string name="tx_details_activity_operation">ऑपरेशन आईडी: %1$s</string>
 
     <string name="tx_details_correct_amount">राशि सुधारें</string>
     <string name="tx_details_refund">रिफंड</string>
@@ -256,24 +211,11 @@
     <string name="tx_channel_coupon_wallet">कूपन वॉलेट</string>
     <string name="tx_channel_credit_account">उधार खाता</string>
 
-    <string name="tx_activity_sale">बिक्री</string>
-    <string name="tx_activity_coupon_sell">कूपन बिक्री</string>
-    <string name="tx_activity_coupon_top_up">कूपन टॉप अप</string>
-    <string name="tx_activity_refund">रिफंड</string>
-    <string name="tx_activity_refund_coupon">कूपन में रिफंड</string>
-    <string name="tx_activity_void">रद्द</string>
-    <string name="tx_activity_correction">राशि सुधार</string>
-    <string name="tx_activity_payment_change">भुगतान विधि बदली गई</string>
     <!-- Transaction Details unified lifetime timeline -->
     <string name="tx_details_not_available">उपलब्ध नहीं</string>
     <string name="tx_details_timezone_unavailable">लेन-देन विवरण प्रदर्शित नहीं किया जा सकता क्योंकि सक्रिय शाखा का समय क्षेत्र उपलब्ध नहीं है या अमान्य है।</string>
-    <string name="tx_details_lifetime_timeline">पूर्ण लेन-देन समयरेखा</string>
-    <string name="tx_details_original_transaction">मूल लेन-देन</string>
-    <string name="tx_details_credit_repayment_event">उधार भुगतान लागू</string>
     <string name="tx_details_amount_correction_event">राशि सुधार</string>
     <string name="tx_details_payment_change_event">भुगतान विधि परिवर्तन</string>
-    <string name="tx_details_refund_event">रिफंड घटना</string>
-    <string name="tx_details_void_event">रद्द घटना</string>
     <string name="tx_details_settlement_event">सेटलमेंट मूवमेंट</string>
     <string name="tx_details_before">पहले: %1$s</string>
     <string name="tx_details_after">बाद में: %1$s</string>

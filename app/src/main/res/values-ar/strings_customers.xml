@@ -8,11 +8,6 @@
     <string name="customers_invoices_count">الفواتير: %1$d</string>
     <string name="customers_last_invoice">آخر فاتورة: %1$s</string>
     <string name="customers_no_invoices_yet">لا توجد فواتير بعد</string>
-    <string name="customers_history_title">سجل الفواتير</string>
-    <string name="customers_history_empty">لا توجد فواتير مرتبطة بهذا العميل بعد. الفواتير الصادرة قبل ربط العملاء لا تظهر هنا.</string>
-    <string name="customers_total_invoiced">إجمالي الفواتير: %1$s</string>
-    <string name="customers_invoice_paid">مدفوعة</string>
-    <string name="customers_invoice_unpaid">غير مدفوعة</string>
     <string name="customers_amount_unavailable">المبلغ غير متاح</string>
     <string name="customers_error_generic">تعذر تحميل العملاء: %1$s</string>
     <string name="customers_error_no_access">ليس لديك صلاحية عرض العملاء.</string>

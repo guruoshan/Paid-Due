@@ -8,11 +8,6 @@
     <string name="customers_invoices_count">इनवॉइस: %1$d</string>
     <string name="customers_last_invoice">पिछला इनवॉइस: %1$s</string>
     <string name="customers_no_invoices_yet">अभी कोई इनवॉइस नहीं</string>
-    <string name="customers_history_title">इनवॉइस इतिहास</string>
-    <string name="customers_history_empty">इस ग्राहक से अभी कोई इनवॉइस जुड़ा नहीं है। ग्राहक लिंक होने से पहले जारी इनवॉइस यहाँ नहीं दिखते।</string>
-    <string name="customers_total_invoiced">कुल इनवॉइस राशि: %1$s</string>
-    <string name="customers_invoice_paid">भुगतान हो गया</string>
-    <string name="customers_invoice_unpaid">भुगतान बाकी</string>
     <string name="customers_amount_unavailable">राशि उपलब्ध नहीं</string>
     <string name="customers_error_generic">ग्राहक लोड नहीं हो सके: %1$s</string>
     <string name="customers_error_no_access">आपको ग्राहक देखने की अनुमति नहीं है।</string>

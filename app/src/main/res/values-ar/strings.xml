@@ -18,12 +18,7 @@
     <string name="business_name">اسم المنشأة</string>
     <string name="branch_name">اسم الفرع</string>
     <string name="branch_code">رمز الفرع (مثال: MAIN)</string>
-    <string name="country">الدولة</string>
-    <string name="currency">العملة</string>
-    <string name="timezone">المنطقة الزمنية</string>
-    <string name="default_tax_rate">نسبة الضريبة الافتراضية (%)</string>
     <string name="admin_name">الاسم الكامل للمشرف</string>
-    <string name="admin_username">اسم مستخدم المشرف</string>
     <string name="admin_password">كلمة مرور المشرف</string>
     <string name="create_account">إنشاء الحساب وإنهاء الإعداد</string>
 
@@ -31,15 +26,9 @@
     <string name="login_title">سجل الأموال اليومي</string>
     <string name="admin_login">دخول المشرف</string>
     <string name="cashier_login">دخول أمين الصندوق برمز PIN</string>
-    <string name="username">اسم المستخدم</string>
     <string name="password">كلمة المرور</string>
     <string name="enter_6_digit_pin">أدخل رمز PIN المكون من 6 أرقام</string>
     <string name="login">تسجيل الدخول</string>
-    <string name="switch_to_cashier">التبديل إلى دخول أمين الصندوق</string>
-    <string name="switch_to_admin">التبديل إلى دخول المشرف</string>
-    <string name="invalid_credentials">اسم المستخدم أو كلمة المرور غير صحيحة</string>
-    <string name="invalid_pin">رمز PIN غير صحيح</string>
-    <string name="account_inactive">حساب المستخدم غير نشط</string>
     <string name="locked_out_msg">محاولات خاطئة كثيرة. تم قفل الحساب لمدة %1$d ثانية.</string>
 
     <!-- Hub Screen -->
@@ -55,9 +44,7 @@
     <string name="manage_cashiers">إدارة أمناء الصناديق</string>
     <string name="create_cashier">إنشاء أمين صندوق جديد</string>
     <string name="cashier_name">اسم أمين الصندوق</string>
-    <string name="cashier_username">اسم المستخدم</string>
     <string name="cashier_pin">رمز PIN (6 أرقام)</string>
-    <string name="cashier_language">اللغة المفضلة</string>
     <string name="save_cashier">حفظ أمين الصندوق</string>
     <string name="permissions">الصلاحيات</string>
     <string name="permission_credit_sale">إمكانية إنشاء مبيعات آجلة</string>
@@ -72,27 +59,18 @@
 
     <!-- Register Screen -->
     <string name="note_optional">&#x0645;&#x0644;&#x0627;&#x062D;&#x0638;&#x0629; &#x0627;&#x0644;&#x0628;&#x064A;&#x0639; (&#x0627;&#x062E;&#x062A;&#x064A;&#x0627;&#x0631;&#x064A;)</string>
-    <string name="bill">الفاتورة</string>
     <string name="tax">الضريبة</string>
-    <string name="add_tax">+الضريبة</string>
     <string name="ship_pack">شحن/تغليف</string>
-    <string name="cash_sale">بيع نقدي</string>
     <string name="online">إلكتروني</string>
     <string name="credit">آجل</string>
     <string name="coupon">قسيمة</string>
     <string name="upcoming_payment_msg">دفع %1$s سيكون متاحًا في المرحلة القادمة.</string>
 
     <!-- Success Panel -->
-    <string name="cash_sale_completed">تمت عملية البيع النقدي بنجاح!</string>
-    <string name="ref_label">المرجع: %1$s</string>
-    <string name="total_received_cash">المبلغ المستلم (نقدًا)</string>
-    <string name="receipt">الإيصال</string>
     <string name="invoice">الفاتورة</string>
     <string name="whatsapp">واتساب</string>
-    <string name="new_sale">عملية جديدة</string>
 
     <!-- Recent Transactions Panel -->
-    <string name="todays_sales">مبيعات اليوم (%1$d)</string>
     <string name="recent_activity_count">نشاط اليوم (%1$d)</string>
     <string name="today_total">الإجمالي: %1$s</string>
     <string name="recent_activity_refund">استرداد</string>
@@ -122,19 +100,13 @@
     <string name="unit_price">سعر الوحدة</string>
     <string name="quantity">الكمية</string>
     <string name="item_desc_optional">الوصف (اختياري)</string>
-    <string name="item_packing_optional">رسوم تغليف الصنف (اختياري)</string>
-    <string name="item_shipping_optional">رسوم شحن الصنف (اختياري)</string>
     <string name="items_count">%1$d أصناف</string>
 
     <!-- Tax & Shipping Dialogs -->
-    <string name="tax_config">الضريبة (اختياري)</string>
-    <string name="enable_tax">تفعيل الضريبة</string>
     <string name="tax_rate_percent">نسبة الضريبة (%)</string>
-    <string name="apply_tax">تطبيق الضريبة</string>
     <string name="shipping_packing_charges">الشحن والتغليف</string>
     <string name="tx_shipping_charge">رسوم شحن العملية</string>
     <string name="tx_packing_charge">رسوم تغليف العملية</string>
-    <string name="save_charges">حفظ الرسوم</string>
     <string name="startup_recovery_required">يجب إكمال استعادة البيانات المالية قبل فتح السجل.</string>
     <string name="startup_recovery_failed">تعذر استعادة العمليات المالية المعلقة بأمان.</string>
     <string name="retry">إعادة المحاولة</string>
@@ -211,15 +183,6 @@
     <string name="tax_for_whole_sale">ينطبق معدل الضريبة هذا على كامل عملية البيع (إجمالي الأصناف فقط، وليس الشحن أو التغليف).</string>
     <!-- Transaction Details -->
     <string name="tx_details_title">تفاصيل المعاملة</string>
-    <string name="tx_details_transaction_id">معرّف المعاملة</string>
-    <string name="tx_details_original_date">التاريخ الأصلي</string>
-    <string name="tx_details_original_amount">المبلغ الأصلي</string>
-    <string name="tx_details_current_amount">مبلغ البيع الحالي</string>
-    <string name="tx_details_refunded_amount">المبلغ المسترد</string>
-    <string name="tx_details_effective_amount">المبلغ الفعلي</string>
-    <string name="tx_details_status">حالة دورة المعاملة</string>
-    <string name="tx_details_original_payment">طريقة الدفع الأصلية</string>
-    <string name="tx_details_current_payment">طريقة الدفع الحالية</string>
     <string name="tx_details_active">نشطة</string>
 
     <string name="tx_details_items">الأصناف</string>
@@ -230,15 +193,7 @@
     <string name="tx_details_item_packing">التغليف: %1$s</string>
     <string name="tx_details_item_shipping">الشحن: %1$s</string>
 
-    <string name="tx_details_credit_repayments">دفعات الائتمان</string>
-    <string name="tx_details_credit_applied">المطبق على هذا البيع: %1$s</string>
-    <string name="tx_details_payment_method">طريقة الدفع: %1$s</string>
-    <string name="tx_details_actor_id">معرّف الكاشير: %1$s</string>
-    <string name="tx_details_operation_id">معرّف العملية: %1$s</string>
-    <string name="tx_details_repayment_id">معرّف السداد: %1$s</string>
 
-    <string name="tx_details_activity">نشاط المعاملة</string>
-    <string name="tx_details_activity_operation">معرّف العملية: %1$s</string>
 
     <string name="tx_details_correct_amount">تصحيح المبلغ</string>
     <string name="tx_details_refund">استرداد</string>
@@ -256,24 +211,11 @@
     <string name="tx_channel_coupon_wallet">محفظة القسيمة</string>
     <string name="tx_channel_credit_account">حساب آجل</string>
 
-    <string name="tx_activity_sale">بيع</string>
-    <string name="tx_activity_coupon_sell">بيع قسيمة</string>
-    <string name="tx_activity_coupon_top_up">شحن القسيمة</string>
-    <string name="tx_activity_refund">استرداد</string>
-    <string name="tx_activity_refund_coupon">استرداد إلى القسيمة</string>
-    <string name="tx_activity_void">إلغاء</string>
-    <string name="tx_activity_correction">تصحيح المبلغ</string>
-    <string name="tx_activity_payment_change">تم تغيير طريقة الدفع</string>
     <!-- Transaction Details unified lifetime timeline -->
     <string name="tx_details_not_available">غير متاح</string>
     <string name="tx_details_timezone_unavailable">لا يمكن عرض تفاصيل المعاملة لأن المنطقة الزمنية للفرع النشط غير متاحة أو غير صالحة.</string>
-    <string name="tx_details_lifetime_timeline">السجل الكامل للمعاملة</string>
-    <string name="tx_details_original_transaction">المعاملة الأصلية</string>
-    <string name="tx_details_credit_repayment_event">سداد ائتمان مطبق</string>
     <string name="tx_details_amount_correction_event">تصحيح المبلغ</string>
     <string name="tx_details_payment_change_event">تغيير طريقة الدفع</string>
-    <string name="tx_details_refund_event">حدث الاسترداد</string>
-    <string name="tx_details_void_event">حدث الإلغاء</string>
     <string name="tx_details_settlement_event">حركة التسوية</string>
     <string name="tx_details_before">قبل: %1$s</string>
     <string name="tx_details_after">بعد: %1$s</string>

@@ -18,12 +18,7 @@
     <string name="business_name">ব্যবসার নাম</string>
     <string name="branch_name">শাখার নাম</string>
     <string name="branch_code">শাখা কোড (যেমন MAIN)</string>
-    <string name="country">দেশ</string>
-    <string name="currency">মুদ্রা</string>
-    <string name="timezone">টাইমজোন</string>
-    <string name="default_tax_rate">ডিফল্ট ট্যাক্স রেট (%)</string>
     <string name="admin_name">অ্যাডমিনের পুরো নাম</string>
-    <string name="admin_username">অ্যাডমিন ইউজারনেম</string>
     <string name="admin_password">অ্যাডমিন পাসওয়ার্ড</string>
     <string name="create_account">অ্যাকাউন্ট তৈরি করুন ও শেষ করুন</string>
 
@@ -31,15 +26,9 @@
     <string name="login_title">ডেইলি মানি রেজিস্টার</string>
     <string name="admin_login">অ্যাডমিন লগইন</string>
     <string name="cashier_login">ক্যাশিয়ার পিন লগইন</string>
-    <string name="username">ইউজারনেম</string>
     <string name="password">পাসওয়ার্ড</string>
     <string name="enter_6_digit_pin">৬-সংখ্যার ক্যাশিয়ার পিন লিখুন</string>
     <string name="login">লগইন</string>
-    <string name="switch_to_cashier">ক্যাশিয়ার লগইনে যান</string>
-    <string name="switch_to_admin">অ্যাডমিন লগইনে যান</string>
-    <string name="invalid_credentials">ভুল ইউজারনেম বা পাসওয়ার্ড</string>
-    <string name="invalid_pin">ভুল ৬-সংখ্যার পিন</string>
-    <string name="account_inactive">ব্যবহারকারীর অ্যাকাউন্ট নিষ্ক্রিয় রয়েছে</string>
     <string name="locked_out_msg">অতিরিক্ত ব্যর্থ প্রচেষ্টা। %1$d সেকেন্ডের জন্য লক করা হয়েছে।</string>
 
     <!-- Hub Screen -->
@@ -55,9 +44,7 @@
     <string name="manage_cashiers">ক্যাশিয়ার পরিচালনা</string>
     <string name="create_cashier">নতুন ক্যাশিয়ার যোগ করুন</string>
     <string name="cashier_name">ক্যাশিয়ারের নাম</string>
-    <string name="cashier_username">ইউজারনেম</string>
     <string name="cashier_pin">৬-সংখ্যার পিন</string>
-    <string name="cashier_language">পছন্দের ভাষা</string>
     <string name="save_cashier">ক্যাশিয়ার সংরক্ষণ করুন</string>
     <string name="permissions">অনুমতিসমূহ</string>
     <string name="permission_credit_sale">বাকিতে বিক্রয় করতে পারবেন</string>
@@ -72,27 +59,18 @@
 
     <!-- Register Screen -->
     <string name="note_optional">&#x09AC;&#x09BF;&#x0995;&#x09CD;&#x09B0;&#x09AF;&#x09BC; &#x09A8;&#x09CB;&#x099F; (&#x0990;&#x099A;&#x09CD;&#x099B;&#x09BF;&#x0995;)</string>
-    <string name="bill">বিল</string>
     <string name="tax">ট্যাক্স</string>
-    <string name="add_tax">+ট্যাক্স</string>
     <string name="ship_pack">শিপ/প্যাক</string>
-    <string name="cash_sale">নগদ বিক্রয়</string>
     <string name="online">অনলাইন</string>
     <string name="credit">বাকি</string>
     <string name="coupon">কুপন</string>
     <string name="upcoming_payment_msg">%1$s পেমেন্ট পরবর্তী ধাপে উপলব্ধ হবে।</string>
 
     <!-- Success Panel -->
-    <string name="cash_sale_completed">নগদ বিক্রয় সফলভাবে সম্পন্ন হয়েছে!</string>
-    <string name="ref_label">রেফারেন্স: %1$s</string>
-    <string name="total_received_cash">মোট প্রাপ্ত নগদ টাকা</string>
-    <string name="receipt">রসিদ</string>
     <string name="invoice">চালান (ইনভয়েস)</string>
     <string name="whatsapp">হোয়াটসঅ্যাপ</string>
-    <string name="new_sale">নতুন বিক্রয়</string>
 
     <!-- Recent Transactions Panel -->
-    <string name="todays_sales">আজকের বিক্রয় (%1$d)</string>
     <string name="recent_activity_count">আজকের কার্যক্রম (%1$d)</string>
     <string name="today_total">মোট: %1$s</string>
     <string name="recent_activity_refund">ফেরত</string>
@@ -122,19 +100,13 @@
     <string name="unit_price">একক মূল্য</string>
     <string name="quantity">পরিমাণ</string>
     <string name="item_desc_optional">বিবরণ (ঐচ্ছিক)</string>
-    <string name="item_packing_optional">প্যাকিং চার্জ (ঐচ্ছিক)</string>
-    <string name="item_shipping_optional">শিপিং চার্জ (ঐচ্ছিক)</string>
     <string name="items_count">%1$d আইটেম</string>
 
     <!-- Tax & Shipping Dialogs -->
-    <string name="tax_config">ট্যাক্স (ঐচ্ছিক)</string>
-    <string name="enable_tax">ট্যাক্স সক্রিয় করুন</string>
     <string name="tax_rate_percent">ট্যাক্স হার (%)</string>
-    <string name="apply_tax">ট্যাক্স প্রয়োগ করুন</string>
     <string name="shipping_packing_charges">শিপিং এবং প্যাকিং</string>
     <string name="tx_shipping_charge">লেনদেন শিপিং চার্জ</string>
     <string name="tx_packing_charge">লেনদেন প্যাকিং চার্জ</string>
-    <string name="save_charges">চার্জ সংরক্ষণ করুন</string>
     <string name="startup_recovery_required">&#x09B0;&#x09C7;&#x099C;&#x09BF;&#x09B8;&#x09CD;&#x099F;&#x09BE;&#x09B0; &#x0996;&#x09CB;&#x09B2;&#x09BE;&#x09B0; &#x0986;&#x0997;&#x09C7; &#x0986;&#x09B0;&#x09CD;&#x09A5;&#x09BF;&#x0995; &#x09AA;&#x09C1;&#x09A8;&#x09B0;&#x09C1;&#x09A6;&#x09CD;&#x09A7;&#x09BE;&#x09B0; &#x09B8;&#x09AE;&#x09CD;&#x09AA;&#x09C2;&#x09B0;&#x09CD;&#x09A3; &#x09B9;&#x09A4;&#x09C7; &#x09B9;&#x09AC;&#x09C7;&#x0964;</string>
     <string name="startup_recovery_failed">&#x0985;&#x09AA;&#x09C7;&#x0995;&#x09CD;&#x09B7;&#x09AE;&#x09BE;&#x09A3; &#x0986;&#x09B0;&#x09CD;&#x09A5;&#x09BF;&#x0995; &#x0995;&#x09BE;&#x09B0;&#x09CD;&#x09AF;&#x0995;&#x09CD;&#x09B0;&#x09AE; &#x09A8;&#x09BF;&#x09B0;&#x09BE;&#x09AA;&#x09A6;&#x09C7; &#x09AA;&#x09C1;&#x09A8;&#x09B0;&#x09C1;&#x09A6;&#x09CD;&#x09A7;&#x09BE;&#x09B0; &#x0995;&#x09B0;&#x09BE; &#x09AF;&#x09BE;&#x09AF;&#x09BC;&#x09A8;&#x09BF;&#x0964;</string>
     <string name="retry">&#x0986;&#x09AC;&#x09BE;&#x09B0; &#x099A;&#x09C7;&#x09B7;&#x09CD;&#x099F;&#x09BE; &#x0995;&#x09B0;&#x09C1;&#x09A8;</string>
@@ -211,15 +183,6 @@
     <string name="tax_for_whole_sale">এই কর হার পুরো বিক্রয়ের উপর প্রযোজ্য (শুধু আইটেমের মোট, শিপিং বা প্যাকিং নয়)।</string>
     <!-- Transaction Details -->
     <string name="tx_details_title">লেনদেনের বিবরণ</string>
-    <string name="tx_details_transaction_id">লেনদেন আইডি</string>
-    <string name="tx_details_original_date">মূল তারিখ</string>
-    <string name="tx_details_original_amount">মূল পরিমাণ</string>
-    <string name="tx_details_current_amount">বর্তমান বিক্রয় পরিমাণ</string>
-    <string name="tx_details_refunded_amount">ফেরত দেওয়া পরিমাণ</string>
-    <string name="tx_details_effective_amount">কার্যকর পরিমাণ</string>
-    <string name="tx_details_status">লেনদেন জীবনচক্রের অবস্থা</string>
-    <string name="tx_details_original_payment">মূল পেমেন্ট পদ্ধতি</string>
-    <string name="tx_details_current_payment">বর্তমান পেমেন্ট পদ্ধতি</string>
     <string name="tx_details_active">সক্রিয়</string>
 
     <string name="tx_details_items">আইটেম</string>
@@ -230,15 +193,7 @@
     <string name="tx_details_item_packing">প্যাকিং: %1$s</string>
     <string name="tx_details_item_shipping">শিপিং: %1$s</string>
 
-    <string name="tx_details_credit_repayments">বাকি পরিশোধ</string>
-    <string name="tx_details_credit_applied">এই বিক্রয়ে প্রয়োগ: %1$s</string>
-    <string name="tx_details_payment_method">পেমেন্ট পদ্ধতি: %1$s</string>
-    <string name="tx_details_actor_id">ক্যাশিয়ার আইডি: %1$s</string>
-    <string name="tx_details_operation_id">অপারেশন আইডি: %1$s</string>
-    <string name="tx_details_repayment_id">পরিশোধ আইডি: %1$s</string>
 
-    <string name="tx_details_activity">লেনদেন কার্যক্রম</string>
-    <string name="tx_details_activity_operation">অপারেশন আইডি: %1$s</string>
 
     <string name="tx_details_correct_amount">পরিমাণ সংশোধন</string>
     <string name="tx_details_refund">ফেরত</string>
@@ -256,24 +211,11 @@
     <string name="tx_channel_coupon_wallet">কুপন ওয়ালেট</string>
     <string name="tx_channel_credit_account">বাকি অ্যাকাউন্ট</string>
 
-    <string name="tx_activity_sale">বিক্রয়</string>
-    <string name="tx_activity_coupon_sell">কুপন বিক্রয়</string>
-    <string name="tx_activity_coupon_top_up">কুপন টপ আপ</string>
-    <string name="tx_activity_refund">ফেরত</string>
-    <string name="tx_activity_refund_coupon">কুপনে ফেরত</string>
-    <string name="tx_activity_void">বাতিল</string>
-    <string name="tx_activity_correction">পরিমাণ সংশোধন</string>
-    <string name="tx_activity_payment_change">পেমেন্ট পদ্ধতি পরিবর্তিত হয়েছে</string>
     <!-- Transaction Details unified lifetime timeline -->
     <string name="tx_details_not_available">উপলভ্য নয়</string>
     <string name="tx_details_timezone_unavailable">সক্রিয় শাখার টাইম জোন অনুপলভ্য বা অবৈধ হওয়ায় লেনদেনের বিবরণ দেখানো যাচ্ছে না।</string>
-    <string name="tx_details_lifetime_timeline">সম্পূর্ণ লেনদেন টাইমলাইন</string>
-    <string name="tx_details_original_transaction">মূল লেনদেন</string>
-    <string name="tx_details_credit_repayment_event">বাকি পরিশোধ প্রয়োগ</string>
     <string name="tx_details_amount_correction_event">পরিমাণ সংশোধন</string>
     <string name="tx_details_payment_change_event">পেমেন্ট পদ্ধতি পরিবর্তন</string>
-    <string name="tx_details_refund_event">ফেরত ইভেন্ট</string>
-    <string name="tx_details_void_event">বাতিল ইভেন্ট</string>
     <string name="tx_details_settlement_event">সেটেলমেন্ট মুভমেন্ট</string>
     <string name="tx_details_before">আগে: %1$s</string>
     <string name="tx_details_after">পরে: %1$s</string>

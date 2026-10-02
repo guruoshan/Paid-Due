@@ -18,12 +18,7 @@
     <string name="business_name">کاروبار کا نام</string>
     <string name="branch_name">برانچ کا نام</string>
     <string name="branch_code">برانچ کوڈ (مثال: MAIN)</string>
-    <string name="country">ملک</string>
-    <string name="currency">کرنسی</string>
-    <string name="timezone">ٹائم زون</string>
-    <string name="default_tax_rate">پہلے سے طے شدہ ٹیکس کی شرح (%)</string>
     <string name="admin_name">ایڈمن کا مکمل نام</string>
-    <string name="admin_username">ایڈمن صارف نام</string>
     <string name="admin_password">ایڈمن پاس ورڈ</string>
     <string name="create_account">اکاؤنٹ بنائیں اور سیٹ اپ مکمل کریں</string>
 
@@ -31,15 +26,9 @@
     <string name="login_title">ڈیلی منی رجسٹر</string>
     <string name="admin_login">ایڈمن لاگ ان</string>
     <string name="cashier_login">کیشیئر پن لاگ ان</string>
-    <string name="username">صارف نام</string>
     <string name="password">پاس ورڈ</string>
     <string name="enter_6_digit_pin">6 ہندسوں کا کیشیئر پن درج کریں</string>
     <string name="login">لاگ ان</string>
-    <string name="switch_to_cashier">کیشیئر لاگ ان پر جائیں</string>
-    <string name="switch_to_admin">ایڈمن لاگ ان پر جائیں</string>
-    <string name="invalid_credentials">غلط صارف نام یا پاس ورڈ</string>
-    <string name="invalid_pin">غلط 6 ہندسوں کا پن</string>
-    <string name="account_inactive">صارف کا اکاؤنٹ غیر فعال ہے</string>
     <string name="locked_out_msg">بہت سی ناکام کوششیں۔ %1$d سیکنڈ کے لیے لاک کر دیا گیا ہے۔</string>
 
     <!-- Hub Screen -->
@@ -55,9 +44,7 @@
     <string name="manage_cashiers">کیشیئرز کا انتظام</string>
     <string name="create_cashier">نیا کیشیئر بنائیں</string>
     <string name="cashier_name">کیشیئر کا نام</string>
-    <string name="cashier_username">صارف نام</string>
     <string name="cashier_pin">6 ہندسوں کا پن</string>
-    <string name="cashier_language">پسندیدہ زبان</string>
     <string name="save_cashier">کیشیئر محفوظ کریں</string>
     <string name="permissions">اجازتیں</string>
     <string name="permission_credit_sale">ادھار فروخت کر سکتے ہیں</string>
@@ -72,27 +59,18 @@
 
     <!-- Register Screen -->
     <string name="note_optional">&#x0641;&#x0631;&#x0648;&#x062E;&#x062A; &#x06A9;&#x0627; &#x0646;&#x0648;&#x0679; (&#x0627;&#x062E;&#x062A;&#x06CC;&#x0627;&#x0631;&#x06CC;)</string>
-    <string name="bill">بل</string>
     <string name="tax">ٹیکس</string>
-    <string name="add_tax">+ٹیکس</string>
     <string name="ship_pack">شپنگ/پیکنگ</string>
-    <string name="cash_sale">نقد فروخت</string>
     <string name="online">آن لائن</string>
     <string name="credit">ادھار</string>
     <string name="coupon">کوپن</string>
     <string name="upcoming_payment_msg">%1$s ادائیگی آئندہ مرحلے میں دستیاب ہوگی۔</string>
 
     <!-- Success Panel -->
-    <string name="cash_sale_completed">نقد فروخت مکمل ہو گئی!</string>
-    <string name="ref_label">حوالہ: %1$s</string>
-    <string name="total_received_cash">کل موصولہ رقم (نقد)</string>
-    <string name="receipt">رسید</string>
     <string name="invoice">انوائس (بل)</string>
     <string name="whatsapp">واٹس ایپ</string>
-    <string name="new_sale">نئی فروخت</string>
 
     <!-- Recent Transactions Panel -->
-    <string name="todays_sales">آج کی فروخت (%1$d)</string>
     <string name="recent_activity_count">آج کی سرگرمی (%1$d)</string>
     <string name="today_total">کل: %1$s</string>
     <string name="recent_activity_refund">رقم واپسی</string>
@@ -122,19 +100,13 @@
     <string name="unit_price">یونٹ قیمت</string>
     <string name="quantity">مقدار</string>
     <string name="item_desc_optional">تفصیل (اختیاری)</string>
-    <string name="item_packing_optional">پیکنگ چارج (اختیاری)</string>
-    <string name="item_shipping_optional">شپنگ چارج (اختیاری)</string>
     <string name="items_count">%1$d آئٹمز</string>
 
     <!-- Tax & Shipping Dialogs -->
-    <string name="tax_config">ٹیکس (اختیاری)</string>
-    <string name="enable_tax">ٹیکس فعال کریں</string>
     <string name="tax_rate_percent">ٹیکس کی شرح (%)</string>
-    <string name="apply_tax">ٹیکس لاگو کریں</string>
     <string name="shipping_packing_charges">شپنگ اور پیکنگ</string>
     <string name="tx_shipping_charge">ٹرانزیکشن شپنگ چارج</string>
     <string name="tx_packing_charge">ٹرانزیکشن پیکنگ چارج</string>
-    <string name="save_charges">چارجز محفوظ کریں</string>
     <string name="startup_recovery_required">رجسٹر کھولنے سے پہلے مالی بحالی مکمل ہونی چاہیے</string>
     <string name="startup_recovery_failed">زیر التوا مالی کارروائیوں کو محفوظ طریقے سے بحال نہیں کیا جا سکا</string>
     <string name="retry">دوبارہ کوشش کریں</string>
@@ -211,15 +183,6 @@
     <string name="tax_for_whole_sale">یہ ٹیکس ریٹ پوری فروخت پر لاگو ہوتا ہے (صرف آئٹمز کے کل پر، شپنگ یا پیکنگ پر نہیں)۔</string>
     <!-- Transaction Details -->
     <string name="tx_details_title">لین دین کی تفصیلات</string>
-    <string name="tx_details_transaction_id">لین دین آئی ڈی</string>
-    <string name="tx_details_original_date">اصل تاریخ</string>
-    <string name="tx_details_original_amount">اصل رقم</string>
-    <string name="tx_details_current_amount">موجودہ فروخت کی رقم</string>
-    <string name="tx_details_refunded_amount">واپس کی گئی رقم</string>
-    <string name="tx_details_effective_amount">مؤثر رقم</string>
-    <string name="tx_details_status">لین دین کی زندگی کی حالت</string>
-    <string name="tx_details_original_payment">اصل ادائیگی کا طریقہ</string>
-    <string name="tx_details_current_payment">موجودہ ادائیگی کا طریقہ</string>
     <string name="tx_details_active">فعال</string>
 
     <string name="tx_details_items">آئٹمز</string>
@@ -230,15 +193,7 @@
     <string name="tx_details_item_packing">پیکنگ: %1$s</string>
     <string name="tx_details_item_shipping">شپنگ: %1$s</string>
 
-    <string name="tx_details_credit_repayments">ادھار کی ادائیگیاں</string>
-    <string name="tx_details_credit_applied">اس فروخت پر لاگو: %1$s</string>
-    <string name="tx_details_payment_method">ادائیگی کا طریقہ: %1$s</string>
-    <string name="tx_details_actor_id">کیشیئر آئی ڈی: %1$s</string>
-    <string name="tx_details_operation_id">آپریشن آئی ڈی: %1$s</string>
-    <string name="tx_details_repayment_id">ادائیگی آئی ڈی: %1$s</string>
 
-    <string name="tx_details_activity">لین دین کی سرگرمی</string>
-    <string name="tx_details_activity_operation">آپریشن آئی ڈی: %1$s</string>
 
     <string name="tx_details_correct_amount">رقم درست کریں</string>
     <string name="tx_details_refund">رقم واپس کریں</string>
@@ -256,24 +211,11 @@
     <string name="tx_channel_coupon_wallet">کوپن والیٹ</string>
     <string name="tx_channel_credit_account">ادھار اکاؤنٹ</string>
 
-    <string name="tx_activity_sale">فروخت</string>
-    <string name="tx_activity_coupon_sell">کوپن فروخت</string>
-    <string name="tx_activity_coupon_top_up">کوپن ٹاپ اپ</string>
-    <string name="tx_activity_refund">رقم واپسی</string>
-    <string name="tx_activity_refund_coupon">کوپن میں رقم واپسی</string>
-    <string name="tx_activity_void">منسوخ</string>
-    <string name="tx_activity_correction">رقم کی تصحیح</string>
-    <string name="tx_activity_payment_change">ادائیگی کا طریقہ تبدیل کیا گیا</string>
     <!-- Transaction Details unified lifetime timeline -->
     <string name="tx_details_not_available">دستیاب نہیں</string>
     <string name="tx_details_timezone_unavailable">لین دین کی تفصیلات نہیں دکھائی جا سکتیں کیونکہ فعال برانچ کا ٹائم زون دستیاب نہیں یا درست نہیں ہے۔</string>
-    <string name="tx_details_lifetime_timeline">مکمل لین دین ٹائم لائن</string>
-    <string name="tx_details_original_transaction">اصل لین دین</string>
-    <string name="tx_details_credit_repayment_event">ادھار ادائیگی لاگو</string>
     <string name="tx_details_amount_correction_event">رقم کی تصحیح</string>
     <string name="tx_details_payment_change_event">ادائیگی کے طریقے میں تبدیلی</string>
-    <string name="tx_details_refund_event">رقم واپسی کا واقعہ</string>
-    <string name="tx_details_void_event">منسوخی کا واقعہ</string>
     <string name="tx_details_settlement_event">سیٹلمنٹ موومنٹ</string>
     <string name="tx_details_before">پہلے: %1$s</string>
     <string name="tx_details_after">بعد میں: %1$s</string>

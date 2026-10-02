@@ -18,12 +18,7 @@
     <string name="business_name">Business Name</string>
     <string name="branch_name">Branch Name</string>
     <string name="branch_code">Branch Code (e.g. MAIN)</string>
-    <string name="country">Country</string>
-    <string name="currency">Currency</string>
-    <string name="timezone">Timezone</string>
-    <string name="default_tax_rate">Default Tax Rate (%)</string>
     <string name="admin_name">Admin Full Name</string>
-    <string name="admin_username">Admin Username</string>
     <string name="admin_password">Admin Password</string>
     <string name="create_account">Create Account &amp; Finish Setup</string>
 
@@ -31,16 +26,10 @@
     <string name="login_title">Paid&amp;Due</string>
     <string name="admin_login">Admin Login</string>
     <string name="cashier_login">Cashier PIN Login</string>
-    <string name="username">Username</string>
     <string name="whatsapp_mobile_number">WhatsApp / Mobile Number</string>
     <string name="password">Password</string>
     <string name="enter_6_digit_pin">Enter 6-Digit Cashier PIN</string>
     <string name="login">Login</string>
-    <string name="switch_to_cashier">Switch to Cashier Login</string>
-    <string name="switch_to_admin">Switch to Admin Login</string>
-    <string name="invalid_credentials">Invalid username or password</string>
-    <string name="invalid_pin">Invalid 6-digit PIN</string>
-    <string name="account_inactive">User account is inactive</string>
     <string name="locked_out_msg">Too many failed attempts. Locked out for %1$d seconds.</string>
 
     <!-- Hub Screen -->
@@ -56,9 +45,7 @@
     <string name="manage_cashiers">Manage Cashiers</string>
     <string name="create_cashier">Create New Cashier</string>
     <string name="cashier_name">Cashier Name</string>
-    <string name="cashier_username">WhatsApp / Mobile Number</string>
     <string name="cashier_pin">6-Digit PIN</string>
-    <string name="cashier_language">Preferred Language</string>
     <string name="save_cashier">Save Cashier</string>
     <string name="permissions">Permissions</string>
     <string name="permission_credit_sale">Can create Credit sales</string>
@@ -73,28 +60,19 @@
 
     <!-- Register Screen -->
     <string name="note_optional">Sale note (optional)</string>
-    <string name="bill">Bill</string>
     <string name="tax">Tax</string>
-    <string name="add_tax">+Tax</string>
     <string name="ship_pack">Ship/Pack</string>
     <string name="ship_pack_amount">Ship/Pack: %1$s</string>
-    <string name="cash_sale">CASH SALE</string>
     <string name="online">Online</string>
     <string name="credit">Credit</string>
     <string name="coupon">Coupon</string>
     <string name="upcoming_payment_msg">%1$s payment is available in upcoming phase.</string>
 
     <!-- Success Panel -->
-    <string name="cash_sale_completed">Cash Sale Completed!</string>
-    <string name="ref_label">Ref: %1$s</string>
-    <string name="total_received_cash">Total Received (CASH)</string>
-    <string name="receipt">Receipt</string>
     <string name="invoice">Invoice</string>
     <string name="whatsapp">WhatsApp</string>
-    <string name="new_sale">New Sale</string>
 
     <!-- Recent Transactions Panel -->
-    <string name="todays_sales">Today\'s Sales (%1$d)</string>
     <string name="recent_activity_count">Today\'s Activity (%1$d)</string>
     <string name="today_total">Total: %1$s</string>
     <string name="recent_activity_refund">Refund</string>
@@ -113,10 +91,7 @@
     <string name="qr_account_label">Account label (optional)</string>
     <string name="online_payment_title">Online Payment</string>
     <string name="amount_due">Amount due: %1$s</string>
-    <string name="online_qr_not_configured">Online payment QR has not been set up.</string>
     <string name="online_qr_unavailable">QR image unavailable</string>
-    <string name="open_online_payment_settings">Open Online Payment Settings</string>
-    <string name="online_payment_instruction">Ask the customer to scan this QR and complete the payment.</string>
     <string name="payment_received">Payment Received</string>
     <string name="credit_sale_label">Credit Sale</string>
     <string name="coupon_sale_label">Coupon Sale</string>
@@ -138,19 +113,13 @@
     <string name="unit_price">Unit Price</string>
     <string name="quantity">Quantity</string>
     <string name="item_desc_optional">Description (Optional)</string>
-    <string name="item_packing_optional">Item Packing Charge (Optional)</string>
-    <string name="item_shipping_optional">Item Shipping Charge (Optional)</string>
     <string name="items_count">%1$d items</string>
 
     <!-- Tax & Shipping Dialogs -->
-    <string name="tax_config">Tax (Optional)</string>
-    <string name="enable_tax">Enable Tax</string>
     <string name="tax_rate_percent">Tax Rate (%)</string>
-    <string name="apply_tax">Apply Tax</string>
     <string name="shipping_packing_charges">Shipping &amp; Packing</string>
     <string name="tx_shipping_charge">Transaction Shipping Charge</string>
     <string name="tx_packing_charge">Transaction Packing Charge</string>
-    <string name="save_charges">Save Charges</string>
     <string name="startup_recovery_required">Financial recovery must finish before the register can open.</string>
     <string name="startup_recovery_failed">Pending financial operations could not be safely recovered.</string>
     <string name="retry">Retry</string>
@@ -159,32 +128,12 @@
     <string name="change_pin_confirm">Confirm New PIN</string>
     <string name="change_pin_save">Save PIN</string>
     <string name="coupon_purchase_title">Sell Coupon</string>
-    <string name="coupon_cashier_choose_flow">Choose how to use Coupon for this cashier action.</string>
-    <string name="coupon_sell_top_up_action">Sell / Top Up Coupon</string>
     <string name="coupon_use_action">Use Coupon</string>
-    <string name="coupon_search_name">Search by name</string>
-    <string name="coupon_search_phone">Search by phone</string>
-    <string name="coupon_no_matching_customer">No matching customer found.</string>
-    <string name="coupon_create_customer">Create Customer</string>
     <string name="coupon_change_customer">Change customer</string>
-    <string name="coupon_new_wallet_sell">No wallet found. This customer will receive a new Coupon wallet.</string>
-    <string name="coupon_existing_wallet_top_up">Existing Coupon wallet found. This payment will top up the same wallet.</string>
     <string name="coupon_purchase_saved">Coupon purchase saved</string>
-    <string name="coupon_purchase_draft_preserved">This purchase adds coupon value. Your register bill remains unchanged.</string>
-    <string name="coupon_purchase_search">Customer name or phone</string>
-    <string name="coupon_purchase_search_button">Search customers</string>
-    <string name="coupon_wallet_not_found">No coupon wallet in %1$s</string>
-    <string name="coupon_wallet_inactive">Coupon wallet is inactive</string>
-    <string name="coupon_wallet_balance">Coupon balance: %1$s</string>
-    <string name="coupon_purchase_new_customer">New customer</string>
     <string name="coupon_purchase_name">Customer name</string>
-    <string name="coupon_purchase_phone">International phone (+country code)</string>
-    <string name="coupon_purchase_amount">Coupon value (%1$s)</string>
-    <string name="coupon_purchase_users">Additional authorized names (one per line)</string>
-    <string name="coupon_purchase_purchaser_included">The purchaser is included as an authorized user.</string>
     <string name="coupon_purchase_confirm">Payment received - sell coupon</string>
     <string name="coupon_purchase_retry">Retry purchase</string>
-    <string name="coupon_purchase_retry_hint">Retry uses the same purchase identity. Details are locked until the outcome is confirmed.</string>
     <string name="coupon_purchase_done">Done</string>
     <string name="coupon_top_up_action">Top up wallet</string>
     <string name="coupon_top_up_label">Coupon top up</string>
@@ -199,10 +148,6 @@
     <string name="coupon_whatsapp_invalid_phone">A valid international phone number is required.</string>
     <string name="coupon_whatsapp_open_failed">Could not open WhatsApp.</string>
     <string name="coupon_loading">Loading…</string>
-    <string name="coupon_remainder_amount">Remaining payment: %1$s</string>
-    <string name="coupon_redemption_receipt">Used by: %1$s\nCoupon used: %2$s\nRemaining balance: %3$s</string>
-    <string name="coupon_send_receipt">Send receipt on WhatsApp</string>
-    <string name="coupon_whatsapp_redemption">Hello %1$s,\n\nCoupon used at %2$s: %3$s\nDate/time: %4$s\nUsed by: %5$s\n\nRemaining balance: %6$s\n\nThank you!\n\nPowered by Paid&amp;Due</string>
 
     <!-- Invoice form (added) -->
     <string name="inv_create">Create invoice</string>
@@ -272,15 +217,6 @@
     <string name="tax_for_whole_sale">This tax rate applies to the whole sale (item total only, not shipping or packing).</string>
     <!-- Transaction Details -->
     <string name="tx_details_title">Transaction Details</string>
-    <string name="tx_details_transaction_id">Transaction ID</string>
-    <string name="tx_details_original_date">Original date</string>
-    <string name="tx_details_original_amount">Original amount</string>
-    <string name="tx_details_current_amount">Current sale amount</string>
-    <string name="tx_details_refunded_amount">Refunded amount</string>
-    <string name="tx_details_effective_amount">Effective amount</string>
-    <string name="tx_details_status">Lifecycle status</string>
-    <string name="tx_details_original_payment">Original payment method</string>
-    <string name="tx_details_current_payment">Current payment method</string>
     <string name="tx_details_active">Active</string>
 
     <string name="tx_details_items">Items</string>
@@ -291,15 +227,7 @@
     <string name="tx_details_item_packing">Packing: %1$s</string>
     <string name="tx_details_item_shipping">Shipping: %1$s</string>
 
-    <string name="tx_details_credit_repayments">Credit Repayments</string>
-    <string name="tx_details_credit_applied">Applied to this sale: %1$s</string>
-    <string name="tx_details_payment_method">Payment method: %1$s</string>
-    <string name="tx_details_actor_id">Cashier ID: %1$s</string>
-    <string name="tx_details_operation_id">Operation ID: %1$s</string>
-    <string name="tx_details_repayment_id">Repayment ID: %1$s</string>
 
-    <string name="tx_details_activity">Transaction Activity</string>
-    <string name="tx_details_activity_operation">Operation ID: %1$s</string>
 
     <string name="tx_details_correct_amount">Correct Amount</string>
     <string name="tx_details_refund">Refund</string>
@@ -317,24 +245,11 @@
     <string name="tx_channel_coupon_wallet">Coupon wallet</string>
     <string name="tx_channel_credit_account">Credit account</string>
 
-    <string name="tx_activity_sale">Sale</string>
-    <string name="tx_activity_coupon_sell">Coupon Sale</string>
-    <string name="tx_activity_coupon_top_up">Coupon Top Up</string>
-    <string name="tx_activity_refund">Refund</string>
-    <string name="tx_activity_refund_coupon">Refund to Coupon</string>
-    <string name="tx_activity_void">Void</string>
-    <string name="tx_activity_correction">Amount Correction</string>
-    <string name="tx_activity_payment_change">Payment method changed</string>
     <!-- Transaction Details unified lifetime timeline -->
     <string name="tx_details_not_available">Not available</string>
     <string name="tx_details_timezone_unavailable">Transaction details cannot be displayed because the active branch timezone is unavailable or invalid.</string>
-    <string name="tx_details_lifetime_timeline">Lifetime Timeline</string>
-    <string name="tx_details_original_transaction">Original Transaction</string>
-    <string name="tx_details_credit_repayment_event">Credit Repayment Applied</string>
     <string name="tx_details_amount_correction_event">Amount Correction</string>
     <string name="tx_details_payment_change_event">Payment Method Change</string>
-    <string name="tx_details_refund_event">Refund Event</string>
-    <string name="tx_details_void_event">Void Event</string>
     <string name="tx_details_settlement_event">Settlement Movement</string>
     <string name="tx_details_before">Before: %1$s</string>
     <string name="tx_details_after">After: %1$s</string>
