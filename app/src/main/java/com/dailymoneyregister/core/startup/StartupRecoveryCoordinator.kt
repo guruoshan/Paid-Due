@@ -40,10 +40,13 @@ class StartupRecoveryCoordinator @Inject constructor(
                     registerRepository.recoverPendingCouponSales()
                     registerRepository.recoverPendingRefunds()
                     registerRepository.recoverPendingRegisterShifts()
-                    registerRepository.recoverPendingCreditSales()
+                    registerRepository.recoverPendingCreditSales()
                     registerRepository.recoverPendingCreditRepayments()
                     registerRepository.recoverPendingCashSales()
+                    registerRepository.recoverPendingOnlineSales()
                     registerRepository.recoverPendingAmountCorrections()
+                    registerRepository.recoverPendingPaymentMethodChanges()
+                    registerRepository.recoverPendingVoids()
                 }
 
                 recoveryCompleted = true
