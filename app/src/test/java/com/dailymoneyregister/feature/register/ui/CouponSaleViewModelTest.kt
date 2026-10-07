@@ -41,7 +41,7 @@ class CouponSaleViewModelTest {
         submitRedemption: suspend (CouponRedemptionCommand) -> CommandResult<CouponRedemptionResult> = { error("Redemption must not run") },
         loadQr: suspend (String) -> MerchantQrSelection? = { null },
         submit: suspend (CouponSaleCommand) -> CommandResult<CouponSaleResult>
-    ) = RegisterViewModel(
+    ) = com.dailymoneyregister.feature.register.ui.testRegisterViewModel(
         observeToday = { _, _ -> flowOf(emptyList()) }, executeSale = { _, _, _ -> error("Ordinary sale must not run") },
         deviceId = { "device" }, submitCouponSale = submit, findCouponCustomers = findCustomers,
         loadCouponWalletDetails = loadWallet, submitCouponTopUp = submitTopUp,
@@ -58,7 +58,7 @@ class CouponSaleViewModelTest {
         assertEquals(1, calls.size)
         val original = calls.single()
         vm.closeCouponSale()
-        assertTrue(vm.uiState.value.isCouponSaleOpen)
+        assertTrue(vm.uiState.value.overlay is RegisterOverlay.Coupon)
         completion.complete(CommandResult.Error(IllegalStateException("Connection interrupted")))
         runCurrent()
         assertEquals(original, vm.uiState.value.inFlightCouponSaleCommand)
@@ -74,7 +74,7 @@ class CouponSaleViewModelTest {
         runCurrent()
         completion.complete(CommandResult.Error(IllegalStateException("Old session failure")))
         runCurrent()
-        assertFalse(vm.uiState.value.isCouponSaleOpen)
+        assertNull(vm.uiState.value.overlay)
         assertNull(vm.uiState.value.inFlightCouponSaleCommand)
         assertNull(vm.uiState.value.errorMessage)
     }
@@ -85,7 +85,7 @@ class CouponSaleViewModelTest {
         vm.openCouponSale(); submit(); runCurrent()
         assertNull(vm.uiState.value.inFlightCouponSaleCommand)
         vm.closeCouponSale()
-        assertFalse(vm.uiState.value.isCouponSaleOpen)
+        assertNull(vm.uiState.value.overlay)
         assertEquals(draft, vm.uiState.value.draftState)
     }
     @Test fun missingQrPreventsOnlineConfirmation() = runTest(dispatcher) {

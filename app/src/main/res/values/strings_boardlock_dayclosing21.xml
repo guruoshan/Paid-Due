@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dmr21_day_cash_sales">Cash sales: %1$s</string>
+    <string name="dmr21_day_cash_coupon_funding">Cash coupon funding: %1$s</string>
+    <string name="dmr21_day_cash_credit_payments">Cash credit payments: %1$s</string>
+    <string name="dmr21_day_cash_refunds">Cash refunds: %1$s</string>
+    <string name="dmr21_day_cash_expenses">Cash expenses: %1$s</string>
+    <string name="dmr21_day_expected_cash">Expected cash: %1$s</string>
+    <string name="dmr21_day_online_expenses">Online expenses (not drawer cash): %1$s</string>
+</resources>

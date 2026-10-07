@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="customers_unlinked_banner">%1$d older invoices are not linked to a customer yet.</string>
+    <plurals name="customers_unlinked_banner">
+        <item quantity="one">%1$d older invoice is not linked to a customer yet.</item>
+        <item quantity="other">%1$d older invoices are not linked to a customer yet.</item>
+    </plurals>
     <string name="customers_unlinked_action">Link them</string>
     <string name="customers_link_confirm_title">Link older invoices?</string>
     <string name="customers_link_confirm_body">Each older invoice will be linked to a customer using the phone number and name saved on that invoice. Customers that do not exist yet will be created. Invoices, payments and existing customers are not changed.</string>
     <string name="customers_link_confirm_action">Link</string>
-    <string name="customers_link_result">Linked %1$d invoices. New customers created: %2$d. Skipped: %3$d.</string>
+    <plurals name="customers_link_result">
+        <item quantity="one">Linked %1$d invoice. New customers created: %2$d. Skipped: %3$d.</item>
+        <item quantity="other">Linked %1$d invoices. New customers created: %2$d. Skipped: %3$d.</item>
+    </plurals>
     <string name="customers_link_error">Could not link invoices: %1$s</string>
     <string name="customers_invoice_options_hint">Share this invoice again as a PDF.</string>
-    <string name="customers_preparing_pdf">Preparing PDF...</string>
+    <string name="customers_preparing_pdf">Preparing PDF…</string>
     <string name="customers_share_error">Could not prepare the invoice: %1$s</string>
 </resources>

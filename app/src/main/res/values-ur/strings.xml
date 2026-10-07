@@ -29,7 +29,10 @@
     <string name="password">پاس ورڈ</string>
     <string name="enter_6_digit_pin">6 ہندسوں کا کیشیئر پن درج کریں</string>
     <string name="login">لاگ ان</string>
-    <string name="locked_out_msg">بہت سی ناکام کوششیں۔ %1$d سیکنڈ کے لیے لاک کر دیا گیا ہے۔</string>
+    <plurals name="locked_out_msg">
+        <item quantity="one">بہت سی ناکام کوششیں۔ %1$d سیکنڈ کے لیے لاک کر دیا گیا ہے۔</item>
+        <item quantity="other">بہت سی ناکام کوششیں۔ %1$d سیکنڈ کے لیے لاک کر دیا گیا ہے۔</item>
+    </plurals>
 
     <!-- Hub Screen -->
     <string name="admin_hub_title">ڈیلی منی رجسٹر - ایڈمن</string>
@@ -100,7 +103,10 @@
     <string name="unit_price">یونٹ قیمت</string>
     <string name="quantity">مقدار</string>
     <string name="item_desc_optional">تفصیل (اختیاری)</string>
-    <string name="items_count">%1$d آئٹمز</string>
+    <plurals name="items_count">
+        <item quantity="one">%1$d آئٹمز</item>
+        <item quantity="other">%1$d آئٹمز</item>
+    </plurals>
 
     <!-- Tax & Shipping Dialogs -->
     <string name="tax_rate_percent">ٹیکس کی شرح (%)</string>
@@ -118,7 +124,10 @@
     <!-- Invoice form (added) -->
     <string name="inv_create">انوائس بنائیں</string>
     <string name="inv_form_title">نیا انوائس</string>
-    <string name="inv_form_intro">گاہک کی تفصیلات درج کریں۔ اس انوائس میں %1$d آئٹم ہیں، کل %2$s۔</string>
+    <plurals name="inv_form_intro">
+        <item quantity="one">گاہک کی تفصیلات درج کریں۔ اس انوائس میں %1$d آئٹم ہیں، کل %2$s۔</item>
+        <item quantity="other">گاہک کی تفصیلات درج کریں۔ اس انوائس میں %1$d آئٹم ہیں، کل %2$s۔</item>
+    </plurals>
     <string name="inv_customer_title">خطاب (اختیاری)</string>
     <string name="inv_title_mr">جناب</string>
     <string name="inv_title_mrs">بیگم</string>
@@ -289,4 +298,17 @@
     <string name="tx_change_payment_permission">آپ کو ادائیگی کا یہ طریقہ تبدیل کرنے کی اجازت نہیں ہے۔</string>
     <string name="tx_change_payment_failed">ادائیگی کا طریقہ تبدیل نہیں ہو سکا۔ لین دین کی موجودہ حالت دیکھیں۔</string>
     <string name="tx_lifecycle_conflict">یہ لین دین تبدیل ہو گیا ہے۔ تازہ تفصیلات دیکھ کر دوبارہ کوشش کریں۔</string>
+
+    <string name="coupon_redemption_receipt">%1$s نے کوپن استعمال کیا: %2$s۔ باقی بیلنس: %3$s</string>
+    <string name="coupon_search_phone">فون</string>
+    <string name="coupon_search_name">نام</string>
+    <string name="coupon_purchase_search">گاہک تلاش کریں</string>
+    <string name="coupon_purchase_search_button">تلاش کریں</string>
+    <string name="coupon_wallet_balance">کوپن بیلنس: %1$s</string>
+    <string name="coupon_create_customer">گاہک بنائیں</string>
+    <string name="coupon_purchase_amount">کوپن کی رقم (%1$s)</string>
+    <string name="coupon_purchase_users">مجاز صارفین</string>
+    <string name="coupon_purchase_purchaser_included">خریدار کو مجاز صارف کے طور پر شامل کیا گیا ہے</string>
+    <string name="coupon_remainder_amount">باقی رقم: %1$s</string>
+    <string name="online_qr_not_configured">ادائیگی کا QR ترتیب نہیں دیا گیا ہے</string>
 </resources>

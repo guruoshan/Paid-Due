@@ -1,4 +1,4 @@
-﻿package com.dailymoneyregister.feature.customers.ui
+package com.dailymoneyregister.feature.customers.ui
 
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -40,11 +40,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.dailymoneyregister.feature.register.receipt.ReceiptSharing
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -53,15 +53,40 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
 import com.dailymoneyregister.R
 import com.dailymoneyregister.core.ui.asString
+import com.dailymoneyregister.feature.customers.data.CustomerCreditHistoryKind
 import com.dailymoneyregister.feature.customers.data.CustomerInvoiceRow
+import com.dailymoneyregister.feature.register.data.RegisterRepository
+
+private data class CustomerPaymentDisplayRow(
+    val occurredAt: Long,
+    val title: String,
+    val detail: String,
+    val amountMinor: Long,
+    val currencyCode: String,
+    val isMoneyOut: Boolean,
+    val reference: String?
+)
+
+data class CustomerDetailScreenActions(
+    val onNavigateBack: () -> Unit,
+    val onLoad: () -> Unit,
+    val onOpenReceivePayment: () -> Unit,
+    val onOpenInvoice: (CustomerInvoiceRow) -> Unit,
+    val onRepaymentAmountChange: (String) -> Unit,
+    val onSelectRepaymentMethod: (PaymentCategory) -> Unit,
+    val onConfirmReceivePayment: () -> Unit,
+    val onCloseReceivePayment: () -> Unit,
+    val onCloseInvoice: () -> Unit,
+    val onSharePdf: (android.content.Context) -> Unit,
+    val onShareWhatsApp: (android.content.Context) -> Unit
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomerDetailScreen(
-    viewModel: CustomerDetailViewModel,
-    onNavigateBack: () -> Unit
+    state: CustomerDetailUiState,
+    actions: CustomerDetailScreenActions
 ) {
-    val state by viewModel.uiState.collectAsState()
     val customer = state.customer
     val context = LocalContext.current
 
@@ -101,7 +126,7 @@ fun CustomerDetailScreen(
             "Transactions",
             "Coupons",
             "Credit",
-            "Documents"
+            "Documents", "Payments"
         )
 
     Scaffold(
@@ -126,7 +151,7 @@ fun CustomerDetailScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = actions.onNavigateBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.back)
@@ -157,7 +182,7 @@ fun CustomerDetailScreen(
 
                 state.error != null -> {
                     Text(state.error!!.asString(), color = MaterialTheme.colorScheme.error)
-                    OutlinedButton(onClick = viewModel::load) {
+                    OutlinedButton(onClick = actions.onLoad) {
                         Text(stringResource(R.string.retry))
                     }
                 }
@@ -256,27 +281,19 @@ fun CustomerDetailScreen(
                                          * from transaction IDs or invoices.
                                          */
                                         val transactionTitle =
-                                            when (
-                                                financial.currentPaymentCategory
-                                            ) {
-                                                PaymentCategory.CASH ->
-                                                    "Cash Sale"
-
-                                                PaymentCategory.ONLINE ->
-                                                    "Online Sale"
-
-                                                PaymentCategory.CREDIT ->
-                                                    "Credit Sale"
-
-                                                PaymentCategory.COUPON ->
+                                            when (financial.financialKind) {
+                                                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.COUPON_SALE ->
                                                     "Coupon Sale"
-
-                                                else ->
-                                                    financial.description
-                                                        ?.takeIf {
-                                                            it.isNotBlank()
-                                                        }
-                                                        ?: "Sale"
+                                                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.COUPON_TOP_UP ->
+                                                    "Coupon Top Up"
+                                                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.MERCHANDISE_SALE ->
+                                                    when (financial.currentPaymentCategory) {
+                                                        PaymentCategory.CASH -> "Cash Sale"
+                                                        PaymentCategory.ONLINE -> "Online Sale"
+                                                        PaymentCategory.CREDIT -> "Credit Sale"
+                                                        PaymentCategory.COUPON -> "Coupon Sale"
+                                                        null -> financial.description?.takeIf { it.isNotBlank() } ?: "Sale"
+                                                    }
                                             }
 
                                         val lifecycleLabel =
@@ -467,21 +484,13 @@ fun CustomerDetailScreen(
                                             .forEach { event ->
 
                                                 val eventTitle =
-                                                    when (event.type.name) {
-                                                        "PURCHASE" ->
-                                                            "Coupon Purchase"
-
-                                                        "PROMOTION_BONUS" ->
-                                                            "Promotion Bonus"
-
-                                                        "REDEMPTION" ->
-                                                            "Coupon Used"
-
-                                                        "REFUND_CREDIT" ->
-                                                            "Refund to Coupon"
-
-                                                        else ->
-                                                            "Coupon Activity"
+                                                    when (coupon.activityKinds[event.id]) {
+                                                        RegisterRepository.CouponWalletActivityKind.SALE -> "Coupon Sale"
+                                                        RegisterRepository.CouponWalletActivityKind.TOP_UP -> "Coupon Top Up"
+                                                        RegisterRepository.CouponWalletActivityKind.BONUS -> "Promotion Bonus"
+                                                        RegisterRepository.CouponWalletActivityKind.REDEMPTION -> "Coupon Used"
+                                                        RegisterRepository.CouponWalletActivityKind.REFUND_TO_COUPON -> "Refund to Coupon"
+                                                        null -> "Coupon Activity"
                                                     }
 
                                                 Row(
@@ -625,7 +634,7 @@ fun CustomerDetailScreen(
 
                                     Button(
                                         onClick =
-                                            viewModel::openReceivePayment,
+                                            actions.onOpenReceivePayment,
                                         enabled =
                                             state.creditOutstandingMinor >
                                                 0L &&
@@ -754,6 +763,78 @@ fun CustomerDetailScreen(
                                                                 .colorScheme
                                                                 .onSurfaceVariant
                                                     )
+
+                                                    // BOARDLOCK_UNIVERSAL_RECEIPT_IMAGE_V4
+                                                    // Receipt for a Credit payment received.
+                                                    val paymentReceiptParty =
+                                                        if (row.kind.name == "REPAYMENT") messageParty() else null
+
+                                                    if (paymentReceiptParty != null) {
+                                                        TextButton(
+                                                            onClick = {
+                                                                val money: (Long) -> String = { minor ->
+                                                                    formatCustomerMoney(
+                                                                        minor,
+                                                                        state.creditDecimalPlaces,
+                                                                        row.currencyCode
+                                                                    )
+                                                                }
+
+                                                                // The remaining balance is only exact for the newest entry.
+                                                                val isNewestEntry =
+                                                                    state.creditHistory.none {
+                                                                        it.occurredAt > row.occurredAt
+                                                                    }
+
+                                                                val paymentEvent =
+                                                                    UniversalWhatsAppMessageComposer.PaymentReceived(
+                                                                        party = UniversalWhatsAppMessageComposer.Party(
+                                                                            businessName = paymentReceiptParty.businessName,
+                                                                            customerName = paymentReceiptParty.customerName,
+                                                                            customerPhone = paymentReceiptParty.customerPhone
+                                                                        ),
+                                                                        formattedAmount =
+                                                                            money(kotlin.math.abs(row.amountSignedMinor)),
+                                                                        paymentMethod =
+                                                                            row.repaymentMethodName
+                                                                                ?.lowercase()
+                                                                                ?.replaceFirstChar { it.uppercase() }
+                                                                                ?: "Recorded payment",
+                                                                        formattedCreditPending =
+                                                                            if (isNewestEntry) {
+                                                                                money(state.creditOutstandingMinor)
+                                                                            } else {
+                                                                                null
+                                                                            },
+                                                                        eventDateTime =
+                                                                            formatCustomerDateTime(row.occurredAt)
+                                                                    )
+
+                                                                runCatching {
+                                                                    ReceiptSharing.sharePaymentReceivedWhatsApp(
+                                                                        context = context,
+                                                                        event = paymentEvent
+                                                                    )
+                                                                }.onFailure {
+                                                                    WhatsAppTransport.share(
+                                                                        context = context,
+                                                                        prepared = PreparedWhatsAppMessage(
+                                                                            text = UniversalWhatsAppMessageComposer
+                                                                                .compose(paymentEvent),
+                                                                            recipientPhone = paymentReceiptParty.customerPhone
+                                                                        )
+                                                                    )
+                                                                }
+                                                            },
+                                                            contentPadding =
+                                                                androidx.compose.foundation.layout.PaddingValues(0.dp)
+                                                        ) {
+                                                            Text(
+                                                                "Send receipt",
+                                                                fontSize = 12.sp
+                                                            )
+                                                        }
+                                                    }
                                                 }
 
                                                 val amountText =
@@ -785,7 +866,7 @@ fun CustomerDetailScreen(
                          * Existing frozen invoice snapshots and existing
                          * PDF / WhatsApp share path are reused unchanged.
                          */
-                        else -> {
+                        3 -> {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement =
@@ -847,11 +928,131 @@ fun CustomerDetailScreen(
                                         InvoiceHistoryRow(
                                             row = row,
                                             onClick = {
-                                                viewModel.openInvoice(
+                                                actions.onOpenInvoice(
                                                     row
                                                 )
                                             }
                                         )
+                                    }
+                                }
+                            }
+                        }
+                        4 -> {
+                            /*
+                             * BOARDLOCK_CUSTOMER_PAYMENTS_V2
+                             *
+                             * Presentation-only relationship history.
+                             * Expense = authoritative Money Out.
+                             * Credit REPAYMENT = authoritative Money In.
+                             * No Payment entity or mutable financial state is created.
+                             */
+                            val paymentRows =
+                                buildList {
+                                    state.expenses.forEach { expense ->
+                                        add(
+                                            CustomerPaymentDisplayRow(
+                                                occurredAt = expense.occurredAt,
+                                                title = "Payment Made",
+                                                detail = "${expense.category} - ${expense.paymentCategory.name}",
+                                                amountMinor = expense.amount.amount,
+                                                currencyCode = expense.currencyCode,
+                                                isMoneyOut = true,
+                                                reference = expense.reference
+                                            )
+                                        )
+                                    }
+
+                                    state.creditHistory
+                                        .filter { it.kind == CustomerCreditHistoryKind.REPAYMENT }
+                                        .forEach { repayment ->
+                                            add(
+                                                CustomerPaymentDisplayRow(
+                                                    occurredAt = repayment.occurredAt,
+                                                    title = "Payment Received",
+                                                    detail = repayment.repaymentMethodName ?: "Repayment",
+                                                    amountMinor = kotlin.math.abs(repayment.amountSignedMinor),
+                                                    currencyCode = repayment.currencyCode,
+                                                    isMoneyOut = false,
+                                                    reference = null
+                                                )
+                                            )
+                                        }
+                                }.sortedByDescending { it.occurredAt }
+
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    "PAYMENTS",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                Text(
+                                    "Money paid and received for this contact",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp
+                                )
+
+                                if (paymentRows.isEmpty()) {
+                                    Text(
+                                        "No payment activity yet",
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                } else {
+                                    paymentRows.forEach { payment ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.weight(1f),
+                                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                                            ) {
+                                                Text(
+                                                    payment.title,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontSize = 14.sp
+                                                )
+                                                Text(
+                                                    payment.detail,
+                                                    fontSize = 12.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Text(
+                                                    formatCustomerDateTime(payment.occurredAt),
+                                                    fontSize = 12.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                payment.reference
+                                                    ?.takeIf { it.isNotBlank() }
+                                                    ?.let { reference ->
+                                                        Text(
+                                                            reference,
+                                                            fontSize = 12.sp,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                            }
+
+                                            Text(
+                                                text =
+                                                    (if (payment.isMoneyOut) "-" else "+") +
+                                                        formatCustomerMoney(
+                                                            payment.amountMinor,
+                                                            state.creditDecimalPlaces,
+                                                            payment.currencyCode
+                                                        ),
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 14.sp
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -866,16 +1067,16 @@ fun CustomerDetailScreen(
             state = state,
 
             onAmountChange =
-                viewModel::onRepaymentAmountChange,
+                actions.onRepaymentAmountChange,
 
             onMethodChange =
-                viewModel::selectRepaymentMethod,
+                actions.onSelectRepaymentMethod,
 
             onConfirm =
-                viewModel::confirmReceivePayment,
+                actions.onConfirmReceivePayment,
 
             onDismiss =
-                viewModel::closeReceivePayment
+                actions.onCloseReceivePayment
         )
     }
 
@@ -1134,10 +1335,12 @@ fun CustomerDetailScreen(
                                 }
 
                         if (recipientPhone != null) {
-                            CustomerWhatsAppLauncher.share(
+                            WhatsAppTransport.share(
                                 context = context,
-                                message = exactMessage,
-                                customerPhone = recipientPhone
+                                prepared = PreparedWhatsAppMessage(
+                                    text = exactMessage,
+                                    recipientPhone = recipientPhone
+                                )
                             )
 
                             whatsappPreview = null
@@ -1168,7 +1371,7 @@ fun CustomerDetailScreen(
 
     state.selectedInvoice?.let { invoice ->
         AlertDialog(
-            onDismissRequest = viewModel::closeInvoice,
+            onDismissRequest = actions.onCloseInvoice,
             title = { Text(invoice.displayNumber) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1190,12 +1393,12 @@ fun CustomerDetailScreen(
                         Text(error.asString(), color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
                     }
                     OutlinedButton(
-                        onClick = { viewModel.sharePdf(context) },
+                        onClick = { actions.onSharePdf(context) },
                         enabled = !state.isPreparingShare,
                         modifier = Modifier.fillMaxWidth()
                     ) { Text(stringResource(R.string.inv_pdf_share_pdf)) }
                     Button(
-                        onClick = { viewModel.shareWhatsApp(context) },
+                        onClick = { actions.onShareWhatsApp(context) },
                         enabled = !state.isPreparingShare,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
@@ -1207,7 +1410,7 @@ fun CustomerDetailScreen(
             },
             confirmButton = {
                 TextButton(
-                    onClick = viewModel::closeInvoice,
+                    onClick = actions.onCloseInvoice,
                     enabled = !state.isPreparingShare
                 ) { Text(stringResource(R.string.close)) }
             }
@@ -1448,7 +1651,6 @@ private fun CreditReceivePaymentDialog(
         }
     )
 }
-
 
 
 

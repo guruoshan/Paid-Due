@@ -22,7 +22,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -31,13 +31,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -47,14 +46,23 @@ import com.dailymoneyregister.R
 import com.dailymoneyregister.core.database.dao.CustomerSummary
 import com.dailymoneyregister.core.ui.asString
 
+data class CustomersScreenActions(
+    val onNavigateBack: () -> Unit,
+    val onOpenCustomer: (String) -> Unit,
+    val onReload: () -> Unit,
+    val onQueryChange: (String) -> Unit,
+    val onSelectFilter: (CustomerListFilter) -> Unit,
+    val onAskToLinkOlderInvoices: () -> Unit,
+    val onConfirmLinkOlderInvoices: () -> Unit,
+    val onDismissLinkConfirm: () -> Unit
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomersScreen(
-    viewModel: CustomersViewModel,
-    onNavigateBack: () -> Unit,
-    onOpenCustomer: (String) -> Unit
+    state: CustomersUiState,
+    actions: CustomersScreenActions
 ) {
-    val state by viewModel.uiState.collectAsState()
     val visible = state.visible
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -68,11 +76,11 @@ fun CustomersScreen(
     // this screen becomes active, reload the projection from the database.
     //
     // No customer or financial state is copied or mutated here.
-    DisposableEffect(lifecycleOwner, viewModel) {
+    DisposableEffect(lifecycleOwner) {
         val observer =
             LifecycleEventObserver { _, event ->
                 if (event == Lifecycle.Event.ON_RESUME) {
-                    viewModel.reload()
+                    actions.onReload()
                 }
             }
 
@@ -88,7 +96,7 @@ fun CustomersScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.customers_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = actions.onNavigateBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.back)
@@ -111,7 +119,7 @@ fun CustomersScreen(
         ) {
             OutlinedTextField(
                 value = state.query,
-                onValueChange = viewModel::onQueryChange,
+                onValueChange = actions.onQueryChange,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 placeholder = { Text(stringResource(R.string.customers_search_hint)) },
@@ -121,24 +129,26 @@ fun CustomersScreen(
             val customerFilters =
                 listOf(
                     CustomerListFilter.ALL to "All",
+                    CustomerListFilter.PAYMENTS to "Payments",
                     CustomerListFilter.CREDIT to "Credit",
                     CustomerListFilter.COUPONS to "Coupons",
                     CustomerListFilter.INVOICES to "Invoices"
                 )
 
-            PrimaryTabRow(
+            PrimaryScrollableTabRow(
                 selectedTabIndex =
                     customerFilters.indexOfFirst {
                         it.first == state.selectedFilter
                     }
                         .coerceAtLeast(0),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                edgePadding = 4.dp
             ) {
                 customerFilters.forEach { (filter, label) ->
                     Tab(
                         selected = state.selectedFilter == filter,
                         onClick = {
-                            viewModel.selectFilter(filter)
+                            actions.onSelectFilter(filter)
                         },
                         text = {
                             Text(
@@ -152,7 +162,7 @@ fun CustomersScreen(
 
             state.error?.let { error ->
                 Text(error.asString(), color = MaterialTheme.colorScheme.error)
-                OutlinedButton(onClick = viewModel::reload) {
+                OutlinedButton(onClick = actions.onReload) {
                     Text(stringResource(R.string.retry))
                 }
             }
@@ -174,11 +184,11 @@ fun CustomersScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            stringResource(R.string.customers_unlinked_banner, state.unlinkedCount),
+                            pluralStringResource(R.plurals.customers_unlinked_banner, state.unlinkedCount, state.unlinkedCount),
                             fontSize = 14.sp
                         )
                         OutlinedButton(
-                            onClick = viewModel::askToLinkOlderInvoices,
+                            onClick = actions.onAskToLinkOlderInvoices,
                             enabled = !state.isLinking
                         ) {
                             Text(stringResource(R.string.customers_unlinked_action))
@@ -219,7 +229,7 @@ fun CustomersScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(visible, key = { it.id }) { customer ->
-                            CustomerRow(customer = customer, onClick = { onOpenCustomer(customer.id) })
+                            CustomerRow(customer = customer, onClick = { actions.onOpenCustomer(customer.id) })
                         }
                     }
                 }
@@ -229,8 +239,8 @@ fun CustomersScreen(
 
     if (state.showLinkConfirm) {
         LinkConfirmDialog(
-            onConfirm = viewModel::confirmLinkOlderInvoices,
-            onDismiss = viewModel::dismissLinkConfirm
+            onConfirm = actions.onConfirmLinkOlderInvoices,
+            onDismiss = actions.onDismissLinkConfirm
         )
     }
 }

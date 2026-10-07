@@ -24,3 +24,9 @@ CREDIT_PHASE_1A.zip
 audit-report-*/
 *.bak
 *.BEFORE-*
+PaidandDue Site.zip
+PaidandDue Site/node_modules/
+PaidandDue Site/.wrangler/
+PaidandDue Site/.dev.vars
+PaidandDue Site/.env
+PaidandDue Site/.env.*

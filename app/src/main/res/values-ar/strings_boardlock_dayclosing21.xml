@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dmr21_day_cash_sales">المبيعات النقدية: %1$s</string>
+    <string name="dmr21_day_cash_coupon_funding">تمويل القسائم النقدي: %1$s</string>
+    <string name="dmr21_day_cash_credit_payments">دفعات الائتمان النقدية: %1$s</string>
+    <string name="dmr21_day_cash_refunds">المبالغ النقدية المستردة: %1$s</string>
+    <string name="dmr21_day_cash_expenses">المصروفات النقدية: %1$s</string>
+    <string name="dmr21_day_expected_cash">النقد المتوقع: %1$s</string>
+    <string name="dmr21_day_online_expenses">المصروفات الإلكترونية (لا تؤثر على نقد الدرج): %1$s</string>
+</resources>

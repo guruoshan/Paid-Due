@@ -1,4 +1,4 @@
-package com.dailymoneyregister.feature.register.ui.components
+﻿package com.dailymoneyregister.feature.register.ui.components
 
 import com.dailymoneyregister.core.model.currency.CurrencyConfig
 
@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.dailymoneyregister.core.model.financial.FinancialTransactionView
 import com.dailymoneyregister.core.model.financial.FinancialLifecycleState
 import com.dailymoneyregister.core.model.financial.RecentActivityType
+import com.dailymoneyregister.core.model.financial.RecentActivitySourceType
 import com.dailymoneyregister.core.model.financial.RecentActivityTotals
 import com.dailymoneyregister.core.model.financial.RecentFinancialActivity
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
@@ -84,6 +85,7 @@ fun RecentTransactionsPanel(
     timezoneId: String = "Asia/Muscat",
     onToggleExpanded: () -> Unit,
     onTransactionSelected: (String) -> Unit = {},
+    onExpenseSelected: (String) -> Unit = {},
     maxListHeight: androidx.compose.ui.unit.Dp = 220.dp,
     modifier: Modifier = Modifier,
     compactMaxListHeight: androidx.compose.ui.unit.Dp = 100.dp
@@ -181,8 +183,9 @@ fun RecentTransactionsPanel(
                         transaction = tx,
                         currency = currency,
                         timezoneId = timezoneId,
-                        onTransactionSelected = onTransactionSelected
-                    )
+                        onTransactionSelected = onTransactionSelected,
+                    onExpenseSelected = onExpenseSelected
+                )
                     }
                 }
             } else {
@@ -191,6 +194,7 @@ fun RecentTransactionsPanel(
                     currency = currency,
                     timezoneId = timezoneId,
                     onTransactionSelected = onTransactionSelected,
+                onExpenseSelected = onExpenseSelected,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = compactMaxListHeight)
@@ -219,6 +223,7 @@ private fun CompactRecentRows(
     currency: CurrencyConfig,
     timezoneId: String,
     onTransactionSelected: (String) -> Unit,
+    onExpenseSelected: (String) -> Unit,
     modifier: Modifier
 ) {
     // Measure real row heights, including badges and font scaling. Stop before
@@ -233,7 +238,8 @@ private fun CompactRecentRows(
                     transaction = transaction,
                     currency = currency,
                     timezoneId = timezoneId,
-                    onTransactionSelected = onTransactionSelected
+                    onTransactionSelected = onTransactionSelected,
+                    onExpenseSelected = onExpenseSelected
                 )
             }.single().measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
             val top = budget.usedHeight + if (rows.isEmpty()) 0 else spacing
@@ -251,7 +257,8 @@ private fun RecentTransactionRow(
     transaction: RecentFinancialActivity,
     currency: CurrencyConfig,
     timezoneId: String,
-    onTransactionSelected: (String) -> Unit
+    onTransactionSelected: (String) -> Unit,
+    onExpenseSelected: (String) -> Unit
 ) {
     val timeStr = remember(transaction.occurredAt, timezoneId) {
         val zoneId = ZoneId.of(timezoneId)
@@ -264,10 +271,27 @@ private fun RecentTransactionRow(
     } else {
         amountFormatted
     }
+    val cashMethodLabel = stringResource(R.string.tx_payment_cash)
+    val onlineMethodLabel = stringResource(R.string.tx_payment_online)
+    val creditMethodLabel = stringResource(R.string.tx_payment_credit)
+    val couponMethodLabel = stringResource(R.string.tx_payment_coupon)
+
+    val creditReducedLabel = stringResource(R.string.dmr20_credit_reduced)
+    val couponRefundedLabel = stringResource(R.string.dmr20_coupon_refunded)
+    val cashRefundedLabel = stringResource(R.string.dmr20_cash_refunded)
+    val onlineRefundedLabel = stringResource(R.string.dmr20_online_refunded)
+
     val methodLabel = transaction.fundingBreakdown
         .map { it.category }
         .distinct()
-        .joinToString(" + ") { it.name }
+        .joinToString(" + ") { category ->
+            when (category) {
+                PaymentCategory.CASH -> cashMethodLabel
+                PaymentCategory.ONLINE -> onlineMethodLabel
+                PaymentCategory.CREDIT -> creditMethodLabel
+                PaymentCategory.COUPON -> couponMethodLabel
+            }
+        }
 
     val refundBreakdownLabel =
         if (
@@ -276,7 +300,7 @@ private fun RecentTransactionRow(
         ) {
             transaction.fundingBreakdown
                 .filter { it.amountMinor != 0L }
-                .joinToString(" · ") { part ->
+                .joinToString(" Â· ") { part ->
                     val amount =
                         MoneyMinorUnits(
                             kotlin.math.abs(part.amountMinor)
@@ -284,16 +308,16 @@ private fun RecentTransactionRow(
 
                     when (part.category) {
                         PaymentCategory.CREDIT ->
-                            "$amount Credit reduced"
+                            "$amount $creditReducedLabel"
 
                         PaymentCategory.COUPON ->
-                            "$amount Coupon refunded"
+                            "$amount $couponRefundedLabel"
 
                         PaymentCategory.CASH ->
-                            "$amount Cash refunded"
+                            "$amount $cashRefundedLabel"
 
                         PaymentCategory.ONLINE ->
-                            "$amount Online refunded"
+                            "$amount $onlineRefundedLabel"
                     }
                 }
         } else {
@@ -303,12 +327,13 @@ private fun RecentTransactionRow(
     val paymentLabel = when (transaction.type) {
         RecentActivityType.COUPON_SELL -> stringResource(R.string.coupon_purchase_title)
         RecentActivityType.COUPON_TOP_UP -> stringResource(R.string.coupon_top_up_label)
-        RecentActivityType.CREDIT_REPAYMENT -> "Credit Payment"
+        RecentActivityType.CREDIT_REPAYMENT -> stringResource(R.string.dmr20_credit_payment)
         RecentActivityType.REFUND -> stringResource(R.string.recent_activity_refund)
         RecentActivityType.REFUND_TO_COUPON -> stringResource(R.string.recent_activity_refund_coupon)
         RecentActivityType.VOID -> stringResource(R.string.recent_status_voided)
         RecentActivityType.AMOUNT_CORRECTION -> stringResource(R.string.recent_status_corrected)
         RecentActivityType.PAYMENT_METHOD_CHANGE -> stringResource(R.string.recent_status_payment_method_changed)
+        RecentActivityType.EXPENSE -> stringResource(R.string.dmr20_expense)
         RecentActivityType.MERCHANDISE_SALE -> if (transaction.fundingBreakdown.size > 1) {
             methodLabel
         } else when (transaction.fundingBreakdown.singleOrNull()?.category) {
@@ -323,7 +348,22 @@ private fun RecentTransactionRow(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onTransactionSelected(transaction.transactionId) },
+            .clickable(
+                enabled =
+                    transaction.sourceType ==
+                        RecentActivitySourceType.EXPENSE ||
+                        transaction.transactionId != null
+            ) { if (
+                        transaction.sourceType ==
+                        RecentActivitySourceType.EXPENSE
+                    ) {
+                        onExpenseSelected(
+                            transaction.sourceReference
+                        )
+                    } else {
+                        transaction.transactionId
+                            ?.let(onTransactionSelected)
+                    } },
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {

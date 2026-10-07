@@ -302,7 +302,9 @@ object VoidFinancialIntegrity {
                 EntryPurpose.VOID_REVERSAL,
                 EntryPurpose.PAYMENT_METHOD_RECLASSIFICATION,
                 EntryPurpose.CREDIT_REPAYMENT_COLLECTION,
-                EntryPurpose.COUPON_PURCHASE_FUNDING -> {
+                EntryPurpose.COUPON_PURCHASE_FUNDING,
+                EntryPurpose.EXPENSE_OUTFLOW,
+                EntryPurpose.EXPENSE_CORRECTION -> {
                     throw VoidAmbiguousSettlementException(transaction.id)
                 }
             }

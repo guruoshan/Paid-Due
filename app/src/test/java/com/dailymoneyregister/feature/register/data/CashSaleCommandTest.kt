@@ -144,7 +144,7 @@ class CashSaleCommandTest {
 
         // Encode to the custom durable key=value envelope
         val encodedPayload = originalCmd.intentPayload
-        assertTrue(encodedPayload.startsWith("v=3\n"))
+        assertTrue(encodedPayload.startsWith("v=4\n"))
 
         // Decode back
         val decodedCmd = CashSalePayloadCodec.decode(encodedPayload)

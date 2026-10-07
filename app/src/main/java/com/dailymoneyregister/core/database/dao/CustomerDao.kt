@@ -19,7 +19,9 @@ data class CustomerSummary(
     /** True when authoritative Credit ledger evidence exists for this customer. */
     val hasCredit: Boolean,
     /** True when an authoritative Coupon wallet exists for this customer. */
-    val hasCoupon: Boolean
+    val hasCoupon: Boolean,
+    /** Derived only from authoritative Expense or Credit repayment evidence. */
+    val hasPayments: Boolean
 )
 
 @Dao
@@ -33,6 +35,11 @@ interface CustomerDao {
 
     @Query("SELECT * FROM customers WHERE id = :customerId LIMIT 1")
     suspend fun getCustomerById(customerId: String): CustomerEntity?
+
+    @Query("SELECT * FROM customers WHERE id IN (:customerIds)")
+    suspend fun getCustomersByIds(
+        customerIds: List<String>
+    ): List<CustomerEntity>
 
     @Query("SELECT * FROM customers WHERE business_id = :businessId AND canonical_phone = :canonicalPhone LIMIT 1")
     suspend fun getCustomerByPhone(businessId: String, canonicalPhone: String): CustomerEntity?
@@ -65,7 +72,22 @@ interface CustomerDao {
                    SELECT 1
                    FROM coupon_wallets AS cw
                    WHERE cw.customer_id = c.id
-               ) AS hasCoupon
+               ) AS hasCoupon,
+               (
+                   EXISTS(
+                       SELECT 1
+                       FROM expenses AS e
+                       WHERE e.payee_id = c.id
+                         AND e.business_id = c.business_id
+                   )
+                   OR
+                   EXISTS(
+                       SELECT 1
+                       FROM credit_ledger_events AS cle_payment
+                       WHERE cle_payment.customer_id = c.id
+                         AND cle_payment.type = 'REPAYMENT'
+                   )
+               ) AS hasPayments
         FROM customers AS c
         LEFT JOIN documents AS d
                ON d.customer_id = c.id AND d.document_type = 'INVOICE'

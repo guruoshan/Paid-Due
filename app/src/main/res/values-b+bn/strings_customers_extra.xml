@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="customers_unlinked_banner">%1$d টি পুরনো ইনভয়েস এখনও কোনো গ্রাহকের সাথে যুক্ত নয়।</string>
+    <plurals name="customers_unlinked_banner">
+        <item quantity="one">%1$d টি পুরনো ইনভয়েস এখনও কোনো গ্রাহকের সাথে যুক্ত নয়।</item>
+        <item quantity="other">%1$d টি পুরনো ইনভয়েস এখনও কোনো গ্রাহকের সাথে যুক্ত নয়।</item>
+    </plurals>
     <string name="customers_unlinked_action">যুক্ত করুন</string>
     <string name="customers_link_confirm_title">পুরনো ইনভয়েস যুক্ত করবেন?</string>
     <string name="customers_link_confirm_body">প্রতিটি পুরনো ইনভয়েস সেই ইনভয়েসে সংরক্ষিত ফোন নম্বর ও নাম দিয়ে গ্রাহকের সাথে যুক্ত হবে। যে গ্রাহক এখনও নেই, তাকে তৈরি করা হবে। ইনভয়েস, পেমেন্ট ও বিদ্যমান গ্রাহক বদলাবে না।</string>
     <string name="customers_link_confirm_action">যুক্ত করুন</string>
-    <string name="customers_link_result">%1$d টি ইনভয়েস যুক্ত হয়েছে। নতুন গ্রাহক তৈরি: %2$d। বাদ দেওয়া: %3$d।</string>
+    <plurals name="customers_link_result">
+        <item quantity="one">%1$d টি ইনভয়েস যুক্ত হয়েছে। নতুন গ্রাহক তৈরি: %2$d। বাদ দেওয়া: %3$d।</item>
+        <item quantity="other">%1$d টি ইনভয়েস যুক্ত হয়েছে। নতুন গ্রাহক তৈরি: %2$d। বাদ দেওয়া: %3$d।</item>
+    </plurals>
     <string name="customers_link_error">ইনভয়েস যুক্ত করা যায়নি: %1$s</string>
     <string name="customers_invoice_options_hint">এই ইনভয়েস আবার PDF হিসেবে শেয়ার করুন।</string>
-    <string name="customers_preparing_pdf">PDF তৈরি হচ্ছে...</string>
+    <string name="customers_preparing_pdf">PDF তৈরি হচ্ছে…</string>
     <string name="customers_share_error">ইনভয়েস তৈরি করা যায়নি: %1$s</string>
 </resources>

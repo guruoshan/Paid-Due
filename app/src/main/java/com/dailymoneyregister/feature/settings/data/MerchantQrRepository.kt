@@ -64,9 +64,6 @@ class MerchantQrRepository @Inject constructor(
             localReference = storedFile.absolutePath,
             createdAt = now
         )
-        val existing = documentMediaDao.getActiveQrConfigs(session.branch.id)
-        existing.forEach { documentMediaDao.updateQrConfig(it.copy(isActive = false, isDefault = false)) }
-        documentMediaDao.insertMedia(media)
         val config = MerchantQrConfigEntity(
             id = IdGenerator.newId(),
             businessId = session.business.id,
@@ -79,7 +76,11 @@ class MerchantQrRepository @Inject constructor(
             isActive = true,
             createdAt = now
         )
-        documentMediaDao.insertQrConfig(config)
+        documentMediaDao.replaceActiveQrConfig(
+            branchId = session.branch.id,
+            media = media,
+            config = config
+        )
         MerchantQrSelection(config, media)
     }
 }

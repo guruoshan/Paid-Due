@@ -27,6 +27,7 @@ class CommandExecutor(
 
     suspend fun <T> execute(
         command: OperationCommand,
+        cashShiftId: String? = command.cashShiftId,
         replayResolver: suspend (OperationEntity) -> T,
         executionBlock: suspend () -> Pair<T, Pair<String, String>>
     ): CommandResult<T> {
@@ -41,6 +42,7 @@ class CommandExecutor(
             subjectType = command.subjectType,
             subjectId = command.subjectId,
             transactionId = command.transactionId,
+            cashShiftId = cashShiftId,
             actorUserId = command.actorUserId,
             deviceId = command.deviceId,
             occurredAt = command.occurredAt,
@@ -76,7 +78,7 @@ class CommandExecutor(
             )
         }
 
-        if (!persisted.matchesDurableIntent(command)) {
+        if (!persisted.matchesDurableIntent(command, cashShiftId)) {
             return CommandResult.Conflict(
                 "Conflict: Operation ID '$opId' has a different durable intent."
             )
@@ -128,7 +130,7 @@ class CommandExecutor(
                     )
                 }
 
-                if (!current.matchesDurableIntent(command)) {
+                if (!current.matchesDurableIntent(command, cashShiftId)) {
                     return@withTransaction CommandResult.Conflict(
                         "Conflict: Operation ID '$opId' has a different durable intent."
                     )
@@ -338,7 +340,8 @@ class CommandExecutor(
     }
 
     private fun OperationEntity.matchesDurableIntent(
-        command: OperationCommand
+        command: OperationCommand,
+        expectedCashShiftId: String?
     ): Boolean {
         return businessId == command.businessId &&
             branchId == command.branchId &&
@@ -346,6 +349,7 @@ class CommandExecutor(
             subjectType == command.subjectType &&
             subjectId == command.subjectId &&
             transactionId == command.transactionId &&
+            cashShiftId == expectedCashShiftId &&
             actorUserId == command.actorUserId &&
             deviceId == command.deviceId &&
             occurredAt == command.occurredAt &&

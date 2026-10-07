@@ -2,6 +2,8 @@ package com.dailymoneyregister.core.model.financial
 
 import com.dailymoneyregister.core.database.entity.AmountCorrectionEventEntity
 import com.dailymoneyregister.core.database.entity.CustomerEntity
+import com.dailymoneyregister.core.database.entity.CreditRepaymentEntity
+import com.dailymoneyregister.core.database.entity.PaymentMethodChangeEventEntity
 import com.dailymoneyregister.core.database.entity.RefundEventEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
@@ -40,6 +42,137 @@ class RecentActivityReadModelTest {
 
         assertEquals(RecentActivityType.MERCHANDISE_SALE, activity.type)
         assertEquals(PaymentCategory.ONLINE, activity.fundingBreakdown.single().category)
+    }
+
+    @Test
+    fun creditSaleRemainsOneSaleWithoutCountingReceivableAsCollectedValue() {
+        val activity = resolve(
+            saleRecord("credit", PaymentCategory.CREDIT, PaymentChannel.CREDIT_ACCOUNT)
+        ).single()
+
+        assertEquals(RecentActivityType.MERCHANDISE_SALE, activity.type)
+        assertEquals(PaymentCategory.CREDIT, activity.fundingBreakdown.single().category)
+        assertEquals(10_000L, activity.signedEffect.amount)
+        assertEquals(0L, activity.recentTotalEffect.amount)
+        assertEquals("credit-sale-op", activity.operationId)
+    }
+
+    @Test
+    fun creditRepaymentUsesRepaymentIdentityWithoutManufacturingTransactionNavigation() {
+        val repayment = CreditRepaymentEntity(
+            id = "repayment-1",
+            operationId = "repayment-op",
+            customerId = "customer-1",
+            amountMinor = 2_500L,
+            currencyCode = "OMR",
+            paymentCategory = PaymentCategory.ONLINE,
+            occurredAt = 4_000L,
+            actorUserId = "user"
+        )
+        val funding = settlement(
+            transactionId = "unrelated-original-sale",
+            operationId = repayment.operationId,
+            purpose = EntryPurpose.CREDIT_REPAYMENT_COLLECTION,
+            category = PaymentCategory.ONLINE,
+            channel = PaymentChannel.MANUAL_QR,
+            amount = repayment.amountMinor,
+            occurredAt = repayment.occurredAt
+        )
+
+        val activity = RecentActivityReadModelResolver.resolveCreditRepayment(
+            repayment = repayment,
+            customerName = "Customer One",
+            settlements = listOf(funding)
+        )
+
+        assertEquals(RecentActivityType.CREDIT_REPAYMENT, activity.type)
+        assertEquals(RecentActivitySourceType.CREDIT_REPAYMENT, activity.sourceType)
+        assertEquals(repayment.id, activity.sourceReference)
+        assertEquals(repayment.operationId, activity.operationId)
+        assertEquals(repayment.occurredAt, activity.occurredAt)
+        assertEquals(repayment.amountMinor, activity.signedEffect.amount)
+        assertEquals(PaymentCategory.ONLINE, activity.fundingBreakdown.single().category)
+        assertEquals("Customer One", activity.customerName)
+        assertEquals(null, activity.transactionId)
+    }
+
+    @Test
+    fun creditRepaymentPreservesCashAndCouponFundingMethods() {
+        val repayment = CreditRepaymentEntity(
+            id = "repayment-methods",
+            operationId = "repayment-methods-op",
+            customerId = "customer-1",
+            amountMinor = 2_500L,
+            currencyCode = "OMR",
+            paymentCategory = PaymentCategory.CASH,
+            occurredAt = 4_000L,
+            actorUserId = "user"
+        )
+
+        fun resolveFunding(
+            category: PaymentCategory,
+            channel: PaymentChannel
+        ) = RecentActivityReadModelResolver.resolveCreditRepayment(
+            repayment = repayment,
+            customerName = "Customer One",
+            settlements = listOf(
+                settlement(
+                    transactionId = "unrelated-original-sale",
+                    operationId = repayment.operationId,
+                    purpose = EntryPurpose.CREDIT_REPAYMENT_COLLECTION,
+                    category = category,
+                    channel = channel,
+                    amount = repayment.amountMinor,
+                    occurredAt = repayment.occurredAt
+                )
+            )
+        )
+
+        val cash = resolveFunding(
+            PaymentCategory.CASH,
+            PaymentChannel.CASH_TENDER
+        )
+        val coupon = resolveFunding(
+            PaymentCategory.COUPON,
+            PaymentChannel.COUPON_WALLET
+        )
+
+        assertEquals(PaymentCategory.CASH, cash.fundingBreakdown.single().category)
+        assertEquals(repayment.amountMinor, cash.recentTotalEffect.amount)
+        assertEquals(PaymentCategory.COUPON, coupon.fundingBreakdown.single().category)
+        assertEquals(0L, coupon.recentTotalEffect.amount)
+    }
+
+    @Test
+    fun paymentMethodChangeIsVisibleWithoutCreatingFinancialValue() {
+        val base = saleRecord(
+            "payment-change",
+            PaymentCategory.CASH,
+            PaymentChannel.CASH_TENDER,
+            occurredAt = -500L
+        )
+        val change = PaymentMethodChangeEventEntity(
+            id = "payment-change-event",
+            transactionId = base.transaction.id,
+            operationId = "payment-change-op",
+            previousMethod = PaymentCategory.CASH,
+            previousChannel = PaymentChannel.CASH_TENDER,
+            newMethod = PaymentCategory.ONLINE,
+            newChannel = PaymentChannel.MANUAL_QR,
+            actorUserId = "user",
+            occurredAt = 2_000L
+        )
+
+        val activity = resolve(
+            base.copy(paymentMethodChanges = listOf(change))
+        ).single()
+
+        assertEquals(RecentActivityType.PAYMENT_METHOD_CHANGE, activity.type)
+        assertEquals(0L, activity.signedEffect.amount)
+        assertEquals(0L, activity.recentTotalEffect.amount)
+        assertEquals(PaymentCategory.ONLINE, activity.fundingBreakdown.single().category)
+        assertEquals(change.operationId, activity.operationId)
+        assertEquals(base.transaction.id, activity.transactionId)
     }
 
     @Test

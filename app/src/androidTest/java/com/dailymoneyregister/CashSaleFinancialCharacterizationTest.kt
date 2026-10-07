@@ -82,7 +82,7 @@ class CashSaleFinancialCharacterizationTest {
             assertGolden(
                 operationId = operationId,
                 transactionId = transactionId,
-                schemaVersion = 3,
+                schemaVersion = 4,
                 description = null,
                 itemName = "Characterization Item",
                 itemDescription = "Observed item description",
@@ -94,7 +94,7 @@ class CashSaleFinancialCharacterizationTest {
                         "sub:1500|tax:false:0:0|shp:0|pck:0|itemShp:0|itemPck:0|" +
                         "gnd:1500|desc:|items:[item-tx-normal-v3:Characterization Item:1:1500:0:0]|" +
                         "time:1700000000000",
-                payload = expectedV3Payload(operationId, transactionId)
+                payload = expectedV4Payload(operationId, transactionId)
             )
 
             Log.i(
@@ -283,7 +283,18 @@ class CashSaleFinancialCharacterizationTest {
         assertEquals(1, countRows("transactions"))
         assertEquals(1, countRows("transaction_items"))
         assertEquals(1, countRows("settlement_entries"))
-        assertEquals(1, countRows("operations"))
+        val opTypes = mutableListOf<String>()
+        database.openHelper.readableDatabase
+            .query("SELECT operation_type FROM operations ORDER BY rowid")
+            .use { c -> while (c.moveToNext()) opTypes.add(c.getString(0)) }
+        if (operation?.cashShiftId == null) {
+            assertEquals(listOf("RECORD_SALE"), opTypes)
+        } else {
+            assertEquals(
+                listOf("OPEN_CASH_SHIFT", "RECORD_SALE"),
+                opTypes.sorted()
+            )
+        }
 
         assertNotNull(transaction)
         assertEquals(1, items.size)
@@ -403,6 +414,39 @@ class CashSaleFinancialCharacterizationTest {
             appendLine("currencyDecimalPlaces=3")
             appendLine("deviceId=device-characterization")
             appendLine("occurredAt=1700000000000")
+            appendLine("manualAmount=0")
+            appendLine("manualDescription=")
+            appendLine("taxRateBps=0")
+            appendLine("isTaxEnabled=false")
+            appendLine("taxRoundingMode=HALF_UP")
+            appendLine("txShipping=0")
+            appendLine("txPacking=0")
+            appendLine("itemCount=1")
+            appendLine("item[0].id=item-$transactionId")
+            appendLine("item[0].name=Characterization Item")
+            appendLine("item[0].desc=Observed item description")
+            appendLine("item[0].unitPrice=1500")
+            appendLine("item[0].qty=1")
+            appendLine("item[0].barcode=barcode-$transactionId")
+            appendLine("item[0].itemPacking=0")
+            appendLine("item[0].itemShipping=0")
+        }
+
+    private fun expectedV4Payload(operationId: String, transactionId: String): String =
+        buildString {
+            appendLine("v=4")
+            appendLine("commandType=CASH_SALE")
+            appendLine("operationId=$operationId")
+            appendLine("businessId=biz-characterization")
+            appendLine("branchId=branch-characterization")
+            appendLine("actorUserId=user-characterization")
+            appendLine("transactionId=$transactionId")
+            appendLine("currencyCode=OMR")
+            appendLine("currencyDecimalPlaces=3")
+            appendLine("deviceId=device-characterization")
+            appendLine("occurredAt=1700000000000")
+            appendLine("customerName=")
+            appendLine("customerPhone=")
             appendLine("manualAmount=0")
             appendLine("manualDescription=")
             appendLine("taxRateBps=0")

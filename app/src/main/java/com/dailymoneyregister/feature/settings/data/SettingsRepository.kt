@@ -2,6 +2,8 @@ package com.dailymoneyregister.feature.settings.data
 
 import com.dailymoneyregister.core.database.dao.BusinessBranchDao
 import com.dailymoneyregister.core.database.dao.UserDao
+import com.dailymoneyregister.core.database.entity.BranchEntity
+import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.i18n.LanguageRegistry
 import kotlinx.coroutines.CancellationException
@@ -30,6 +32,16 @@ class SettingsRepository @Inject constructor(
     private val userDao: UserDao,
     private val businessBranchDao: BusinessBranchDao
 ) {
+    suspend fun getBusinessAndBranch(
+        businessId: String,
+        branchId: String
+    ): Pair<BusinessEntity, BranchEntity>? {
+        val business = businessBranchDao.getBusinessById(businessId) ?: return null
+        val branch = businessBranchDao.getBranchById(branchId) ?: return null
+        if (branch.businessId != business.id) return null
+        return business to branch
+    }
+
     suspend fun updateLanguage(
         userId: String,
         businessId: String,
@@ -112,20 +124,26 @@ class SettingsRepository @Inject constructor(
 
             val now = System.currentTimeMillis()
 
-            if (business.name != name) {
-                businessBranchDao.updateBusiness(business.copy(name = name, updatedAt = now))
-            }
+            val updatedBusiness =
+                business.takeIf { it.name != name }
+                    ?.copy(name = name, updatedAt = now)
 
-            if (branch.address != address || branch.phone != phone || branch.taxRegistrationNumber != taxId) {
-                businessBranchDao.updateBranch(
-                    branch.copy(
+            val updatedBranch =
+                branch.takeIf {
+                    it.address != address ||
+                        it.phone != phone ||
+                        it.taxRegistrationNumber != taxId
+                }?.copy(
                         address = address,
                         phone = phone,
                         taxRegistrationNumber = taxId,
                         updatedAt = now
-                    )
                 )
-            }
+
+            businessBranchDao.updateBusinessDetailsAtomically(
+                business = updatedBusiness,
+                branch = updatedBranch
+            )
 
             SettingsBusinessDetailsResult.Success
         } catch (exception: CancellationException) {

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reporting_custom">حسب ضرورت</string>
+    <string name="reporting_from_date">تاریخ سے</string>
+    <string name="reporting_to_date">تاریخ تک</string>
+    <string name="reporting_apply_dates">تاریخیں لاگو کریں</string>
+    <string name="reporting_search">Search name, phone or reference</string>
+    <string name="reporting_branch">برانچ</string>
+    <string name="reporting_all_cashiers">تمام کیشیئر</string>
+    <string name="reporting_all">سب</string>
+    <string name="reporting_sales">فروخت</string>
+    <string name="reporting_credit_sales">Credit sales</string>
+    <string name="reporting_credit_repayments">Credit repayments</string>
+    <string name="reporting_coupon">Coupon</string>
+    <string name="reporting_refunds">واپسی</string>
+    <string name="reporting_expenses">اخراجات</string>
+    <string name="reporting_voids">Voids</string>
+    <string name="reporting_corrections">Corrections</string>
+    <string name="reporting_payment_changes">Payment changes</string>
+    <string name="reporting_cash">نقد</string>
+    <string name="reporting_online">آن لائن</string>
+    <string name="reporting_credit">ادھار</string>
+    <string name="reporting_period_summary">Period summary</string>
+    <string name="reporting_net_sales_activity">Net sales activity</string>
+    <string name="reporting_cash_sales">Cash sales</string>
+    <string name="reporting_online_sales">Online sales</string>
+    <string name="reporting_no_results">No activity matches these filters.</string>
+    <string name="reporting_payment_value">Payment: %1$s</string>
+    <string name="reporting_reason_value">Reason: %1$s</string>
+    <string name="reporting_sale">Sale</string>
+    <string name="reporting_credit_sale">Credit sale</string>
+    <string name="reporting_credit_repayment">Credit repayment</string>
+    <string name="reporting_coupon_purchase">Coupon purchase</string>
+    <string name="reporting_coupon_topup">Coupon top-up</string>
+    <string name="reporting_coupon_redemption">Coupon redemption</string>
+    <string name="reporting_coupon_refund">Refund to coupon</string>
+    <string name="reporting_coupon_bonus">کوپن بونس</string>
+    <string name="reporting_coupon_credit_repayment">Coupon credit repayment</string>
+    <string name="reporting_refund">Refund</string>
+    <string name="reporting_expense">Expense</string>
+    <string name="reporting_void">Void</string>
+    <string name="reporting_amount_correction">Amount correction</string>
+    <string name="reporting_payment_method_change">Payment method change</string>
+    <string name="reporting_invalid_custom_period">Enter a valid custom date range.</string>
+    <string name="reporting_today_snapshot">Today’s financial snapshot</string>
+    <string name="reporting_summary_unavailable">Financial summary unavailable.</string>
+</resources>

@@ -17,7 +17,9 @@ data class OnlineSaleCommand(
     val currencyCode: String,
     val currencyDecimalPlaces: Int,
     override val deviceId: String,
-    override val occurredAt: Long = System.currentTimeMillis()
+    override val occurredAt: Long = System.currentTimeMillis(),
+    val customerName: String? = null,
+    val customerPhone: String? = null
 ) : OperationCommand {
     override val operationType = OperationType.RECORD_SALE
     override val subjectType = SubjectType.TRANSACTION
@@ -36,7 +38,10 @@ data class OnlineSaleCommand(
                 "shp:${draftState.txShipping.amount}|pck:${draftState.txPacking.amount}|" +
                 "itemShp:${draftState.itemShippingTotal.amount}|itemPck:${draftState.itemPackingTotal.amount}|" +
                 "gnd:${draftState.grandTotal.amount}|desc:${draftState.manualDescription ?: ""}|" +
-                "items:[$itemsDigest]|time:$occurredAt"
+                "items:[$itemsDigest]|time:$occurredAt" +
+                (customerPhone?.let {
+                    "|customer:$it|name:${customerName.orEmpty()}"
+                } ?: "")
         }
 
     override val intentPayload: String

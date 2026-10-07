@@ -1,10 +1,5 @@
 package com.dailymoneyregister.feature.register.ui
 
-import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.widget.Toast
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -30,7 +25,16 @@ import com.dailymoneyregister.core.ui.PhoneNumberInput
 import com.dailymoneyregister.core.ui.PhoneNumberInputValue
 import com.dailymoneyregister.core.ui.asString
 import com.dailymoneyregister.feature.settings.ui.MerchantQrImage
+import com.dailymoneyregister.feature.customers.ui.PreparedWhatsAppMessage
+import com.dailymoneyregister.feature.customers.ui.UniversalWhatsAppMessageComposer
+import com.dailymoneyregister.feature.customers.ui.WhatsAppTransport
+import com.dailymoneyregister.feature.register.receipt.ReceiptReadModel
+import com.dailymoneyregister.feature.register.receipt.ReceiptSharing
 import java.math.BigDecimal
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /*
  * BOARDLOCK_COUPON_COMPACT_R7A
@@ -38,14 +42,32 @@ import java.math.BigDecimal
  * PRESENTATION ONLY.
  *
  * Existing CouponSaleDialog remains untouched in RegisterScreen.kt.
- * Financial commands continue through RegisterViewModel.
+ * Financial commands continue through host-provided ViewModel intents.
  */
+internal data class CouponCompactDialogActions(
+    val onDismiss: () -> Unit,
+    val onStartNewSale: () -> Unit,
+    val onSearchCustomers: (String) -> Unit,
+    val onOpenWallet: (String, Boolean) -> Unit,
+    val onCloseWallet: () -> Unit,
+    val onSaveUser: (String?, String, Boolean) -> Unit,
+    val onConfirmRefund: (CustomerEntity?, String, String, List<String>) -> Unit,
+    val onConfirmRedemption: (CustomerEntity?, String?, String, PaymentCategory?) -> Unit,
+    val onConfirmTopUp: (CustomerEntity, String, String, PaymentCategory) -> Unit,
+    val onConfirmSale: (CustomerEntity?, String, String, String, PaymentCategory, List<String>) -> Unit,
+    val onLoadReceiptDetails: (String, (com.dailymoneyregister.feature.register.data.TransactionDetailsReadModel?) -> Unit) -> Unit
+)
+
 @Composable
 internal fun CouponCompactDialogR7A(
-    viewModel: RegisterViewModel,
     state: RegisterUiState,
     decimalPlaces: Int,
-    startMode: CouponDialogStartMode
+    startMode: CouponDialogStartMode,
+    currencyCode: String,
+    currencySymbol: String,
+    merchantCountryCode: String,
+    businessName: String,
+    actions: CouponCompactDialogActions
 ) {
     val context = LocalContext.current
 
@@ -67,7 +89,7 @@ internal fun CouponCompactDialogR7A(
     var searchPhone by remember {
         mutableStateOf(
             PhoneNumberInputValue(
-                viewModel.merchantCountryCode
+                merchantCountryCode
             )
         )
     }
@@ -91,7 +113,7 @@ internal fun CouponCompactDialogR7A(
     var customerPhone by remember {
         mutableStateOf(
             PhoneNumberInputValue(
-                viewModel.merchantCountryCode
+                merchantCountryCode
             )
         )
     }
@@ -264,7 +286,7 @@ internal fun CouponCompactDialogR7A(
     Dialog(
         onDismissRequest = {
             if (!locked && !finished) {
-                viewModel.closeCouponSale()
+                actions.onDismiss()
             }
         },
         properties =
@@ -333,7 +355,7 @@ internal fun CouponCompactDialogR7A(
 
                     TextButton(
                         onClick =
-                            viewModel::closeCouponSale,
+                            actions.onDismiss,
                         enabled =
                             !locked
                     ) {
@@ -402,7 +424,7 @@ internal fun CouponCompactDialogR7A(
                                             result.refundAmountMinor
                                         ).formatDisplay(
                                             decimalPlaces,
-                                            viewModel.currencyCode
+                                            currencyCode
                                         ),
                                         fontWeight =
                                             FontWeight.Bold
@@ -418,7 +440,7 @@ internal fun CouponCompactDialogR7A(
                                                         balance
                                                     ).formatDisplay(
                                                         decimalPlaces,
-                                                        viewModel.currencyCode
+                                                        currencyCode
                                                     )
                                             )
                                         }
@@ -440,13 +462,13 @@ internal fun CouponCompactDialogR7A(
                                                 result.amountMinor
                                             ).formatDisplay(
                                                 decimalPlaces,
-                                                viewModel.currencyCode
+                                                currencyCode
                                             ),
                                             MoneyMinorUnits(
                                                 result.balanceAfterMinor
                                             ).formatDisplay(
                                                 decimalPlaces,
-                                                viewModel.currencyCode
+                                                currencyCode
                                             )
                                         )
                                     )
@@ -464,7 +486,7 @@ internal fun CouponCompactDialogR7A(
                                             result.purchasedAmountMinor
                                         ).formatDisplay(
                                             decimalPlaces,
-                                            viewModel.currencySymbol
+                                            currencySymbol
                                         ),
                                         fontWeight =
                                             FontWeight.Bold
@@ -483,7 +505,7 @@ internal fun CouponCompactDialogR7A(
                                             result.amountMinor
                                         ).formatDisplay(
                                             decimalPlaces,
-                                            viewModel.currencySymbol
+                                            currencySymbol
                                         ),
                                         fontWeight =
                                             FontWeight.Bold
@@ -537,6 +559,19 @@ internal fun CouponCompactDialogR7A(
 
                                 Button(
                                     onClick = {
+                                        // BOARDLOCK_UNIVERSAL_RECEIPT_IMAGE_V4
+                                        // Every Coupon WhatsApp message goes out with a receipt image.
+                                        val formatMoney: (Long) -> String = { minor ->
+                                            MoneyMinorUnits(minor).formatDisplay(
+                                                decimalPlaces,
+                                                currencyCode
+                                            )
+                                        }
+
+                                        val isPurchaseOrTopUp =
+                                            state.couponSaleResult != null ||
+                                                state.couponTopUpResult != null
+
                                         val successTitle =
                                             when {
                                                 state.refundToCouponResult != null ->
@@ -552,84 +587,112 @@ internal fun CouponCompactDialogR7A(
                                                     "Coupon purchase successful"
                                             }
 
-                                        val message =
-                                            buildString {
-                                                viewModel.activeBusiness
-                                                    ?.name
-                                                    ?.takeIf {
-                                                        it.isNotBlank()
-                                                    }
-                                                    ?.let {
-                                                        append(it)
-                                                        append("\n")
-                                                    }
+                                        val couponBalanceMinor =
+                                            when {
+                                                isPurchaseOrTopUp ->
+                                                    state.couponWalletDetails?.balanceMinor
 
-                                                append(successTitle)
+                                                state.refundToCouponResult != null ->
+                                                    state.refundToCouponResult?.couponBalanceAfterMinor
 
-                                                append("\nCustomer: ")
-                                                append(
-                                                    successCustomerName
-                                                )
-
-                                                append("\nAmount: ")
-                                                append(
-                                                    MoneyMinorUnits(
-                                                        successAmountMinor
-                                                    ).formatDisplay(
-                                                        decimalPlaces,
-                                                        viewModel.currencyCode
-                                                    )
-                                                )
-
-                                                state
-                                                    .refundToCouponResult
-                                                    ?.couponBalanceAfterMinor
-                                                    ?.let {
-                                                        append(
-                                                            "\nCoupon balance: "
-                                                        )
-                                                        append(
-                                                            MoneyMinorUnits(
-                                                                it
-                                                            ).formatDisplay(
-                                                                decimalPlaces,
-                                                                viewModel.currencyCode
-                                                            )
-                                                        )
-                                                    }
-
-                                                state
-                                                    .couponRedemptionResult
-                                                    ?.let {
-                                                        append(
-                                                            "\nCoupon balance: "
-                                                        )
-                                                        append(
-                                                            MoneyMinorUnits(
-                                                                it.balanceAfterMinor
-                                                            ).formatDisplay(
-                                                                decimalPlaces,
-                                                                viewModel.currencyCode
-                                                            )
-                                                        )
-                                                    }
-
-                                                if (
-                                                    successReference
-                                                        .isNotBlank()
-                                                ) {
-                                                    append("\nRef: ")
-                                                    append(
-                                                        successReference
-                                                    )
-                                                }
+                                                else ->
+                                                    state.couponRedemptionResult?.balanceAfterMinor
                                             }
 
-                                        openCouponWhatsAppR7A(
-                                            context,
-                                            successCustomerPhone,
-                                            message
-                                        )
+                                        val occurredAt =
+                                            state.couponRedemptionResult
+                                                ?.transaction?.createdAt
+                                                ?: state.couponTopUpResult
+                                                    ?.transaction?.createdAt
+                                                ?: state.couponSaleResult
+                                                    ?.transaction?.createdAt
+
+                                        val couponEvent =
+                                            UniversalWhatsAppMessageComposer.CouponEvent(
+                                                kind =
+                                                    if (isPurchaseOrTopUp) {
+                                                        UniversalWhatsAppMessageComposer
+                                                            .CouponEventKind
+                                                            .PURCHASE_OR_TOP_UP
+                                                    } else {
+                                                        UniversalWhatsAppMessageComposer
+                                                            .CouponEventKind
+                                                            .GENERIC
+                                                    },
+                                                party = UniversalWhatsAppMessageComposer.Party(
+                                                    businessName = businessName,
+                                                    customerName = successCustomerName,
+                                                    customerPhone = successCustomerPhone
+                                                ),
+                                                title = successTitle,
+                                                formattedAmount = formatMoney(successAmountMinor),
+                                                formattedBalance = couponBalanceMinor?.let(formatMoney),
+                                                reference = successReference,
+                                                eventDateTime = occurredAt?.let(
+                                                    ::couponWhatsAppDateTime
+                                                )
+                                            )
+
+                                        val message =
+                                            UniversalWhatsAppMessageComposer.compose(couponEvent)
+
+                                        // Last resort only: the image could not be prepared.
+                                        val shareTextOnly: () -> Unit = {
+                                            WhatsAppTransport.share(
+                                                context = context,
+                                                prepared = PreparedWhatsAppMessage(
+                                                    text = message,
+                                                    recipientPhone = successCustomerPhone
+                                                )
+                                            )
+                                        }
+
+                                        // Coupon purchase, top-up, refund: image built from the same values as the text.
+                                        val shareEventImage: () -> Unit = {
+                                            runCatching {
+                                                ReceiptSharing.shareCouponEventWhatsApp(
+                                                    context = context,
+                                                    event = couponEvent
+                                                )
+                                            }.onFailure { shareTextOnly() }
+                                        }
+
+                                        if (state.couponRedemptionResult == null) {
+                                            shareEventImage()
+                                        } else {
+                                            // Merchandise sale paid with Coupon: normal sale receipt image,
+                                            // with the Coupon wording kept as the message.
+                                            actions.onLoadReceiptDetails(
+                                                state.couponRedemptionResult
+                                                    ?.transaction
+                                                    ?.id
+                                                    .orEmpty()
+                                            ) { details ->
+                                                val receipt =
+                                                    details?.let {
+                                                        runCatching {
+                                                            ReceiptReadModel.from(
+                                                                details = it,
+                                                                businessName = businessName,
+                                                                customerName = successCustomerName,
+                                                                customerPhone = successCustomerPhone
+                                                            )
+                                                        }.getOrNull()
+                                                    }
+
+                                                if (receipt == null) {
+                                                    shareEventImage()
+                                                } else {
+                                                    runCatching {
+                                                        ReceiptSharing.shareWhatsApp(
+                                                            context = context,
+                                                            receipt = receipt,
+                                                            messageOverride = message
+                                                        )
+                                                    }.onFailure { shareEventImage() }
+                                                }
+                                            }
+                                        }
                                     },
                                     modifier =
                                         Modifier.fillMaxWidth(),
@@ -654,9 +717,9 @@ internal fun CouponCompactDialogR7A(
                                     if (
                                         state.couponRedemptionResult != null
                                     ) {
-                                        viewModel.startNewSale()
+                                        actions.onStartNewSale()
                                     } else {
-                                        viewModel.closeCouponSale()
+                                        actions.onDismiss()
                                     }
                                 },
                                 modifier =
@@ -818,10 +881,7 @@ internal fun CouponCompactDialogR7A(
                                                     searchName.trim()
                                                 }
 
-                                            viewModel
-                                                .searchCouponCustomers(
-                                                    value
-                                                )
+                                            actions.onSearchCustomers(value)
                                         },
                                         modifier =
                                             Modifier.fillMaxWidth(),
@@ -868,8 +928,7 @@ internal fun CouponCompactDialogR7A(
 
                                             customerPhone =
                                                 PhoneNumberInputValue(
-                                                    viewModel
-                                                        .merchantCountryCode,
+                                                    merchantCountryCode,
                                                     found.customer
                                                         .canonicalPhone
                                                 )
@@ -895,11 +954,10 @@ internal fun CouponCompactDialogR7A(
                                                         .toPlainString()
                                             }
 
-                                            viewModel
-                                                .openCouponWallet(
-                                                    found.customer.id,
-                                                    false
-                                                )
+                                            actions.onOpenWallet(
+                                                found.customer.id,
+                                                false
+                                            )
                                         },
                                         modifier =
                                             Modifier.fillMaxWidth(),
@@ -941,8 +999,7 @@ internal fun CouponCompactDialogR7A(
                                                                 .balanceMinor
                                                         ).formatDisplay(
                                                             decimalPlaces,
-                                                            viewModel
-                                                                .currencySymbol
+                                                            currencySymbol
                                                         )
                                                     ),
                                                     style =
@@ -1123,8 +1180,7 @@ internal fun CouponCompactDialogR7A(
                                                         selectedBalanceMinor
                                                     ).formatDisplay(
                                                         decimalPlaces,
-                                                        viewModel
-                                                            .currencySymbol
+                                                        currencySymbol
                                                     )
                                                 ),
                                                 fontWeight =
@@ -1159,8 +1215,7 @@ internal fun CouponCompactDialogR7A(
                                                 startMode
                                                     .startsWithRedemption
 
-                                            viewModel
-                                                .closeCouponWallet()
+                                            actions.onCloseWallet()
                                         },
                                         enabled =
                                             !locked
@@ -1184,28 +1239,29 @@ internal fun CouponCompactDialogR7A(
 
                                 Button(
                                     onClick = {
-
                                         val message =
-                                            context.getString(
-                                                R.string
-                                                    .coupon_whatsapp_balance_message,
-                                                selected.name,
-                                                viewModel
-                                                    .activeBusiness
-                                                    ?.name
-                                                    .orEmpty(),
-                                                MoneyMinorUnits(
-                                                    selectedBalanceMinor
-                                                ).formatDisplay(
-                                                    decimalPlaces,
-                                                    viewModel.currencyCode
+                                            UniversalWhatsAppMessageComposer.compose(
+                                                UniversalWhatsAppMessageComposer.CouponBalance(
+                                                    party = UniversalWhatsAppMessageComposer.Party(
+                                                        businessName = businessName,
+                                                        customerName = selected.name,
+                                                        customerPhone = selected.canonicalPhone
+                                                    ),
+                                                    formattedBalance = MoneyMinorUnits(
+                                                        selectedBalanceMinor
+                                                    ).formatDisplay(
+                                                        decimalPlaces,
+                                                        currencyCode
+                                                    )
                                                 )
                                             )
 
-                                        openCouponWhatsAppR7A(
-                                            context,
-                                            selected.canonicalPhone,
-                                            message
+                                        WhatsAppTransport.share(
+                                            context = context,
+                                            prepared = PreparedWhatsAppMessage(
+                                                text = message,
+                                                recipientPhone = selected.canonicalPhone
+                                            )
                                         )
                                     },
                                     modifier =
@@ -1262,12 +1318,12 @@ internal fun CouponCompactDialogR7A(
 
                                     Text(
                                         if (refundMode) {
-                                            "Refund amount (${viewModel.currencyCode})"
+                                            "Refund amount ($currencyCode)"
                                         } else {
                                             stringResource(
                                                 R.string
                                                     .coupon_purchase_amount,
-                                                viewModel.currencyCode
+                                                currencyCode
                                             )
                                         }
                                     )
@@ -1394,11 +1450,11 @@ internal fun CouponCompactDialogR7A(
                                             }
                                         ) {
 
-                                            viewModel
-                                                .saveCouponUser(
-                                                    userId = null,
-                                                    name = clean
-                                                )
+                                            actions.onSaveUser(
+                                                null,
+                                                clean,
+                                                false
+                                            )
 
                                             newUserName =
                                                 ""
@@ -1572,7 +1628,7 @@ internal fun CouponCompactDialogR7A(
                                             remainderMinor
                                         ).formatDisplay(
                                             decimalPlaces,
-                                            viewModel.currencyCode
+                                            currencyCode
                                         )
                                     ),
                                     fontWeight =
@@ -1746,62 +1802,48 @@ internal fun CouponCompactDialogR7A(
 
                                     if (refundMode) {
 
-                                        viewModel
-                                            .confirmRefundToCoupon(
-                                                customer =
-                                                    customer,
-                                                name =
-                                                    customerName,
-                                                phone =
-                                                    customerPhoneNormalized
-                                                        ?: customerPhone
-                                                            .rawNumber,
-                                                additionalUsers =
-                                                    additionalUsers
-                                            )
+                                        actions.onConfirmRefund(
+                                            customer,
+                                            customerName,
+                                            customerPhoneNormalized
+                                                ?: customerPhone.rawNumber,
+                                            additionalUsers
+                                        )
 
                                     } else if (
                                         actionIsRedemption
                                     ) {
 
-                                        viewModel
-                                            .confirmCouponRedemption(
-                                                customer,
-                                                selectedUserId,
-                                                amount,
-                                                funding
-                                            )
+                                        actions.onConfirmRedemption(
+                                            customer,
+                                            selectedUserId,
+                                            amount,
+                                            funding
+                                        )
 
                                     } else if (
                                         customer != null &&
                                         existingWallet
                                     ) {
 
-                                        viewModel
-                                            .confirmCouponTopUp(
-                                                customer!!,
-                                                selectedWallet!!.id,
-                                                amount,
-                                                pending
-                                                    ?.fundingCategory
-                                                    ?: funding
-                                            )
+                                        actions.onConfirmTopUp(
+                                            customer!!,
+                                            selectedWallet!!.id,
+                                            amount,
+                                            pending?.fundingCategory ?: funding
+                                        )
 
                                     } else {
 
-                                        viewModel
-                                            .confirmCouponSale(
-                                                customer,
-                                                customerName,
-                                                customerPhoneNormalized
-                                                    ?: customerPhone
-                                                        .rawNumber,
-                                                amount,
-                                                pending
-                                                    ?.fundingCategory
-                                                    ?: funding,
-                                                additionalUsers
-                                            )
+                                        actions.onConfirmSale(
+                                            customer,
+                                            customerName,
+                                            customerPhoneNormalized
+                                                ?: customerPhone.rawNumber,
+                                            amount,
+                                            pending?.fundingCategory ?: funding,
+                                            additionalUsers
+                                        )
                                     }
                                 },
                                 modifier =
@@ -1846,79 +1888,8 @@ internal fun CouponCompactDialogR7A(
 }
 
 
-/*
- * R7A local WhatsApp helper.
- * Existing RegisterScreen helper remains untouched.
- */
-private fun openCouponWhatsAppR7A(
-    context: Context,
-    phone: String,
-    message: String
-) {
-
-    if (
-        !Regex("\\+[1-9][0-9]{6,14}")
-            .matches(phone)
-    ) {
-
-        Toast.makeText(
-            context,
-            R.string.coupon_whatsapp_invalid_phone,
-            Toast.LENGTH_SHORT
-        ).show()
-
-        return
-    }
-
-    val uri =
-        Uri.parse(
-            "https://wa.me/${phone.drop(1)}?text=${
-                Uri.encode(message)
-            }"
-        )
-
-    val launched =
-        listOf(
-            "com.whatsapp",
-            "com.whatsapp.w4b",
-            null
-        ).any { packageName ->
-
-            try {
-
-                context.startActivity(
-                    Intent(
-                        Intent.ACTION_VIEW,
-                        uri
-                    )
-                        .setPackage(packageName)
-                        .addFlags(
-                            Intent.FLAG_ACTIVITY_NEW_TASK
-                        )
-                )
-
-                true
-
-            } catch (
-                _: ActivityNotFoundException
-            ) {
-
-                false
-
-            } catch (
-                _: SecurityException
-            ) {
-
-                false
-            }
-        }
-
-    if (!launched) {
-
-        Toast.makeText(
-            context,
-            R.string.coupon_whatsapp_open_failed,
-            Toast.LENGTH_SHORT
-        ).show()
-    }
-}
+private fun couponWhatsAppDateTime(occurredAt: Long): String =
+    DateTimeFormatter
+        .ofPattern("dd MMM yyyy, hh:mm a", Locale.getDefault())
+        .withZone(ZoneId.systemDefault())
+        .format(Instant.ofEpochMilli(occurredAt))

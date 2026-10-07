@@ -32,6 +32,12 @@ object LanguageRegistry {
 class LanguageManager(private val context: Context) {
     private val prefs = context.getSharedPreferences("dmr_language_prefs", Context.MODE_PRIVATE)
 
+    fun hasChosenLanguage(): Boolean = prefs.getBoolean("language_chosen", false)
+
+    fun markLanguageChosen() {
+        prefs.edit().putBoolean("language_chosen", true).apply()
+    }
+
     private val _currentLanguage = MutableStateFlow(loadSavedLanguage())
     val currentLanguage: StateFlow<SupportedLanguage> = _currentLanguage.asStateFlow()
 

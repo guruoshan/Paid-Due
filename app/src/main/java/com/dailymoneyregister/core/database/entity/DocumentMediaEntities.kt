@@ -113,6 +113,41 @@ data class MediaAssetEntity(
 )
 
 @Entity(
+    tableName = "document_media_links",
+    primaryKeys = ["document_id", "media_id"],
+    foreignKeys = [
+        ForeignKey(
+            entity = DocumentEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["document_id"],
+            onDelete = ForeignKey.RESTRICT
+        ),
+        ForeignKey(
+            entity = MediaAssetEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["media_id"],
+            onDelete = ForeignKey.RESTRICT
+        )
+    ],
+    indices = [
+        Index(value = ["document_id"]),
+        Index(value = ["media_id"])
+    ]
+)
+data class DocumentMediaLinkEntity(
+    @ColumnInfo(name = "document_id")
+    val documentId: String,
+
+    @ColumnInfo(name = "media_id")
+    val mediaId: String,
+
+    @ColumnInfo(name = "position")
+    val position: Int,
+
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long
+)
+@Entity(
     tableName = "merchant_qr_configs",
     foreignKeys = [
         ForeignKey(

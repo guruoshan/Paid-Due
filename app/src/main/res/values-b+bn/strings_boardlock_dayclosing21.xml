@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dmr21_day_cash_sales">নগদ বিক্রি: %1$s</string>
+    <string name="dmr21_day_cash_coupon_funding">নগদ কুপন ফান্ডিং: %1$s</string>
+    <string name="dmr21_day_cash_credit_payments">নগদ ক্রেডিট পরিশোধ: %1$s</string>
+    <string name="dmr21_day_cash_refunds">নগদ ফেরত: %1$s</string>
+    <string name="dmr21_day_cash_expenses">নগদ খরচ: %1$s</string>
+    <string name="dmr21_day_expected_cash">প্রত্যাশিত নগদ: %1$s</string>
+    <string name="dmr21_day_online_expenses">অনলাইন খরচ (ড্রয়ারের নগদে প্রভাব ফেলে না): %1$s</string>
+</resources>

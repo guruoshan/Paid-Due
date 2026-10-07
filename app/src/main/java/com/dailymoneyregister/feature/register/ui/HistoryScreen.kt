@@ -9,11 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -28,6 +26,7 @@ import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.financial.FinancialLifecycleState
 import com.dailymoneyregister.core.model.financial.FinancialTransactionView
 import com.dailymoneyregister.feature.register.data.HistoryFilter
+import com.dailymoneyregister.feature.register.data.HistoryActivityRow
 import com.dailymoneyregister.feature.register.data.HistoryTransactionRow
 import java.time.Instant
 import java.time.ZoneId
@@ -43,6 +42,7 @@ fun HistoryScreen(
     onQueryChanged: (String) -> Unit,
     onFilterChanged: (HistoryFilter) -> Unit,
     onTransactionSelected: (String) -> Unit,
+    onExpenseSelected: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
 
@@ -115,32 +115,6 @@ fun HistoryScreen(
             }
         )
 
-        LazyRow(
-            horizontalArrangement =
-                Arrangement.spacedBy(8.dp)
-        ) {
-
-            items(
-                HistoryFilter.values().toList()
-            ) { filter ->
-
-                FilterChip(
-                    selected =
-                        state.filter == filter,
-                    onClick = {
-                        onFilterChanged(filter)
-                    },
-                    label = {
-                        Text(
-                            historyFilterLabel(
-                                filter
-                            )
-                        )
-                    }
-                )
-            }
-        }
-
         when {
 
             state.loading -> {
@@ -209,23 +183,46 @@ fun HistoryScreen(
                         items =
                             state.visibleRows,
                         key = {
-                            it.transactionId
+                            it.activityKey
                         }
                     ) { row ->
 
-                        HistoryTransactionCard(
-                            row =
-                                row,
-                            currency =
-                                currency,
-                            timezoneId =
-                                timezoneId,
-                            onClick = {
-                                onTransactionSelected(
-                                    row.transactionId
+                        when (row) {
+
+                            is HistoryActivityRow.Transaction -> {
+
+                                HistoryTransactionCard(
+                                    row =
+                                        row.row,
+                                    currency =
+                                        currency,
+                                    timezoneId =
+                                        timezoneId,
+                                    onClick = {
+                                        onTransactionSelected(
+                                            row.sourceId
+                                        )
+                                    }
                                 )
                             }
-                        )
+
+                            is HistoryActivityRow.Expense -> {
+
+                                HistoryExpenseCard(
+                                    row =
+                                        row,
+                                    currency =
+                                        currency,
+                                    timezoneId =
+                                        timezoneId,
+                                    onClick = {
+                                        onExpenseSelected(
+                                            row.sourceId
+                                        )
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -234,37 +231,146 @@ fun HistoryScreen(
 }
 
 @Composable
-private fun historyFilterLabel(
-    filter: HistoryFilter
-): String =
-    when (filter) {
+private fun HistoryExpenseCard(
+    row: HistoryActivityRow.Expense,
+    currency: CurrencyConfig,
+    timezoneId: String,
+    onClick: () -> Unit
+) {
 
-        HistoryFilter.ALL ->
-            stringResource(
-                R.string.history_filter_all
+    val expense =
+        row.expense
+
+    val timestamp =
+        Instant.ofEpochMilli(
+            expense.occurredAt
+        )
+            .atZone(
+                ZoneId.of(timezoneId)
+            )
+            .format(
+                DateTimeFormatter.ofPattern(
+                    "dd/MM/yyyy HH:mm",
+                    Locale.getDefault()
+                )
             )
 
-        HistoryFilter.DATE ->
-            stringResource(
-                R.string.history_filter_date
+    val payment =
+        historyPaymentCategoryLabel(
+            expense.paymentCategory
+        )
+
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(
+                    onClick = onClick
+                )
+    ) {
+
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+            verticalArrangement =
+                Arrangement.spacedBy(5.dp)
+        ) {
+
+            Row(
+                modifier =
+                    Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.SpaceBetween
+            ) {
+
+                Column(
+                    modifier =
+                        Modifier.weight(1f)
+                ) {
+
+                    Text(
+                        text = "Expense",
+                        fontWeight =
+                            FontWeight.Bold
+                    )
+
+                    Text(
+                        text =
+                            expense.displayReference,
+                        style =
+                            MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Text(
+                    text =
+                        expense.signedEffect
+                            .formatDisplay(currency),
+                    fontWeight =
+                        FontWeight.Bold,
+                    color =
+                        MaterialTheme.colorScheme.error
+                )
+            }
+
+            Text(timestamp)
+
+            expense.payeeName
+                ?.takeIf {
+                    it.isNotBlank()
+                }
+                ?.let { name ->
+
+                    Text(name)
+                }
+
+            expense.payeePhone
+                ?.takeIf {
+                    it.isNotBlank()
+                }
+                ?.let { phone ->
+
+                    Text(phone)
+                }
+
+            Text(
+                text =
+                    expense.category
+                        .replace(
+                            "_",
+                            " "
+                        )
+                        .lowercase()
+                        .replaceFirstChar {
+                            if (it.isLowerCase()) {
+                                it.titlecase(
+                                    Locale.getDefault()
+                                )
+                            } else {
+                                it.toString()
+                            }
+                        }
             )
 
-        HistoryFilter.PHONE ->
-            stringResource(
-                R.string.history_filter_phone
-            )
+            Text(payment)
 
-        HistoryFilter.NAME ->
-            stringResource(
-                R.string.history_filter_name
-            )
+            expense.note
+                ?.takeIf {
+                    it.isNotBlank()
+                }
+                ?.let { note ->
 
-        HistoryFilter.AMOUNT ->
-            stringResource(
-                R.string.history_filter_amount
-            )
+                    Text(
+                        text = note,
+                        style =
+                            MaterialTheme.typography.bodySmall
+                    )
+                }
+        }
     }
-
+}
 @Composable
 private fun HistoryTransactionCard(
     row: HistoryTransactionRow,
@@ -324,7 +430,7 @@ private fun HistoryTransactionCard(
 
                 Text(
                     text =
-                        financial.currentAmount
+                        historyDisplayedAmount(financial)
                             .formatDisplay(currency),
                     fontWeight =
                         FontWeight.Bold
@@ -349,6 +455,18 @@ private fun HistoryTransactionCard(
                     Text(it)
                 }
 
+            financial.description
+                ?.takeIf {
+                    it.isNotBlank()
+                }
+                ?.let { note ->
+                    Text(
+                        text = note,
+                        style =
+                            MaterialTheme.typography.bodySmall
+                    )
+                }
+
             Text(
                 historyPaymentLabel(
                     financial
@@ -370,12 +488,9 @@ private fun historyPaymentLabel(
 ): String {
 
     val categories =
-        financial
-            .fundingBreakdown
-            .map {
-                it.category
-            }
-            .distinct()
+        historyDisplayedPaymentCategories(
+            financial
+        )
 
     if (categories.isNotEmpty()) {
 
@@ -406,6 +521,43 @@ private fun historyPaymentLabel(
 
         stringResource(
             R.string.history_payment_not_available
+        )
+    }
+}
+
+/**
+ * History's prominent amount is the lifecycle-resolved amount still in force.
+ * The pre-refund current amount remains available in Transaction Details.
+ */
+internal fun historyDisplayedAmount(
+    financial: FinancialTransactionView
+) = financial.netAmount
+
+/**
+ * A payment-method change reclassifies the authoritative current funding
+ * identity. Original funding remains in the audit timeline, but History must
+ * present the resulting method rather than the superseded one.
+ */
+internal fun historyDisplayedPaymentCategories(
+    financial: FinancialTransactionView
+): List<PaymentCategory> {
+    if (
+        FinancialLifecycleState.PAYMENT_METHOD_CHANGED in
+            financial.lifecycleStates
+    ) {
+        return listOfNotNull(
+            financial.currentPaymentCategory
+        )
+    }
+
+    val funded =
+        financial.fundingBreakdown
+            .map { it.category }
+            .distinct()
+
+    return funded.ifEmpty {
+        listOfNotNull(
+            financial.currentPaymentCategory
         )
     }
 }
@@ -493,5 +645,6 @@ private fun historyLifecycleLabel(
         labels += label
     }
 
-    return labels.joinToString(" • ")
+    return labels.joinToString(" â€¢ ")
 }
+

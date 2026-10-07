@@ -1270,20 +1270,30 @@ class DatabaseMigrationTest {
     }
 
     @Test
-    fun testProductionDatabaseBuilderDoesNotUseDestructiveFallback() {
+    fun testEncryptedDiskDatabaseUsesTestOnlyNameAndFinancialGuards() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-
-        val db = DmrDatabase.getInstance(context)
-        assertNotNull(db)
-
-        val writableDatabase = db.openHelper.writableDatabase
-
-        assertTrue(
-            "Database connection should be open",
-            db.isOpen
+        val databaseName = AndroidTestDatabaseFactory.requireTestDatabaseName(
+            "dmr-production-builder-configuration-test.db"
         )
 
-        assertImmutabilityGuards(writableDatabase)
+        val db = AndroidTestDatabaseFactory.createEncryptedDisk(
+            context = context,
+            databaseName = databaseName
+        )
+
+        try {
+            val writableDatabase = db.openHelper.writableDatabase
+
+            assertTrue(
+                "Database connection should be open",
+                db.isOpen
+            )
+
+            assertImmutabilityGuards(writableDatabase)
+        } finally {
+            db.close()
+            context.deleteDatabase(databaseName)
+        }
     }
 
     private fun insertMigrationPaymentChangeOperation(

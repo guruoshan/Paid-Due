@@ -29,7 +29,10 @@
     <string name="password">पासवर्ड</string>
     <string name="enter_6_digit_pin">6-अंकों का कैशियर पिन दर्ज करें</string>
     <string name="login">लॉगिन</string>
-    <string name="locked_out_msg">बहुत सारे असफल प्रयास। %1$d सेकंड के लिए लॉक किया गया।</string>
+    <plurals name="locked_out_msg">
+        <item quantity="one">बहुत सारे असफल प्रयास। %1$d सेकंड के लिए लॉक किया गया।</item>
+        <item quantity="other">बहुत सारे असफल प्रयास। %1$d सेकंड के लिए लॉक किया गया।</item>
+    </plurals>
 
     <!-- Hub Screen -->
     <string name="admin_hub_title">डेली मनी रजिस्टर - व्यवस्थापक</string>
@@ -100,7 +103,10 @@
     <string name="unit_price">इकाई मूल्य</string>
     <string name="quantity">मात्रा</string>
     <string name="item_desc_optional">विवरण (वैकल्पिक)</string>
-    <string name="items_count">%1$d वस्तुएं</string>
+    <plurals name="items_count">
+        <item quantity="one">%1$d वस्तुएं</item>
+        <item quantity="other">%1$d वस्तुएं</item>
+    </plurals>
 
     <!-- Tax & Shipping Dialogs -->
     <string name="tax_rate_percent">कर दर (%)</string>
@@ -118,7 +124,10 @@
     <!-- Invoice form (added) -->
     <string name="inv_create">इनवॉइस बनाएँ</string>
     <string name="inv_form_title">नया इनवॉइस</string>
-    <string name="inv_form_intro">ग्राहक का विवरण दर्ज करें। इस इनवॉइस में %1$d आइटम हैं, कुल %2$s।</string>
+    <plurals name="inv_form_intro">
+        <item quantity="one">ग्राहक का विवरण दर्ज करें। इस इनवॉइस में %1$d आइटम हैं, कुल %2$s।</item>
+        <item quantity="other">ग्राहक का विवरण दर्ज करें। इस इनवॉइस में %1$d आइटम हैं, कुल %2$s।</item>
+    </plurals>
     <string name="inv_customer_title">उपाधि (वैकल्पिक)</string>
     <string name="inv_title_mr">श्री</string>
     <string name="inv_title_mrs">श्रीमती</string>
@@ -289,4 +298,17 @@
     <string name="tx_change_payment_permission">आपको यह भुगतान विधि बदलने की अनुमति नहीं है।</string>
     <string name="tx_change_payment_failed">भुगतान विधि बदली नहीं जा सकी। लेन-देन की वर्तमान स्थिति देखें।</string>
     <string name="tx_lifecycle_conflict">यह लेन-देन बदल गया है। नवीनतम विवरण देखकर फिर प्रयास करें।</string>
+
+    <string name="coupon_redemption_receipt">%1$s द्वारा कूपन उपयोग किया गया: %2$s। शेष बैलेंस: %3$s</string>
+    <string name="coupon_search_phone">फोन</string>
+    <string name="coupon_search_name">नाम</string>
+    <string name="coupon_purchase_search">ग्राहक खोजें</string>
+    <string name="coupon_purchase_search_button">खोजें</string>
+    <string name="coupon_wallet_balance">कूपन बैलेंस: %1$s</string>
+    <string name="coupon_create_customer">ग्राहक बनाएँ</string>
+    <string name="coupon_purchase_amount">कूपन राशि (%1$s)</string>
+    <string name="coupon_purchase_users">अधिकृत उपयोगकर्ता</string>
+    <string name="coupon_purchase_purchaser_included">खरीदार को अधिकृत उपयोगकर्ता के रूप में शामिल किया गया है</string>
+    <string name="coupon_remainder_amount">शेष राशि: %1$s</string>
+    <string name="online_qr_not_configured">भुगतान QR कॉन्फ़िगर नहीं किया गया है</string>
 </resources>

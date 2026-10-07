@@ -24,6 +24,10 @@ import com.dailymoneyregister.feature.register.data.CashSaleCommand
 import com.dailymoneyregister.feature.register.data.OnlineSaleCommand
 import com.dailymoneyregister.feature.register.data.CouponSaleCommand
 import com.dailymoneyregister.feature.register.data.CreditSaleCommand
+import com.dailymoneyregister.feature.register.data.ExpenseCategory
+import com.dailymoneyregister.feature.register.data.ExpenseCommand
+import com.dailymoneyregister.feature.register.data.ExpenseCommandFactory
+import com.dailymoneyregister.feature.register.data.ExpenseCommandResult
 import com.dailymoneyregister.feature.register.data.CouponSaleResult
 import com.dailymoneyregister.feature.register.data.CouponSaleCustomerWallet
 import com.dailymoneyregister.feature.register.data.CouponTopUpCommand
@@ -39,6 +43,9 @@ import com.dailymoneyregister.core.security.PermissionAction
 import com.dailymoneyregister.core.security.PermissionChecker
 import com.dailymoneyregister.feature.register.data.RegisterRepository
 import com.dailymoneyregister.feature.register.data.TransactionDetailsReadModel
+import com.dailymoneyregister.feature.register.data.ExpenseReadProjection
+import com.dailymoneyregister.feature.register.data.ExpenseSupportingDocument
+import com.dailymoneyregister.feature.register.data.ExpenseSupportingDocumentRepository
 import com.dailymoneyregister.feature.register.data.AmountCorrectionCommand
 import com.dailymoneyregister.feature.register.data.AmountCorrectionExecutionResult
 import com.dailymoneyregister.feature.register.data.PaymentMethodChangeCommand
@@ -67,6 +74,10 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 import com.dailymoneyregister.core.model.tax.TaxRateParser
+import com.dailymoneyregister.feature.register.data.RegisterShiftReport
+import com.dailymoneyregister.feature.register.data.RegisterShiftResult
+import com.dailymoneyregister.feature.register.data.CountRegisterShiftCommand
+import com.dailymoneyregister.feature.register.data.CloseRegisterShiftCommand
 
 data class RefundToCouponDraft(
     val transactionId: String,
@@ -76,14 +87,20 @@ data class RefundToCouponDraft(
 )
 
 data class RegisterUiState(
+    val destination: RegisterDestination = RegisterDestination.Register,
+    val overlay: RegisterOverlay? = null,
     val calculatorState: CalculatorState = CalculatorState(),
     val draftState: DraftState = DraftState(),
     val inFlightSaleCommand: CashSaleCommand? = null,
     val inFlightOnlineSaleCommand: OnlineSaleCommand? = null,
+    val saleCustomerName: String = "",
+    val saleCustomerPhone: String = "",
+    val saleCustomerLookupLoading: Boolean = false,
+    val saleCustomerLookupResult: CustomerEntity? = null,
+    val saleCustomerLookupCompletedPhone: String? = null,
     val inFlightCouponSaleCommand: CouponSaleCommand? = null,
     val inFlightCouponTopUpCommand: CouponTopUpCommand? = null,
     val inFlightCreditSaleCommand: CreditSaleCommand? = null,
-    val isCreditSaleOpen: Boolean = false,
     val creditSaleShareName: String? = null,
     val creditSaleSharePhone: String? = null,
     val creditInvoicePurchaseOccurredAt: Long? = null,
@@ -92,12 +109,10 @@ data class RegisterUiState(
     val creditInvoiceTotalOutstandingMinor: Long? = null,
     val creditInvoiceCurrencyCode: String? = null,
     val creditInvoiceDecimalPlaces: Int? = null,
-    val isCouponSaleOpen: Boolean = false,
     val couponCustomers: List<CouponSaleCustomerWallet> = emptyList(),
     val couponSearching: Boolean = false,
     val couponSaleResult: CouponSaleResult? = null,
     val couponTopUpResult: CouponTopUpResult? = null,
-    val isCouponWalletOpen: Boolean = false,
     val couponWalletLoading: Boolean = false,
     val couponWalletDetails: CouponWalletDetails? = null,
     val inFlightCouponUserCommand: CouponAuthorizedUserCommand? = null,
@@ -107,19 +122,32 @@ data class RegisterUiState(
     val inFlightRefundToCouponCommand: RefundCommand? = null,
     val refundToCouponResult: RefundExecutionResult? = null,
     val manualDescription: String = "",
-    val isItemizedBillDialogOpen: Boolean = false,
-    val isTaxDialogOpen: Boolean = false,
-    val isShippingPackingDialogOpen: Boolean = false,
-    val isAddItemDialogOpen: Boolean = false,
     /** Non-null while Add Item is open in EDIT mode for this existing item id. */
     val editingItemId: String? = null,
     val isRecentTransactionsExpanded: Boolean = false,
     val transactionDetailsLoading: Boolean = false,
     val transactionDetails: TransactionDetailsReadModel? = null,
+    val expenseDetailsLoading: Boolean = false,
+    val expenseDetails: ExpenseReadProjection? = null,
+    val expenseSupportingDocuments: List<ExpenseSupportingDocument> = emptyList(),
+    val expenseSupportingDocumentsLoading: Boolean = false,
+    val stagedExpenseSupportingDocumentUris: List<String> = emptyList(),
+    val expenseSupportingDocumentAttaching: Boolean = false,
     val lastCompletedTransaction: TransactionEntity? = null,
     val isExecuting: Boolean = false,
-    val isOnlinePaymentOpen: Boolean = false,
     val onlineQr: MerchantQrSelection? = null,
+    val expenseLoading: Boolean = false,
+    val expensePayeeLookupLoading: Boolean = false,
+    val expensePayeeLookupPhone: String? = null,
+    val expensePayeeLookupResult: CustomerEntity? = null,    val todayExpenses: List<com.dailymoneyregister.core.database.entity.ExpenseEntity> = emptyList(),
+    val inFlightExpenseCommand: ExpenseCommand? = null,
+    val dayClosingLoading: Boolean = false,
+    val dayClosingReport: RegisterShiftReport? = null,
+    val dayClosingActualCash: String = "",
+    val dayClosingReview: Boolean = false,
+    val dayClosingResult: DayClosingResultUi? = null,
+    val inFlightShiftCountCommand: CountRegisterShiftCommand? = null,
+    val inFlightShiftCloseCommand: CloseRegisterShiftCommand? = null,
     val errorMessage: UiText? = null,
     val infoMessage: UiText? = null
 )
@@ -133,38 +161,11 @@ internal fun clearedRegisterDraft(branch: BranchEntity?): DraftState = DraftStat
 
 @HiltViewModel
 class RegisterViewModel internal constructor(
-    private val observeToday: (String, String) -> Flow<List<RecentFinancialActivity>>,
-    private val executeSale: suspend (CashSaleCommand, UserAccountEntity, UserBranchMembershipEntity?) -> CommandResult<TransactionEntity>,
-    private val deviceId: () -> String,
-    private val executeOnlineSale: suspend (OnlineSaleCommand) -> CommandResult<TransactionEntity> = { error("Online sale is not configured") },
-    private val loadOnlineQr: suspend (String) -> MerchantQrSelection? = { null },
-    private val submitCreditSale: suspend (CreditSaleCommand) -> CommandResult<TransactionEntity> = { error("Credit Sale unavailable") },
-    private val loadCreditInvoice:
-        suspend (CreditSaleCommand) ->
-            com.dailymoneyregister.feature.register.data.RegisterRepository.CreditInvoiceDetails =
-        {
-            error("Credit invoice unavailable")
-        },
-    private val submitCouponSale: suspend (CouponSaleCommand) -> CommandResult<CouponSaleResult> = { error("Coupon Sale unavailable") },
-        private val findCouponCustomers: suspend (String) -> List<CouponSaleCustomerWallet> = { emptyList() },
-    private val loadCouponWalletDetails: suspend (String, String) -> CouponWalletDetails? = { _, _ -> null },
-    private val submitCouponTopUp: suspend (CouponTopUpCommand) -> CommandResult<CouponTopUpResult> = { error("Coupon Top Up unavailable") },
-    private val submitCouponUser: suspend (CouponAuthorizedUserCommand) -> CommandResult<RegisterRepository.CouponAuthorizedUserDetails> = { error("Coupon authorization unavailable") },
-    private val submitCouponRedemption: suspend (CouponRedemptionCommand) -> CommandResult<CouponRedemptionResult> = { error("Coupon redemption unavailable") },
-    private val productRepository: ProductRepository? = null,
-    private val loadTransactionDetails: suspend (String) -> TransactionDetailsReadModel? = { null },
-    private val submitAmountCorrection: suspend (AmountCorrectionCommand) -> CommandResult<AmountCorrectionExecutionResult> = {
-        error("Amount Correction unavailable")
-    },
-    private val submitRefund: suspend (RefundCommand) -> CommandResult<RefundExecutionResult> = {
-        error("Refund unavailable")
-    },
-    private val submitVoid: suspend (VoidCommand) -> CommandResult<VoidExecutionResult> = {
-        error("Void unavailable")
-    },
-    private val submitPaymentMethodChange: suspend (PaymentMethodChangeCommand) -> CommandResult<PaymentMethodChangeExecutionResult> = {
-        error("Payment Method Change unavailable")
-    }
+    private val saleDependencies: RegisterSaleDependencies,
+    private val couponDependencies: RegisterCouponDependencies,
+    private val transactionDependencies: RegisterTransactionLifecycleDependencies,
+    private val expenseDependencies: RegisterExpenseDependencies,
+    private val shiftDependencies: RegisterShiftDependencies
 ) : ViewModel() {
 
     @Inject
@@ -172,28 +173,85 @@ class RegisterViewModel internal constructor(
         registerRepository: RegisterRepository,
         deviceIdentityProvider: DeviceIdentityProvider,
         merchantQrRepository: MerchantQrRepository,
-        productRepository: ProductRepository
+        productRepository: ProductRepository,
+        expenseSupportingDocumentRepository: ExpenseSupportingDocumentRepository
     ) : this(
-        registerRepository::observeTodayTransactions,
-        registerRepository::executeCashSale,
-        { deviceIdentityProvider.deviceId },
-        registerRepository::executeOnlineSale,
-        { branchId -> merchantQrRepository.getActive(branchId) },
-        registerRepository::executeCreditSale,
-        registerRepository::getCreditInvoiceDetails,
-        registerRepository::executeCouponSale,
-        registerRepository::searchCouponSaleCustomers,
-        registerRepository::getCouponWalletDetails,
-        registerRepository::executeCouponTopUp,
-        registerRepository::executeCouponAuthorizedUser,
-        registerRepository::executeCouponRedemption,
-        productRepository,
-        registerRepository::getTransactionDetails,
-        registerRepository::executeAmountCorrection,
-        registerRepository::executeRefund,
-        registerRepository::executeVoid,
-        registerRepository::executePaymentMethodChange
+        saleDependencies = RegisterSaleDependencies(
+            observeToday = registerRepository::observeTodayTransactions,
+            executeSale = registerRepository::executeCashSale,
+            deviceId = { deviceIdentityProvider.deviceId },
+            findSaleCustomerByPhone = registerRepository::findSaleCustomerByPhone,
+            executeOnlineSale = registerRepository::executeOnlineSale,
+            loadOnlineQr = { branchId -> merchantQrRepository.getActive(branchId) },
+            submitCreditSale = registerRepository::executeCreditSale,
+            loadCreditInvoice = registerRepository::getCreditInvoiceDetails,
+            rememberProduct = { branchId, name, description, unitPriceMinor -> productRepository.remember(branchId, name, description, unitPriceMinor) },
+            searchProducts = { branchId, query -> productRepository.search(branchId, query) }
+        ),
+        couponDependencies = RegisterCouponDependencies(
+            submitCouponSale = registerRepository::executeCouponSale,
+            findCouponCustomers = registerRepository::searchCouponSaleCustomers,
+            loadCouponWalletDetails = registerRepository::getCouponWalletDetails,
+            submitCouponTopUp = registerRepository::executeCouponTopUp,
+            submitCouponUser = registerRepository::executeCouponAuthorizedUser,
+            submitCouponRedemption = registerRepository::executeCouponRedemption
+        ),
+        transactionDependencies = RegisterTransactionLifecycleDependencies(
+            loadTransactionDetails = registerRepository::getTransactionDetails,
+            loadSaleItems = registerRepository::getTransactionItems,
+            submitAmountCorrection = registerRepository::executeAmountCorrection,
+            submitRefund = registerRepository::executeRefund,
+            submitVoid = registerRepository::executeVoid,
+            submitPaymentMethodChange = registerRepository::executePaymentMethodChange
+        ),
+        expenseDependencies = RegisterExpenseDependencies(
+            submitExpense = registerRepository::executeExpense,
+            loadExpensesForPeriod = registerRepository::getExpensesForPeriod,
+            loadExpenseDetails = registerRepository::getExpenseDetails,
+            loadExpenseSupportingDocuments = expenseSupportingDocumentRepository::getForExpense,
+            attachExpenseSupportingDocument = { expenseId, sourceUri ->
+                expenseSupportingDocumentRepository.attach(expenseId = expenseId, sourceUri = sourceUri)
+                Unit
+                }
+        ),
+        shiftDependencies = RegisterShiftDependencies(
+            loadCurrentRegisterShiftReport = registerRepository::getCurrentRegisterShiftReport,
+            submitRegisterShiftCount = registerRepository::countRegisterShift,
+            submitRegisterShiftClose = registerRepository::closeRegisterShift
+        )
     )
+
+    // BOARDLOCK Bundle D: thin wiring aliases only.
+    private val observeToday get() = saleDependencies.observeToday
+    private val executeSale get() = saleDependencies.executeSale
+    private val deviceId get() = saleDependencies.deviceId
+    private val findSaleCustomerByPhone get() = saleDependencies.findSaleCustomerByPhone
+    private val executeOnlineSale get() = saleDependencies.executeOnlineSale
+    private val loadOnlineQr get() = saleDependencies.loadOnlineQr
+    private val submitCreditSale get() = saleDependencies.submitCreditSale
+    private val loadCreditInvoice get() = saleDependencies.loadCreditInvoice
+    private val submitCouponSale get() = couponDependencies.submitCouponSale
+    private val findCouponCustomers get() = couponDependencies.findCouponCustomers
+    private val loadCouponWalletDetails get() = couponDependencies.loadCouponWalletDetails
+    private val submitCouponTopUp get() = couponDependencies.submitCouponTopUp
+    private val submitCouponUser get() = couponDependencies.submitCouponUser
+    private val submitCouponRedemption get() = couponDependencies.submitCouponRedemption
+    private val loadTransactionDetails get() = transactionDependencies.loadTransactionDetails
+    private val loadSaleItems get() = transactionDependencies.loadSaleItems
+    private val submitAmountCorrection get() = transactionDependencies.submitAmountCorrection
+    private val submitRefund get() = transactionDependencies.submitRefund
+    private val submitVoid get() = transactionDependencies.submitVoid
+    private val submitPaymentMethodChange get() = transactionDependencies.submitPaymentMethodChange
+    private val submitExpense get() = expenseDependencies.submitExpense
+    private val loadExpensesForPeriod get() = expenseDependencies.loadExpensesForPeriod
+    private val loadExpenseDetails get() = expenseDependencies.loadExpenseDetails
+    private val loadExpenseSupportingDocuments get() = expenseDependencies.loadExpenseSupportingDocuments
+    private val attachExpenseSupportingDocument get() = expenseDependencies.attachExpenseSupportingDocument
+    private val loadCurrentRegisterShiftReport get() = shiftDependencies.loadCurrentRegisterShiftReport
+    private val submitRegisterShiftCount get() = shiftDependencies.submitRegisterShiftCount
+    private val submitRegisterShiftClose get() = shiftDependencies.submitRegisterShiftClose
+    private val rememberProductByBranch get() = saleDependencies.rememberProduct
+    private val searchProductsByBranch get() = saleDependencies.searchProducts
 
     private val initialSession = SessionManager.currentSession.value
     private var financialContext = initialSession.toRegisterFinancialSessionContext()
@@ -208,10 +266,21 @@ class RegisterViewModel internal constructor(
      */
     private var transactionDetailsRequestGeneration: Long = 0
 
+    /*
+     * UI-only generation for the read-only Expense Details projection.
+     *
+     * It prevents a stale asynchronous Expense read from reopening after
+     * the user closes the screen or changes financial session.
+     */
+    private var expenseDetailsRequestGeneration: Long = 0
+
     val activeBusiness: BusinessEntity? get() = SessionManager.activeBusiness
     val activeBranch: BranchEntity? get() = SessionManager.activeBranch
     val activeUser: UserAccountEntity? get() = SessionManager.activeUser
     val activeMembership: UserBranchMembershipEntity? get() = SessionManager.activeMembership
+
+    /** Observable session source for all UI-changing branch, currency, and permission values. */
+    val activeSession: StateFlow<ActiveSession?> = SessionManager.currentSession
 
     val canRefundFromDetails: Boolean
         get() = isPermitted(PermissionAction.REFUND)
@@ -221,6 +290,9 @@ class RegisterViewModel internal constructor(
 
     val canChangePaymentMethodFromDetails: Boolean
         get() = isPermitted(PermissionAction.CHANGE_PAYMENT_METHOD)
+
+    val canCorrectAmountFromDetails: Boolean
+        get() = isPermitted(PermissionAction.CORRECT_AMOUNT)
 
     private fun isPermitted(action: PermissionAction): Boolean =
         activeUser?.let { PermissionChecker.isPermitted(it, activeMembership, action) } == true
@@ -272,10 +344,13 @@ class RegisterViewModel internal constructor(
         financialContext = nextContext
         financialSessionGeneration++
         transactionDetailsRequestGeneration++
+        expenseDetailsRequestGeneration++
         calculatorEngine = CalculatorEngine(decimalPlaces)
         _uiState.value = resetRegisterUiStateForSession(_uiState.value, sessionSnapshot).copy(
             transactionDetailsLoading = false,
             transactionDetails = null,
+            expenseDetailsLoading = false,
+            expenseDetails = null,
             infoMessage = if (sessionSnapshot == null) null
                 else UiText.Resource(R.string.register_financial_session_reset)
         )
@@ -305,26 +380,261 @@ class RegisterViewModel internal constructor(
         )
     }
 
-    // Dialog Toggles
-    fun toggleTaxDialog(isOpen: Boolean) { _uiState.value = _uiState.value.copy(isTaxDialogOpen = isOpen) }
-    fun toggleShippingPackingDialog(isOpen: Boolean) { _uiState.value = _uiState.value.copy(isShippingPackingDialogOpen = isOpen) }
-    fun toggleItemizedBillDialog(isOpen: Boolean) { _uiState.value = _uiState.value.copy(isItemizedBillDialogOpen = isOpen) }
-    fun toggleAddItemDialog(isOpen: Boolean) {
+    fun openHistory() {
         _uiState.value = _uiState.value.copy(
-            isAddItemDialogOpen = isOpen,
-            editingItemId = if (isOpen) _uiState.value.editingItemId else null
+            destination = RegisterDestination.History,
+            overlay = null,
+            transactionDetailsLoading = false,
+            transactionDetails = null,
+            expenseDetailsLoading = false,
+            expenseDetails = null
         )
+    }
+
+    fun closeHistory() {
+        if (_uiState.value.destination != RegisterDestination.History) return
+        _uiState.value = _uiState.value.copy(destination = RegisterDestination.Register)
+    }
+
+    // Register-owned modal workflows share one presentation authority.
+    fun toggleTaxDialog(isOpen: Boolean) {
+        if (isOpen) setOverlay(RegisterOverlay.Tax)
+        else if (_uiState.value.overlay == RegisterOverlay.Tax) setOverlay(null)
+    }
+    fun toggleShippingPackingDialog(isOpen: Boolean) {
+        val current = _uiState.value.overlay
+        if (isOpen) {
+            setOverlay(RegisterOverlay.ShippingPacking(current == RegisterOverlay.ItemizedBill))
+        } else if (current is RegisterOverlay.ShippingPacking) {
+            setOverlay(current.afterChildClosed())
+        }
+    }
+    fun toggleItemizedBillDialog(isOpen: Boolean) {
+        if (isOpen) setOverlay(RegisterOverlay.ItemizedBill)
+        else if (_uiState.value.overlay == RegisterOverlay.ItemizedBill) setOverlay(null)
+    }
+    fun toggleAddItemDialog(isOpen: Boolean) {
+        val current = _uiState.value.overlay
+        if (isOpen) {
+            setOverlay(RegisterOverlay.AddItem(current == RegisterOverlay.ItemizedBill))
+        } else if (current is RegisterOverlay.AddItem) {
+            _uiState.value = _uiState.value.copy(
+                overlay = current.afterChildClosed(),
+                editingItemId = null
+            )
+        }
+    }
+
+    fun openCashCustomer() = setOverlay(RegisterOverlay.CashCustomer)
+
+    fun closeCashCustomer() {
+        if (_uiState.value.overlay == RegisterOverlay.CashCustomer) setOverlay(null)
+    }
+
+    private fun setOverlay(overlay: RegisterOverlay?) {
+        _uiState.value = _uiState.value.copy(overlay = overlay)
     }
     fun toggleRecentTransactionsExpanded() {
         _uiState.value = _uiState.value.copy(isRecentTransactionsExpanded = !_uiState.value.isRecentTransactionsExpanded)
     }
     fun clearInfoMessage() { _uiState.value = _uiState.value.copy(infoMessage = null) }
     /**
+     * Loads one authoritative persisted Expense projection.
+     *
+     * This is a read-only UI action. It does not create, modify, void,
+     * correct, or otherwise mutate financial evidence.
+     */
+    fun openExpenseDetails(expenseId: String) {
+        if (expenseId.isBlank()) return
+
+        val session =
+            SessionManager.currentSession.value
+
+        if (
+            synchronizeFinancialSession(session) ||
+            session == null ||
+            _uiState.value.expenseDetailsLoading
+        ) {
+            return
+        }
+
+        val context =
+            financialContext
+
+        val financialGeneration =
+            financialSessionGeneration
+
+        expenseDetailsRequestGeneration++
+
+        val requestGeneration =
+            expenseDetailsRequestGeneration
+
+        val origin = _uiState.value.destination.detailsOrigin()
+        _uiState.value =
+            _uiState.value.copy(
+                destination = RegisterDestination.ExpenseDetails(expenseId, origin),
+                overlay = null,
+                expenseDetailsLoading = true,
+                expenseDetails = null,
+                transactionDetailsLoading = false,
+                transactionDetails = null
+            )
+
+        viewModelScope.launch {
+
+            val details =
+                try {
+                    loadExpenseDetails(expenseId)
+                } catch (
+                    error: Exception
+                ) {
+                    if (
+                        error is
+                            kotlinx.coroutines.CancellationException
+                    ) {
+                        throw error
+                    }
+
+                    null
+                }
+
+            if (
+                requestGeneration !=
+                    expenseDetailsRequestGeneration ||
+                (_uiState.value.destination as? RegisterDestination.ExpenseDetails)
+                    ?.expenseId != expenseId ||
+                !shouldApplyFinancialResultToRegister(
+                    context,
+                    SessionManager.currentSession.value,
+                    financialGeneration,
+                    financialSessionGeneration
+                )
+            ) {
+                return@launch
+            }
+
+            val destination = _uiState.value.destination as RegisterDestination.ExpenseDetails
+            _uiState.value =
+                if (details == null) {
+                    _uiState.value.copy(
+                        destination = destination.backDestination(),
+                        expenseDetailsLoading = false,
+                        expenseDetails = null
+                    )
+                } else {
+                    _uiState.value.copy(
+                        expenseDetailsLoading = false,
+                        expenseDetails = details
+                    )
+                }
+        }
+    }
+
+    /**
+     * Closes only the read-only Expense Details projection.
+     * Financial state is untouched.
+     */
+    fun refreshExpenseSupportingDocuments(expenseId: String) {
+        if (expenseId.isBlank() || _uiState.value.expenseDetails?.expenseId != expenseId) return
+        _uiState.value = _uiState.value.copy(expenseSupportingDocumentsLoading = true)
+        viewModelScope.launch {
+            try {
+                val documents = loadExpenseSupportingDocuments(expenseId)
+                if (_uiState.value.expenseDetails?.expenseId == expenseId) {
+                    _uiState.value = _uiState.value.copy(expenseSupportingDocuments = documents, expenseSupportingDocumentsLoading = false)
+                }
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                if (_uiState.value.expenseDetails?.expenseId == expenseId) {
+                    _uiState.value = _uiState.value.copy(expenseSupportingDocumentsLoading = false, errorMessage = UiText.Dynamic(error.message ?: "Unable to load supporting documents."))
+                }
+            }
+        }
+    }
+
+    fun attachSupportingDocumentToExpense(expenseId: String, sourceUri: String) {
+        if (expenseId.isBlank() || sourceUri.isBlank() || _uiState.value.expenseDetails?.expenseId != expenseId) return
+        _uiState.value = _uiState.value.copy(expenseSupportingDocumentAttaching = true, errorMessage = null)
+        viewModelScope.launch {
+            try {
+                attachExpenseSupportingDocument(expenseId, sourceUri)
+                val documents = loadExpenseSupportingDocuments(expenseId)
+                if (_uiState.value.expenseDetails?.expenseId == expenseId) {
+                    _uiState.value = _uiState.value.copy(expenseSupportingDocuments = documents, expenseSupportingDocumentAttaching = false, infoMessage = UiText.Dynamic("Supporting document attached."))
+                }
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                if (_uiState.value.expenseDetails?.expenseId == expenseId) {
+                    _uiState.value = _uiState.value.copy(expenseSupportingDocumentAttaching = false, errorMessage = UiText.Dynamic("Expense remains saved. Supporting document could not be attached. " + (error.message ?: "")))
+                }
+            }
+        }
+    }
+    fun closeExpenseDetails() {
+        expenseDetailsRequestGeneration++
+
+        val destination = _uiState.value.destination
+        if (destination !is RegisterDestination.ExpenseDetails) return
+
+        _uiState.value =
+            _uiState.value.copy(
+                destination = destination.backDestination(),
+                expenseDetailsLoading = false,
+                expenseDetails = null,
+                expenseSupportingDocuments = emptyList(),
+                expenseSupportingDocumentsLoading = false,
+                expenseSupportingDocumentAttaching = false
+            )
+    }
+    /**
      * Loads the authoritative read-only lifetime projection for one transaction.
      *
      * This function does not mutate financial state and does not use Today's Recent
      * list as the Transaction Details source.
      */
+    fun loadSaleItemsForWhatsApp(
+        transactionId: String,
+        onLoaded: (List<com.dailymoneyregister.core.database.entity.TransactionItemEntity>) -> Unit
+    ) {
+        if (transactionId.isBlank()) {
+            onLoaded(emptyList())
+            return
+        }
+
+        viewModelScope.launch {
+            val items =
+                try {
+                    loadSaleItems(transactionId)
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    emptyList()
+                }
+
+            onLoaded(items)
+        }
+    }
+
+    /** Loads the saved transaction, items, and funding evidence for sharing. */
+    fun loadSaleDetailsForWhatsApp(
+        transactionId: String,
+        onLoaded: (TransactionDetailsReadModel?) -> Unit
+    ) {
+        if (transactionId.isBlank()) {
+            onLoaded(null)
+            return
+        }
+
+        viewModelScope.launch {
+            val details = try {
+                loadTransactionDetails(transactionId)
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                null
+            }
+            onLoaded(details)
+        }
+    }
+
     fun openTransactionDetails(transactionId: String) {
         if (transactionId.isBlank()) return
 
@@ -344,9 +654,14 @@ class RegisterViewModel internal constructor(
         transactionDetailsRequestGeneration++
         val requestGeneration = transactionDetailsRequestGeneration
 
+        val origin = _uiState.value.destination.detailsOrigin()
         _uiState.value = _uiState.value.copy(
+            destination = RegisterDestination.TransactionDetails(transactionId, origin),
+            overlay = null,
             transactionDetailsLoading = true,
-            transactionDetails = null
+            transactionDetails = null,
+            expenseDetailsLoading = false,
+            expenseDetails = null
         )
 
         viewModelScope.launch {
@@ -360,6 +675,8 @@ class RegisterViewModel internal constructor(
 
             if (
                 requestGeneration != transactionDetailsRequestGeneration ||
+                (_uiState.value.destination as? RegisterDestination.TransactionDetails)
+                    ?.transactionId != transactionId ||
                 !shouldApplyFinancialResultToRegister(
                     context,
                     SessionManager.currentSession.value,
@@ -370,10 +687,20 @@ class RegisterViewModel internal constructor(
                 return@launch
             }
 
-            _uiState.value = _uiState.value.copy(
-                transactionDetailsLoading = false,
-                transactionDetails = details
-            )
+            val destination = _uiState.value.destination as RegisterDestination.TransactionDetails
+            _uiState.value =
+                if (details == null) {
+                    _uiState.value.copy(
+                        destination = destination.backDestination(),
+                        transactionDetailsLoading = false,
+                        transactionDetails = null
+                    )
+                } else {
+                    _uiState.value.copy(
+                        transactionDetailsLoading = false,
+                        transactionDetails = details
+                    )
+                }
         }
     }
 
@@ -413,7 +740,9 @@ class RegisterViewModel internal constructor(
 
         if (
             corrected == null ||
-            corrected.amount < 0L
+            corrected.amount < 0L ||
+            corrected.amount <
+                details.financial.refundedAmount.amount
         ) {
             _uiState.value =
                 state.copy(
@@ -636,7 +965,7 @@ class RegisterViewModel internal constructor(
         }
 _uiState.value =
             state.copy(
-                isCouponSaleOpen = true,
+                overlay = RegisterOverlay.Coupon(CouponDialogStartMode.ENTRY),
                 couponCustomers = emptyList(),
                 couponSearching = false,
                 couponSaleResult = null,
@@ -657,7 +986,6 @@ _uiState.value =
                 refundToCouponResult = null,
                 couponWalletDetails = null,
                 couponWalletLoading = false,
-                isCouponWalletOpen = false,
                 errorMessage = null,
                 infoMessage = null,
                 onlineQr = null
@@ -690,7 +1018,7 @@ _uiState.value =
                 ?: return
 
         if (
-            !state.isCouponSaleOpen ||
+            state.overlay !is RegisterOverlay.Coupon ||
             state.isExecuting ||
             state.refundToCouponResult != null
         ) return
@@ -1200,7 +1528,11 @@ if (
     fun closeTransactionDetails() {
         transactionDetailsRequestGeneration++
 
+        val destination = _uiState.value.destination
+        if (destination !is RegisterDestination.TransactionDetails) return
+
         _uiState.value = _uiState.value.copy(
+            destination = destination.backDestination(),
             transactionDetailsLoading = false,
             transactionDetails = null
         )
@@ -1249,7 +1581,7 @@ if (
         )
         _uiState.value = _uiState.value.copy(
             draftState = updatedDraft,
-            isShippingPackingDialogOpen = false
+            overlay = _uiState.value.overlay.afterChildClosed()
         )
     }
 
@@ -1285,7 +1617,7 @@ if (
         val updatedDraft = _uiState.value.draftState.copy(items = currentItems)
         _uiState.value = _uiState.value.copy(
             draftState = updatedDraft,
-            isAddItemDialogOpen = false,
+            overlay = _uiState.value.overlay.afterChildClosed(),
             editingItemId = null
         )
 
@@ -1325,7 +1657,7 @@ if (
         val updatedDraft = _uiState.value.draftState.copy(items = currentItems)
         _uiState.value = _uiState.value.copy(
             draftState = updatedDraft,
-            isAddItemDialogOpen = false,
+            overlay = _uiState.value.overlay.afterChildClosed(),
             editingItemId = null
         )
 
@@ -1334,9 +1666,10 @@ if (
 
     /** Opens Add Item pre-filled with an existing item's values for editing. */
     fun startEditingItem(itemId: String) {
+        val returnToItemized = _uiState.value.overlay == RegisterOverlay.ItemizedBill
         _uiState.value = _uiState.value.copy(
             editingItemId = itemId,
-            isAddItemDialogOpen = true
+            overlay = RegisterOverlay.AddItem(returnToItemized)
         )
     }
 
@@ -1346,16 +1679,15 @@ if (
 
     private fun rememberProduct(name: String, description: String?, unitPriceMinor: Long) {
         val branchId = SessionManager.activeBranch?.id ?: return
-        val repository = productRepository ?: return
         viewModelScope.launch {
-            repository.remember(branchId, name, description, unitPriceMinor)
+            rememberProductByBranch(branchId, name, description, unitPriceMinor)
         }
     }
 
     /** Prefix search over previously-used item names, for the Add Item autocomplete. */
     suspend fun searchProducts(query: String): List<ProductEntity> {
         val branchId = SessionManager.activeBranch?.id ?: return emptyList()
-        return productRepository?.search(branchId, query) ?: emptyList()
+        return searchProductsByBranch(branchId, query)
     }
 
     fun removeItem(itemId: String) {
@@ -1378,9 +1710,90 @@ if (
         _uiState.value = _uiState.value.copy(draftState = updatedDraft)
     }
 
+    fun setSaleCustomerName(value: String) {
+        val s = _uiState.value
+        if (s.isExecuting || s.inFlightSaleCommand != null || s.inFlightOnlineSaleCommand != null) return
+        _uiState.value = s.copy(saleCustomerName = value)
+    }
+
+    fun setSaleCustomerPhone(value: String) {
+        val s = _uiState.value
+        if (s.isExecuting || s.inFlightSaleCommand != null || s.inFlightOnlineSaleCommand != null) return
+        _uiState.value = s.copy(
+            saleCustomerPhone = value,
+            saleCustomerLookupLoading = false,
+            saleCustomerLookupResult = null,
+            saleCustomerLookupCompletedPhone = null
+        )
+    }
+
+    fun lookupSaleCustomerByPhone(canonicalPhone: String) {
+        val session = SessionManager.currentSession.value ?: return
+        val phone = canonicalPhone.trim()
+        val s = _uiState.value
+
+        if (s.isExecuting || s.inFlightSaleCommand != null || s.inFlightOnlineSaleCommand != null) return
+
+        if (phone.isBlank()) {
+            _uiState.value = s.copy(
+                saleCustomerLookupLoading = false,
+                saleCustomerLookupResult = null,
+                saleCustomerLookupCompletedPhone = null
+            )
+            return
+        }
+
+        _uiState.value = s.copy(
+            saleCustomerPhone = phone,
+            saleCustomerLookupLoading = true,
+            saleCustomerLookupResult = null,
+            saleCustomerLookupCompletedPhone = null
+        )
+
+        viewModelScope.launch {
+            try {
+                val customer = findSaleCustomerByPhone(session.business.id, phone)
+                val current = _uiState.value
+
+                if (current.saleCustomerPhone.trim() != phone) return@launch
+
+                _uiState.value = current.copy(
+                    saleCustomerLookupLoading = false,
+                    saleCustomerLookupResult = customer,
+                    saleCustomerLookupCompletedPhone = phone,
+                    saleCustomerName = customer?.name ?: current.saleCustomerName
+                )
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+
+                val current = _uiState.value
+                if (current.saleCustomerPhone.trim() != phone) return@launch
+
+                _uiState.value = current.copy(
+                    saleCustomerLookupLoading = false,
+                    saleCustomerLookupResult = null,
+                    saleCustomerLookupCompletedPhone = null,
+                    errorMessage = UiText.Dynamic(e.message ?: "Customer lookup failed")
+                )
+            }
+        }
+    }
+
+    fun clearSaleCustomer() {
+        val s = _uiState.value
+        if (s.isExecuting || s.inFlightSaleCommand != null || s.inFlightOnlineSaleCommand != null) return
+        _uiState.value = s.copy(
+            saleCustomerName = "",
+            saleCustomerPhone = "",
+            saleCustomerLookupLoading = false,
+            saleCustomerLookupResult = null,
+            saleCustomerLookupCompletedPhone = null
+        )
+    }
+
     // Payment Trigger: CASH
     fun executeCashSale() {
-        if (_uiState.value.isCouponSaleOpen || _uiState.value.isExecuting) return
+        if (_uiState.value.overlay is RegisterOverlay.Coupon || _uiState.value.isExecuting) return
         val sessionSnapshot = SessionManager.currentSession.value
         val sessionChanged = synchronizeFinancialSession(sessionSnapshot)
         val s = _uiState.value
@@ -1415,7 +1828,9 @@ if (
                 currencyCode = branch.currencyCode,
                 currencyDecimalPlaces = branch.currencyDecimalPlaces,
                 deviceId = deviceId(),
-                occurredAt = now
+                occurredAt = now,
+                customerName = s.saleCustomerName.trim().ifBlank { null },
+                customerPhone = s.saleCustomerPhone.trim().ifBlank { null }
             )
         }
 
@@ -1454,7 +1869,7 @@ if (
     }
 
     fun openOnlinePayment() {
-        if (_uiState.value.isCouponSaleOpen || _uiState.value.isExecuting) return
+        if (_uiState.value.overlay is RegisterOverlay.Coupon || _uiState.value.isExecuting) return
         val session = SessionManager.currentSession.value
         val s = _uiState.value
         if (session == null) {
@@ -1465,10 +1880,15 @@ if (
             _uiState.value = s.copy(errorMessage = UiText.Resource(R.string.sale_total_zero))
             return
         }
+        _uiState.value = s.copy(
+            overlay = RegisterOverlay.OnlinePayment,
+            onlineQr = null,
+            errorMessage = null
+        )
         viewModelScope.launch {
             val qr = loadOnlineQr(session.branch.id)
+            if (_uiState.value.overlay != RegisterOverlay.OnlinePayment) return@launch
             _uiState.value = _uiState.value.copy(
-                isOnlinePaymentOpen = true,
                 onlineQr = qr,
                 errorMessage = null
             )
@@ -1477,7 +1897,8 @@ if (
 
     fun cancelOnlinePayment() {
         if (_uiState.value.isExecuting) return
-        _uiState.value = _uiState.value.copy(isOnlinePaymentOpen = false, onlineQr = null)
+        if (_uiState.value.overlay != RegisterOverlay.OnlinePayment) return
+        _uiState.value = _uiState.value.copy(overlay = null, onlineQr = null)
     }
 
     fun executeOnlineSale() {
@@ -1499,7 +1920,9 @@ if (
             currencyCode = sessionSnapshot.branch.currencyCode,
             currencyDecimalPlaces = sessionSnapshot.branch.currencyDecimalPlaces,
             deviceId = deviceId(),
-            occurredAt = System.currentTimeMillis()
+            occurredAt = System.currentTimeMillis(),
+            customerName = s.saleCustomerName.trim().ifBlank { null },
+            customerPhone = s.saleCustomerPhone.trim().ifBlank { null }
         )
         _uiState.value = s.copy(
             isExecuting = true,
@@ -1517,7 +1940,7 @@ if (
             when (result) {
                 is CommandResult.Success -> _uiState.value = _uiState.value.copy(
                     isExecuting = false,
-                    isOnlinePaymentOpen = false,
+                    overlay = null,
                     onlineQr = null,
                     inFlightOnlineSaleCommand = null,
                     lastCompletedTransaction = result.data
@@ -1538,16 +1961,24 @@ if (
         }
     }
 
-    fun openCouponSale() {
+    fun openCouponSale() = openCoupon(CouponDialogStartMode.ENTRY)
+
+    fun openCouponRedemption() = openCoupon(CouponDialogStartMode.REDEMPTION)
+
+    private fun openCoupon(startMode: CouponDialogStartMode) {
         val session = SessionManager.currentSession.value
         if (synchronizeFinancialSession(session) || session == null || _uiState.value.isExecuting) return
         if (_uiState.value.lastCompletedTransaction != null) return
-        _uiState.value = _uiState.value.copy(isCouponSaleOpen = true, errorMessage = null, onlineQr = null)
+        _uiState.value = _uiState.value.copy(
+            overlay = RegisterOverlay.Coupon(startMode),
+            errorMessage = null,
+            onlineQr = null
+        )
         val generation = financialSessionGeneration
         viewModelScope.launch {
             try {
                 val qr = loadOnlineQr(session.branch.id)
-                if (generation == financialSessionGeneration && _uiState.value.isCouponSaleOpen &&
+                if (generation == financialSessionGeneration && _uiState.value.overlay is RegisterOverlay.Coupon &&
                     session.toRegisterFinancialSessionContext() == SessionManager.currentSession.value.toRegisterFinancialSessionContext()) {
                     _uiState.value = _uiState.value.copy(onlineQr = qr)
                 }
@@ -1558,14 +1989,11 @@ if (
         }
     }
 
-    fun openCouponRedemption() {
-        openCouponSale()
-    }
-
     fun closeCouponSale() {
         val s = _uiState.value
 
         if (
+            s.overlay !is RegisterOverlay.Coupon ||
             s.isExecuting ||
             s.inFlightCouponSaleCommand != null ||
             s.inFlightCouponTopUpCommand != null ||
@@ -1574,7 +2002,7 @@ if (
 
         _uiState.value =
             s.copy(
-                isCouponSaleOpen = false,
+                overlay = null,
                 couponCustomers = emptyList(),
                 couponSaleResult = null,
                 couponTopUpResult = null,
@@ -1592,7 +2020,11 @@ if (
     fun openCouponWallet(customerId: String, showDialog: Boolean = true) {
         val session = SessionManager.currentSession.value
         if (synchronizeFinancialSession(session) || session == null || _uiState.value.couponWalletLoading) return
-        _uiState.value = _uiState.value.copy(isCouponWalletOpen = showDialog, couponWalletDetails = null, couponWalletLoading = true)
+        _uiState.value = _uiState.value.copy(
+            overlay = if (showDialog) RegisterOverlay.CouponWallet else _uiState.value.overlay,
+            couponWalletDetails = null,
+            couponWalletLoading = true
+        )
         val context = financialContext
         val generation = financialSessionGeneration
         viewModelScope.launch {
@@ -1612,7 +2044,11 @@ if (
 
     fun closeCouponWallet() {
         if (_uiState.value.isExecuting || _uiState.value.inFlightCouponUserCommand != null) return
-        _uiState.value = _uiState.value.copy(isCouponWalletOpen = false, couponWalletDetails = null, couponWalletLoading = false)
+        _uiState.value = _uiState.value.copy(
+            overlay = if (_uiState.value.overlay == RegisterOverlay.CouponWallet) null else _uiState.value.overlay,
+            couponWalletDetails = null,
+            couponWalletLoading = false
+        )
     }
 
     fun saveCouponUser(userId: String?, name: String, deactivate: Boolean = false) {
@@ -1641,7 +2077,7 @@ if (
             when (result) {
                 is CommandResult.Success -> {
                     _uiState.value = _uiState.value.copy(isExecuting = false, inFlightCouponUserCommand = null)
-                    openCouponWallet(details.wallet.customerId, s.isCouponWalletOpen)
+                    openCouponWallet(details.wallet.customerId, s.overlay == RegisterOverlay.CouponWallet)
                 }
                 is CommandResult.PermissionDenied -> _uiState.value = _uiState.value.copy(isExecuting = false,
                     inFlightCouponUserCommand = null, errorMessage = UiText.Dynamic(result.message))
@@ -1685,7 +2121,7 @@ if (
 
         _uiState.value = state.copy(
 
-            isCreditSaleOpen = true,
+            overlay = RegisterOverlay.CreditSale,
 
             errorMessage = null
 
@@ -1699,7 +2135,7 @@ if (
         val state = _uiState.value
 
 
-        if (state.isExecuting) {
+        if (state.overlay != RegisterOverlay.CreditSale || state.isExecuting) {
 
             return
 
@@ -1708,7 +2144,7 @@ if (
 
         _uiState.value = state.copy(
 
-            isCreditSaleOpen = false,
+            overlay = null,
 
             errorMessage = null
 
@@ -1727,7 +2163,8 @@ if (
                 val customers = findCouponCustomers(query)
                 if (shouldApplyFinancialResultToRegister(financialContext, SessionManager.currentSession.value,
                         generation, financialSessionGeneration) &&
-                        (_uiState.value.isCouponSaleOpen || _uiState.value.isCreditSaleOpen)) {
+                        (_uiState.value.overlay is RegisterOverlay.Coupon ||
+                            _uiState.value.overlay == RegisterOverlay.CreditSale)) {
                     _uiState.value = _uiState.value.copy(couponCustomers = customers, couponSearching = false)
                 }
             } catch (e: Exception) {
@@ -1742,7 +2179,7 @@ if (
         val session = SessionManager.currentSession.value
         if (synchronizeFinancialSession(session) || session == null) return
         val s = _uiState.value
-        if (s.isExecuting || !s.isCouponSaleOpen || s.couponRedemptionResult != null) return
+        if (s.isExecuting || s.overlay !is RegisterOverlay.Coupon || s.couponRedemptionResult != null) return
         val command = try {
             s.inFlightCouponRedemptionCommand ?: run {
                 val details = requireNotNull(s.couponWalletDetails)
@@ -1799,7 +2236,7 @@ if (
         if (
             sessionSnapshot == null ||
             sessionChanged ||
-            !s.isCreditSaleOpen ||
+            s.overlay != RegisterOverlay.CreditSale ||
             s.isExecuting ||
             s.lastCompletedTransaction != null
         ) return
@@ -1914,7 +2351,7 @@ if (
                     _uiState.value =
                         _uiState.value.copy(
                             isExecuting = false,
-                            isCreditSaleOpen = false,
+                            overlay = null,
                             inFlightCreditSaleCommand = null,
                             couponCustomers = emptyList(),
                             couponSearching = false,
@@ -1993,7 +2430,7 @@ if (
         val session = SessionManager.currentSession.value
         if (synchronizeFinancialSession(session) || session == null) return
         val s = _uiState.value
-        if (!s.isCouponSaleOpen || s.isExecuting || s.couponSaleResult != null) return
+        if (s.overlay !is RegisterOverlay.Coupon || s.isExecuting || s.couponSaleResult != null) return
         if (funding == PaymentCategory.ONLINE && s.onlineQr == null) return
         val command = try {
             s.inFlightCouponSaleCommand ?: CouponSaleCommand(
@@ -2018,8 +2455,47 @@ if (
             if (!shouldApplyFinancialResultToRegister(context, SessionManager.currentSession.value,
                     generation, financialSessionGeneration)) return@launch
             when (result) {
-                is CommandResult.Success -> _uiState.value = _uiState.value.copy(isExecuting = false,
-                    inFlightCouponSaleCommand = null, couponSaleResult = result.data)
+                is CommandResult.Success -> {
+                    // BOARDLOCK_COUPON_SALE_WALLET_REFRESH
+                    val walletDetails =
+                        try {
+                            loadCouponWalletDetails(
+                                command.customerId,
+                                command.currencyCode
+                            )
+                        } catch (
+                            error: Exception
+                        ) {
+                            if (
+                                error is
+                                    kotlinx.coroutines.CancellationException
+                            ) {
+                                throw error
+                            }
+
+                            null
+                        }
+
+                    if (
+                        !shouldApplyFinancialResultToRegister(
+                            context,
+                            SessionManager.currentSession.value,
+                            generation,
+                            financialSessionGeneration
+                        )
+                    ) {
+                        return@launch
+                    }
+
+                    _uiState.value =
+                        _uiState.value.copy(
+                            isExecuting = false,
+                            inFlightCouponSaleCommand = null,
+                            couponSaleResult = result.data,
+                            couponWalletDetails = walletDetails,
+                            couponWalletLoading = false
+                        )
+                }
                 is CommandResult.PermissionDenied -> _uiState.value = _uiState.value.copy(isExecuting = false,
                     inFlightCouponSaleCommand = null, errorMessage = UiText.Dynamic(result.message))
                 is CommandResult.Conflict -> _uiState.value = _uiState.value.copy(isExecuting = false,
@@ -2035,7 +2511,7 @@ if (
         val session = SessionManager.currentSession.value
         if (synchronizeFinancialSession(session) || session == null) return
         val s = _uiState.value
-        if (!s.isCouponSaleOpen || s.isExecuting || s.couponSaleResult != null || s.couponTopUpResult != null) return
+        if (s.overlay !is RegisterOverlay.Coupon || s.isExecuting || s.couponSaleResult != null || s.couponTopUpResult != null) return
         if (funding == PaymentCategory.ONLINE && s.onlineQr == null) return
         val command = try {
             s.inFlightCouponTopUpCommand ?: CouponTopUpCommand(
@@ -2059,8 +2535,47 @@ if (
             if (!shouldApplyFinancialResultToRegister(context, SessionManager.currentSession.value,
                     generation, financialSessionGeneration)) return@launch
             when (result) {
-                is CommandResult.Success -> _uiState.value = _uiState.value.copy(
-                    isExecuting = false, inFlightCouponTopUpCommand = null, couponTopUpResult = result.data)
+                is CommandResult.Success -> {
+                    // BOARDLOCK_COUPON_TOPUP_WALLET_REFRESH
+                    val walletDetails =
+                        try {
+                            loadCouponWalletDetails(
+                                command.customerId,
+                                command.currencyCode
+                            )
+                        } catch (
+                            error: Exception
+                        ) {
+                            if (
+                                error is
+                                    kotlinx.coroutines.CancellationException
+                            ) {
+                                throw error
+                            }
+
+                            null
+                        }
+
+                    if (
+                        !shouldApplyFinancialResultToRegister(
+                            context,
+                            SessionManager.currentSession.value,
+                            generation,
+                            financialSessionGeneration
+                        )
+                    ) {
+                        return@launch
+                    }
+
+                    _uiState.value =
+                        _uiState.value.copy(
+                            isExecuting = false,
+                            inFlightCouponTopUpCommand = null,
+                            couponTopUpResult = result.data,
+                            couponWalletDetails = walletDetails,
+                            couponWalletLoading = false
+                        )
+                }
                 is CommandResult.PermissionDenied -> _uiState.value = _uiState.value.copy(
                     isExecuting = false, inFlightCouponTopUpCommand = null, errorMessage = UiText.Dynamic(result.message))
                 is CommandResult.Conflict -> _uiState.value = _uiState.value.copy(
@@ -2073,6 +2588,788 @@ if (
         }
     }
 
+    fun openExpenses() {
+        val session = SessionManager.currentSession.value
+
+        if (session == null) {
+            _uiState.value =
+                _uiState.value.copy(
+                    errorMessage = UiText.Dynamic(
+                        "An authenticated register session is required."
+                    )
+                )
+            return
+        }
+
+        if (synchronizeFinancialSession(session)) return
+        if (_uiState.value.isExecuting) return
+
+        _uiState.value =
+            _uiState.value.copy(
+                overlay = RegisterOverlay.Expense,
+                expenseLoading = true,
+                todayExpenses = emptyList(),
+                errorMessage = null
+            )
+
+        refreshTodayExpenses(session)
+    }
+
+    fun closeExpenses() {
+        if (_uiState.value.overlay != RegisterOverlay.Expense || _uiState.value.isExecuting) return
+
+        _uiState.value =
+            _uiState.value.copy(
+                overlay = null,
+                expenseLoading = false,
+                todayExpenses = emptyList(),
+                inFlightExpenseCommand = null,
+                errorMessage = null
+            )
+    }
+
+    private fun refreshTodayExpenses(
+        session: ActiveSession? =
+            SessionManager.currentSession.value
+    ) {
+        if (session == null) {
+            _uiState.value =
+                _uiState.value.copy(
+                    expenseLoading = false
+                )
+            return
+        }
+
+        val generation = financialSessionGeneration
+        val context = financialContext
+
+        viewModelScope.launch {
+            try {
+                val zone =
+                    java.time.ZoneId.of(
+                        session.branch.timezoneId
+                    )
+
+                val today =
+                    java.time.Instant
+                        .ofEpochMilli(System.currentTimeMillis())
+                        .atZone(zone)
+                        .toLocalDate()
+
+                val fromInclusive =
+                    today
+                        .atStartOfDay(zone)
+                        .toInstant()
+                        .toEpochMilli()
+
+                val toExclusive =
+                    today
+                        .plusDays(1)
+                        .atStartOfDay(zone)
+                        .toInstant()
+                        .toEpochMilli()
+
+                val expenses =
+                    loadExpensesForPeriod(
+                        session.business.id,
+                        session.branch.id,
+                        fromInclusive,
+                        toExclusive
+                    )
+
+                if (
+                    !shouldApplyFinancialResultToRegister(
+                        context,
+                        SessionManager.currentSession.value,
+                        generation,
+                        financialSessionGeneration
+                    )
+                ) {
+                    return@launch
+                }
+
+                _uiState.value =
+                    _uiState.value.copy(
+                        expenseLoading = false,
+                        todayExpenses = expenses
+                    )
+            } catch (error: Exception) {
+                if (
+                    error is kotlinx.coroutines.CancellationException
+                ) {
+                    throw error
+                }
+
+                _uiState.value =
+                    _uiState.value.copy(
+                        expenseLoading = false,
+                        errorMessage =
+                            UiText.Dynamic(
+                                error.message
+                                    ?: "Unable to load Expenses."
+                            )
+                    )
+            }
+        }
+    }
+
+    fun stageExpenseSupportingDocument(sourceUri: String) {
+        if (sourceUri.isBlank() || _uiState.value.isExecuting) return
+        val current = _uiState.value.stagedExpenseSupportingDocumentUris
+        if (sourceUri in current) return
+        _uiState.value = _uiState.value.copy(
+            stagedExpenseSupportingDocumentUris = current + sourceUri
+        )
+    }
+
+    fun removeStagedExpenseSupportingDocument(sourceUri: String) {
+        if (_uiState.value.isExecuting) return
+        _uiState.value = _uiState.value.copy(
+            stagedExpenseSupportingDocumentUris =
+                _uiState.value.stagedExpenseSupportingDocumentUris.filterNot {
+                    it == sourceUri
+                }
+        )
+    }
+    fun lookupExpensePayeeByPhone(canonicalPhone: String?) {
+        val session = SessionManager.currentSession.value ?: return
+        val phone = canonicalPhone?.trim().orEmpty()
+        val state = _uiState.value
+
+        if (
+            state.overlay != RegisterOverlay.Expense ||
+            state.isExecuting ||
+            state.inFlightExpenseCommand != null
+        ) {
+            return
+        }
+
+        if (phone.isBlank()) {
+            _uiState.value =
+                state.copy(
+                    expensePayeeLookupLoading = false,
+                    expensePayeeLookupPhone = null,
+                    expensePayeeLookupResult = null
+                )
+            return
+        }
+
+        if (
+            state.expensePayeeLookupPhone == phone &&
+            !state.expensePayeeLookupLoading
+        ) {
+            return
+        }
+
+        _uiState.value =
+            state.copy(
+                expensePayeeLookupLoading = true,
+                expensePayeeLookupPhone = phone,
+                expensePayeeLookupResult = null
+            )
+
+        viewModelScope.launch {
+            try {
+                val customer =
+                    findSaleCustomerByPhone(
+                        session.business.id,
+                        phone
+                    )
+
+                val current = _uiState.value
+
+                if (
+                    current.overlay != RegisterOverlay.Expense ||
+                    current.expensePayeeLookupPhone != phone
+                ) {
+                    return@launch
+                }
+
+                _uiState.value =
+                    current.copy(
+                        expensePayeeLookupLoading = false,
+                        expensePayeeLookupResult = customer
+                    )
+            } catch (error: Exception) {
+                if (
+                    error is kotlinx.coroutines.CancellationException
+                ) {
+                    throw error
+                }
+
+                val current = _uiState.value
+
+                if (
+                    current.expensePayeeLookupPhone != phone
+                ) {
+                    return@launch
+                }
+
+                _uiState.value =
+                    current.copy(
+                        expensePayeeLookupLoading = false,
+                        expensePayeeLookupResult = null,
+                        errorMessage =
+                            UiText.Dynamic(
+                                error.message
+                                    ?: "Customer lookup failed."
+                            )
+                    )
+            }
+        }
+    }
+    fun saveExpense(
+        amountText: String,
+        category: ExpenseCategory,
+        paymentCategory: PaymentCategory,
+        payeeName: String,
+        payeePhone: String?,
+        note: String,
+        reference: String
+    ) {
+        val session =
+            SessionManager.currentSession.value
+
+        if (session == null) {
+            _uiState.value =
+                _uiState.value.copy(
+                    errorMessage =
+                        UiText.Dynamic(
+                            "An authenticated register session is required."
+                        )
+                )
+            return
+        }
+
+        if (synchronizeFinancialSession(session)) return
+
+        val state = _uiState.value
+
+        if (state.overlay != RegisterOverlay.Expense || state.isExecuting) return
+
+        val parsedAmount =
+            MoneyMinorUnits.parse(
+                amountText.trim(),
+                session.branch.currencyDecimalPlaces
+            ).getOrNull()
+
+        if (parsedAmount == null) {
+            _uiState.value =
+                state.copy(
+                    errorMessage =
+                        UiText.Dynamic(
+                            "Enter a valid amount using no more than " +
+                                "${session.branch.currencyDecimalPlaces} decimal places."
+                        )
+                )
+            return
+        }
+
+        if (!parsedAmount.isPositive) {
+            _uiState.value =
+                state.copy(
+                    errorMessage =
+                        UiText.Dynamic(
+                            "Enter an Expense amount greater than zero."
+                        )
+                )
+            return
+        }
+
+        val command =
+            state.inFlightExpenseCommand
+                ?: try {
+                    ExpenseCommandFactory.createNew(
+                        businessId = session.business.id,
+                        branchId = session.branch.id,
+                        actorUserId = session.user.id,
+                        amountMinor = parsedAmount.amount,
+                        currencyCode = session.branch.currencyCode,
+                        category = category,
+                        paymentCategory = paymentCategory,
+                        payeeName = payeeName,
+                        payeePhone = payeePhone,
+                        reference = reference,
+                        note = note,
+                        deviceId = deviceId(),
+                        occurredAt = System.currentTimeMillis()
+                    )
+                } catch (_: IllegalStateException) {
+                    _uiState.value =
+                        state.copy(
+                            errorMessage =
+                                UiText.Dynamic(
+                                    "Expense payment must be Cash or Online."
+                                )
+                        )
+                    return
+                }
+
+        val executionContext = financialContext
+        val executionGeneration = financialSessionGeneration
+
+        _uiState.value =
+            state.copy(
+                isExecuting = true,
+                inFlightExpenseCommand = command,
+                errorMessage = null
+            )
+
+        viewModelScope.launch {
+            val result =
+                submitExpense(command)
+
+            if (
+                !shouldApplyFinancialResultToRegister(
+                    executionContext,
+                    SessionManager.currentSession.value,
+                    executionGeneration,
+                    financialSessionGeneration
+                )
+            ) {
+                return@launch
+            }
+
+            when (result) {
+                is CommandResult.Success -> {
+                    val stagedDocuments =
+                        _uiState.value.stagedExpenseSupportingDocumentUris
+
+                    var attachmentFailureCount = 0
+
+                    for (sourceUri in stagedDocuments) {
+                        try {
+                            attachExpenseSupportingDocument(
+                                command.expenseId,
+                                sourceUri
+                            )
+                        } catch (error: Exception) {
+                            if (
+                                error is
+                                    kotlinx.coroutines.CancellationException
+                            ) {
+                                throw error
+                            }
+                            attachmentFailureCount++
+                        }
+                    }
+
+                    _uiState.value =
+                        _uiState.value.copy(
+                            isExecuting = false,
+                            inFlightExpenseCommand = null,
+                            stagedExpenseSupportingDocumentUris =
+                                emptyList(),
+                            infoMessage =
+                                UiText.Dynamic(
+                                    when {
+                                        attachmentFailureCount > 0 ->
+                                            "Expense saved. $attachmentFailureCount supporting document(s) could not be attached."
+                                        result.isIdempotentReplay ->
+                                            "Expense already saved."
+                                        else ->
+                                            "Expense saved."
+                                    }
+                                ),
+                            errorMessage = null
+                        )
+
+                    refreshTodayExpenses()
+                    openExpenseDetails(command.expenseId)
+                }
+
+                is CommandResult.Conflict ->
+                    _uiState.value =
+                        _uiState.value.copy(
+                            isExecuting = false,
+                            inFlightExpenseCommand = null,
+                            errorMessage =
+                                UiText.Dynamic(result.message)
+                        )
+
+                is CommandResult.PermissionDenied ->
+                    _uiState.value =
+                        _uiState.value.copy(
+                            isExecuting = false,
+                            inFlightExpenseCommand = null,
+                            errorMessage =
+                                UiText.Dynamic(result.message)
+                        )
+
+                is CommandResult.Error ->
+                    _uiState.value =
+                        _uiState.value.copy(
+                            isExecuting = false,
+                            inFlightExpenseCommand = command,
+                            errorMessage =
+                                UiText.Dynamic(
+                                    result.exception.message
+                                        ?: "Expense could not be saved. Retry the same Expense."
+                                )
+                        )
+            }
+        }
+    }
+    fun openDayClosing() {
+        val session = SessionManager.currentSession.value ?: return
+
+        if (synchronizeFinancialSession(session)) return
+        if (_uiState.value.isExecuting) return
+
+        _uiState.value =
+            _uiState.value.copy(
+                overlay = RegisterOverlay.DayClosing,
+                dayClosingLoading = true,
+                dayClosingReport = null,
+                dayClosingActualCash = "",
+                dayClosingReview = false,
+                dayClosingResult = null,
+                errorMessage = null
+            )
+
+        viewModelScope.launch {
+            try {
+                val report = loadCurrentRegisterShiftReport()
+
+                _uiState.value =
+                    _uiState.value.copy(
+                        dayClosingLoading = false,
+                        dayClosingReport = report,
+                        errorMessage =
+                            if (report == null) {
+                                UiText.Resource(R.string.dmr20_day_no_open)
+                            } else {
+                                null
+                            }
+                    )
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+
+                _uiState.value =
+                    _uiState.value.copy(
+                        dayClosingLoading = false,
+                        errorMessage =
+                            UiText.Dynamic(
+                                error.message ?: "Unable to load Day Closing."
+                            )
+                    )
+            }
+        }
+    }
+
+    fun closeDayClosing() {
+        if (_uiState.value.overlay != RegisterOverlay.DayClosing || _uiState.value.isExecuting) return
+
+        _uiState.value =
+            _uiState.value.copy(
+                overlay = null,
+                dayClosingLoading = false,
+                dayClosingReport = null,
+                dayClosingActualCash = "",
+                dayClosingReview = false,
+                dayClosingResult = null,
+                errorMessage = null
+            )
+    }
+
+    fun updateDayClosingActualCash(value: String) {
+        if (_uiState.value.isExecuting) return
+        if (_uiState.value.dayClosingReview) return
+        if (_uiState.value.dayClosingResult != null) return
+
+        val cleaned =
+            value.filter { it.isDigit() || it == '.' }
+
+        if (cleaned.count { it == '.' } > 1) return
+
+        _uiState.value =
+            _uiState.value.copy(
+                dayClosingActualCash = cleaned,
+                errorMessage = null
+            )
+    }
+
+    fun reviewDayClosing() {
+        val state = _uiState.value
+        if (state.dayClosingResult != null) return
+        if (state.dayClosingReport == null) return
+
+        val entered =
+            state.dayClosingActualCash.toBigDecimalOrNull()
+
+        if (entered == null || entered.signum() < 0) {
+            _uiState.value =
+                state.copy(
+                    errorMessage =
+                        UiText.Resource(R.string.dmr20_enter_actual_cash)
+                )
+            return
+        }
+
+        _uiState.value =
+            state.copy(
+                dayClosingReview = true,
+                errorMessage = null
+            )
+    }
+
+    fun backFromDayClosingReview() {
+        if (_uiState.value.isExecuting) return
+
+        _uiState.value =
+            _uiState.value.copy(
+                dayClosingReview = false
+            )
+    }
+
+    fun confirmDayClosing() {
+        val session = SessionManager.currentSession.value ?: return
+        val state = _uiState.value
+        val report = state.dayClosingReport ?: return
+
+        if (state.isExecuting) return
+        if (!state.dayClosingReview) return
+
+        val entered =
+            state.dayClosingActualCash.toBigDecimalOrNull()
+
+        if (entered == null || entered.signum() < 0) {
+            _uiState.value =
+                state.copy(
+                    dayClosingReview = false,
+                    errorMessage =
+                        UiText.Resource(R.string.dmr20_enter_actual_cash)
+                )
+            return
+        }
+
+        val multiplier =
+            java.math.BigDecimal.TEN.pow(decimalPlaces)
+
+        val countedMinor =
+            try {
+                entered
+                    .multiply(multiplier)
+                    .setScale(0, java.math.RoundingMode.UNNECESSARY)
+                    .longValueExact()
+            } catch (_: ArithmeticException) {
+                _uiState.value =
+                    state.copy(
+                        dayClosingReview = false,
+                        errorMessage =
+                            UiText.Resource(R.string.dmr20_invalid_cash)
+                    )
+                return
+            }
+
+        val countCommand =
+            CountRegisterShiftCommand(
+                operationId = OperationId.generate(),
+                businessId = session.business.id,
+                branchId = session.branch.id,
+                shiftId = report.shift.shiftId,
+                countedCashMinor = countedMinor,
+                actorUserId = session.user.id,
+                deviceId = deviceId(),
+                occurredAt = System.currentTimeMillis()
+            )
+
+        _uiState.value =
+            state.copy(
+                isExecuting = true,
+                inFlightShiftCountCommand = countCommand,
+                errorMessage = null
+            )
+
+        viewModelScope.launch {
+            when (
+                val countResult =
+                    submitRegisterShiftCount(countCommand)
+            ) {
+                is CommandResult.Success -> {
+                    val closeCommand =
+                        CloseRegisterShiftCommand(
+                            operationId = OperationId.generate(),
+                            businessId = session.business.id,
+                            branchId = session.branch.id,
+                            shiftId = report.shift.shiftId,
+                            actorUserId = session.user.id,
+                            deviceId = deviceId(),
+                            occurredAt = System.currentTimeMillis()
+                        )
+
+                    _uiState.value =
+                        _uiState.value.copy(
+                            inFlightShiftCountCommand = null,
+                            inFlightShiftCloseCommand = closeCommand
+                        )
+
+                    when (
+                        val closeResult =
+                            submitRegisterShiftClose(closeCommand)
+                    ) {
+                                                is CommandResult.Success -> {
+                            val persisted =
+                                closeResult.data
+
+                            val persistedCounted =
+                                persisted.countedCashMinor
+
+                            val persistedClosedAt =
+                                persisted.closedAt
+
+                            val reconciliation =
+                                if (
+                                    !persisted.isOpen &&
+                                    persistedCounted != null &&
+                                    persistedClosedAt != null
+                                ) {
+                                    dayClosingReconciliation(
+                                        expectedCashMinor =
+                                            report.expectedCashMinor,
+                                        countedCashMinor =
+                                            persistedCounted
+                                    )
+                                } else {
+                                    null
+                                }
+
+                            if (
+                                reconciliation == null ||
+                                persistedClosedAt == null
+                            ) {
+                                /*
+                                 * Close already succeeded durably.
+                                 * Never retry a financial close just because
+                                 * presentation evidence is incomplete.
+                                 */
+                                _uiState.value =
+                                    _uiState.value.copy(
+                                        isExecuting = false,
+                                        overlay = null,
+                                        dayClosingLoading = false,
+                                        dayClosingReport = null,
+                                        dayClosingActualCash = "",
+                                        dayClosingReview = false,
+                                        dayClosingResult = null,
+                                        inFlightShiftCountCommand = null,
+                                        inFlightShiftCloseCommand = null,
+                                        errorMessage = null,
+                                        infoMessage =
+                                            UiText.Dynamic(
+                                                "Shift closed successfully."
+                                            )
+                                    )
+                            } else {
+                                val ownerId =
+                                    persisted.actorUserId
+
+                                val ownerDisplayName =
+                                    if (
+                                        ownerId ==
+                                        closeCommand.actorUserId
+                                    ) {
+                                        session.user.displayName
+                                    } else {
+                                        ownerId
+                                    }
+
+                                val summary =
+                                    DayClosingResultUi(
+                                        reconciliation =
+                                            reconciliation,
+                                        shiftOwnerUserId =
+                                            ownerId,
+                                        shiftOwnerDisplayName =
+                                            ownerDisplayName,
+                                        closedByUserId =
+                                            closeCommand.actorUserId,
+                                        closedByDisplayName =
+                                            session.user.displayName,
+                                        closedAt =
+                                            persistedClosedAt,
+                                        closedAtDisplay =
+                                            formatDayClosingTime(
+                                                persistedClosedAt,
+                                                session.branch.timezoneId
+                                            )
+                                    )
+
+                                _uiState.value =
+                                    _uiState.value.copy(
+                                        isExecuting = false,
+                                        overlay =
+                                            RegisterOverlay.DayClosing,
+                                        dayClosingLoading = false,
+                                        dayClosingReport = report,
+                                        dayClosingReview = false,
+                                        dayClosingResult = summary,
+                                        inFlightShiftCountCommand = null,
+                                        inFlightShiftCloseCommand = null,
+                                        errorMessage = null,
+                                        infoMessage = null
+                                    )
+                            }
+                        }
+
+                        is CommandResult.Conflict ->
+                            _uiState.value =
+                                _uiState.value.copy(
+                                    isExecuting = false,
+                                    errorMessage =
+                                        UiText.Dynamic(closeResult.message)
+                                )
+
+                        is CommandResult.PermissionDenied ->
+                            _uiState.value =
+                                _uiState.value.copy(
+                                    isExecuting = false,
+                                    errorMessage =
+                                        UiText.Dynamic(closeResult.message)
+                                )
+
+                        is CommandResult.Error ->
+                            _uiState.value =
+                                _uiState.value.copy(
+                                    isExecuting = false,
+                                    errorMessage =
+                                        UiText.Dynamic(
+                                            closeResult.exception.message
+                                                ?: "Unable to close shift."
+                                        )
+                                )
+                    }
+                }
+
+                is CommandResult.Conflict ->
+                    _uiState.value =
+                        _uiState.value.copy(
+                            isExecuting = false,
+                            errorMessage =
+                                UiText.Dynamic(countResult.message)
+                        )
+
+                is CommandResult.PermissionDenied ->
+                    _uiState.value =
+                        _uiState.value.copy(
+                            isExecuting = false,
+                            errorMessage =
+                                UiText.Dynamic(countResult.message)
+                        )
+
+                is CommandResult.Error ->
+                    _uiState.value =
+                        _uiState.value.copy(
+                            isExecuting = false,
+                            errorMessage =
+                                UiText.Dynamic(
+                                    countResult.exception.message
+                                        ?: "Unable to save cash count."
+                                )
+                        )
+            }
+        }
+    }
     // Upcoming Phase Payment Trigger: Credit
     fun triggerDisabledPaymentMethod(methodName: String) {
         _uiState.value = _uiState.value.copy(
@@ -2097,5 +3394,3 @@ if (
         )
     }
 }
-
-

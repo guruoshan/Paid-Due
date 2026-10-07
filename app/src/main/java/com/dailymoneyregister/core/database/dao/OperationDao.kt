@@ -21,6 +21,26 @@ interface OperationDao {
     @Query("SELECT * FROM operations WHERE id = :operationId LIMIT 1")
     suspend fun getOperationById(operationId: String): OperationEntity?
 
+    /**
+     * Immutable operation membership for one cashier shift.
+     *
+     * cash_shift_id is frozen when the financial intent is admitted.
+     * Historical pre-attribution operations remain NULL and are intentionally
+     * excluded rather than guessed into a shift.
+     */
+    @Query(
+        """
+        SELECT *
+        FROM operations
+        WHERE cash_shift_id = :cashShiftId
+          AND status = 'SUCCEEDED'
+        ORDER BY occurred_at ASC, id ASC
+        """
+    )
+    suspend fun getSucceededOperationsForCashShift(
+        cashShiftId: String
+    ): List<OperationEntity>
+
     @Query("SELECT * FROM operations WHERE status = 'PENDING' ORDER BY occurred_at ASC")
     suspend fun getPendingOperations(): List<OperationEntity>
 

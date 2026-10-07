@@ -48,6 +48,13 @@ interface LedgerDao {
     ): List<CreditRepaymentEntity>
 
     @Query(
+        "SELECT * FROM credit_repayments WHERE operation_id IN (:operationIds)"
+    )
+    suspend fun getCreditRepaymentsForOperations(
+        operationIds: List<String>
+    ): List<CreditRepaymentEntity>
+
+    @Query(
         """
         SELECT repayment.*
         FROM credit_repayments AS repayment
@@ -110,8 +117,13 @@ interface LedgerDao {
     @Query("SELECT COALESCE(SUM(amount_signed_minor), 0) FROM credit_ledger_events WHERE customer_id = :customerId AND currency_code = :currencyCode")
     suspend fun getCreditBalance(customerId: String, currencyCode: String): Long
 
-    @Query("SELECT * FROM credit_ledger_events WHERE customer_id = :customerId ORDER BY occurred_at ASC")
+    @Query("SELECT * FROM credit_ledger_events WHERE customer_id = :customerId ORDER BY occurred_at ASC, id ASC")
     suspend fun getCreditLedgerForCustomer(customerId: String): List<CreditLedgerEventEntity>
+
+    @Query("SELECT * FROM credit_ledger_events WHERE operation_id IN (:operationIds)")
+    suspend fun getCreditEventsForOperations(
+        operationIds: List<String>
+    ): List<CreditLedgerEventEntity>
 
     // Coupon Ledger (Append-only)
     @Insert(onConflict = OnConflictStrategy.ABORT)
@@ -126,6 +138,11 @@ interface LedgerDao {
     @Query("SELECT * FROM coupon_wallets WHERE id = :walletId LIMIT 1")
     suspend fun getCouponWalletById(walletId: String): CouponWalletEntity?
 
+    @Query("SELECT * FROM coupon_wallets WHERE id IN (:walletIds)")
+    suspend fun getCouponWalletsByIds(
+        walletIds: List<String>
+    ): List<CouponWalletEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertCouponEvent(event: CouponLedgerEventEntity)
 
@@ -137,11 +154,16 @@ interface LedgerDao {
     @Query("SELECT COALESCE(SUM(amount_signed_minor), 0) FROM coupon_ledger_events WHERE wallet_id = :walletId")
     suspend fun getCouponBalance(walletId: String): Long
 
-    @Query("SELECT * FROM coupon_ledger_events WHERE wallet_id = :walletId ORDER BY occurred_at ASC")
+    @Query("SELECT * FROM coupon_ledger_events WHERE wallet_id = :walletId ORDER BY occurred_at ASC, id ASC")
     suspend fun getCouponLedgerForWallet(walletId: String): List<CouponLedgerEventEntity>
 
     @Query("SELECT * FROM coupon_ledger_events WHERE operation_id = :operationId")
     suspend fun getCouponEventsForOperation(operationId: String): List<CouponLedgerEventEntity>
+
+    @Query("SELECT * FROM coupon_ledger_events WHERE operation_id IN (:operationIds)")
+    suspend fun getCouponEventsForOperations(
+        operationIds: List<String>
+    ): List<CouponLedgerEventEntity>
 
     @Query("SELECT COALESCE(SUM(amount_signed_minor), 0) FROM coupon_ledger_events WHERE wallet_id = :walletId AND rowid <= (SELECT rowid FROM coupon_ledger_events WHERE id = :eventId)")
     suspend fun getCouponBalanceAfterEvent(walletId: String, eventId: String): Long

@@ -1,5 +1,6 @@
-﻿package com.dailymoneyregister.app.ui
+package com.dailymoneyregister.app.ui
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.navArgument
@@ -31,18 +33,32 @@ import com.dailymoneyregister.feature.auth.ui.LoginScreen
 import com.dailymoneyregister.feature.auth.ui.LoginViewModel
 import com.dailymoneyregister.feature.auth.ui.ChangePinScreen
 import com.dailymoneyregister.feature.auth.ui.ChangePinViewModel
+import com.dailymoneyregister.feature.onboarding.ui.LanguagePickerScreen
+import com.dailymoneyregister.feature.onboarding.ui.SignUpRoleScreen
+import com.dailymoneyregister.feature.onboarding.ui.WelcomeScreen
+import com.dailymoneyregister.feature.invite.ui.InviteActivateScreen
+import com.dailymoneyregister.feature.invite.ui.InviteActivateViewModel
 import com.dailymoneyregister.feature.customers.ui.CustomerDetailScreen
+import com.dailymoneyregister.feature.customers.ui.CustomerDetailScreenActions
 import com.dailymoneyregister.feature.customers.ui.CustomerDetailViewModel
 import com.dailymoneyregister.feature.customers.ui.CustomersScreen
+import com.dailymoneyregister.feature.customers.ui.CustomersScreenActions
 import com.dailymoneyregister.feature.customers.ui.CustomersViewModel
 import com.dailymoneyregister.feature.register.ui.RegisterScreen
 import com.dailymoneyregister.feature.register.ui.RegisterViewModel
+import com.dailymoneyregister.feature.reporting.ui.ReportingScreen
+import com.dailymoneyregister.feature.reporting.ui.ReportingViewModel
 import com.dailymoneyregister.feature.settings.ui.SettingsScreen
 import com.dailymoneyregister.feature.setup.data.SetupRepository
 import com.dailymoneyregister.feature.setup.ui.SetupScreen
 import com.dailymoneyregister.feature.setup.ui.SetupViewModel
+import com.dailymoneyregister.core.cloud.RemoteTenantBootstrapRecoveryViewModel
+import kotlinx.coroutines.launch
 
 object Routes {
+    const val LANGUAGE = "language"
+    const val WELCOME = "welcome"
+    const val SIGNUP_ROLE = "signup_role"
     const val SETUP = "setup"
     const val LOGIN = "login"
     const val CHANGE_PIN = "change_pin"
@@ -51,8 +67,10 @@ object Routes {
     const val REGISTER = "register"
     const val MANAGE_CASHIERS = "manage_cashiers"
     const val SETTINGS = "settings"
+    const val REPORTS = "reports"
     const val CUSTOMERS = "customers"
     const val CUSTOMER_DETAIL = "customers/{customerId}"
+    const val INVITE_ACTIVATE = "invite_activate/{token}"
 }
 
 @Composable
@@ -62,10 +80,15 @@ fun DmrApp(
     debugSessionBootstrapper: DebugSessionBootstrapper,
     startupRecoveryCoordinator: StartupRecoveryCoordinator,
     trustedSessionStore: TrustedSessionStore,
-    trustedSessionRestorer: TrustedSessionRestorer
+    trustedSessionRestorer: TrustedSessionRestorer,
+    pendingInviteToken: String? = null,
+    onInviteHandled: () -> Unit = {}
 ) {
     val navController = rememberNavController()
+
 
+    val remoteTenantRecoveryViewModel: RemoteTenantBootstrapRecoveryViewModel =
+        hiltViewModel()
     var isCheckingStartup by remember { mutableStateOf(true) }
     var startupRecoveryError by remember { mutableStateOf<String?>(null) }
     var recoveryAttempt by remember { mutableIntStateOf(0) }
@@ -100,42 +123,81 @@ fun DmrApp(
             return@LaunchedEffect
         }
 
-        val isComplete =
-            setupRepository.isSetupComplete()
+        /*
+         * Cloud tenant bootstrap recovery gate.
+         *
+         * A new cloud-enabled Admin setup cannot enter the
+         * operational app until Supabase confirms the same
+         * Business / Branch / Admin / membership identities.
+         *
+         * Existing installations without a pending marker
+         * pass through unchanged.
+         */
+        val cloudBootstrapError =
+            remoteTenantRecoveryViewModel
+                .recoverPendingBootstrap()
+
+        if (cloudBootstrapError != null) {
+
+            startupRecoveryError =
+                cloudBootstrapError
+
+            isCheckingStartup = false
+
+            return@LaunchedEffect
+        }
+        /*
+         * A previously trusted Cashier session is valid local device
+         * authority even when this device never performed Admin setup.
+         *
+         * This is required for employee-only devices.
+         */
+        val restoredSession =
+            trustedSessionRestorer.restore()
 
         startDestination =
-            if (!isComplete) {
+            if (restoredSession != null) {
 
-                Routes.SETUP
+                when {
+                    restoredSession.user.role == UserRole.ADMIN ->
+                        Routes.ADMIN_HUB
+
+                    restoredSession.requiresPinChange ->
+                        Routes.CHANGE_PIN
+
+                    else ->
+                        Routes.REGISTER
+                }
 
             } else {
 
-                val restoredSession =
-                    trustedSessionRestorer.restore()
+                val isComplete =
+                    setupRepository.isSetupComplete()
 
-                if (restoredSession != null) {
-                    when {
-                        restoredSession.user.role == UserRole.ADMIN ->
-                            Routes.ADMIN_HUB
+                if (isComplete) {
 
-                        restoredSession.requiresPinChange ->
-                            Routes.CHANGE_PIN
-
-                        else ->
-                            Routes.REGISTER
-                    }
-                } else {
                     val debugSessionReady =
                         debugSessionBootstrapper.bootstrapIfDebug()
 
                     if (debugSessionReady) {
                         Routes.REGISTER
                     } else {
-                        Routes.LOGIN
+                        if (languageManager.hasChosenLanguage()) {
+                            Routes.WELCOME
+                        } else {
+                            Routes.LANGUAGE
+                        }
+                    }
+
+                } else {
+
+                    if (languageManager.hasChosenLanguage()) {
+                        Routes.WELCOME
+                    } else {
+                        Routes.LANGUAGE
                     }
                 }
             }
-
         isCheckingStartup = false
     }
 
@@ -188,21 +250,90 @@ fun DmrApp(
         startDestination = startDestination
     ) {
 
-        composable(Routes.SETUP) {
-
-            val setupViewModel: SetupViewModel =
-                hiltViewModel()
-
-            SetupScreen(
-                viewModel = setupViewModel,
-                onSetupCompleted = {
-                    navController.navigate(Routes.ADMIN_HUB) {
-                        popUpTo(Routes.SETUP) {
-                            inclusive = true
-                        }
+        composable(Routes.LANGUAGE) {
+            LanguagePickerScreen(
+                languageManager = languageManager,
+                onContinue = {
+                    navController.navigate(Routes.WELCOME) {
+                        popUpTo(Routes.LANGUAGE) { inclusive = true }
                     }
                 }
             )
+        }
+
+        composable(Routes.WELCOME) {
+            WelcomeScreen(
+                onLogin = { navController.navigate(Routes.LOGIN) },
+                onSignUp = { navController.navigate(Routes.SIGNUP_ROLE) }
+            )
+        }
+
+        composable(
+            route = Routes.INVITE_ACTIVATE,
+            arguments = listOf(navArgument("token") { type = NavType.StringType })
+        ) {
+            val viewModel: InviteActivateViewModel = hiltViewModel()
+            InviteActivateScreen(
+                viewModel = viewModel,
+                onActivated = {
+                    navController.navigate(Routes.REGISTER) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+                onBack = {
+                    navController.navigate(Routes.WELCOME) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(Routes.SIGNUP_ROLE) {
+            val scope = rememberCoroutineScope()
+            var businessAlreadyExists by remember { mutableStateOf(false) }
+            SignUpRoleScreen(
+                onBusinessAdmin = {
+                    scope.launch {
+                        if (setupRepository.isSetupComplete()) {
+                            businessAlreadyExists = true
+                        } else {
+                            navController.navigate(Routes.SETUP)
+                        }
+                    }
+                },
+                businessAlreadyExists = businessAlreadyExists,
+                onGoToLogin = { navController.navigate(Routes.LOGIN) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.SETUP) {
+            var setupAllowed by remember { mutableStateOf<Boolean?>(null) }
+            LaunchedEffect(Unit) {
+                if (setupRepository.isSetupComplete()) {
+                    navController.navigate(Routes.WELCOME) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                } else {
+                    setupAllowed = true
+                }
+            }
+
+            if (setupAllowed == true) {
+                val setupViewModel: SetupViewModel = hiltViewModel()
+
+                SetupScreen(
+                    viewModel = setupViewModel,
+                    onSetupCompleted = {
+                        navController.navigate(Routes.ADMIN_HUB) {
+                            popUpTo(0) {
+                                inclusive = true
+                            }
+                        }
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
 
         composable(Routes.LOGIN) {
@@ -255,16 +386,17 @@ fun DmrApp(
                 onNavigateToCustomers = {
                     navController.navigate(Routes.CUSTOMERS)
                 },
+                onNavigateToReports = {
+                    navController.navigate(Routes.REPORTS)
+                },
                 onNavigateToSettings = {
                     navController.navigate(Routes.SETTINGS)
                 },
                 onLogout = {
                     trustedSessionStore.clear()
                     SessionManager.clearSession()
-                    navController.navigate(Routes.LOGIN) {
-                        popUpTo(Routes.ADMIN_HUB) {
-                            inclusive = true
-                        }
+                    navController.navigate(Routes.WELCOME) {
+                        popUpTo(0) { inclusive = true }
                     }
                 }
             )
@@ -297,6 +429,22 @@ fun DmrApp(
             )
         }
 
+        composable(Routes.REPORTS) {
+
+            val reportingViewModel: ReportingViewModel =
+                hiltViewModel()
+
+            ReportingScreen(
+                viewModel = reportingViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onOpenCustomer = { customerId ->
+                    navController.navigate("customers/$customerId")
+                }
+            )
+        }
+
         composable(Routes.SETTINGS) {
 
             val settingsViewModel:
@@ -314,7 +462,7 @@ fun DmrApp(
                 onLogout = {
                     trustedSessionStore.clear()
                     SessionManager.clearSession()
-                    navController.navigate(Routes.LOGIN) {
+                    navController.navigate(Routes.WELCOME) {
                         popUpTo(0) {
                             inclusive = true
                         }
@@ -328,14 +476,23 @@ fun DmrApp(
             val customersViewModel: CustomersViewModel =
                 hiltViewModel()
 
+            val customersState by
+                customersViewModel.uiState.collectAsStateWithLifecycle()
+
             CustomersScreen(
-                viewModel = customersViewModel,
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onOpenCustomer = { customerId ->
-                    navController.navigate("customers/$customerId")
-                }
+                state = customersState,
+                actions = CustomersScreenActions(
+                    onNavigateBack = { navController.popBackStack() },
+                    onOpenCustomer = { customerId ->
+                        navController.navigate("customers/$customerId")
+                    },
+                    onReload = customersViewModel::reload,
+                    onQueryChange = customersViewModel::onQueryChange,
+                    onSelectFilter = customersViewModel::selectFilter,
+                    onAskToLinkOlderInvoices = customersViewModel::askToLinkOlderInvoices,
+                    onConfirmLinkOlderInvoices = customersViewModel::confirmLinkOlderInvoices,
+                    onDismissLinkConfirm = customersViewModel::dismissLinkConfirm
+                )
             )
         }
 
@@ -349,12 +506,34 @@ fun DmrApp(
             val customerDetailViewModel: CustomerDetailViewModel =
                 hiltViewModel()
 
+            val customerDetailState by
+                customerDetailViewModel.uiState.collectAsStateWithLifecycle()
+
             CustomerDetailScreen(
-                viewModel = customerDetailViewModel,
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
+                state = customerDetailState,
+                actions = CustomerDetailScreenActions(
+                    onNavigateBack = { navController.popBackStack() },
+                    onLoad = customerDetailViewModel::load,
+                    onOpenReceivePayment = customerDetailViewModel::openReceivePayment,
+                    onOpenInvoice = customerDetailViewModel::openInvoice,
+                    onRepaymentAmountChange = customerDetailViewModel::onRepaymentAmountChange,
+                    onSelectRepaymentMethod = customerDetailViewModel::selectRepaymentMethod,
+                    onConfirmReceivePayment = customerDetailViewModel::confirmReceivePayment,
+                    onCloseReceivePayment = customerDetailViewModel::closeReceivePayment,
+                    onCloseInvoice = customerDetailViewModel::closeInvoice,
+                    onSharePdf = customerDetailViewModel::sharePdf,
+                    onShareWhatsApp = customerDetailViewModel::shareWhatsApp
+                )
             )
+        }
+    }
+
+    LaunchedEffect(pendingInviteToken) {
+        pendingInviteToken?.takeIf { it.isNotBlank() }?.let { token ->
+            navController.navigate("invite_activate/${Uri.encode(token)}") {
+                launchSingleTop = true
+            }
+            onInviteHandled()
         }
     }
 }

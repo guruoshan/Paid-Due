@@ -27,6 +27,11 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :transactionId LIMIT 1")
     suspend fun getTransactionById(transactionId: String): TransactionEntity?
 
+    @Query("SELECT * FROM transactions WHERE id IN (:transactionIds)")
+    suspend fun getTransactionsByIds(
+        transactionIds: List<String>
+    ): List<TransactionEntity>
+
     @Query("SELECT * FROM transaction_items WHERE transaction_id = :transactionId")
     suspend fun getItemsForTransaction(transactionId: String): List<TransactionItemEntity>
 
@@ -130,6 +135,15 @@ interface TransactionDao {
         transactionId: String
     ): TransactionFinancialRecord?
 
+    /**
+     * BOARDLOCK read-only batch lookup for Day Closing.
+     */
+    @Transaction
+    @Query("SELECT * FROM transactions WHERE id IN (:transactionIds)")
+    suspend fun getFinancialRecordsByIds(
+        transactionIds: List<String>
+    ): List<TransactionFinancialRecord>
+
     // Settlements
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertSettlement(settlement: SettlementEntryEntity)
@@ -142,6 +156,11 @@ interface TransactionDao {
 
     @Query("SELECT * FROM settlement_entries WHERE operation_id = :operationId")
     suspend fun getSettlementsForOperation(operationId: String): List<SettlementEntryEntity>
+
+    @Query("SELECT * FROM settlement_entries WHERE operation_id IN (:operationIds)")
+    suspend fun getSettlementsForOperations(
+        operationIds: List<String>
+    ): List<SettlementEntryEntity>
 
     @Query(
         """

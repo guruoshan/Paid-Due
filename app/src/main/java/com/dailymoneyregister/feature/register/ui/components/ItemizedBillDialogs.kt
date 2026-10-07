@@ -27,6 +27,7 @@ import com.dailymoneyregister.core.model.tax.TaxRateParser
 import com.dailymoneyregister.feature.register.domain.DraftItem
 import com.dailymoneyregister.feature.register.domain.DraftState
 
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.dailymoneyregister.R
 
@@ -59,7 +60,7 @@ fun ItemizedBillDialog(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(stringResource(R.string.itemized_bill_title, stringResource(R.string.itemized_bill), stringResource(R.string.items_count, draftState.items.size)))
+                Text(stringResource(R.string.itemized_bill_title, stringResource(R.string.itemized_bill), pluralStringResource(R.plurals.items_count, draftState.items.size, draftState.items.size)))
                 IconButton(onClick = onOpenAddItem) {
                     Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_item), tint = MaterialTheme.colorScheme.primary)
                 }

@@ -4,8 +4,10 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.dailymoneyregister.core.database.entity.DocumentEntity
+import com.dailymoneyregister.core.database.entity.DocumentMediaLinkEntity
 import com.dailymoneyregister.core.database.entity.MediaAssetEntity
 import com.dailymoneyregister.core.database.entity.MerchantQrConfigEntity
 import com.dailymoneyregister.core.model.enums.DocumentType
@@ -57,6 +59,41 @@ interface DocumentMediaDao {
     )
     suspend fun getInvoicesForBranch(branchId: String, limit: Int): List<DocumentEntity>
 
+    // Document <-> Media links
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertDocumentMediaLink(link: DocumentMediaLinkEntity)
+
+    @Query(
+        """
+        SELECT *
+        FROM document_media_links
+        WHERE document_id = :documentId
+        ORDER BY position ASC, created_at ASC, media_id ASC
+        """
+    )
+    suspend fun getMediaLinksForDocument(documentId: String): List<DocumentMediaLinkEntity>
+
+    @Query(
+        """
+        SELECT m.*
+        FROM media_assets AS m
+        INNER JOIN document_media_links AS l
+            ON l.media_id = m.id
+        WHERE l.document_id = :documentId
+        ORDER BY l.position ASC, l.created_at ASC, l.media_id ASC
+        """
+    )
+    suspend fun getMediaForDocument(documentId: String): List<MediaAssetEntity>
+
+    @Query(
+        """
+        SELECT COUNT(*)
+        FROM document_media_links
+        WHERE document_id = :documentId
+          AND media_id = :mediaId
+        """
+    )
+    suspend fun countDocumentMediaLink(documentId: String, mediaId: String): Int
     // Media Assets
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertMedia(media: MediaAssetEntity)
@@ -76,4 +113,18 @@ interface DocumentMediaDao {
 
     @Query("SELECT * FROM merchant_qr_configs WHERE branch_id = :branchId AND is_default = 1 LIMIT 1")
     suspend fun getDefaultQrConfig(branchId: String): MerchantQrConfigEntity?
+
+    /** Replaces the active QR database state as one observable unit. */
+    @Transaction
+    suspend fun replaceActiveQrConfig(
+        branchId: String,
+        media: MediaAssetEntity,
+        config: MerchantQrConfigEntity
+    ) {
+        getActiveQrConfigs(branchId).forEach {
+            updateQrConfig(it.copy(isActive = false, isDefault = false))
+        }
+        insertMedia(media)
+        insertQrConfig(config)
+    }
 }

@@ -47,6 +47,7 @@ fun PhoneNumberInput(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     showValidation: Boolean = false,
+    allowCountrySelection: Boolean = true,
 ) {
     var selectingCountry by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -62,7 +63,10 @@ fun PhoneNumberInput(
     }
     val invalid = international == null && (showValidation || value.rawNumber.isNotBlank())
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = { query = ""; selectingCountry = true }, enabled = enabled) {
+        OutlinedButton(
+            onClick = { query = ""; selectingCountry = true },
+            enabled = enabled && allowCountrySelection
+        ) {
             Text(stringResource(R.string.global_phone_country) + ": " + countries.first { it.first == value.countryCode }.second)
         }
         OutlinedTextField(
@@ -82,7 +86,7 @@ fun PhoneNumberInput(
             },
         )
     }
-    if (selectingCountry && enabled) {
+    if (selectingCountry && enabled && allowCountrySelection) {
         AlertDialog(
             onDismissRequest = { selectingCountry = false },
             title = { Text(stringResource(R.string.global_phone_country)) },

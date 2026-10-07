@@ -2,6 +2,8 @@ package com.dailymoneyregister.core.security
 
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
+import com.dailymoneyregister.core.database.entity.BusinessEntity
+import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.UserRole
 import org.junit.Assert.assertFalse
@@ -49,38 +51,86 @@ class PermissionCheckerTest {
     }
 
     @Test
-    fun allFalseMembershipDeniesEveryActionForCashier() {
-        PermissionAction.entries.forEach { action ->
+    fun documentPermissionsIgnoreLegacyFlagsForCashierWithMembership() {
+        assertTrue(PermissionChecker.isPermitted(cashier, emptyMembership, PermissionAction.ISSUE_INVOICE))
+        assertTrue(PermissionChecker.isPermitted(cashier, emptyMembership, PermissionAction.ISSUE_RECEIPT))
+    }
+
+    @Test
+    fun reportsAreAdminOnlyRegardlessOfLegacyCashierFlag() {
+        assertFalse(PermissionChecker.isPermitted(cashier, emptyMembership, PermissionAction.VIEW_REPORTS))
+        assertFalse(
+            PermissionChecker.isPermitted(
+                cashier,
+                emptyMembership.copy(canViewReports = true),
+                PermissionAction.VIEW_REPORTS
+            )
+        )
+        assertTrue(PermissionChecker.isPermitted(admin, null, PermissionAction.VIEW_REPORTS))
+    }
+
+    @Test
+    fun sensitiveMembershipPermissionsRemainUnchanged() {
+        val cases = listOf(
+            PermissionAction.CREATE_CREDIT_SALE to emptyMembership.copy(canCreateCreditSale = true),
+            PermissionAction.USE_COUPON to emptyMembership.copy(canUseCoupon = true),
+            PermissionAction.REFUND to emptyMembership.copy(canRefund = true),
+            PermissionAction.VOID to emptyMembership.copy(canVoid = true),
+            PermissionAction.CORRECT_AMOUNT to emptyMembership.copy(canCorrectAmount = true),
+            PermissionAction.CHANGE_PAYMENT_METHOD to emptyMembership.copy(canChangePaymentMethod = true)
+        )
+
+        cases.forEach { (action, enabledMembership) ->
             assertFalse(PermissionChecker.isPermitted(cashier, emptyMembership, action))
+            assertTrue(PermissionChecker.isPermitted(cashier, enabledMembership, action))
         }
     }
 
     @Test
-    fun eachPermissionActionMapsToItsMembershipFlag() {
-        PermissionAction.entries.forEach { action ->
-            val membership = when (action) {
-                PermissionAction.CREATE_SALE -> emptyMembership.copy(canCreateSale = true)
-                PermissionAction.ACCEPT_CASH -> emptyMembership.copy(canAcceptCash = true)
-                PermissionAction.ACCEPT_ONLINE -> emptyMembership.copy(canAcceptOnline = true)
-                PermissionAction.CREATE_CREDIT_SALE -> emptyMembership.copy(canCreateCreditSale = true)
-                PermissionAction.USE_COUPON -> emptyMembership.copy(canUseCoupon = true)
-                PermissionAction.ISSUE_INVOICE -> emptyMembership.copy(canIssueInvoice = true)
-                PermissionAction.ISSUE_RECEIPT -> emptyMembership.copy(canIssueReceipt = true)
-                PermissionAction.REFUND -> emptyMembership.copy(canRefund = true)
-                PermissionAction.VOID -> emptyMembership.copy(canVoid = true)
-                PermissionAction.CORRECT_AMOUNT -> emptyMembership.copy(canCorrectAmount = true)
-                PermissionAction.CHANGE_PAYMENT_METHOD -> emptyMembership.copy(canChangePaymentMethod = true)
-                PermissionAction.VIEW_BROAD_HISTORY -> emptyMembership.copy(canViewBroadHistory = true)
-                PermissionAction.MANAGE_PRODUCTS -> emptyMembership.copy(canManageProducts = true)
-                PermissionAction.VIEW_REPORTS -> emptyMembership.copy(canViewReports = true)
-            }
-            PermissionAction.entries.forEach { checkedAction ->
-                if (checkedAction == action) {
-                    assertTrue(PermissionChecker.isPermitted(cashier, membership, checkedAction))
-                } else {
-                    assertFalse(PermissionChecker.isPermitted(cashier, membership, checkedAction))
-                }
-            }
-        }
+    fun sessionGateRejectsMissingStaleAndInactiveCashierMemberships() {
+        val valid = activeSession(emptyMembership)
+        assertTrue(PermissionChecker.isPermitted(valid, PermissionAction.ISSUE_INVOICE))
+        assertTrue(PermissionChecker.isPermitted(valid, PermissionAction.ISSUE_RECEIPT))
+        assertFalse(PermissionChecker.isPermitted(valid, PermissionAction.VIEW_REPORTS))
+
+        assertFalse(PermissionChecker.isPermitted(valid.copy(membership = null), PermissionAction.ISSUE_INVOICE))
+        assertFalse(PermissionChecker.isPermitted(valid.copy(membership = null), PermissionAction.ISSUE_RECEIPT))
+        assertFalse(PermissionChecker.isPermitted(valid.copy(membership = null), PermissionAction.VIEW_REPORTS))
+        assertFalse(
+            PermissionChecker.isPermitted(
+                valid.copy(membership = emptyMembership.copy(branchId = "other-branch")),
+                PermissionAction.ISSUE_RECEIPT
+            )
+        )
+        assertFalse(
+            PermissionChecker.isPermitted(
+                valid.copy(user = cashier.copy(isActive = false)),
+                PermissionAction.ISSUE_INVOICE
+            )
+        )
     }
+
+    private fun activeSession(membership: UserBranchMembershipEntity?): ActiveSession = ActiveSession(
+        business = BusinessEntity(
+            id = "business",
+            name = "Business",
+            createdAt = 0L,
+            updatedAt = 0L
+        ),
+        branch = BranchEntity(
+            id = "branch",
+            businessId = "business",
+            name = "Branch",
+            code = "BR",
+            countryCode = "OM",
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat",
+            createdAt = 0L,
+            updatedAt = 0L
+        ),
+        user = cashier,
+        membership = membership
+    )
 }

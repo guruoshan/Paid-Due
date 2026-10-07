@@ -89,7 +89,7 @@ class RegisterIntegrationTest {
 
     @Before
     fun setUp() = runBlocking {
-        context = ApplicationProvider.getApplicationContext()
+        context = com.dailymoneyregister.isolatedAndroidTestContext(ApplicationProvider.getApplicationContext())
         database = DmrDatabase.createInMemory(context)
 
         commandExecutor = CommandExecutor(database)
@@ -1091,6 +1091,7 @@ class RegisterIntegrationTest {
         assertTrue("Non-admin cashier creation must be rejected at domain boundary", result is CommandResult.PermissionDenied)
     }
 }
+
 
 
 

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
@@ -32,6 +33,16 @@ interface BusinessBranchDao {
 
     @Update
     suspend fun updateBranch(branch: BranchEntity)
+
+    /** Keeps business and branch display configuration consistent. */
+    @Transaction
+    suspend fun updateBusinessDetailsAtomically(
+        business: BusinessEntity?,
+        branch: BranchEntity?
+    ) {
+        if (business != null) updateBusiness(business)
+        if (branch != null) updateBranch(branch)
+    }
 
     @Query("SELECT * FROM branches WHERE id = :branchId")
     suspend fun getBranchById(branchId: String): BranchEntity?

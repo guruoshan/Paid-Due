@@ -63,6 +63,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDate
 import java.time.ZoneId
+import javax.inject.Inject
 
 @RunWith(AndroidJUnit4::class)
 @HiltAndroidTest
@@ -71,7 +72,8 @@ class DmrDatabaseIntegrationTest {
     @get:Rule
     val hiltRule = HiltAndroidRule(this)
 
-    private lateinit var database: DmrDatabase
+    @Inject
+    lateinit var database: DmrDatabase
     private lateinit var commandExecutor: CommandExecutor
     private lateinit var setupRepository: SetupRepository
     private lateinit var authRepository: AuthRepository
@@ -81,10 +83,10 @@ class DmrDatabaseIntegrationTest {
 
     @Before
     fun setUp() {
-        context = ApplicationProvider.getApplicationContext()
+        hiltRule.inject()
+        context = isolatedAndroidTestContext(ApplicationProvider.getApplicationContext())
         trustedSessionStore = TrustedSessionStore(context)
         trustedSessionStore.clear()
-        database = DmrDatabase.createInMemory(context)
 
         commandExecutor = CommandExecutor(database)
         setupRepository = SetupRepository(database, commandExecutor, com.dailymoneyregister.core.device.DeviceIdentityProvider(context), trustedSessionStore)
@@ -1200,7 +1202,7 @@ class DmrDatabaseIntegrationTest {
         val viewModel = SettingsViewModel(
             languageManager,
             SettingsRepository(database.userDao(), database.businessBranchDao()),
-            MerchantQrRepository(database.documentMediaDao(), context), database.businessBranchDao()
+            MerchantQrRepository(database.documentMediaDao(), context)
         )
         val initialSession = ActiveSession(
             business = beforeBusiness,
@@ -1253,7 +1255,7 @@ class DmrDatabaseIntegrationTest {
         val viewModel = SettingsViewModel(
             languageManager,
             SettingsRepository(database.userDao(), database.businessBranchDao()),
-            MerchantQrRepository(database.documentMediaDao(), context), database.businessBranchDao()
+            MerchantQrRepository(database.documentMediaDao(), context)
         )
         val initialSession = ActiveSession(
             business = beforeBusiness,

@@ -1,4 +1,4 @@
-package com.dailymoneyregister
+﻿package com.dailymoneyregister
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
@@ -60,7 +60,7 @@ class InvoiceLinkBackfillTest {
 
     @Before
     fun setUp() = runBlocking {
-        context = ApplicationProvider.getApplicationContext()
+        context = com.dailymoneyregister.isolatedAndroidTestContext(ApplicationProvider.getApplicationContext())
         trustedSessionStore = TrustedSessionStore(context)
         trustedSessionStore.clear()
         database = DmrDatabase.createInMemory(context)
@@ -284,3 +284,4 @@ class InvoiceLinkBackfillTest {
         const val PHONE_SARA = "+96897654321"
             }
 }
+

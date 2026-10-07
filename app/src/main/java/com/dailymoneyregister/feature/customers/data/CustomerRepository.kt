@@ -6,6 +6,9 @@ import com.dailymoneyregister.core.model.financial.FinancialReadModelResolver
 import com.dailymoneyregister.core.model.financial.FinancialTransactionView
 import com.dailymoneyregister.core.database.dao.CustomerSummary
 import com.dailymoneyregister.core.database.entity.CustomerEntity
+import com.dailymoneyregister.core.database.entity.ExpenseEntity
+import com.dailymoneyregister.feature.register.data.ExpenseReadProjection
+import com.dailymoneyregister.feature.register.data.ExpenseReadProjectionResolver
 import com.dailymoneyregister.core.security.PermissionAction
 import com.dailymoneyregister.core.security.PermissionChecker
 import com.dailymoneyregister.core.security.PermissionDeniedException
@@ -47,6 +50,7 @@ data class CustomerCreditHistoryRow(
 data class CustomerHistory(
     val customer: CustomerEntity,
     val transactions: List<FinancialTransactionView>,
+    val expenses: List<ExpenseReadProjection>,
     val creditHistory: List<CustomerCreditHistoryRow>,
     val invoices: List<CustomerInvoiceRow>
 )
@@ -179,9 +183,36 @@ class CustomerRepository @Inject constructor(
                 isPaid = document.transactionId != null
             )
         }
+        val expenses = database.expenseDao().getExpensesForCustomer(
+            businessId = businessId,
+            branchId = openedBranchId,
+            customerId = customerId
+        )
+
+        val expenseSettlementsByOperation =
+            expenses
+                .map { it.operationId }
+                .distinct()
+                .chunked(900)
+                .flatMap { operationIds ->
+                    database.transactionDao().getSettlementsForOperations(operationIds)
+                }
+                .groupBy { it.operationId }
+
+        val expenseProjections = expenses.map { expense ->
+            check(expense.businessId == businessId) { "Customer Expense escaped active business" }
+            check(expense.branchId == openedBranchId) { "Customer Expense escaped active branch" }
+            check(expense.payeeId == customerId) { "Customer Expense escaped requested customer" }
+            val settlements = expenseSettlementsByOperation[expense.operationId].orEmpty()
+            check(settlements.size == 1) {
+                "Customer Expense settlement count mismatch for ${expense.id}"
+            }
+            ExpenseReadProjectionResolver.resolve(expense, settlements.single())
+        }
         return CustomerHistory(
             customer = customer,
             transactions = transactions,
+            expenses = expenseProjections,
             creditHistory = creditHistory,
             invoices = rows
         )

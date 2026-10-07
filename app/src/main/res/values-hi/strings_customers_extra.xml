@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="customers_unlinked_banner">%1$d पुराने इनवॉइस अभी किसी ग्राहक से जुड़े नहीं हैं।</string>
+    <plurals name="customers_unlinked_banner">
+        <item quantity="one">%1$d पुराने इनवॉइस अभी किसी ग्राहक से जुड़े नहीं हैं।</item>
+        <item quantity="other">%1$d पुराने इनवॉइस अभी किसी ग्राहक से जुड़े नहीं हैं।</item>
+    </plurals>
     <string name="customers_unlinked_action">जोड़ें</string>
     <string name="customers_link_confirm_title">पुराने इनवॉइस जोड़ें?</string>
     <string name="customers_link_confirm_body">हर पुराने इनवॉइस को उस इनवॉइस में सहेजे गए फ़ोन नंबर और नाम से ग्राहक के साथ जोड़ा जाएगा। जो ग्राहक अभी मौजूद नहीं हैं, वे बनाए जाएंगे। इनवॉइस, भुगतान और मौजूदा ग्राहक नहीं बदलेंगे।</string>
     <string name="customers_link_confirm_action">जोड़ें</string>
-    <string name="customers_link_result">%1$d इनवॉइस जोड़े गए। नए ग्राहक बनाए गए: %2$d। छोड़े गए: %3$d।</string>
+    <plurals name="customers_link_result">
+        <item quantity="one">%1$d इनवॉइस जोड़े गए। नए ग्राहक बनाए गए: %2$d। छोड़े गए: %3$d।</item>
+        <item quantity="other">%1$d इनवॉइस जोड़े गए। नए ग्राहक बनाए गए: %2$d। छोड़े गए: %3$d।</item>
+    </plurals>
     <string name="customers_link_error">इनवॉइस जोड़े नहीं जा सके: %1$s</string>
     <string name="customers_invoice_options_hint">इस इनवॉइस को PDF के रूप में फिर से शेयर करें।</string>
-    <string name="customers_preparing_pdf">PDF तैयार हो रही है...</string>
+    <string name="customers_preparing_pdf">PDF तैयार हो रही है…</string>
     <string name="customers_share_error">इनवॉइस तैयार नहीं हो सका: %1$s</string>
 </resources>

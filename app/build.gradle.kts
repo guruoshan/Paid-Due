@@ -1,10 +1,30 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
 
+
+val paidDueLocalProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use(::load)
+    }
+}
+
+fun paidDueConfig(name: String): String =
+    paidDueLocalProperties.getProperty(name)
+        ?: System.getenv(name)
+        ?: ""
+
+fun buildConfigString(value: String): String =
+    "\"" + value
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"") + "\""
 android {
     namespace = "com.dailymoneyregister"
     compileSdk {
@@ -19,13 +39,106 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "com.dailymoneyregister.HiltTestRunner"
-        // Orchestrated tests clear app data: run only on disposable test devices.
-        testInstrumentationRunnerArguments["clearPackageData"] = "true"
+        val paidDueSupabaseUrl =
+            paidDueConfig("PAID_DUE_SUPABASE_URL").trim()
+
+        val paidDueSupabasePublishableKey =
+            paidDueConfig("PAID_DUE_SUPABASE_PUBLISHABLE_KEY").trim()
+
+        check(paidDueSupabaseUrl.startsWith("https://")) {
+            "PAID_DUE_SUPABASE_URL must be configured as HTTPS."
+        }
+
+        check(paidDueSupabasePublishableKey.startsWith("sb_publishable_")) {
+            "PAID_DUE_SUPABASE_PUBLISHABLE_KEY is missing or invalid."
+        }
+
+        buildConfigField(
+            "String",
+            "PAID_DUE_SUPABASE_URL",
+            buildConfigString(paidDueSupabaseUrl)
+        )
+
+        buildConfigField(
+            "String",
+            "PAID_DUE_SUPABASE_PUBLISHABLE_KEY",
+            buildConfigString(paidDueSupabasePublishableKey)
+        )
+
+        /*
+         * Paid&Due employee invitation public URL.
+         *
+         * Configure with either:
+         *
+         *   gradle.properties:
+         *   PAID_DUE_PUBLIC_INVITE_BASE_URL=https://<paid-due-owned-host>/open/invite
+         *
+         * or environment variable:
+         *   PAID_DUE_PUBLIC_INVITE_BASE_URL
+         *
+         * Empty means invite sharing fails closed.
+         * This is a public URL, not a secret.
+         */
+        val paidDueInviteBaseUrl =
+            providers.gradleProperty("PAID_DUE_PUBLIC_INVITE_BASE_URL")
+                .orElse(
+                    providers.environmentVariable(
+                        "PAID_DUE_PUBLIC_INVITE_BASE_URL"
+                    )
+                )
+                .orElse("")
+                .get()
+                .trim()
+                .trimEnd('/')
+
+        buildConfigField(
+            "String",
+            "PAID_DUE_PUBLIC_INVITE_BASE_URL",
+            "\"${paidDueInviteBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        )
+
+        /*
+         * Paid&Due public backend origin.
+         *
+         * This is public configuration, not a secret.
+         */
+        val paidDueBackendBaseUrl =
+            providers.gradleProperty(
+                "PAID_DUE_BACKEND_BASE_URL"
+            )
+                .orElse(
+                    providers.environmentVariable(
+                        "PAID_DUE_BACKEND_BASE_URL"
+                    )
+                )
+                .orElse(
+                    "https://paidanddue.guruoshan2208.workers.dev"
+                )
+                .get()
+                .trim()
+                .trimEnd('/')
+
+        check(
+            paidDueBackendBaseUrl.startsWith(
+                "https://"
+            )
+        ) {
+            "PAID_DUE_BACKEND_BASE_URL must use HTTPS."
+        }
+
+        buildConfigField(
+            "String",
+            "PAID_DUE_BACKEND_BASE_URL",
+            buildConfigString(
+                paidDueBackendBaseUrl
+            )
+        )
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -41,6 +154,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     testOptions {
         execution = "HOST"
@@ -54,7 +168,14 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+
 dependencies {
+    // Paid&Due cloud foundation.
+    // No financial cloud synchronization is enabled in this phase.
+    implementation(platform("io.github.jan-tennert.supabase:bom:3.5.0"))
+    implementation("io.github.jan-tennert.supabase:postgrest-kt")
+    implementation("io.github.jan-tennert.supabase:auth-kt")
+    implementation("io.ktor:ktor-client-android:3.0.3")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
@@ -66,6 +187,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
 
     // Hilt
     implementation(libs.hilt.android)
@@ -109,3 +231,5 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
+
+

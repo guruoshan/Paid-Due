@@ -2,6 +2,7 @@
 
 import com.dailymoneyregister.R
 
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.BorderStroke
@@ -110,7 +111,7 @@ fun CompactAmountDisplay(
                     if (isItemized) {
                         AssistChip(
                             onClick = onOpenItems,
-                            label = { Text(stringResource(R.string.items_count, itemCount)) },
+                            label = { Text(pluralStringResource(R.plurals.items_count, itemCount, itemCount)) },
                             leadingIcon = {
                                 Icon(
                                     Icons.Default.ShoppingCart,

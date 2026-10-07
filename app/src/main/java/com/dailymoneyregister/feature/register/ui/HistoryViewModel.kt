@@ -6,8 +6,9 @@ import com.dailymoneyregister.core.security.PermissionDeniedException
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.feature.register.data.HistoryFilter
 import com.dailymoneyregister.feature.register.data.HistoryFilterEngine
+import com.dailymoneyregister.feature.register.data.HistoryActivityFilterEngine
 import com.dailymoneyregister.feature.register.data.HistoryRepository
-import com.dailymoneyregister.feature.register.data.HistoryTransactionRow
+import com.dailymoneyregister.feature.register.data.HistoryActivityRow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -23,12 +24,11 @@ enum class HistoryLoadError {
 }
 
 data class HistoryUiState(
-    val isOpen: Boolean = false,
     val loading: Boolean = false,
     val query: String = "",
     val filter: HistoryFilter = HistoryFilter.ALL,
-    val allRows: List<HistoryTransactionRow> = emptyList(),
-    val visibleRows: List<HistoryTransactionRow> = emptyList(),
+    val allRows: List<HistoryActivityRow> = emptyList(),
+    val visibleRows: List<HistoryActivityRow> = emptyList(),
     val openedBusinessId: String? = null,
     val openedBranchId: String? = null,
     val error: HistoryLoadError? = null
@@ -50,7 +50,7 @@ class HistoryViewModel @Inject constructor(
 
     private var historyJob: Job? = null
 
-    fun openHistory() {
+    fun loadHistory() {
 
         val session =
             SessionManager.currentSession.value
@@ -59,7 +59,6 @@ class HistoryViewModel @Inject constructor(
 
             _uiState.value =
                 _uiState.value.copy(
-                    isOpen = true,
                     loading = false,
                     allRows = emptyList(),
                     visibleRows = emptyList(),
@@ -76,7 +75,6 @@ class HistoryViewModel @Inject constructor(
 
         _uiState.value =
             _uiState.value.copy(
-                isOpen = true,
                 loading = true,
                 openedBusinessId =
                     session.business.id,
@@ -161,14 +159,13 @@ class HistoryViewModel @Inject constructor(
      * Query/filter are intentionally preserved so:
      * History -> Details -> Back returns to the same search state.
      */
-    fun closeHistory() {
+    fun stopHistory() {
 
         historyJob?.cancel()
         historyJob = null
 
         _uiState.value =
             _uiState.value.copy(
-                isOpen = false,
                 loading = false
             )
     }
@@ -226,13 +223,13 @@ class HistoryViewModel @Inject constructor(
         }
 
         val visible =
-            HistoryFilterEngine.filter(
+            HistoryActivityFilterEngine.filter(
                 rows =
                     state.allRows,
                 query =
                     state.query,
                 filter =
-                    state.filter,
+                    HistoryFilter.ALL,
                 timezoneId =
                     session.branch.timezoneId,
                 decimalPlaces =

@@ -11,6 +11,11 @@ import com.dailymoneyregister.core.model.financial.FinancialTransactionView
 import com.dailymoneyregister.core.model.financial.FinancialReadModelResolver
 import com.dailymoneyregister.core.model.financial.RecentActivityReadModelResolver
 import com.dailymoneyregister.core.model.financial.RecentFinancialActivity
+import com.dailymoneyregister.core.model.money.MoneyMinorUnits
+import com.dailymoneyregister.core.model.financial.FinancialFundingPart
+import com.dailymoneyregister.core.model.financial.RecentActivityStatus
+import com.dailymoneyregister.core.model.financial.RecentActivitySourceType
+import com.dailymoneyregister.core.model.financial.RecentActivityType
 import com.dailymoneyregister.core.command.CommandExecutor
 import com.dailymoneyregister.core.command.CommandRequiresReconciliationException
 import com.dailymoneyregister.core.command.CommandResult
@@ -44,6 +49,7 @@ import com.dailymoneyregister.core.model.ids.IdGenerator
 import com.dailymoneyregister.core.model.ids.OperationId
 import com.dailymoneyregister.core.model.ids.CashShiftId
 import com.dailymoneyregister.core.model.ids.TransactionId
+import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.security.PermissionAction
 import com.dailymoneyregister.core.security.PermissionChecker
 import com.dailymoneyregister.core.security.PermissionDeniedException
@@ -51,28 +57,11 @@ import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.model.timezone.TimezoneRegistry
 import com.dailymoneyregister.feature.register.domain.DraftState
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.ZoneId
 import java.time.Instant
 import javax.inject.Inject
-
-internal fun observeLocalDayStarts(
-    zoneId: ZoneId,
-    nowMillis: () -> Long = { System.currentTimeMillis() },
-    waitFor: suspend (Long) -> Unit = { delay(it) }
-): Flow<Long> = flow {
-    while (currentCoroutineContext().isActive) {
-        val now = nowMillis()
-        val currentDate = java.time.Instant.ofEpochMilli(now).atZone(zoneId).toLocalDate()
-        val startOfDay = currentDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
-        emit(startOfDay)
-
-        val nextStartOfDay = currentDate.plusDays(1)
-            .atStartOfDay(zoneId)
-            .toInstant()
-            .toEpochMilli()
-        waitFor((nextStartOfDay - now).coerceAtLeast(1L))
-    }
-}
 
 data class CashSaleCommand(
     override val operationId: OperationId,
@@ -84,7 +73,9 @@ data class CashSaleCommand(
     val currencyCode: String,
     val currencyDecimalPlaces: Int,
     override val deviceId: String,
-    override val occurredAt: Long = System.currentTimeMillis()
+    override val occurredAt: Long = System.currentTimeMillis(),
+    val customerName: String? = null,
+    val customerPhone: String? = null
 ) : OperationCommand {
     override val operationType = OperationType.RECORD_SALE
     override val subjectType = SubjectType.TRANSACTION
@@ -103,7 +94,10 @@ data class CashSaleCommand(
                     "shp:${draftState.txShipping.amount}|pck:${draftState.txPacking.amount}|" +
                     "itemShp:${draftState.itemShippingTotal.amount}|itemPck:${draftState.itemPackingTotal.amount}|" +
                     "gnd:${draftState.grandTotal.amount}|desc:${draftState.manualDescription ?: ""}|" +
-                    "items:[$itemsDigest]|time:$occurredAt"
+                    "items:[$itemsDigest]|time:$occurredAt" +
+                    (customerPhone?.let {
+                        "|customer:$it|name:${customerName.orEmpty()}"
+                    } ?: "")
         }
 
     override val intentPayload: String
@@ -158,17 +152,149 @@ class RegisterRepository @Inject constructor(
     private val cashShiftDao = database.cashShiftDao()
     private val saleFinancialWriter = SaleFinancialWriter(transactionDao)
 
-    suspend fun searchCouponSaleCustomers(query: String): List<CouponSaleCustomerWallet> {
-        val session = SessionManager.currentSession.value ?: return emptyList()
-        return database.customerDao().searchCustomers(session.business.id, query.trim()).map { customer ->
-            val wallet = ledgerDao.getCouponWallet(customer.id, session.branch.currencyCode)
-            CouponSaleCustomerWallet(
-                customer = customer,
-                wallet = wallet,
-                balanceMinor = wallet?.let { ledgerDao.getCouponBalance(it.id) } ?: 0L
-            )
-        }
-    }
+    /*
+     * BOARDLOCK GOD-file decomposition.
+     *
+     * RegisterRepository remains the compatibility facade.
+     * Transaction Details reads are delegated to a dedicated,
+     * read-only component.
+     */
+    private val transactionDetailsReadRepository =
+        TransactionDetailsReadRepository(
+            database
+        )
+
+    /*
+     * Serializes automatic shift admission inside this process.
+     *
+     * This prevents two simultaneous local cashier actions from both
+     * attempting to create separate shifts.
+     *
+     * Cross-device concurrency remains a cloud synchronization concern
+     * and is not falsely claimed to be solved by this local mutex.
+     */
+    private val financialCashShiftResolver = FinancialCashShiftResolver(database) { command -> openRegisterShift(command) }
+    private val financialMutationAuthorizer = FinancialMutationAuthorizer(database)
+
+    /*
+     * BOARDLOCK decomposition facade.
+     *
+     * Public RegisterRepository API remains unchanged while implementation
+     * responsibilities are progressively extracted behind it.
+     */
+    private val couponFinancialRepository =
+        CouponFinancialRepository(
+            database = database,
+            commandExecutor = commandExecutor,
+            authorizeFinancialMutation = {
+                    actorUserId,
+                    businessId,
+                    branchId,
+                    action,
+                    actionLabel ->
+                authorizeNewFinancialMutation(
+                    actorUserId = actorUserId,
+                    businessId = businessId,
+                    branchId = branchId,
+                    action = action,
+                    actionLabel = actionLabel
+                )
+            }
+        ,
+            resolveFinancialCashShiftId = { command ->
+                requireNotNull(
+                    resolveFinancialCashShiftId(command)
+                ) {
+                    "Current financial operation requires cashier shift attribution"
+                }
+            })
+
+    /**
+     * Resolves immutable cashier-shift attribution for a financial operation
+     * only after that operation has passed its normal admission gates.
+     *
+     * Existing durable operations are never re-attributed. This is critical
+     * for recovery and for historical pre-v10 operations whose shift ID is
+     * intentionally NULL.
+     */
+    /*
+     * BOARDLOCK Expense financial facade.
+     *
+     * Expense uses the same universal CommandExecutor, authenticated
+     * financial authorization gate, and cashier-shift resolver as the
+     * other authoritative Register financial operations.
+     *
+     * No Expense financial state is duplicated in RegisterRepository.
+     */
+    private val expenseFinancialRepository =
+        ExpenseFinancialRepository(
+            database = database,
+            commandExecutor = commandExecutor,
+            authorizeFinancialMutation = {
+                    actorUserId,
+                    businessId,
+                    branchId,
+                    action,
+                    actionLabel ->
+                authorizeNewFinancialMutation(
+                    actorUserId = actorUserId,
+                    businessId = businessId,
+                    branchId = branchId,
+                    action = action,
+                    actionLabel = actionLabel
+                )
+            },
+            resolveFinancialCashShiftId = { command ->
+                requireNotNull(
+                    resolveFinancialCashShiftId(command)
+                ) {
+                    "Current financial operation requires cashier shift attribution"
+                }
+            }
+        )
+
+    /*
+     * BOARDLOCK GOD-file decomposition.
+     *
+     * Expense writes remain in ExpenseFinancialRepository.
+     * Expense reads are isolated behind ExpenseReadRepository.
+     */
+    private val expenseReadRepository =
+        ExpenseReadRepository(
+            database
+        )
+    suspend fun executeExpense(
+        command: ExpenseCommand
+    ): CommandResult<ExpenseCommandResult> =
+        expenseFinancialRepository.executeExpense(command)
+
+    /**
+     * Read-only Expense projection.
+     *
+     * Expense rows remain the authoritative source. This method does not
+     * maintain a second balance or Expense state.
+     */
+    suspend fun getExpensesForPeriod(
+        businessId: String,
+        branchId: String,
+        fromInclusive: Long,
+        toExclusive: Long
+    ): List<com.dailymoneyregister.core.database.entity.ExpenseEntity> =
+        expenseReadRepository.getExpensesForPeriod(
+            businessId = businessId,
+            branchId = branchId,
+            fromInclusive = fromInclusive,
+            toExclusive = toExclusive
+        )
+    private suspend fun resolveFinancialCashShiftId(
+        command: OperationCommand
+    ): String? =
+        financialCashShiftResolver.resolveFinancialCashShiftId(command)
+
+    suspend fun searchCouponSaleCustomers(
+        query: String
+    ): List<CouponSaleCustomerWallet> =
+        couponFinancialRepository.searchCouponSaleCustomers(query)
 
     suspend fun executeCouponRedemption(c: CouponRedemptionCommand): CommandResult<CouponRedemptionResult> = try {
         c.validate()
@@ -222,7 +348,11 @@ class RegisterRepository @Inject constructor(
     }
 
     private suspend fun executeAdmittedCouponRedemption(c: CouponRedemptionCommand): CommandResult<CouponRedemptionResult> =
-        commandExecutor.execute(c, replayResolver = { redemptionEvidence(c) }) {
+        commandExecutor.execute(
+            command = c,
+            cashShiftId = resolveFinancialCashShiftId(c),
+            replayResolver = { redemptionEvidence(c) }
+        ) {
             val branch = checkNotNull(businessBranchDao.getBranchById(c.branchId))
             require(branch.businessId == c.businessId && branch.currencyCode == c.sale.currencyCode &&
                 branch.currencyDecimalPlaces == c.sale.currencyDecimalPlaces)
@@ -265,100 +395,26 @@ class RegisterRepository @Inject constructor(
         return result
     }
 
-    suspend fun executeCouponTopUp(command: CouponTopUpCommand): CommandResult<CouponTopUpResult> {
-        return try {
-            command.validate()
-            val existing = database.operationDao().getOperationById(command.operationId.value)
-            if (existing != null) {
-                if (existing.requestFingerprint != command.requestFingerprint || existing.intentPayload != command.intentPayload) {
-                    return CommandResult.Conflict("Coupon Top Up operation already belongs to a different request")
-                }
-                return executeAdmittedCouponTopUp(CouponTopUpPayloadCodec.decode(existing))
-            }
-            for (action in listOf(
-                PermissionAction.USE_COUPON,
-                if (command.fundingCategory == PaymentCategory.CASH) PermissionAction.ACCEPT_CASH else PermissionAction.ACCEPT_ONLINE
-            )) {
-                authorizeNewFinancialMutation(command.actorUserId, command.businessId, command.branchId,
-                    action, "Coupon Top Up")?.let { return it }
-            }
-            executeAdmittedCouponTopUp(command)
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            CommandResult.Error(e)
-        }
-    }
+    suspend fun executeCouponTopUp(
+        command: CouponTopUpCommand
+    ): CommandResult<CouponTopUpResult> =
+        couponFinancialRepository.executeCouponTopUp(command)
 
+    /*
+     * Recovery compatibility facade.
+     *
+     * recoverPendingCouponSales remains in RegisterRepository during
+     * this extraction phase and delegates admitted Top Up replay to
+     * the extracted Coupon financial repository.
+     */
     private suspend fun executeAdmittedCouponTopUp(
         command: CouponTopUpCommand,
         recovering: Boolean = false
-    ): CommandResult<CouponTopUpResult> = commandExecutor.execute(
-        command,
-        replayResolver = { loadCouponTopUpEvidence(command) }
-    ) {
-        try {
-            val branch = checkNotNull(businessBranchDao.getBranchById(command.branchId))
-            require(branch.businessId == command.businessId && branch.currencyCode == command.currencyCode &&
-                branch.currencyDecimalPlaces == command.currencyDecimalPlaces) { "Coupon Top Up branch/currency mismatch" }
-            val customer = checkNotNull(database.customerDao().getCustomerById(command.customerId)) {
-                "Coupon Top Up customer does not exist"
-            }
-            require(customer.businessId == command.businessId && customer.name == command.customerName &&
-                customer.canonicalPhone == command.canonicalPhone) { "Customer identity changed" }
-            val wallet = checkNotNull(ledgerDao.getCouponWallet(command.customerId, command.currencyCode)) {
-                "Coupon Top Up requires an existing coupon wallet"
-            }
-            require(wallet.id == command.walletId && wallet.isActive) { "Coupon wallet is inactive or mismatched" }
-            Math.addExact(ledgerDao.getCouponBalance(wallet.id), command.amountMinor)
-            require(transactionDao.getTransactionById(command.subjectId) == null) {
-                throw CommandRequiresReconciliationException("Coupon Top Up transaction already exists")
-            }
-            require(transactionDao.getSettlementsForCashSaleRecovery(command.operationId.value, command.subjectId).isEmpty()) {
-                throw CommandRequiresReconciliationException("Partial Coupon Top Up financial evidence")
-            }
-            saleFinancialWriter.materialize(command.writerIntent())
-            ledgerDao.insertCouponEvent(
-                com.dailymoneyregister.core.database.entity.CouponLedgerEventEntity(
-                    id = couponTopUpEvidenceId(command, "ledger"),
-                    operationId = command.operationId.value,
-                    walletId = wallet.id,
-                    type = com.dailymoneyregister.core.model.enums.CouponLedgerType.PURCHASE,
-                    amountSignedMinor = command.amountMinor,
-                    currencyCode = command.currencyCode,
-                    transactionId = command.subjectId,
-                    occurredAt = command.occurredAt
-                )
-            )
-            loadCouponTopUpEvidence(command) to ("TRANSACTION" to command.subjectId)
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: CommandRequiresReconciliationException) {
-            throw e
-        } catch (e: Exception) {
-            if (recovering) throw CommandRequiresReconciliationException("Coupon Top Up recovery evidence mismatch: ${e.message}")
-            throw e
-        }
-    }
-
-    private fun couponTopUpEvidenceId(command: CouponTopUpCommand, suffix: String): String =
-        java.util.UUID.nameUUIDFromBytes("coupon-topup:${command.operationId.value}:$suffix".toByteArray(Charsets.UTF_8)).toString()
-
-    private suspend fun loadCouponTopUpEvidence(command: CouponTopUpCommand): CouponTopUpResult {
-        val transaction = saleFinancialWriter.loadVerified(command.writerIntent())
-        val wallet = checkNotNull(ledgerDao.getCouponWallet(command.customerId, command.currencyCode))
-        val expected = com.dailymoneyregister.core.database.entity.CouponLedgerEventEntity(
-            id = couponTopUpEvidenceId(command, "ledger"), operationId = command.operationId.value,
-            walletId = wallet.id, type = com.dailymoneyregister.core.model.enums.CouponLedgerType.PURCHASE,
-            amountSignedMinor = command.amountMinor, currencyCode = command.currencyCode,
-            transactionId = command.subjectId, occurredAt = command.occurredAt
+    ): CommandResult<CouponTopUpResult> =
+        couponFinancialRepository.executeAdmittedCouponTopUp(
+            command = command,
+            recovering = recovering
         )
-        check(ledgerDao.getCouponLedgerForWallet(wallet.id).filter { it.operationId == command.operationId.value } == listOf(expected)) {
-            "Coupon Top Up ledger evidence mismatch"
-        }
-        return CouponTopUpResult(transaction, wallet.id, command.amountMinor)
-    }
-
     private suspend fun executeCouponSaleRequest(command: CouponSaleCommand): CommandResult<CouponSaleResult> {
         try { command.validate() } catch (e: IllegalArgumentException) { return CommandResult.Error(e) }
         val existing = database.operationDao().getOperationById(command.operationId.value)
@@ -380,7 +436,11 @@ class RegisterRepository @Inject constructor(
     }
 
     private suspend fun executeAdmittedCouponSale(c: CouponSaleCommand, recovering: Boolean = false): CommandResult<CouponSaleResult> =
-        commandExecutor.execute(c, replayResolver = { loadCouponSaleEvidence(c) }) {
+        commandExecutor.execute(
+            command = c,
+            cashShiftId = resolveFinancialCashShiftId(c),
+            replayResolver = { loadCouponSaleEvidence(c) }
+        ) {
             try {
             // All customer/wallet/authorized-user/ledger/funding writes share the existing command transaction.
             val branch = checkNotNull(businessBranchDao.getBranchById(c.branchId))
@@ -487,21 +547,19 @@ class RegisterRepository @Inject constructor(
         val balanceMinor: Long,
         val ledgerEvents: List<com.dailymoneyregister.core.database.entity.CouponLedgerEventEntity>,
         val authorizedUsers: List<CouponAuthorizedUserDetails>,
-        val customer: CustomerEntity? = null
+        val customer: CustomerEntity? = null,
+        val activityKinds: Map<String, CouponWalletActivityKind> = emptyMap()
     )
 
-    suspend fun getCouponWalletDetails(customerId: String, currencyCode: String): CouponWalletDetails? {
-        val session = SessionManager.currentSession.value ?: return null
-        val customer = database.customerDao().getCustomerById(customerId) ?: return null
-        require(customer.businessId == session.business.id && currencyCode == session.branch.currencyCode)
-        val wallet = ledgerDao.getCouponWallet(customerId, currencyCode) ?: return null
-        val balance = ledgerDao.getCouponBalance(wallet.id)
-        val ledgerEvents = ledgerDao.getCouponLedgerForWallet(wallet.id)
-        val authorizedUsers = ledgerDao.getActiveAuthorizedUsers(wallet.id).map { user ->
-            CouponAuthorizedUserDetails(user, ledgerDao.getAuthorizedUserEvents(user.id))
-        }
-        return CouponWalletDetails(wallet, balance, ledgerEvents, authorizedUsers, customer)
+    enum class CouponWalletActivityKind {
+        SALE, TOP_UP, BONUS, REDEMPTION, REFUND_TO_COUPON
     }
+
+    private val couponWalletReadRepository = CouponWalletReadRepository(database)
+    private val registerShiftReportReadRepository = RegisterShiftReportReadRepository(database, ::readRegisterShift)
+    private val recentFinancialActivityReadRepository = RecentFinancialActivityReadRepository(database)
+
+    suspend fun getCouponWalletDetails(customerId: String, currencyCode: String): CouponWalletDetails? = couponWalletReadRepository.getCouponWalletDetails(customerId, currencyCode)
 
     suspend fun executeCouponAuthorizedUser(command: CouponAuthorizedUserCommand): CommandResult<CouponAuthorizedUserDetails> {
         return try {
@@ -595,8 +653,10 @@ class RegisterRepository @Inject constructor(
     }
 
     /**
-     * Creates the durable Register Shift identity and its OPENED lifecycle event.
-     * Cash counting and closing remain outside this foundation patch.
+     * Creates the durable cashier Register Shift identity and OPENED event.
+     *
+     * COUNTED and CLOSED are separate append-only lifecycle operations.
+     * No financial transaction is rewritten by the shift lifecycle.
      */
     suspend fun openRegisterShift(
         command: OpenRegisterShiftCommand
@@ -631,35 +691,433 @@ class RegisterRepository @Inject constructor(
         }
     }
 
-    /** Replays only pending OPEN_CASH_SHIFT intents. */
+    /**
+     * Appends immutable cash-count evidence to the cashier's OPEN shift.
+     *
+     * The counted value is reconciliation evidence. It is not sales revenue
+     * and does not mutate authoritative settlements.
+     */
+    /**
+     * Read-only Day Closing projection for the authenticated cashier.
+     *
+     * Shift membership comes only from OperationEntity.cashShiftId.
+     * Historical NULL attribution is never guessed.
+     */
+    suspend fun getCurrentRegisterShiftReport(): RegisterShiftReport? = registerShiftReportReadRepository.getCurrentRegisterShiftReport()
+    suspend fun countRegisterShift(
+        command: CountRegisterShiftCommand
+    ): CommandResult<RegisterShiftResult> {
+        val shift = cashShiftDao.getShiftById(command.shiftId.value)
+            ?: return CommandResult.Error(
+                IllegalArgumentException("Register Shift does not exist")
+            )
+
+        if (shift.branchId != command.branchId) {
+            return CommandResult.PermissionDenied(
+                "Register Shift does not belong to the requested branch"
+            )
+        }
+
+        val branch = businessBranchDao.getBranchById(command.branchId)
+            ?: return CommandResult.Error(
+                IllegalArgumentException("Register Shift branch does not exist")
+            )
+
+        if (branch.businessId != command.businessId) {
+            return CommandResult.PermissionDenied(
+                "Register Shift branch does not belong to the requested business"
+            )
+        }
+
+        authorizeNewRegisterShiftLifecycle(
+            operationId = command.operationId,
+            actorUserId = command.actorUserId,
+            businessId = command.businessId,
+            branchId = command.branchId,
+            shiftOwnerUserId = shift.userId,
+            actionLabel = "Register Shift count"
+        )?.let { return it }
+
+        if (userDao.getUserByIdInBusiness(
+                command.actorUserId,
+                command.businessId
+            ) == null
+        ) {
+            return CommandResult.PermissionDenied(
+                "Register Shift actor does not belong to the requested business"
+            )
+        }
+
+        return commandExecutor.execute(
+            command = command,
+            replayResolver = { operation ->
+                readRegisterShift(
+                    shiftId = operation.subjectId,
+                    expectedBranchId = command.branchId,
+                    expectedBusinessId = command.businessId
+                )
+            }
+        ) {
+            val result = materializeRegisterShiftCount(command)
+            Pair(result, "CASH_SHIFT" to command.shiftId.value)
+        }
+    }
+
+    /**
+     * Appends the immutable CLOSED event.
+     *
+     * Closing a shift never transfers, deletes, edits, or recreates any
+     * transaction belonging to the cashier.
+     */
+    suspend fun closeRegisterShift(
+        command: CloseRegisterShiftCommand
+    ): CommandResult<RegisterShiftResult> {
+        val shift = cashShiftDao.getShiftById(command.shiftId.value)
+            ?: return CommandResult.Error(
+                IllegalArgumentException("Register Shift does not exist")
+            )
+
+        if (shift.branchId != command.branchId) {
+            return CommandResult.PermissionDenied(
+                "Register Shift does not belong to the requested branch"
+            )
+        }
+
+        val branch = businessBranchDao.getBranchById(command.branchId)
+            ?: return CommandResult.Error(
+                IllegalArgumentException("Register Shift branch does not exist")
+            )
+
+        if (branch.businessId != command.businessId) {
+            return CommandResult.PermissionDenied(
+                "Register Shift branch does not belong to the requested business"
+            )
+        }
+
+        authorizeNewRegisterShiftLifecycle(
+            operationId = command.operationId,
+            actorUserId = command.actorUserId,
+            businessId = command.businessId,
+            branchId = command.branchId,
+            shiftOwnerUserId = shift.userId,
+            actionLabel = "Register Shift close"
+        )?.let { return it }
+
+        if (userDao.getUserByIdInBusiness(
+                command.actorUserId,
+                command.businessId
+            ) == null
+        ) {
+            return CommandResult.PermissionDenied(
+                "Register Shift actor does not belong to the requested business"
+            )
+        }
+
+        return commandExecutor.execute(
+            command = command,
+            replayResolver = { operation ->
+                readRegisterShift(
+                    shiftId = operation.subjectId,
+                    expectedBranchId = command.branchId,
+                    expectedBusinessId = command.businessId
+                )
+            }
+        ) {
+            val result = materializeRegisterShiftClose(command)
+            Pair(result, "CASH_SHIFT" to command.shiftId.value)
+        }
+    }
+
+    /**
+     * BOARDLOCK Register Shift lifecycle authorization.
+     *
+     * NEW intent:
+     * - authenticated actor must match command actor
+     * - business + branch must match active session
+     * - actor must be active
+     * - Cashier may act only on their own shift
+     * - Admin may act on another cashier's shift
+     *
+     * EXISTING durable intent:
+     * authorization was already admitted, so retry/recovery must not
+     * be redefined by later session or permission changes.
+     *
+     * CashShiftEntity.userId remains the immutable shift owner.
+     * CashShiftEventEntity.actorUserId records the lifecycle actor.
+     */
+    private suspend fun authorizeNewRegisterShiftLifecycle(
+        operationId: OperationId,
+        actorUserId: String,
+        businessId: String,
+        branchId: String,
+        shiftOwnerUserId: String,
+        actionLabel: String
+    ): CommandResult<Nothing>? {
+
+        val existingOperation =
+            database.operationDao()
+                .getOperationById(operationId.value)
+
+        if (existingOperation != null) {
+            return null
+        }
+
+        val session =
+            SessionManager.currentSession.value
+                ?: return CommandResult.PermissionDenied(
+                    "$actionLabel requires an authenticated session"
+                )
+
+        if (session.user.id != actorUserId) {
+            return CommandResult.PermissionDenied(
+                "$actionLabel actor does not match the authenticated user"
+            )
+        }
+
+        if (
+            session.business.id != businessId ||
+            session.branch.id != branchId
+        ) {
+            return CommandResult.PermissionDenied(
+                "$actionLabel is outside the authenticated business or branch"
+            )
+        }
+
+        if (session.requiresPinChange) {
+            return CommandResult.PermissionDenied(
+                "$actionLabel is unavailable until the cashier PIN is changed"
+            )
+        }
+
+        val actor =
+            userDao.getUserByIdInBusiness(
+                actorUserId,
+                businessId
+            )
+                ?: return CommandResult.PermissionDenied(
+                    "$actionLabel actor does not belong to the requested business"
+                )
+
+        if (!actor.isActive) {
+            return CommandResult.PermissionDenied(
+                "$actionLabel actor is inactive"
+            )
+        }
+
+        if (actor.role == UserRole.ADMIN) {
+            return null
+        }
+
+        val membership =
+            userDao.getMembership(
+                actor.id,
+                branchId
+            )
+                ?: return CommandResult.PermissionDenied(
+                    "$actionLabel requires membership in the requested branch"
+                )
+
+        if (membership.userId != actor.id) {
+            return CommandResult.PermissionDenied(
+                "$actionLabel branch membership identity mismatch"
+            )
+        }
+
+        if (shiftOwnerUserId != actor.id) {
+            return CommandResult.PermissionDenied(
+                "Cashier can $actionLabel only for their own Register Shift"
+            )
+        }
+
+        return null
+    }
+    private suspend fun materializeRegisterShiftCount(
+        command: CountRegisterShiftCommand
+    ): RegisterShiftResult {
+        val shift = cashShiftDao.getShiftById(command.shiftId.value)
+            ?: error("Register Shift does not exist")
+
+        /*
+         * shift.userId remains the immutable shift owner.
+         * command.actorUserId is the authenticated user performing
+         * this COUNTED lifecycle action.
+         */
+        check(shift.branchId == command.branchId) {
+            "Register Shift count branch identity mismatch"
+        }
+
+        val events = cashShiftDao.getEventsForShift(shift.id)
+
+        check(events.any { it.type == CashShiftEventType.OPENED }) {
+            "Register Shift has no OPENED event"
+        }
+
+        check(events.none { it.type == CashShiftEventType.CLOSED }) {
+            "Closed Register Shift cannot be counted"
+        }
+
+        val existing =
+            cashShiftDao.getEventByOperationId(command.operationId.value)
+
+        if (existing == null) {
+            cashShiftDao.insertShiftEvent(
+                CashShiftEventEntity(
+                    id = "${command.operationId.value}:COUNTED",
+                    shiftId = shift.id,
+                    operationId = command.operationId.value,
+                    type = CashShiftEventType.COUNTED,
+                    amountMinor = command.countedCashMinor,
+                    occurredAt = command.occurredAt,
+                    actorUserId = command.actorUserId
+                )
+            )
+        } else {
+            check(
+                existing.shiftId == shift.id &&
+                    existing.type == CashShiftEventType.COUNTED &&
+                    existing.amountMinor == command.countedCashMinor &&
+                    existing.occurredAt == command.occurredAt &&
+                    existing.actorUserId == command.actorUserId
+            ) {
+                "Register Shift COUNTED event conflicts with durable intent"
+            }
+        }
+
+        return readRegisterShift(
+            shiftId = shift.id,
+            expectedBranchId = command.branchId,
+            expectedBusinessId = command.businessId
+        )
+    }
+
+    private suspend fun materializeRegisterShiftClose(
+        command: CloseRegisterShiftCommand
+    ): RegisterShiftResult {
+        val shift = cashShiftDao.getShiftById(command.shiftId.value)
+            ?: error("Register Shift does not exist")
+
+        /*
+         * The CashShiftEntity still identifies the original cashier.
+         * CLOSED.actorUserId identifies who actually closed it.
+         * This allows an authenticated Admin override without
+         * rewriting cashier ownership.
+         */
+        check(shift.branchId == command.branchId) {
+            "Register Shift close branch identity mismatch"
+        }
+
+        val events = cashShiftDao.getEventsForShift(shift.id)
+
+        check(events.any { it.type == CashShiftEventType.OPENED }) {
+            "Register Shift has no OPENED event"
+        }
+
+        val existing =
+            cashShiftDao.getEventByOperationId(command.operationId.value)
+
+        if (existing == null) {
+            check(events.none { it.type == CashShiftEventType.CLOSED }) {
+                "Register Shift is already closed"
+            }
+
+            check(events.any { it.type == CashShiftEventType.COUNTED }) {
+                "Register Shift must be counted before closing"
+            }
+
+            cashShiftDao.insertShiftEvent(
+                CashShiftEventEntity(
+                    id = "${command.operationId.value}:CLOSED",
+                    shiftId = shift.id,
+                    operationId = command.operationId.value,
+                    type = CashShiftEventType.CLOSED,
+                    amountMinor = 0L,
+                    occurredAt = command.occurredAt,
+                    actorUserId = command.actorUserId
+                )
+            )
+        } else {
+            check(
+                existing.shiftId == shift.id &&
+                    existing.type == CashShiftEventType.CLOSED &&
+                    existing.amountMinor == 0L &&
+                    existing.occurredAt == command.occurredAt &&
+                    existing.actorUserId == command.actorUserId
+            ) {
+                "Register Shift CLOSED event conflicts with durable intent"
+            }
+        }
+
+        return readRegisterShift(
+            shiftId = shift.id,
+            expectedBranchId = command.branchId,
+            expectedBusinessId = command.businessId
+        )
+    }
+    /**
+     * Replays pending OPEN, COUNT and CLOSE shift lifecycle operations.
+     *
+     * Recovery replays the already-admitted durable intent. It does not
+     * re-authorize the historical action using future mutable permissions.
+     */
     suspend fun recoverPendingRegisterShifts(): List<RegisterShiftResult> {
         val operationDao = database.operationDao()
         val recovered = mutableListOf<RegisterShiftResult>()
+
         val pending = commandExecutor.getPendingOperations()
-            .filter { it.operationType == OperationType.OPEN_CASH_SHIFT }
+            .filter {
+                it.operationType == OperationType.OPEN_CASH_SHIFT ||
+                    it.operationType == OperationType.COUNT_CASH_SHIFT ||
+                    it.operationType == OperationType.CLOSE_CASH_SHIFT
+            }
 
         for (candidate in pending) {
-            val command = try {
-                RegisterShiftPayloadCodec.decode(candidate)
+            try {
+                val result: CommandResult<RegisterShiftResult> =
+                    when (candidate.operationType) {
+                        OperationType.OPEN_CASH_SHIFT ->
+                            openRegisterShift(
+                                RegisterShiftPayloadCodec.decode(candidate)
+                            )
+
+                        OperationType.COUNT_CASH_SHIFT ->
+                            countRegisterShift(
+                                RegisterShiftLifecyclePayloadCodec.decodeCount(candidate)
+                            )
+
+                        OperationType.CLOSE_CASH_SHIFT ->
+                            closeRegisterShift(
+                                RegisterShiftLifecyclePayloadCodec.decodeClose(candidate)
+                            )
+
+                        else ->
+                            error("Unsupported Register Shift recovery operation")
+                    }
+
+                when (result) {
+                    is CommandResult.Success ->
+                        recovered += result.data
+
+                    is CommandResult.Conflict ->
+                        error(result.message)
+
+                    is CommandResult.PermissionDenied ->
+                        error(result.message)
+
+                    is CommandResult.Error ->
+                        throw result.exception
+                }
             } catch (error: RuntimeException) {
                 operationDao.markRequiresReconciliationIfPending(
                     candidate.id,
                     candidate.requestFingerprint,
-                    "Invalid durable Register Shift intent: ${error.message ?: "decode failure"}"
+                    "Invalid durable Register Shift lifecycle intent: " +
+                        (error.message ?: "recovery failure")
                 )
-                continue
-            }
-
-            when (val result = openRegisterShift(command)) {
-                is CommandResult.Success -> recovered += result.data
-                is CommandResult.Conflict -> error(result.message)
-                is CommandResult.PermissionDenied -> error(result.message)
-                is CommandResult.Error -> throw result.exception
             }
         }
+
         return recovered
     }
-
     private suspend fun materializeRegisterShift(
         command: OpenRegisterShiftCommand
     ): RegisterShiftResult {
@@ -669,11 +1127,14 @@ class RegisterRepository @Inject constructor(
                 "Register Shift identity conflicts with existing shift"
             }
         } else {
-            val latest = cashShiftDao.getLatestShiftForBranch(command.branchId)
+            val latest = cashShiftDao.getLatestShiftForCashier(
+            branchId = command.branchId,
+            userId = command.actorUserId
+        )
             if (latest != null) {
                 val latestEvents = cashShiftDao.getEventsForShift(latest.id)
                 check(latestEvents.lastOrNull()?.type == CashShiftEventType.CLOSED) {
-                    "A Register Shift is already open for this branch"
+                    "A Register Shift is already open for this cashier"
                 }
             }
             cashShiftDao.insertShift(
@@ -736,12 +1197,22 @@ class RegisterRepository @Inject constructor(
         val events = cashShiftDao.getEventsForShift(shift.id)
         val opened = events.firstOrNull { it.type == CashShiftEventType.OPENED }
             ?: error("Register Shift '$shiftId' has no OPENED event")
+        val counted = events
+            .filter { it.type == CashShiftEventType.COUNTED }
+            .maxByOrNull { it.occurredAt }
+
+        val closed = events
+            .firstOrNull { it.type == CashShiftEventType.CLOSED }
+
         return RegisterShiftResult(
             shiftId = CashShiftId(shift.id),
             branchId = shift.branchId,
             actorUserId = shift.userId,
             openedAt = opened.occurredAt,
-            isOpen = events.lastOrNull()?.type != CashShiftEventType.CLOSED
+            isOpen = closed == null,
+            countedCashMinor = counted?.amountMinor,
+            countedAt = counted?.occurredAt,
+            closedAt = closed?.occurredAt
         )
     }
 
@@ -757,110 +1228,70 @@ class RegisterRepository @Inject constructor(
         branchId: String,
         action: PermissionAction,
         actionLabel: String
-    ): CommandResult<Nothing>? {
-        val session =
-            SessionManager.currentSession.value
-                ?: return CommandResult.PermissionDenied(
-                    "$actionLabel requires an authenticated session"
-                )
+    ): CommandResult<Nothing>? =
+        financialMutationAuthorizer.authorizeNewFinancialMutation(
+            actorUserId = actorUserId,
+            businessId = businessId,
+            branchId = branchId,
+            action = action,
+            actionLabel = actionLabel
+        )
 
-        if (session.user.id != actorUserId) {
-            return CommandResult.PermissionDenied(
-                "$actionLabel actor does not match the authenticated user"
+    /*
+     * BOARDLOCK GOD-file decomposition.
+     *
+     * Sale-customer reads are delegated here.
+     * Customer creation remains in resolveOptionalSaleCustomerId().
+     */
+    private val registerCustomerReadRepository =
+        RegisterCustomerReadRepository(
+            database
+        )
+    suspend fun findSaleCustomerByPhone(
+        businessId: String,
+        canonicalPhone: String
+    ): com.dailymoneyregister.core.database.entity.CustomerEntity? =
+        registerCustomerReadRepository
+            .findSaleCustomerByPhone(
+                businessId = businessId,
+                canonicalPhone = canonicalPhone
             )
-        }
+    private suspend fun resolveOptionalSaleCustomerId(
+        businessId: String,
+        customerPhone: String?,
+        customerName: String?,
+        occurredAt: Long
+    ): String? {
+        val phone = customerPhone?.trim().orEmpty()
+        val name = customerName?.trim().orEmpty()
 
-        if (
-            session.business.id != businessId ||
-            session.branch.id != branchId
-        ) {
-            return CommandResult.PermissionDenied(
-                "$actionLabel business/branch does not match the authenticated session"
-            )
-        }
-
-        if (session.requiresPinChange) {
-            return CommandResult.PermissionDenied(
-                "Cashier must create a new PIN before using the register"
-            )
-        }
-
-        val actor =
-            userDao.getUserById(actorUserId)
-                ?: return CommandResult.PermissionDenied(
-                    "$actionLabel actor does not exist"
-                )
-
-        if (actor.mustChangePin) {
-            return CommandResult.PermissionDenied(
-                "Cashier must create a new PIN before using the register"
-            )
-        }
-
-        if (!actor.isActive) {
-            return CommandResult.PermissionDenied(
-                "Inactive user cannot perform $actionLabel"
-            )
-        }
-
-        if (
-            actor.businessId != businessId ||
-            session.user.businessId != businessId
-        ) {
-            return CommandResult.PermissionDenied(
-                "$actionLabel business does not match the authenticated user"
-            )
-        }
-
-        val branch =
-            businessBranchDao.getBranchById(branchId)
-                ?: return CommandResult.Error(
-                    IllegalArgumentException(
-                        "$actionLabel branch does not exist"
-                    )
-                )
-
-        if (
-            branch.businessId != businessId ||
-            session.branch.businessId != businessId
-        ) {
-            return CommandResult.PermissionDenied(
-                "$actionLabel branch does not belong to the command business"
-            )
-        }
-
-        val membership =
-            userDao.getMembership(actor.id, branch.id)
-                ?: return CommandResult.PermissionDenied(
-                    "User is not a member of the $actionLabel branch"
-                )
-
-        session.membership?.let { sessionMembership ->
-            if (
-                sessionMembership.userId != actor.id ||
-                sessionMembership.branchId != branch.id
-            ) {
-                return CommandResult.PermissionDenied(
-                    "$actionLabel membership does not match the authenticated session"
-                )
+        if (phone.isEmpty()) {
+            require(name.isEmpty()) {
+                "Customer phone is required when customer name is provided"
             }
+            return null
         }
 
-        try {
-            PermissionChecker.assertPermitted(
-                actor,
-                membership,
-                action
+        return com.dailymoneyregister.feature.customers.data.CustomerIdentity
+            .resolveOrCreate(
+                customerDao = database.customerDao(),
+                businessId = businessId,
+                rawPhone = phone,
+                rawName = name,
+                now = occurredAt
             )
-        } catch (error: PermissionDeniedException) {
-            return CommandResult.PermissionDenied(
-                error.message ?: "Permission denied for $actionLabel"
-            )
-        }
-
-        return null
+            .customer
+            .id
     }
-
+    private suspend fun existingOptionalSaleCustomerId(
+        businessId: String,
+        customerPhone: String?
+    ): String? =
+        registerCustomerReadRepository
+            .existingOptionalSaleCustomerId(
+                businessId = businessId,
+                customerPhone = customerPhone
+            )
     suspend fun executeCashSale(
         command: CashSaleCommand,
         actorUser: UserAccountEntity,
@@ -1058,12 +1489,20 @@ class RegisterRepository @Inject constructor(
         // 2. Execute via universal CommandExecutor with type-safe replay resolver
         return commandExecutor.execute(
             command = command,
+            cashShiftId = resolveFinancialCashShiftId(command),
             replayResolver = { op ->
                 val txId = op.resultReferenceId ?: command.transactionIdVal.value
                 transactionDao.getTransactionById(txId)
                     ?: throw IllegalStateException("Replay failed: Transaction entity for '$txId' not found in database")
             }
         ) {
+            val customerId = resolveOptionalSaleCustomerId(
+                businessId = command.businessId,
+                customerPhone = command.customerPhone,
+                customerName = command.customerName,
+                occurredAt = command.occurredAt
+            )
+
             saleFinancialWriter.materialize(
                 SaleFinancialWriter.Intent(
                     operationId = command.operationId.value,
@@ -1079,7 +1518,8 @@ class RegisterRepository @Inject constructor(
                         PaymentCategory.CASH,
                         PaymentChannel.CASH_TENDER,
                         ConfirmationType.CASHIER_CONFIRMED
-                    )
+                    ),
+                    customerId = customerId
                 )
             )
         }
@@ -1120,6 +1560,17 @@ class RegisterRepository @Inject constructor(
         occurredAt = command.occurredAt
     )
 
+    /*
+     * BOARDLOCK GOD-file decomposition.
+     *
+     * Credit Invoice is a post-save read-only projection.
+     * Credit Sale execution and evidence verification remain in the
+     * existing authoritative financial path.
+     */
+    private val creditInvoiceReadRepository =
+        CreditInvoiceReadRepository(
+            database
+        )
     data class CreditInvoiceDetails(
         val customerId: String,
         val customerName: String,
@@ -1150,90 +1601,11 @@ class RegisterRepository @Inject constructor(
      */
     suspend fun getCreditInvoiceDetails(
         command: CreditSaleCommand
-    ): CreditInvoiceDetails {
-        val transaction =
-            checkNotNull(
-                transactionDao.getTransactionById(
-                    command.transactionIdVal.value
-                )
-            ) {
-                "Credit invoice transaction evidence is missing."
-            }
-
-        val customerId =
-            checkNotNull(transaction.customerId) {
-                "Credit invoice customer evidence is missing."
-            }
-
-        val obligation =
-            checkNotNull(
-                ledgerDao
-                    .getCreditLedgerForCustomer(customerId)
-                    .singleOrNull { event ->
-                        event.transactionId == transaction.id &&
-                            event.currencyCode == command.currencyCode &&
-                            event.type ==
-                                com.dailymoneyregister.core.model.enums
-                                    .CreditLedgerType.OBLIGATION
-                    }
-            ) {
-                "Credit invoice obligation evidence is missing or ambiguous."
-            }
-
-        check(obligation.amountSignedMinor > 0L) {
-            "Credit invoice obligation must be positive."
-        }
-
-        val allocations =
-            ledgerDao
-                .getCreditRepaymentAllocationsForTransaction(
-                    transaction.id
-                )
-
-        val allocatedMinor =
-            allocations.fold(0L) { total, allocation ->
-                Math.addExact(
-                    total,
-                    allocation.allocatedAmountMinor
-                )
-            }
-
-        val purchaseOutstandingMinor =
-            Math.subtractExact(
-                obligation.amountSignedMinor,
-                allocatedMinor
+    ): CreditInvoiceDetails =
+        creditInvoiceReadRepository
+            .getCreditInvoiceDetails(
+                command
             )
-
-        check(purchaseOutstandingMinor >= 0L) {
-            "Credit invoice purchase outstanding cannot be negative."
-        }
-
-        val totalOutstandingMinor =
-            ledgerDao.getCreditBalance(
-                customerId,
-                command.currencyCode
-            )
-
-        check(totalOutstandingMinor >= 0L) {
-            "Credit invoice total outstanding cannot be negative."
-        }
-
-        return CreditInvoiceDetails(
-            customerId = customerId,
-            customerName = command.customerName,
-            customerPhone = command.customerPhone,
-            transactionId = transaction.id,
-            purchaseOccurredAt = obligation.occurredAt,
-            creditGivenMinor = obligation.amountSignedMinor,
-            purchaseOutstandingMinor =
-                purchaseOutstandingMinor,
-            totalOutstandingMinor =
-                totalOutstandingMinor,
-            currencyCode = command.currencyCode,
-            currencyDecimalPlaces =
-                command.currencyDecimalPlaces
-        )
-    }
     private suspend fun loadCreditSaleEvidence(
         command: CreditSaleCommand
     ): TransactionEntity {
@@ -1340,6 +1712,7 @@ class RegisterRepository @Inject constructor(
     ): CommandResult<TransactionEntity> =
         commandExecutor.execute(
             command = command,
+            cashShiftId = resolveFinancialCashShiftId(command),
             replayResolver = {
                 loadCreditSaleEvidence(command)
             }
@@ -1625,6 +1998,7 @@ class RegisterRepository @Inject constructor(
 
         commandExecutor.execute(
             command = command,
+            cashShiftId = resolveFinancialCashShiftId(command),
             replayResolver = {
                 loadCouponCreditRepaymentEvidence(
                     command
@@ -2533,6 +2907,7 @@ class RegisterRepository @Inject constructor(
     ): CommandResult<CreditRepaymentExecutionResult> =
         commandExecutor.execute(
             command = command,
+            cashShiftId = resolveFinancialCashShiftId(command),
             replayResolver = {
                 loadCreditRepaymentEvidence(command)
             }
@@ -2869,7 +3244,13 @@ class RegisterRepository @Inject constructor(
         return try {
             commandExecutor.execute(
                 command = command,
+                cashShiftId = resolveFinancialCashShiftId(command),
                 replayResolver = {
+                    val customerId = existingOptionalSaleCustomerId(
+                        businessId = command.businessId,
+                        customerPhone = command.customerPhone
+                    )
+
                     saleFinancialWriter.loadVerified(
                         SaleFinancialWriter.Intent(
                             operationId = command.operationId.value,
@@ -2881,11 +3262,19 @@ class RegisterRepository @Inject constructor(
                             currencyCode = command.currencyCode,
                             currencyDecimalPlaces = command.currencyDecimalPlaces,
                             draft = command.draftState,
-                            funding = onlineFunding()
+                            funding = onlineFunding(),
+                            customerId = customerId
                         )
                     )
                 }
             ) {
+                val customerId = resolveOptionalSaleCustomerId(
+                    businessId = command.businessId,
+                    customerPhone = command.customerPhone,
+                    customerName = command.customerName,
+                    occurredAt = command.occurredAt
+                )
+
                 saleFinancialWriter.materialize(
                     SaleFinancialWriter.Intent(
                         operationId = command.operationId.value,
@@ -2897,7 +3286,8 @@ class RegisterRepository @Inject constructor(
                         currencyCode = command.currencyCode,
                         currencyDecimalPlaces = command.currencyDecimalPlaces,
                         draft = command.draftState,
-                        funding = onlineFunding()
+                        funding = onlineFunding(),
+                        customerId = customerId
                     )
                 )
             }
@@ -3313,6 +3703,7 @@ class RegisterRepository @Inject constructor(
         return commandExecutor.execute(
             command =
                 command,
+            cashShiftId = resolveFinancialCashShiftId(command),
             replayResolver = {
                 operation ->
 
@@ -4025,6 +4416,7 @@ class RegisterRepository @Inject constructor(
     ): CommandResult<PaymentMethodChangeExecutionResult> {
         return commandExecutor.execute(
             command = command,
+            cashShiftId = resolveFinancialCashShiftId(command),
             replayResolver = { operation ->
                 resolvePaymentMethodChangeReplay(operation, command.subjectId)
             }
@@ -4661,6 +5053,7 @@ class RegisterRepository @Inject constructor(
 
         return commandExecutor.execute(
             command = command,
+            cashShiftId = resolveFinancialCashShiftId(command),
             replayResolver = { operation ->
                 resolveRefundReplay(
                     operation = operation,
@@ -6280,6 +6673,82 @@ class RegisterRepository @Inject constructor(
                     }
             )
         }
+
+        val originalSaleSettlements =
+            transactionDao
+                .getSettlementsForTransaction(
+                    expectedTransactionId
+                )
+
+        val originalSaleFunding =
+            originalSaleSettlements.filter {
+                it.entryPurpose == EntryPurpose.SALE_FUNDING &&
+                    it.amountSignedMinor > 0L
+            }
+
+        val replayIsUnpaidCreditReturn =
+            payload.destinationCategory == PaymentCategory.CREDIT &&
+                payload.destinationChannel == PaymentChannel.CREDIT_ACCOUNT &&
+                transaction.customerId != null &&
+                originalSaleFunding.size == 1 &&
+                originalSaleFunding.single().category == PaymentCategory.CREDIT &&
+                originalSaleFunding.single().channel == PaymentChannel.CREDIT_ACCOUNT &&
+                ledgerDao
+                    .getCreditRepaymentAllocationsForTransaction(
+                        expectedTransactionId
+                    )
+                    .isEmpty()
+
+        if (replayIsUnpaidCreditReturn) {
+            val settlements =
+                transactionDao
+                    .getSettlementsForOperation(operation.id)
+
+            check(settlements.isEmpty()) {
+                "Unpaid Credit replay must not contain settlement evidence"
+            }
+
+            check(
+                ledgerDao
+                    .getCouponEventsForOperation(operation.id)
+                    .isEmpty()
+            ) {
+                "Unpaid Credit replay must not contain Coupon evidence"
+            }
+
+            val customerId = requireNotNull(transaction.customerId)
+            val creditAdjustments =
+                ledgerDao
+                    .getCreditLedgerForCustomer(customerId)
+                    .filter { it.operationId == operation.id }
+
+            check(creditAdjustments.size == 1) {
+                "Unpaid Credit replay adjustment count mismatch"
+            }
+
+            val adjustment = creditAdjustments.single()
+            check(
+                adjustment.type ==
+                    com.dailymoneyregister.core.model.enums.CreditLedgerType.ADJUSTMENT &&
+                    adjustment.amountSignedMinor ==
+                        Math.negateExact(payload.refundAmountMinor) &&
+                    adjustment.currencyCode == transaction.currencyCode &&
+                    adjustment.transactionId == expectedTransactionId &&
+                    adjustment.repaymentId == null &&
+                    adjustment.occurredAt == operation.occurredAt
+            ) {
+                "Unpaid Credit replay adjustment mismatch"
+            }
+
+            return RefundExecutionResult(
+                transactionId = expectedTransactionId,
+                refundEventId = event.id,
+                refundAmountMinor = payload.refundAmountMinor,
+                couponWalletId = null,
+                couponBalanceAfterMinor = null
+            )
+        }
+
         val settlements =
             transactionDao
                 .getSettlementsForOperation(
@@ -7310,6 +7779,7 @@ class RegisterRepository @Inject constructor(
     ): CommandResult<VoidExecutionResult> {
         return commandExecutor.execute(
             command = command,
+            cashShiftId = resolveFinancialCashShiftId(command),
             replayResolver = { operation ->
                 resolveVoidReplay(
                     operation = operation,
@@ -7791,17 +8261,34 @@ class RegisterRepository @Inject constructor(
                         return@withTransaction reconcile("Cash Sale identity mismatch")
                     }
 
-                    val expected = try {
-                        expectedRecoveryResult(command)
-                    } catch (_: ArithmeticException) {
-                        return@withTransaction reconcile("Cash Sale amount cannot be represented")
-                    }
-                    if (expected.items.map { it.id }.distinct().size != expected.items.size) {
-                        return@withTransaction reconcile("Ambiguous Cash Sale item identity")
-                    }
                     val existing = transactionDao.getTransactionById(txId)
                     val items = transactionDao.getItemsForTransaction(txId)
                     val settlements = transactionDao.getSettlementsForCashSaleRecovery(op.id, txId)
+
+                    val customerId =
+                        if (existing != null || items.isNotEmpty() || settlements.isNotEmpty()) {
+                            existingOptionalSaleCustomerId(
+                                businessId = command.businessId,
+                                customerPhone = command.customerPhone
+                            )
+                        } else {
+                            resolveOptionalSaleCustomerId(
+                                businessId = command.businessId,
+                                customerPhone = command.customerPhone,
+                                customerName = command.customerName,
+                                occurredAt = command.occurredAt
+                            )
+                        }
+
+                    val expected = try {
+                        expectedRecoveryResult(command, customerId)
+                    } catch (_: ArithmeticException) {
+                        return@withTransaction reconcile("Cash Sale amount cannot be represented")
+                    }
+
+                    if (expected.items.map { it.id }.distinct().size != expected.items.size) {
+                        return@withTransaction reconcile("Ambiguous Cash Sale item identity")
+                    }
 
                     if (existing != null) {
                         val mismatch = recoveryMismatch(expected, existing, items, settlements)
@@ -7825,7 +8312,8 @@ class RegisterRepository @Inject constructor(
                                     PaymentCategory.CASH,
                                     PaymentChannel.CASH_TENDER,
                                     ConfirmationType.CASHIER_CONFIRMED
-                                )
+                                ),
+                                customerId = customerId
                             )
                         )
                         // A failed post-write check throws, rolling back ALL new financial rows.
@@ -7906,6 +8394,26 @@ class RegisterRepository @Inject constructor(
                         )
                         return@withTransaction
                     }
+                    val txId = command.transactionIdVal.value
+                    val existing = transactionDao.getTransactionById(txId)
+                    val items = transactionDao.getItemsForTransaction(txId)
+                    val settlements = transactionDao.getSettlementsForCashSaleRecovery(op.id, txId)
+
+                    val customerId =
+                        if (existing != null || items.isNotEmpty() || settlements.isNotEmpty()) {
+                            existingOptionalSaleCustomerId(
+                                businessId = command.businessId,
+                                customerPhone = command.customerPhone
+                            )
+                        } else {
+                            resolveOptionalSaleCustomerId(
+                                businessId = command.businessId,
+                                customerPhone = command.customerPhone,
+                                customerName = command.customerName,
+                                occurredAt = command.occurredAt
+                            )
+                        }
+
                     val intent = SaleFinancialWriter.Intent(
                         operationId = command.operationId.value,
                         transactionId = command.transactionIdVal.value,
@@ -7916,12 +8424,10 @@ class RegisterRepository @Inject constructor(
                         currencyCode = command.currencyCode,
                         currencyDecimalPlaces = command.currencyDecimalPlaces,
                         draft = command.draftState,
-                        funding = onlineFunding()
+                        funding = onlineFunding(),
+                        customerId = customerId
                     )
-                    val txId = command.transactionIdVal.value
-                    val existing = transactionDao.getTransactionById(txId)
-                    val items = transactionDao.getItemsForTransaction(txId)
-                    val settlements = transactionDao.getSettlementsForCashSaleRecovery(op.id, txId)
+
                     val expected = saleFinancialWriter.expected(intent)
 
                     if (existing != null) {
@@ -7975,7 +8481,10 @@ class RegisterRepository @Inject constructor(
         val fingerprint: String
     ) : IllegalStateException("Cash Sale materialization verification failed")
 
-    private fun expectedRecoveryResult(command: CashSaleCommand): RecoveryResult {
+    private fun expectedRecoveryResult(
+        command: CashSaleCommand,
+        customerId: String?
+    ): RecoveryResult {
         val expected = saleFinancialWriter.expected(
             SaleFinancialWriter.Intent(
                 operationId = command.operationId.value,
@@ -7991,7 +8500,8 @@ class RegisterRepository @Inject constructor(
                     PaymentCategory.CASH,
                     PaymentChannel.CASH_TENDER,
                     ConfirmationType.CASHIER_CONFIRMED
-                )
+                ),
+                customerId = customerId
             )
         )
         return RecoveryResult(
@@ -8019,86 +8529,29 @@ class RegisterRepository @Inject constructor(
         return transactionDao.observeRecentTransactions(branchId, limit)
     }
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun observeTodayTransactions(
         branchId: String,
         timezoneId: String
-    ): Flow<List<RecentFinancialActivity>> {
-
-        val zoneId = TimezoneRegistry.resolve(timezoneId)
-
-        return observeLocalDayStarts(zoneId).flatMapLatest { startOfDayMillis ->
-            val nextStartOfDayMillis = Instant.ofEpochMilli(startOfDayMillis)
-                .atZone(zoneId)
-                .toLocalDate()
-                .plusDays(1)
-                .atStartOfDay(zoneId)
-                .toInstant()
-                .toEpochMilli()
-            combine(
-                transactionDao.observeTodayFinancialRecords(
-                    branchId,
-                    startOfDayMillis,
-                    nextStartOfDayMillis
-                ),
-                ledgerDao.observeCreditRepaymentsForPeriod(
-                    branchId,
-                    startOfDayMillis,
-                    nextStartOfDayMillis
-                )
-            ) { records, repayments ->
-                records to repayments
-            }.map { (records, repayments) ->
-
-                val transactionActivities =
-                    resolveRecentCouponRefundRecipients(
-                        RecentActivityReadModelResolver.resolve(
-                            records,
-                            startOfDayMillis,
-                            nextStartOfDayMillis
-                        )
-                    )
-
-                val repaymentActivities =
-                    repayments.map { repayment ->
-                        val customer =
-                            database.customerDao()
-                                .getCustomerById(repayment.customerId)
-
-                        val settlements =
-                            transactionDao.getSettlementsForOperation(
-                                repayment.operationId
-                            )
-
-                        RecentActivityReadModelResolver.resolveCreditRepayment(
-                            repayment = repayment,
-                            customerName = customer?.name,
-                            settlements = settlements
-                        )
-                    }
-
-                (transactionActivities + repaymentActivities)
-                    .sortedWith(
-                        compareByDescending<RecentFinancialActivity> {
-                            it.occurredAt
-                        }.thenByDescending {
-                            it.activityId
-                        }
-                    )
-            }
-            }
-    }
+    ): Flow<List<RecentFinancialActivity>> =
+        recentFinancialActivityReadRepository.observeTodayTransactions(
+            branchId = branchId,
+            timezoneId = timezoneId
+        )
 
     suspend fun getFinancialTransactionById(
         transactionId: String
-    ): FinancialTransactionView? {
-        return transactionDao
-            .getFinancialRecordById(transactionId)
-            ?.let(FinancialReadModelResolver::resolve)
-    }
-    suspend fun getTransactionItems(transactionId: String): List<TransactionItemEntity> {
-        return transactionDao.getItemsForTransaction(transactionId)
-    }
+    ): FinancialTransactionView? =
+        transactionDetailsReadRepository
+            .getFinancialTransactionById(
+                transactionId
+            )
+    suspend fun getTransactionItems(
+        transactionId: String
+    ): List<TransactionItemEntity> =
+        transactionDetailsReadRepository
+            .getTransactionItems(
+                transactionId
+            )
     /**
      * Read-only authoritative projection for Transaction Details.
      *
@@ -8106,134 +8559,33 @@ class RegisterRepository @Inject constructor(
      * independent transaction balance. Financial meaning is resolved from the same
      * immutable transaction/lifecycle evidence used by other financial screens.
      */
+    /**
+     * Read-only authoritative Expense Details projection.
+     *
+     * ExpenseEntity owns Expense identity/details.
+     * SettlementEntry owns funding classification.
+     * This method performs no financial write.
+     */
+    suspend fun getExpenseDetails(
+        expenseId: String
+    ): ExpenseReadProjection? =
+        expenseReadRepository
+            .getExpenseDetails(
+                expenseId
+            )
     suspend fun getTransactionDetails(
         transactionId: String
-    ): TransactionDetailsReadModel? {
-        val session = SessionManager.currentSession.value ?: return null
-
-        val record =
-            transactionDao.getFinancialRecordById(transactionId)
-                ?: return null
-
-        // Fail closed: Transaction Details may only expose the active branch.
-        if (record.transaction.branchId != session.branch.id) {
-            return null
-        }
-
-        val financial =
-            FinancialReadModelResolver.resolve(record)
-
-        /*
-         * Transaction Details is lifetime-based, not "today" based.
-         * Use the existing authoritative activity resolver over the complete
-         * representable timestamp range instead of feeding the screen Today's Recent.
-         */
-        val activities =
-            RecentActivityReadModelResolver.resolve(
-                record = record,
-                periodStartMillis = Long.MIN_VALUE,
-                periodEndMillis = Long.MAX_VALUE
-            )
-
-        val items =
-            transactionDao.getItemsForTransaction(transactionId)
-
-        val creditRepaymentAllocations =
-            ledgerDao.getCreditRepaymentAllocationsForTransaction(
+    ): TransactionDetailsReadModel? =
+        transactionDetailsReadRepository
+            .getTransactionDetails(
                 transactionId
             )
 
-        val repaymentIds =
-            creditRepaymentAllocations
-                .map { it.repaymentId }
-                .distinct()
 
-        val creditRepayments =
-            if (repaymentIds.isEmpty()) {
-                emptyList()
-            } else {
-                ledgerDao.getCreditRepaymentsByIds(repaymentIds)
-            }
-
-        /*
-         * Fail closed if persisted allocation evidence references a repayment
-         * that cannot be read. Transaction Details must not show a partial
-         * financial lifetime as if it were complete.
-         */
-        if (creditRepayments.map { it.id }.toSet() != repaymentIds.toSet()) {
-            return null
-        }
-
-        return TransactionDetailsReadModel(
-            financial = financial,
-            activities = activities,
-            items = items,
-            creditRepaymentAllocations = creditRepaymentAllocations,
-            creditRepayments = creditRepayments,
-            amountCorrections = record.amountCorrections,
-            paymentMethodChanges = record.paymentMethodChanges,
-            voidEvents = record.voidEvents,
-            refundEvents = record.refundEvents,
-            settlements = record.settlements
-        )
-    }
-
-    /**
-     * Resolves the actual recipient of Refund-to-Coupon activity from
-     * authoritative persisted evidence.
-     *
-     * operationId -> Coupon ledger event -> Coupon wallet -> customer
-     *
-     * This is read-only presentation enrichment. It does not mutate
-     * transactions, refunds, Credit, Coupon value, settlements or balances.
-     */
-    private suspend fun resolveRecentCouponRefundRecipients(
-        activities: List<RecentFinancialActivity>
-    ): List<RecentFinancialActivity> =
-        activities.map { activity ->
-            if (
-                activity.type !=
-                    com.dailymoneyregister.core.model.financial.RecentActivityType
-                        .REFUND_TO_COUPON
-            ) {
-                return@map activity
-            }
-
-            val operationId =
-                activity.operationId
-                    ?: return@map activity
-
-            val refundEvents =
-                ledgerDao
-                    .getCouponEventsForOperation(operationId)
-                    .filter {
-                        it.type ==
-                            com.dailymoneyregister.core.model.enums
-                                .CouponLedgerType.REFUND_CREDIT &&
-                            it.amountSignedMinor > 0L
-                    }
-
-            /*
-             * Do not guess when persisted evidence is missing or ambiguous.
-             * Legacy rows keep their existing presentation.
-             */
-            val refundEvent =
-                refundEvents.singleOrNull()
-                    ?: return@map activity
-
-            val wallet =
-                ledgerDao.getCouponWalletById(refundEvent.walletId)
-                    ?: return@map activity
-
-            val recipient =
-                database.customerDao()
-                    .getCustomerById(wallet.customerId)
-                    ?: return@map activity
-
-            activity.copy(
-                customerId = recipient.id,
-                customerName = recipient.name
-            )
-        }
 }
+
+
+
+
+
 

@@ -48,7 +48,7 @@ class TrustedSessionIntegrationTest {
     fun setUp() {
         Log.i("BOARDLOCK", "setUp: start")
 
-        context = ApplicationProvider.getApplicationContext()
+        context = isolatedAndroidTestContext(ApplicationProvider.getApplicationContext())
         Log.i("BOARDLOCK", "setUp: got context")
 
         trustedSessionStore = TrustedSessionStore(context)

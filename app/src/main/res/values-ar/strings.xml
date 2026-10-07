@@ -29,7 +29,14 @@
     <string name="password">كلمة المرور</string>
     <string name="enter_6_digit_pin">أدخل رمز PIN المكون من 6 أرقام</string>
     <string name="login">تسجيل الدخول</string>
-    <string name="locked_out_msg">محاولات خاطئة كثيرة. تم قفل الحساب لمدة %1$d ثانية.</string>
+    <plurals name="locked_out_msg">
+        <item quantity="zero">محاولات خاطئة كثيرة. تم قفل الحساب لمدة %1$d ثانية.</item>
+        <item quantity="one">محاولات خاطئة كثيرة. تم قفل الحساب لمدة %1$d ثانية.</item>
+        <item quantity="two">محاولات خاطئة كثيرة. تم قفل الحساب لمدة %1$d ثانية.</item>
+        <item quantity="few">محاولات خاطئة كثيرة. تم قفل الحساب لمدة %1$d ثانية.</item>
+        <item quantity="many">محاولات خاطئة كثيرة. تم قفل الحساب لمدة %1$d ثانية.</item>
+        <item quantity="other">محاولات خاطئة كثيرة. تم قفل الحساب لمدة %1$d ثانية.</item>
+    </plurals>
 
     <!-- Hub Screen -->
     <string name="admin_hub_title">سجل الأموال اليومي - المشرف</string>
@@ -100,7 +107,14 @@
     <string name="unit_price">سعر الوحدة</string>
     <string name="quantity">الكمية</string>
     <string name="item_desc_optional">الوصف (اختياري)</string>
-    <string name="items_count">%1$d أصناف</string>
+    <plurals name="items_count">
+        <item quantity="zero">%1$d أصناف</item>
+        <item quantity="one">%1$d أصناف</item>
+        <item quantity="two">%1$d أصناف</item>
+        <item quantity="few">%1$d أصناف</item>
+        <item quantity="many">%1$d أصناف</item>
+        <item quantity="other">%1$d أصناف</item>
+    </plurals>
 
     <!-- Tax & Shipping Dialogs -->
     <string name="tax_rate_percent">نسبة الضريبة (%)</string>
@@ -118,7 +132,14 @@
     <!-- Invoice form (added) -->
     <string name="inv_create">إنشاء فاتورة</string>
     <string name="inv_form_title">فاتورة جديدة</string>
-    <string name="inv_form_intro">أدخل بيانات العميل. ستتضمن هذه الفاتورة %1$d صنف، والإجمالي %2$s.</string>
+    <plurals name="inv_form_intro">
+        <item quantity="zero">أدخل بيانات العميل. ستتضمن هذه الفاتورة %1$d صنف، والإجمالي %2$s.</item>
+        <item quantity="one">أدخل بيانات العميل. ستتضمن هذه الفاتورة %1$d صنف، والإجمالي %2$s.</item>
+        <item quantity="two">أدخل بيانات العميل. ستتضمن هذه الفاتورة %1$d صنف، والإجمالي %2$s.</item>
+        <item quantity="few">أدخل بيانات العميل. ستتضمن هذه الفاتورة %1$d صنف، والإجمالي %2$s.</item>
+        <item quantity="many">أدخل بيانات العميل. ستتضمن هذه الفاتورة %1$d صنف، والإجمالي %2$s.</item>
+        <item quantity="other">أدخل بيانات العميل. ستتضمن هذه الفاتورة %1$d صنف، والإجمالي %2$s.</item>
+    </plurals>
     <string name="inv_customer_title">اللقب (اختياري)</string>
     <string name="inv_title_mr">السيد</string>
     <string name="inv_title_mrs">السيدة</string>
@@ -290,4 +311,17 @@
     <string name="tx_change_payment_permission">ليس لديك إذن لتغيير طريقة الدفع هذه.</string>
     <string name="tx_change_payment_failed">تعذر تغيير طريقة الدفع. راجع الحالة الحالية للمعاملة.</string>
     <string name="tx_lifecycle_conflict">تغيرت هذه المعاملة. راجع أحدث التفاصيل وحاول مرة أخرى.</string>
+
+    <string name="coupon_redemption_receipt">تم استخدام القسيمة بواسطة %1$s: %2$s. الرصيد المتبقي: %3$s</string>
+    <string name="coupon_search_phone">الهاتف</string>
+    <string name="coupon_search_name">الاسم</string>
+    <string name="coupon_purchase_search">البحث عن عميل</string>
+    <string name="coupon_purchase_search_button">بحث</string>
+    <string name="coupon_wallet_balance">رصيد القسيمة: %1$s</string>
+    <string name="coupon_create_customer">إنشاء عميل</string>
+    <string name="coupon_purchase_amount">مبلغ القسيمة (%1$s)</string>
+    <string name="coupon_purchase_users">المستخدمون المصرح لهم</string>
+    <string name="coupon_purchase_purchaser_included">المشتري مشمول كمستخدم مصرح له</string>
+    <string name="coupon_remainder_amount">المبلغ المتبقي: %1$s</string>
+    <string name="online_qr_not_configured">لم يتم إعداد رمز QR للدفع</string>
 </resources>

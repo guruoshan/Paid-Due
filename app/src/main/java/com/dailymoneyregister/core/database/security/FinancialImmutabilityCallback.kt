@@ -1,4 +1,4 @@
-package com.dailymoneyregister.core.database.security
+﻿package com.dailymoneyregister.core.database.security
 
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -23,7 +23,9 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
         "credit_ledger_events",
         "coupon_ledger_events",
         "coupon_authorized_user_events",
-        "cash_shift_events"
+        "cash_shift_events",
+        "expenses",
+        "expense_events"
     )
 
     override fun onOpen(db: SupportSQLiteDatabase) {
@@ -33,7 +35,9 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
     }
 
     internal fun installGuards(db: SupportSQLiteDatabase) {
-        immutableTables.forEach { table ->
+        immutableTables
+            .filter { table -> tableExists(db, table) }
+            .forEach { table ->
 
             db.execSQL(
                 """
@@ -144,4 +148,20 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
             """.trimIndent()
         )
     }
+
+    /**
+     * Legacy migration steps call this installer before newer financial
+     * tables exist. SQLite cannot create a trigger for an absent table, so
+     * install only the guards applicable to the schema at that step. Room's
+     * final onOpen callback installs the complete current set.
+     */
+    private fun tableExists(
+        db: SupportSQLiteDatabase,
+        table: String
+    ): Boolean =
+        db.query(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+            arrayOf(table)
+        ).use { cursor -> cursor.moveToFirst() }
 }
+

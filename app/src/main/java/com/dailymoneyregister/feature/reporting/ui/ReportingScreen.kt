@@ -1,0 +1,955 @@
+package com.dailymoneyregister.feature.reporting.ui
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dailymoneyregister.R
+import com.dailymoneyregister.feature.reporting.domain.ReportActivityFilter
+import com.dailymoneyregister.feature.reporting.domain.ReportActivityType
+import com.dailymoneyregister.feature.reporting.domain.ReportPaymentFilter
+import com.dailymoneyregister.feature.reporting.domain.ReportingPeriodPreset
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ReportingScreen(
+    viewModel: ReportingViewModel,
+    onNavigateBack: () -> Unit,
+    onOpenCustomer: (String) -> Unit,
+    initialActivityName: String? = null
+) {
+
+    val state =
+        viewModel.uiState
+            .collectAsStateWithLifecycle()
+            .value
+
+    LaunchedEffect(initialActivityName) {
+        viewModel.applyNavigationActivity(
+            initialActivityName
+        )
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        stringResource(
+                            R.string.reporting_title
+                        )
+                    )
+                },
+                navigationIcon = {
+                    IconButton(
+                        onClick = onNavigateBack
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription =
+                                stringResource(
+                                    R.string.reporting_back
+                                )
+                        )
+                    }
+                }
+            )
+        }
+    ) { padding ->
+
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 16.dp),
+            verticalArrangement =
+                Arrangement.spacedBy(12.dp)
+        ) {
+
+            ReportingPeriodSelector(
+                selected =
+                    state.selectedPreset,
+                onSelected =
+                    viewModel::selectPreset
+            )
+
+            if (
+                state.selectedPreset ==
+                ReportingPeriodPreset.CUSTOM
+            ) {
+                Row(
+                    modifier =
+                        Modifier.fillMaxWidth(),
+                    horizontalArrangement =
+                        Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value =
+                            state.customFromDate,
+                        onValueChange =
+                            viewModel::updateCustomFromDate,
+                        modifier =
+                            Modifier.weight(1f),
+                        label = {
+                            Text(
+                                stringResource(
+                                    R.string.reporting_from_date
+                                )
+                            )
+                        },
+                        placeholder = {
+                            Text("YYYY-MM-DD")
+                        },
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value =
+                            state.customToDate,
+                        onValueChange =
+                            viewModel::updateCustomToDate,
+                        modifier =
+                            Modifier.weight(1f),
+                        label = {
+                            Text(
+                                stringResource(
+                                    R.string.reporting_to_date
+                                )
+                            )
+                        },
+                        placeholder = {
+                            Text("YYYY-MM-DD")
+                        },
+                        singleLine = true
+                    )
+                }
+
+                OutlinedButton(
+                    onClick =
+                        viewModel::applyCustomPeriod
+                ) {
+                    Text(
+                        stringResource(
+                            R.string.reporting_apply_dates
+                        )
+                    )
+                }
+            }
+
+            OutlinedTextField(
+                value = state.query,
+                onValueChange =
+                    viewModel::updateQuery,
+                modifier =
+                    Modifier.fillMaxWidth(),
+                label = {
+                    Text(
+                        stringResource(
+                            R.string.reporting_search
+                        )
+                    )
+                },
+                singleLine = true
+            )
+
+            ReportingScopeSelectors(
+                state = state,
+                onBranch =
+                    viewModel::selectBranch,
+                onCashier =
+                    viewModel::selectCashier
+            )
+
+            ReportingActivityFilters(
+                selected =
+                    state.activityFilter,
+                onSelected =
+                    viewModel::selectActivity
+            )
+
+            ReportingPaymentFilters(
+                selected =
+                    state.paymentFilter,
+                onSelected =
+                    viewModel::selectPayment
+            )
+
+            when {
+                state.isLoading -> {
+                    Column(
+                        modifier =
+                            Modifier.fillMaxWidth(),
+                        horizontalAlignment =
+                            Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator()
+                        Text(
+                            stringResource(
+                                R.string.reporting_loading
+                            )
+                        )
+                    }
+                }
+
+                state.error != null -> {
+                    ReportingErrorState(
+                        error = state.error,
+                        onRetry =
+                            viewModel::retry
+                    )
+                }
+
+                else -> {
+                    ReportingSummarySection(
+                        cards =
+                            state.summaryCards
+                    )
+
+                    if (state.isEmpty) {
+                        Text(
+                            stringResource(
+                                R.string.reporting_no_results
+                            )
+                        )
+                    } else {
+                        LazyColumn(
+                            verticalArrangement =
+                                Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(
+                                items = state.rows,
+                                key = {
+                                    it.stableId
+                                }
+                            ) { row ->
+                                ReportingRowCard(
+                                    row = row,
+                                    onOpenCustomer =
+                                        onOpenCustomer
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportingPeriodSelector(
+    selected: ReportingPeriodPreset,
+    onSelected: (ReportingPeriodPreset) -> Unit
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(
+                    rememberScrollState()
+                ),
+        horizontalArrangement =
+            Arrangement.spacedBy(8.dp)
+    ) {
+        ReportingPeriodPreset.entries
+            .forEach { preset ->
+                FilterChip(
+                    selected =
+                        selected == preset,
+                    onClick = {
+                        onSelected(preset)
+                    },
+                    label = {
+                        Text(
+                            periodLabel(preset)
+                        )
+                    }
+                )
+            }
+    }
+}
+
+@Composable
+private fun periodLabel(
+    preset: ReportingPeriodPreset
+): String =
+    when (preset) {
+        ReportingPeriodPreset.TODAY ->
+            stringResource(
+                R.string.reporting_today
+            )
+
+        ReportingPeriodPreset.YESTERDAY ->
+            stringResource(
+                R.string.reporting_yesterday
+            )
+
+        ReportingPeriodPreset.THIS_WEEK ->
+            stringResource(
+                R.string.reporting_this_week
+            )
+
+        ReportingPeriodPreset.THIS_MONTH ->
+            stringResource(
+                R.string.reporting_this_month
+            )
+
+        ReportingPeriodPreset.CUSTOM ->
+            stringResource(
+                R.string.reporting_custom
+            )
+    }
+
+@Composable
+private fun ReportingScopeSelectors(
+    state: ReportingUiState,
+    onBranch: (String) -> Unit,
+    onCashier: (String?) -> Unit
+) {
+    var branchExpanded by
+        remember {
+            mutableStateOf(false)
+        }
+
+    var cashierExpanded by
+        remember {
+            mutableStateOf(false)
+        }
+
+    val selectedBranch =
+        state.branchOptions
+            .firstOrNull {
+                it.id ==
+                    state.selectedBranchId
+            }
+
+    val selectedCashier =
+        state.cashierOptions
+            .firstOrNull {
+                it.id ==
+                    state.selectedCashierId
+            }
+
+    Row(
+        modifier =
+            Modifier.fillMaxWidth(),
+        horizontalArrangement =
+            Arrangement.spacedBy(8.dp)
+    ) {
+        Column(
+            modifier =
+                Modifier.weight(1f)
+        ) {
+            TextButton(
+                onClick = {
+                    branchExpanded = true
+                }
+            ) {
+                Text(
+                    selectedBranch?.name
+                        ?: stringResource(
+                            R.string.reporting_branch
+                        )
+                )
+            }
+
+            DropdownMenu(
+                expanded = branchExpanded,
+                onDismissRequest = {
+                    branchExpanded = false
+                }
+            ) {
+                state.branchOptions
+                    .forEach { branch ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    branch.name
+                                )
+                            },
+                            onClick = {
+                                branchExpanded = false
+                                onBranch(branch.id)
+                            }
+                        )
+                    }
+            }
+        }
+
+        Column(
+            modifier =
+                Modifier.weight(1f)
+        ) {
+            TextButton(
+                onClick = {
+                    cashierExpanded = true
+                }
+            ) {
+                Text(
+                    selectedCashier
+                        ?.displayName
+                        ?: stringResource(
+                            R.string.reporting_all_cashiers
+                        )
+                )
+            }
+
+            DropdownMenu(
+                expanded = cashierExpanded,
+                onDismissRequest = {
+                    cashierExpanded = false
+                }
+            ) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            stringResource(
+                                R.string.reporting_all_cashiers
+                            )
+                        )
+                    },
+                    onClick = {
+                        cashierExpanded = false
+                        onCashier(null)
+                    }
+                )
+
+                state.cashierOptions
+                    .forEach { cashier ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    cashier.displayName
+                                )
+                            },
+                            onClick = {
+                                cashierExpanded = false
+                                onCashier(cashier.id)
+                            }
+                        )
+                    }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportingActivityFilters(
+    selected: ReportActivityFilter,
+    onSelected: (ReportActivityFilter) -> Unit
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(
+                    rememberScrollState()
+                ),
+        horizontalArrangement =
+            Arrangement.spacedBy(8.dp)
+    ) {
+        ReportActivityFilter.entries
+            .forEach { filter ->
+                FilterChip(
+                    selected =
+                        selected == filter,
+                    onClick = {
+                        onSelected(filter)
+                    },
+                    label = {
+                        Text(
+                            activityFilterLabel(
+                                filter
+                            )
+                        )
+                    }
+                )
+            }
+    }
+}
+
+@Composable
+private fun activityFilterLabel(
+    filter: ReportActivityFilter
+): String =
+    when (filter) {
+        ReportActivityFilter.ALL ->
+            stringResource(
+                R.string.reporting_all
+            )
+
+        ReportActivityFilter.SALES ->
+            stringResource(
+                R.string.reporting_sales
+            )
+
+        ReportActivityFilter.CREDIT ->
+            stringResource(
+                R.string.reporting_credit_sales
+            )
+
+        ReportActivityFilter.CREDIT_REPAYMENTS ->
+            stringResource(
+                R.string.reporting_credit_repayments
+            )
+
+        ReportActivityFilter.COUPON ->
+            stringResource(
+                R.string.reporting_coupon
+            )
+
+        ReportActivityFilter.REFUNDS ->
+            stringResource(
+                R.string.reporting_refunds
+            )
+
+        ReportActivityFilter.EXPENSES ->
+            stringResource(
+                R.string.reporting_expenses
+            )
+
+        ReportActivityFilter.VOIDS ->
+            stringResource(
+                R.string.reporting_voids
+            )
+
+        ReportActivityFilter.CORRECTIONS ->
+            stringResource(
+                R.string.reporting_corrections
+            )
+
+        ReportActivityFilter.PAYMENT_METHOD_CHANGES ->
+            stringResource(
+                R.string.reporting_payment_changes
+            )
+    }
+
+@Composable
+private fun ReportingPaymentFilters(
+    selected: ReportPaymentFilter,
+    onSelected: (ReportPaymentFilter) -> Unit
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(
+                    rememberScrollState()
+                ),
+        horizontalArrangement =
+            Arrangement.spacedBy(8.dp)
+    ) {
+        ReportPaymentFilter.entries
+            .forEach { filter ->
+                FilterChip(
+                    selected =
+                        selected == filter,
+                    onClick = {
+                        onSelected(filter)
+                    },
+                    label = {
+                        Text(
+                            when (filter) {
+                                ReportPaymentFilter.ALL ->
+                                    stringResource(
+                                        R.string.reporting_all
+                                    )
+
+                                ReportPaymentFilter.CASH ->
+                                    stringResource(
+                                        R.string.reporting_cash
+                                    )
+
+                                ReportPaymentFilter.ONLINE ->
+                                    stringResource(
+                                        R.string.reporting_online
+                                    )
+
+                                ReportPaymentFilter.CREDIT ->
+                                    stringResource(
+                                        R.string.reporting_credit
+                                    )
+
+                                ReportPaymentFilter.COUPON ->
+                                    stringResource(
+                                        R.string.reporting_coupon
+                                    )
+                            }
+                        )
+                    }
+                )
+            }
+    }
+}
+
+@Composable
+private fun ReportingSummarySection(
+    cards: List<ReportingSummaryUiModel>
+) {
+    if (cards.isEmpty()) {
+        return
+    }
+
+    Text(
+        text =
+            stringResource(
+                R.string.reporting_period_summary
+            ),
+        style =
+            MaterialTheme.typography.titleMedium,
+        fontWeight =
+            FontWeight.SemiBold
+    )
+
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(
+                    rememberScrollState()
+                ),
+        horizontalArrangement =
+            Arrangement.spacedBy(8.dp)
+    ) {
+        cards.forEach { card ->
+            Card {
+                Column(
+                    modifier =
+                        Modifier.padding(12.dp)
+                ) {
+                    Text(
+                        summaryMetricLabel(
+                            card.metric
+                        ),
+                        style =
+                            MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        card.amountText,
+                        fontWeight =
+                            FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun summaryMetricLabel(
+    metric: ReportingSummaryMetric
+): String =
+    when (metric) {
+        ReportingSummaryMetric.NET_SALES_ACTIVITY ->
+            stringResource(
+                R.string.reporting_net_sales_activity
+            )
+
+        ReportingSummaryMetric.CASH_SALES ->
+            stringResource(
+                R.string.reporting_cash_sales
+            )
+
+        ReportingSummaryMetric.ONLINE_SALES ->
+            stringResource(
+                R.string.reporting_online_sales
+            )
+
+        ReportingSummaryMetric.CREDIT_SALES ->
+            stringResource(
+                R.string.reporting_credit_sales
+            )
+
+        ReportingSummaryMetric.CREDIT_REPAYMENTS ->
+            stringResource(
+                R.string.reporting_credit_repayments
+            )
+
+        ReportingSummaryMetric.REFUNDS ->
+            stringResource(
+                R.string.reporting_refunds
+            )
+
+        ReportingSummaryMetric.EXPENSES ->
+            stringResource(
+                R.string.reporting_expenses
+            )
+    }
+
+@Composable
+private fun ReportingRowCard(
+    row: ReportingRowUiModel,
+    onOpenCustomer: (String) -> Unit
+) {
+    Card(
+        modifier =
+            Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(12.dp),
+            verticalArrangement =
+                Arrangement.spacedBy(4.dp)
+        ) {
+            Row(
+                modifier =
+                    Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.SpaceBetween
+            ) {
+                Text(
+                    activityTypeLabel(
+                        row.activityType
+                    ),
+                    fontWeight =
+                        FontWeight.SemiBold
+                )
+
+                row.amountText?.let {
+                    Text(
+                        it,
+                        fontWeight =
+                            FontWeight.Bold
+                    )
+                }
+            }
+
+            row.referenceText?.let {
+                Text(
+                    text = it,
+                    style =
+                        MaterialTheme.typography.bodySmall
+                )
+            }
+
+            if (
+                row.customerName != null ||
+                row.customerPhone != null
+            ) {
+                val customerText =
+                    listOfNotNull(
+                        row.customerName,
+                        row.customerPhone
+                    ).joinToString(" · ")
+
+                Text(
+                    text = customerText,
+                    modifier =
+                        if (row.customerId != null) {
+                            Modifier.clickable {
+                                onOpenCustomer(
+                                    row.customerId
+                                )
+                            }
+                        } else {
+                            Modifier
+                        },
+                    color =
+                        if (row.customerId != null) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        }
+                )
+            }
+
+            row.paymentText?.let {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.reporting_payment_value,
+                            it
+                        ),
+                    style =
+                        MaterialTheme.typography.bodySmall
+                )
+            }
+
+            row.reasonText?.let {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.reporting_reason_value,
+                            it
+                        ),
+                    style =
+                        MaterialTheme.typography.bodySmall
+                )
+            }
+
+            Text(
+                text =
+                    listOfNotNull(
+                        row.occurredAtText,
+                        row.branchName,
+                        row.cashierName
+                    ).joinToString(" · "),
+                style =
+                    MaterialTheme.typography.bodySmall,
+                color =
+                    MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun activityTypeLabel(
+    type: ReportActivityType
+): String =
+    when (type) {
+        ReportActivityType.SALE ->
+            stringResource(
+                R.string.reporting_sale
+            )
+
+        ReportActivityType.CREDIT_SALE ->
+            stringResource(
+                R.string.reporting_credit_sale
+            )
+
+        ReportActivityType.CREDIT_REPAYMENT ->
+            stringResource(
+                R.string.reporting_credit_repayment
+            )
+
+        ReportActivityType.COUPON_PURCHASE ->
+            stringResource(
+                R.string.reporting_coupon_purchase
+            )
+
+        ReportActivityType.COUPON_TOP_UP ->
+            stringResource(
+                R.string.reporting_coupon_topup
+            )
+
+        ReportActivityType.COUPON_REDEMPTION ->
+            stringResource(
+                R.string.reporting_coupon_redemption
+            )
+
+        ReportActivityType.COUPON_REFUND ->
+            stringResource(
+                R.string.reporting_coupon_refund
+            )
+
+        ReportActivityType.COUPON_BONUS ->
+            stringResource(
+                R.string.reporting_coupon_bonus
+            )
+
+        ReportActivityType.COUPON_CREDIT_REPAYMENT ->
+            stringResource(
+                R.string.reporting_coupon_credit_repayment
+            )
+
+        ReportActivityType.REFUND ->
+            stringResource(
+                R.string.reporting_refund
+            )
+
+        ReportActivityType.EXPENSE ->
+            stringResource(
+                R.string.reporting_expense
+            )
+
+        ReportActivityType.VOID ->
+            stringResource(
+                R.string.reporting_void
+            )
+
+        ReportActivityType.AMOUNT_CORRECTION ->
+            stringResource(
+                R.string.reporting_amount_correction
+            )
+
+        ReportActivityType.PAYMENT_METHOD_CHANGE ->
+            stringResource(
+                R.string.reporting_payment_method_change
+            )
+    }
+
+@Composable
+private fun ReportingErrorState(
+    error: ReportingUiError,
+    onRetry: () -> Unit
+) {
+    val message =
+        when (error) {
+            ReportingUiError.ACCESS_DENIED ->
+                stringResource(
+                    R.string.reporting_access_denied
+                )
+
+            ReportingUiError.INTEGRITY ->
+                stringResource(
+                    R.string.reporting_integrity_error
+                )
+
+            ReportingUiError.INVALID_CUSTOM_PERIOD ->
+                stringResource(
+                    R.string.reporting_invalid_custom_period
+                )
+
+            ReportingUiError.LOAD_FAILED ->
+                stringResource(
+                    R.string.reporting_load_failed
+                )
+        }
+
+    Column(
+        modifier =
+            Modifier.fillMaxWidth(),
+        verticalArrangement =
+            Arrangement.spacedBy(8.dp)
+    ) {
+        Text(message)
+
+        OutlinedButton(
+            onClick = onRetry
+        ) {
+            Text(
+                stringResource(
+                    R.string.retry
+                )
+            )
+        }
+    }
+}

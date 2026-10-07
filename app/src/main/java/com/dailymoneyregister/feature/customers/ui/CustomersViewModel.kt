@@ -1,4 +1,4 @@
-﻿package com.dailymoneyregister.feature.customers.ui
+package com.dailymoneyregister.feature.customers.ui
 
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.device.DeviceIdentityProvider
@@ -17,6 +17,7 @@ import androidx.lifecycle.viewModelScope
 import com.dailymoneyregister.R
 import com.dailymoneyregister.core.database.dao.CustomerSummary
 import com.dailymoneyregister.core.database.entity.CustomerEntity
+import com.dailymoneyregister.core.database.entity.ExpenseEntity
 
 import com.dailymoneyregister.core.model.financial.FinancialTransactionView
 import com.dailymoneyregister.core.security.PermissionDeniedException
@@ -39,6 +40,7 @@ import javax.inject.Inject
 
 enum class CustomerListFilter {
     ALL,
+    PAYMENTS,
     CREDIT,
     COUPONS,
     INVOICES
@@ -76,6 +78,9 @@ data class CustomersUiState(
                 when (selectedFilter) {
                     CustomerListFilter.ALL ->
                         customers
+
+                    CustomerListFilter.PAYMENTS ->
+                        customers.filter { it.hasPayments }
 
                     CustomerListFilter.CREDIT ->
                         customers.filter { it.hasCredit }
@@ -200,8 +205,9 @@ class CustomersViewModel @Inject constructor(
                 reload()
                 _uiState.value = _uiState.value.copy(
                     isLinking = false,
-                    linkResult = UiText.Resource(
-                        R.string.customers_link_result,
+                    linkResult = UiText.Plural(
+                        R.plurals.customers_link_result,
+                        result.linked.toLong().coerceIn(0L, Int.MAX_VALUE.toLong()).toInt(),
                         listOf(result.linked, result.customersCreated, result.skipped)
                     )
                 )
@@ -227,6 +233,7 @@ data class CustomerDetailUiState(
     val isLoading: Boolean = true,
     val customer: CustomerEntity? = null,
     val transactions: List<FinancialTransactionView> = emptyList(),
+    val expenses: List<com.dailymoneyregister.feature.register.data.ExpenseReadProjection> = emptyList(),
     val creditHistory: List<com.dailymoneyregister.feature.customers.data.CustomerCreditHistoryRow> =
         emptyList(),
     val invoices: List<CustomerInvoiceRow> = emptyList(),
@@ -349,6 +356,7 @@ class CustomerDetailViewModel @Inject constructor(
                         isLoading = false,
                         customer = history.customer,
                         transactions = history.transactions,
+                        expenses = history.expenses,
                         creditHistory = history.creditHistory,
                         invoices = history.invoices,
 

@@ -18,6 +18,7 @@ import com.dailymoneyregister.feature.register.domain.DraftState
  * V1 = legacy payload without commandType, historical escaping.
  * V2 = CASH_SALE commandType, historical escaping.
  * V3 = CASH_SALE commandType, backslash-safe DurableEnvelopeCodec escaping.
+ * V4 = V3 plus optional authoritative customer identity intent.
  *
  * Recovery fails closed for unsupported versions/types rather than
  * guessing how a financial command should be interpreted.
@@ -28,7 +29,8 @@ object CashSalePayloadCodec {
 
     const val LEGACY_SCHEMA_VERSION = 1
     const val LEGACY_CURRENT_SCHEMA_VERSION = 2
-    const val CURRENT_SCHEMA_VERSION = 3
+    const val LEGACY_BACKSLASH_SCHEMA_VERSION = 3
+    const val CURRENT_SCHEMA_VERSION = 4
 
     fun encode(cmd: CashSaleCommand): String {
 
@@ -71,6 +73,14 @@ object CashSalePayloadCodec {
 
         sb.append("occurredAt=")
             .append(cmd.occurredAt)
+            .append("\n")
+
+        sb.append("customerName=")
+            .append(DurableEnvelopeCodec.escape(cmd.customerName ?: ""))
+            .append("\n")
+
+        sb.append("customerPhone=")
+            .append(DurableEnvelopeCodec.escape(cmd.customerPhone ?: ""))
             .append("\n")
 
         val d = cmd.draftState
@@ -262,6 +272,20 @@ object CashSalePayloadCodec {
         val occurredAt =
             requiredLong(map, "occurredAt")
 
+        val customerName =
+            if (op.commandSchemaVersion >= CURRENT_SCHEMA_VERSION) {
+                required(map, "customerName").ifBlank { null }
+            } else {
+                null
+            }
+
+        val customerPhone =
+            if (op.commandSchemaVersion >= CURRENT_SCHEMA_VERSION) {
+                required(map, "customerPhone").ifBlank { null }
+            } else {
+                null
+            }
+
         /*
          * The durable payload and operation envelope must describe
          * the same exact business intent.
@@ -434,7 +458,9 @@ object CashSalePayloadCodec {
             currencyCode = currencyCode,
             currencyDecimalPlaces = currencyDecimalPlaces,
             deviceId = deviceId,
-            occurredAt = occurredAt
+            occurredAt = occurredAt,
+            customerName = customerName,
+            customerPhone = customerPhone
         )
 
         if (verifyFingerprint) {
@@ -499,6 +525,7 @@ object CashSalePayloadCodec {
             }
 
             LEGACY_CURRENT_SCHEMA_VERSION,
+            LEGACY_BACKSLASH_SCHEMA_VERSION,
             CURRENT_SCHEMA_VERSION -> {
 
                 require(
@@ -553,6 +580,7 @@ object CashSalePayloadCodec {
         require(
             version == LEGACY_SCHEMA_VERSION ||
                 version == LEGACY_CURRENT_SCHEMA_VERSION ||
+                version == LEGACY_BACKSLASH_SCHEMA_VERSION ||
                 version == CURRENT_SCHEMA_VERSION
         ) {
             "Unsupported Cash Sale payload schema version: $version"

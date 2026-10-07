@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reporting_title">Ø±Ù¾ÙˆØ±Ù¹Ø³</string>
+    <string name="reporting_open">Ø±Ù¾ÙˆØ±Ù¹Ø³</string>
+    <string name="reporting_open_desc">Ù…Ø³ØªÙ†Ø¯ Ù…Ø§Ù„ÛŒ Ø³Ø±Ú¯Ø±Ù…ÛŒ Ø§ÙˆØ± Ø®Ù„Ø§ØµÛ’ Ø¯ÛŒÚ©Ú¾ÛŒÚº</string>
+    <string name="reporting_back">ÙˆØ§Ù¾Ø³</string>
+    <string name="reporting_today">Ø¢Ø¬</string>
+    <string name="reporting_yesterday">Ú¯Ø²Ø´ØªÛ Ø±ÙˆØ²</string>
+    <string name="reporting_this_week">Ø§Ø³ ÛÙØªÛ’</string>
+    <string name="reporting_this_month">Ø§Ø³ Ù…ÛÛŒÙ†Û’</string>
+    <string name="reporting_loading">Ø±Ù¾ÙˆØ±Ù¹Ø³ Ù„ÙˆÚˆ ÛÙˆ Ø±ÛÛŒ ÛÛŒÚºâ€¦</string>
+    <string name="reporting_no_activity">Ø§Ø³ Ù…Ø¯Øª Ù…ÛŒÚº Ú©ÙˆØ¦ÛŒ Ù…Ø§Ù„ÛŒ Ø³Ø±Ú¯Ø±Ù…ÛŒ Ù†ÛÛŒÚº ÛÛ’Û”</string>
+    <string name="reporting_access_denied">Ø¢Ù¾ Ú©Ùˆ Ø±Ù¾ÙˆØ±Ù¹Ø³ Ø¯ÛŒÚ©Ú¾Ù†Û’ Ú©ÛŒ Ø§Ø¬Ø§Ø²Øª Ù†ÛÛŒÚº ÛÛ’Û”</string>
+    <string name="reporting_integrity_error">Ù…Ø§Ù„ÛŒ Ø´ÙˆØ§ÛØ¯ Ú©Û’ Ø¬Ø§Ø¦Ø²Û’ Ú©ÛŒ Ø¶Ø±ÙˆØ±Øª Ú©Û’ Ø¨Ø§Ø¹Ø« Ø±Ù¾ÙˆØ±Ù¹Ø³ Ø¯Ø³ØªÛŒØ§Ø¨ Ù†ÛÛŒÚº ÛÛŒÚºÛ”</string>
+    <string name="reporting_load_failed">Ø±Ù¾ÙˆØ±Ù¹Ø³ Ù„ÙˆÚˆ Ù†ÛÛŒÚº ÛÙˆ Ø³Ú©ÛŒÚºÛ”</string>
+    <string name="reporting_activity_count">%1$d Ù…Ø§Ù„ÛŒ Ø³Ø±Ú¯Ø±Ù…ÛŒØ§Úº</string>
+    <string name="reporting_phase4a_foundation">ØªÙØµÛŒÙ„ÛŒ Ø±Ù¾ÙˆØ±Ù¹ Ú©ÛŒ Ù‚Ø·Ø§Ø±ÛŒÚº Ø§ÙˆØ± ÙÙ„Ù¹Ø± Ø§Ú¯Ù„Û’ Ø±Ù¾ÙˆØ±Ù¹Ù†Ú¯ Ù…Ø±Ø­Ù„Û’ Ù…ÛŒÚº Ø´Ø§Ù…Ù„ Ú©ÛŒÛ’ Ø¬Ø§Ø¦ÛŒÚº Ú¯Û’Û”</string>
+</resources>

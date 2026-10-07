@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sign_up">Sign Up</string>
+    <string name="choose_account_type">Choose your account type</string>
+    <string name="business_admin">Business Admin</string>
+    <string name="employee">Employee</string>
+    <string name="employee_invite_info">Ask your Admin to send you a WhatsApp invite.</string>
+    <string name="confirm_password">Confirm Password</string>
+    <string name="show_password">Show password</string>
+    <string name="hide_password">Hide password</string>
+    <string name="setup_step_your_details">Your details</string>
+    <string name="setup_step_business_branch">Business &amp; branch</string>
+    <string name="setup_step_country">Country</string>
+    <string name="setup_step_currency">Currency</string>
+    <string name="setup_step_timezone_tax">Timezone/tax</string>
+    <string name="setup_step_password">Password</string>
+    <string name="setup_step_done">Done</string>
+    <string name="admin_username">Username</string>
+    <string name="admin_personal_required">Full name, phone, and username are required.</string>
+    <string name="admin_password_too_short">Password must be at least 8 characters.</string>
+    <string name="business_already_exists">A business already exists on this device. Please log in.</string>
+    <string name="go_to_login">Go to Login</string>
+    <string name="invite_by_whatsapp">Invite by WhatsApp</string>
+    <string name="invite_branch">Branch</string>
+    <string name="create_invite">Create Invite</string>
+    <string name="invite_ready_for">Invite ready for %1$s</string>
+    <string name="invite_expiry_note">Valid for 48 hours, one use</string>
+    <string name="send_on_whatsapp">Send on WhatsApp</string>
+    <string name="copy_link">Copy link</string>
+    <string name="link_copied">Link copied</string>
+    <string name="invite_link_clip_label">Paid&amp;Due invite link</string>
+    <string name="staff_invite_whatsapp_message">%1$s\n\nYou have been invited to join as a cashier. Open this link to set up your PIN:\n%2$s\n\nThis link works once and expires in 48 hours.</string>
+</resources>

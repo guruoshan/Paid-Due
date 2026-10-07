@@ -1,4 +1,4 @@
-package com.dailymoneyregister
+﻿package com.dailymoneyregister
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
@@ -34,7 +34,7 @@ class CustomerIdentityResolveTest {
 
     @Before
     fun setUp() = runBlocking {
-        context = ApplicationProvider.getApplicationContext()
+        context = com.dailymoneyregister.isolatedAndroidTestContext(ApplicationProvider.getApplicationContext())
         trustedSessionStore = TrustedSessionStore(context)
         trustedSessionStore.clear()
         database = DmrDatabase.createInMemory(context)
@@ -135,3 +135,4 @@ class CustomerIdentityResolveTest {
         assertEquals(0, dao.getCustomersForBusiness(businessId).size)
     }
 }
+

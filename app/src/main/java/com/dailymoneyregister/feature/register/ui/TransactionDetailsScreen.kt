@@ -229,33 +229,33 @@ fun TransactionDetailsScreen(
                 details.creditRepaymentAllocations.size
         )
 
+    /*
+     * Financial eligibility comes from TransactionActionEligibilityResolver,
+     * which delegates to the authoritative *FinancialIntegrity validators.
+     * Permission and in-flight UI state remain separate presentation gates.
+     */
+    val actionEligibility =
+        details.actionEligibility
+
     val canCorrectAmount =
         correctAmountEnabled &&
-            !actionInProgress &&
-            !transaction.isVoided &&
-            transaction.refundedAmount.amount <
-                transaction.currentAmount.amount &&
-            (
-                transaction.currentPaymentCategory ==
-                    com.dailymoneyregister.core.model.enums.PaymentCategory.CASH ||
-                transaction.currentPaymentCategory ==
-                    com.dailymoneyregister.core.model.enums.PaymentCategory.ONLINE
-            )
+            actionEligibility.canCorrectAmount &&
+            !actionInProgress
+
     val canRefund =
         refundEnabled &&
-            !actionInProgress &&
-            !transaction.isVoided &&
-            transaction.netAmount.isPositive &&
-            creditReturnRoute !=
-                CreditReturnUiRoute.INVALID_CREDIT
-    val canVoid = voidEnabled && !actionInProgress &&
-        !transaction.isVoided && transaction.netAmount.isPositive &&
-        transaction.currentPaymentCategory in setOf(PaymentCategory.CASH, PaymentCategory.ONLINE)
-    val canChangePayment = changePaymentEnabled && !actionInProgress &&
-        !transaction.isVoided && transaction.netAmount.isPositive &&
-        transaction.currentPaymentCategory in setOf(PaymentCategory.CASH, PaymentCategory.ONLINE) &&
-        details.amountCorrections.isEmpty() && details.refundEvents.isEmpty() &&
-        details.creditRepaymentAllocations.isEmpty()
+            actionEligibility.canRefund &&
+            !actionInProgress
+
+    val canVoid =
+        voidEnabled &&
+            actionEligibility.canVoid &&
+            !actionInProgress
+
+    val canChangePayment =
+        changePaymentEnabled &&
+            actionEligibility.canChangePaymentMethod &&
+            !actionInProgress
     val scrollState = rememberScrollState()
 
     Column(
@@ -1794,6 +1794,12 @@ private fun settlementPurposeLabel(
             stringResource(
                 R.string.tx_settlement_void_reversal
             )
+
+        EntryPurpose.EXPENSE_OUTFLOW ->
+            "Expense payment"
+
+        EntryPurpose.EXPENSE_CORRECTION ->
+            "Expense correction"
     }
 }
 

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reporting_title">Reports</string>
+    <string name="reporting_open">Reports</string>
+    <string name="reporting_open_desc">Review authoritative financial activity and summaries</string>
+    <string name="reporting_back">Back</string>
+    <string name="reporting_today">Today</string>
+    <string name="reporting_yesterday">Yesterday</string>
+    <string name="reporting_this_week">This week</string>
+    <string name="reporting_this_month">This month</string>
+    <string name="reporting_loading">Loading reportsâ€¦</string>
+    <string name="reporting_no_activity">No financial activity in this period.</string>
+    <string name="reporting_access_denied">You do not have permission to view Reports.</string>
+    <string name="reporting_integrity_error">Reports are unavailable because financial evidence needs review.</string>
+    <string name="reporting_load_failed">Reports could not be loaded.</string>
+    <string name="reporting_activity_count">%1$d financial activities</string>
+    <string name="reporting_phase4a_foundation">Detailed report rows and filters arrive in the next Reporting phase.</string>
+</resources>

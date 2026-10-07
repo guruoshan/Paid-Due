@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="invite_loading">Checking invite…</string>
+    <string name="invite_activate_title">Activate your account</string>
+    <string name="invite_activate_subtitle">Set a 6-digit PIN to finish setting up.</string>
+    <string name="invite_label_business">Business</string>
+    <string name="invite_label_branch">Branch</string>
+    <string name="invite_label_role">Role</string>
+    <string name="invite_role_cashier">Cashier</string>
+    <string name="invite_label_phone">Phone</string>
+    <string name="invite_label_name">Name</string>
+    <string name="invite_pin_label">PIN (6 digits)</string>
+    <string name="invite_confirm_pin_label">Confirm PIN</string>
+    <string name="invite_activate_button">Activate account</string>
+    <string name="invite_invalid_message">This invite is no longer valid. Please ask your Admin to send you a new invite.</string>
+    <string name="invite_back">Back</string>
+    <string name="invite_pin_invalid">PIN must be exactly 6 digits.</string>
+    <string name="invite_pin_mismatch">PINs do not match.</string>
+    <string name="invite_activation_failed">Could not activate. Please ask your Admin to send you a new invite.</string>
+    <string name="invite_phone_exists">This phone number already has an account. Please log in instead.</string>
+</resources>

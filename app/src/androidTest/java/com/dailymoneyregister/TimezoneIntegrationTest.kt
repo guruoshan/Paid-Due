@@ -1,4 +1,4 @@
-package com.dailymoneyregister
+﻿package com.dailymoneyregister
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
@@ -35,7 +35,7 @@ class TimezoneIntegrationTest {
 
     @Before
     fun setUp() {
-        context = ApplicationProvider.getApplicationContext()
+        context = com.dailymoneyregister.isolatedAndroidTestContext(ApplicationProvider.getApplicationContext())
 
         trustedSessionStore = TrustedSessionStore(context)
         trustedSessionStore.clear()
@@ -113,3 +113,4 @@ class TimezoneIntegrationTest {
         )
     }
 }
+

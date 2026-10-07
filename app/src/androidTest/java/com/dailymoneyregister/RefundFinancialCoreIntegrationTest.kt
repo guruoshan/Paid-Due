@@ -41,6 +41,7 @@ import com.dailymoneyregister.feature.register.data.RefundCommand
 import com.dailymoneyregister.feature.register.data.RefundDestinationMismatchException
 import com.dailymoneyregister.feature.register.data.RefundFinancialIntegrity
 import com.dailymoneyregister.feature.register.data.RefundFinancialPrecondition
+import com.dailymoneyregister.feature.register.data.RefundCouponDestination
 import com.dailymoneyregister.feature.register.data.RefundPayloadCodec
 import com.dailymoneyregister.feature.register.data.RefundUnsupportedCouponException
 import com.dailymoneyregister.feature.register.data.RefundUnsupportedCreditException
@@ -1054,38 +1055,14 @@ class RefundFinancialCoreIntegrationTest {
             val refundSettlements =
                 refundOutflows(tx.id)
 
+            /*
+             * An unpaid Credit return has no externally collected value.
+             * Production records the RefundEvent plus a CreditLedger
+             * adjustment, but must not invent a REFUND_OUTFLOW settlement.
+             */
             assertEquals(
-                1,
+                0,
                 refundSettlements.size
-            )
-
-            val settlement =
-                refundSettlements.single()
-
-            assertEquals(
-                PaymentCategory.CREDIT,
-                settlement.category
-            )
-
-            assertEquals(
-                PaymentChannel.CREDIT_ACCOUNT,
-                settlement.channel
-            )
-
-            assertEquals(
-                -3_000L,
-                settlement.amountSignedMinor
-            )
-
-            assertTrue(
-                refundSettlements.none {
-                    it.category ==
-                        PaymentCategory.CASH ||
-                        it.category ==
-                        PaymentCategory.ONLINE ||
-                        it.category ==
-                        PaymentCategory.COUPON
-                }
             )
 
             val adjustments =
@@ -1167,7 +1144,7 @@ class RefundFinancialCoreIntegrationTest {
             )
 
             assertEquals(
-                1,
+                0,
                 refundOutflows(tx.id).size
             )
 
@@ -2631,6 +2608,13 @@ class RefundFinancialCoreIntegrationTest {
                         PaymentCategory.COUPON,
                     channel =
                         PaymentChannel.COUPON_WALLET,
+                    couponDestination =
+                        RefundCouponDestination(
+                            customerId = scenario.customer.id,
+                            customerName = scenario.customer.name,
+                            canonicalPhone = scenario.customer.canonicalPhone,
+                            createCustomer = false
+                        ),
                     occurredAt =
                         scenario.returnAt,
                     reason =
@@ -2871,6 +2855,13 @@ class RefundFinancialCoreIntegrationTest {
                         PaymentCategory.COUPON,
                     channel =
                         PaymentChannel.COUPON_WALLET,
+                    couponDestination =
+                        RefundCouponDestination(
+                            customerId = scenario.customer.id,
+                            customerName = scenario.customer.name,
+                            canonicalPhone = scenario.customer.canonicalPhone,
+                            createCustomer = false
+                        ),
                     occurredAt =
                         scenario.returnAt,
                     reason =
@@ -3418,6 +3409,17 @@ class RefundFinancialCoreIntegrationTest {
                             destination.category,
                         channel =
                             destination.channel,
+                        couponDestination =
+                            if (destination.category == PaymentCategory.COUPON) {
+                                RefundCouponDestination(
+                                    customerId = scenario.customer.id,
+                                    customerName = scenario.customer.name,
+                                    canonicalPhone = scenario.customer.canonicalPhone,
+                                    createCustomer = false
+                                )
+                            } else {
+                                null
+                            },
                         occurredAt =
                             scenario.returnAt,
                         reason =
@@ -4543,6 +4545,7 @@ class RefundFinancialCoreIntegrationTest {
             PaymentCategory.CASH,
         channel: PaymentChannel =
             PaymentChannel.CASH_TENDER,
+        couponDestination: RefundCouponDestination? = null,
         occurredAt: Long =
             System.currentTimeMillis(),
         reason: String? = null
@@ -4568,6 +4571,8 @@ class RefundFinancialCoreIntegrationTest {
                 category,
             destinationChannel =
                 channel,
+            couponDestination =
+                couponDestination,
             reason =
                 reason
         )

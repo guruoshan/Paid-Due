@@ -1,13 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="customers_unlinked_banner">%1$d من الفواتير الأقدم غير مرتبطة بعميل بعد.</string>
+    <plurals name="customers_unlinked_banner">
+        <item quantity="zero">%1$d من الفواتير الأقدم غير مرتبطة بعميل بعد.</item>
+        <item quantity="one">%1$d من الفواتير الأقدم غير مرتبطة بعميل بعد.</item>
+        <item quantity="two">%1$d من الفواتير الأقدم غير مرتبطة بعميل بعد.</item>
+        <item quantity="few">%1$d من الفواتير الأقدم غير مرتبطة بعميل بعد.</item>
+        <item quantity="many">%1$d من الفواتير الأقدم غير مرتبطة بعميل بعد.</item>
+        <item quantity="other">%1$d من الفواتير الأقدم غير مرتبطة بعميل بعد.</item>
+    </plurals>
     <string name="customers_unlinked_action">ربطها</string>
     <string name="customers_link_confirm_title">ربط الفواتير الأقدم؟</string>
     <string name="customers_link_confirm_body">سيتم ربط كل فاتورة أقدم بعميل باستخدام رقم الهاتف والاسم المحفوظين في تلك الفاتورة. سيتم إنشاء العملاء غير الموجودين. لن تتغير الفواتير أو المدفوعات أو العملاء الحاليون.</string>
     <string name="customers_link_confirm_action">ربط</string>
-    <string name="customers_link_result">تم ربط %1$d فاتورة. عملاء جدد تم إنشاؤهم: %2$d. تم تخطي: %3$d.</string>
+    <plurals name="customers_link_result">
+        <item quantity="zero">تم ربط %1$d فاتورة. عملاء جدد تم إنشاؤهم: %2$d. تم تخطي: %3$d.</item>
+        <item quantity="one">تم ربط %1$d فاتورة. عملاء جدد تم إنشاؤهم: %2$d. تم تخطي: %3$d.</item>
+        <item quantity="two">تم ربط %1$d فاتورة. عملاء جدد تم إنشاؤهم: %2$d. تم تخطي: %3$d.</item>
+        <item quantity="few">تم ربط %1$d فاتورة. عملاء جدد تم إنشاؤهم: %2$d. تم تخطي: %3$d.</item>
+        <item quantity="many">تم ربط %1$d فاتورة. عملاء جدد تم إنشاؤهم: %2$d. تم تخطي: %3$d.</item>
+        <item quantity="other">تم ربط %1$d فاتورة. عملاء جدد تم إنشاؤهم: %2$d. تم تخطي: %3$d.</item>
+    </plurals>
     <string name="customers_link_error">تعذر ربط الفواتير: %1$s</string>
     <string name="customers_invoice_options_hint">شارك هذه الفاتورة مرة أخرى بصيغة PDF.</string>
-    <string name="customers_preparing_pdf">جارٍ تجهيز ملف PDF...</string>
+    <string name="customers_preparing_pdf">جارٍ تجهيز ملف PDF…</string>
     <string name="customers_share_error">تعذر تجهيز الفاتورة: %1$s</string>
 </resources>

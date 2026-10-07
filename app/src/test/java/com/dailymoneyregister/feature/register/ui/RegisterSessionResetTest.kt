@@ -35,8 +35,8 @@ class RegisterSessionResetTest {
                 txPacking = MoneyMinorUnits(500L)
             ),
             manualDescription = "Branch A unsaved sale",
-            isTaxDialogOpen = true,
-            isShippingPackingDialogOpen = true,
+            destination = RegisterDestination.History,
+            overlay = RegisterOverlay.ShippingPacking(returnToItemizedBill = false),
             isRecentTransactionsExpanded = true
         )
 
@@ -65,10 +65,8 @@ class RegisterSessionResetTest {
         assertFalse(reset.draftState.isTaxEnabled)
 
         assertEquals("", reset.manualDescription)
-        assertFalse(reset.isTaxDialogOpen)
-        assertFalse(reset.isShippingPackingDialogOpen)
-        assertFalse(reset.isItemizedBillDialogOpen)
-        assertFalse(reset.isAddItemDialogOpen)
+        assertEquals(RegisterDestination.Register, reset.destination)
+        assertNull(reset.overlay)
 
         assertNull(reset.inFlightSaleCommand)
         assertNull(reset.lastCompletedTransaction)

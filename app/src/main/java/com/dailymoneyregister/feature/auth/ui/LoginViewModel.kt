@@ -166,7 +166,7 @@ class LoginViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             lockoutSecondsRemaining = seconds,
             pin = "",
-            errorMessage = UiText.Resource(R.string.locked_out_msg, listOf(seconds))
+            errorMessage = UiText.Plural(R.plurals.locked_out_msg, seconds.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt(), listOf(seconds))
         )
 
         countdownJob = viewModelScope.launch {

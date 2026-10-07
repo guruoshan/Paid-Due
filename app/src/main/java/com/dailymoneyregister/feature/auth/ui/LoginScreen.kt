@@ -17,12 +17,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dailymoneyregister.R
 import com.dailymoneyregister.core.security.ActiveSession
+import com.dailymoneyregister.core.ui.PasswordField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,12 +91,10 @@ fun LoginScreen(
 
             if (state.mode == LoginMode.ADMIN) {
                 // Admin Password Form
-                OutlinedTextField(
+                PasswordField(
                     value = state.password,
                     onValueChange = { viewModel.onPasswordChanged(it) },
-                    label = { Text(stringResource(R.string.password)) },
-                    visualTransformation = PasswordVisualTransformation(),
-                    singleLine = true,
+                    label = stringResource(R.string.password),
                     modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
                 )
 

@@ -9,7 +9,17 @@ import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.dailymoneyregister.R
 import com.dailymoneyregister.feature.invoice.data.IssuedInvoice
+import com.dailymoneyregister.feature.customers.ui.PreparedWhatsAppMessage
+import com.dailymoneyregister.feature.customers.ui.UniversalWhatsAppMessageComposer
+import com.dailymoneyregister.feature.customers.ui.WhatsAppAttachment
+import com.dailymoneyregister.feature.customers.ui.WhatsAppTransport
 import java.io.File
+import java.math.BigDecimal
+import java.math.RoundingMode
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * Launches the Android share sheet / WhatsApp for a rendered invoice PDF.
@@ -35,11 +45,21 @@ object InvoiceSharing {
         val s = invoice.snapshot
         val uri = uriFor(context, file)
 
-        val message = context.getString(
-            R.string.inv_pdf_whatsapp_message,
-            s.customer.name,
-            invoice.displayNumber,
-            s.business.name ?: context.getString(R.string.app_name)
+        val message = UniversalWhatsAppMessageComposer.compose(
+            UniversalWhatsAppMessageComposer.Invoice(
+                party = UniversalWhatsAppMessageComposer.Party(
+                    businessName = s.business.name ?: context.getString(R.string.app_name),
+                    customerName = s.customer.name,
+                    customerPhone = s.customer.phone
+                ),
+                formattedAmount = formatInvoiceMoney(
+                    amountMinor = s.grandTotalMinor,
+                    currencyCode = s.currencyCode,
+                    decimalPlaces = s.currencyDecimalPlaces
+                ),
+                reference = invoice.displayNumber,
+                documentDateTime = formatInvoiceDateTime(s.createdAt)
+            )
         )
 
         // WhatsApp does not always honour EXTRA_TEXT together with a PDF,
@@ -48,40 +68,35 @@ object InvoiceSharing {
         clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.invoice), message))
         Toast.makeText(context, R.string.inv_pdf_message_copied, Toast.LENGTH_LONG).show()
 
-        val phoneDigits = s.customer.phone.filter(Char::isDigit)
-
-        fun send(packageName: String?): Boolean = runCatching {
-            val intent = buildSendIntent(context, uri, message).apply {
-                if (phoneDigits.isNotEmpty()) {
-                    // Best-effort recipient hint. WhatsApp may ignore it.
-                    putExtra("jid", "$phoneDigits@s.whatsapp.net")
-                }
-                if (packageName != null) setPackage(packageName)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            true
-        }.getOrDefault(false)
-
-        if (send("com.whatsapp")) return
-        if (send("com.whatsapp.w4b")) return
-
-        val fallback = buildSendIntent(context, uri, message)
-        context.startActivity(
-            Intent.createChooser(fallback, context.getString(R.string.inv_pdf_share_chooser))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        WhatsAppTransport.share(
+            context = context,
+            prepared = PreparedWhatsAppMessage(
+                text = message,
+                recipientPhone = s.customer.phone,
+                attachment = WhatsAppAttachment(
+                    contentUri = uri,
+                    mimeType = "application/pdf",
+                    subject = context.getString(R.string.invoice)
+                )
+            ),
+            chooserTitle = context.getString(R.string.inv_pdf_share_chooser)
         )
     }
 
-    private fun buildSendIntent(context: Context, uri: Uri, message: String) =
-        Intent(Intent.ACTION_SEND).apply {
-            type = "application/pdf"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_TEXT, message)
-            putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.invoice))
-            clipData = ClipData.newUri(context.contentResolver, context.getString(R.string.invoice), uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
+    private fun formatInvoiceMoney(
+        amountMinor: Long,
+        currencyCode: String,
+        decimalPlaces: Int
+    ): String = "$currencyCode " + BigDecimal.valueOf(amountMinor)
+        .movePointLeft(decimalPlaces)
+        .setScale(decimalPlaces, RoundingMode.UNNECESSARY)
+        .toPlainString()
+
+    private fun formatInvoiceDateTime(createdAt: Long): String =
+        DateTimeFormatter
+            .ofPattern("dd MMM yyyy, hh:mm a", Locale.getDefault())
+            .withZone(ZoneId.systemDefault())
+            .format(Instant.ofEpochMilli(createdAt))
 
     private fun uriFor(context: Context, file: File) =
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)

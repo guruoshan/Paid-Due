@@ -15,6 +15,7 @@ import com.dailymoneyregister.core.database.dao.DocumentMediaDao
 import com.dailymoneyregister.core.database.dao.LedgerDao
 import com.dailymoneyregister.core.database.dao.OperationDao
 import com.dailymoneyregister.core.database.dao.ProductDao
+import com.dailymoneyregister.core.database.dao.ReportingReadDao
 import com.dailymoneyregister.core.database.dao.TransactionDao
 import com.dailymoneyregister.core.database.dao.UserDao
 import com.dailymoneyregister.core.database.entity.AmountCorrectionEventEntity
@@ -31,6 +32,7 @@ import com.dailymoneyregister.core.database.entity.CreditRepaymentAllocationEnti
 import com.dailymoneyregister.core.database.entity.CreditRepaymentEntity
 import com.dailymoneyregister.core.database.entity.CustomerEntity
 import com.dailymoneyregister.core.database.entity.DocumentEntity
+import com.dailymoneyregister.core.database.entity.DocumentMediaLinkEntity
 import com.dailymoneyregister.core.database.entity.MediaAssetEntity
 import com.dailymoneyregister.core.database.entity.MerchantQrConfigEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
@@ -43,7 +45,12 @@ import com.dailymoneyregister.core.database.entity.TransactionItemEntity
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.entity.HumanIdentityEntity
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
-import com.dailymoneyregister.core.database.entity.VoidEventEntity
+import com.dailymoneyregister.core.database.entity.VoidEventEntity
+import com.dailymoneyregister.core.database.entity.ExpenseEntity
+import com.dailymoneyregister.core.database.entity.ExpenseEventEntity
+import com.dailymoneyregister.core.database.entity.ExpensePayeeEntity
+import com.dailymoneyregister.core.database.entity.ExpenseRecurrenceEntity
+import com.dailymoneyregister.core.database.dao.ExpenseDao
 
 @Database(
     entities = [
@@ -59,7 +66,12 @@ import com.dailymoneyregister.core.database.entity.VoidEventEntity
         CouponAuthorizedUserEventEntity::class,
         CashShiftEntity::class,
         CashShiftEventEntity::class,
+        ExpensePayeeEntity::class,
+        ExpenseEntity::class,
+        ExpenseEventEntity::class,
+        ExpenseRecurrenceEntity::class,
         MediaAssetEntity::class,
+        DocumentMediaLinkEntity::class,
         MerchantQrConfigEntity::class,
         OperationEntity::class,
         TransactionEntity::class,
@@ -75,7 +87,7 @@ import com.dailymoneyregister.core.database.entity.VoidEventEntity
         CreditRepaymentEntity::class,
         CreditRepaymentAllocationEntity::class
     ],
-    version = 9,
+    version = 12,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -88,8 +100,10 @@ abstract class DmrDatabase : RoomDatabase() {
     abstract fun ledgerDao(): LedgerDao
     abstract fun customerDao(): CustomerDao
     abstract fun cashShiftDao(): CashShiftDao
+    abstract fun expenseDao(): ExpenseDao
     abstract fun documentMediaDao(): DocumentMediaDao
     abstract fun productDao(): ProductDao
+    abstract fun reportingReadDao(): ReportingReadDao
 
     companion object {
         internal const val DB_NAME = "daily_money_register.db"
@@ -416,7 +430,177 @@ abstract class DmrDatabase : RoomDatabase() {
             }
         }
 
+        /**
+
+         * BOARDLOCK cashier shift attribution foundation.
+
+         *
+
+         * Historical operations remain NULL. Historical shift identity
+
+         * is never reconstructed or guessed.
+
+         */
+
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+
+            override fun migrate(db: SupportSQLiteDatabase) {
+
+                db.execSQL(
+
+                    "ALTER TABLE operations ADD COLUMN cash_shift_id TEXT"
+
+                )
+
+
+                db.execSQL(
+
+                    "CREATE INDEX IF NOT EXISTS index_operations_cash_shift_id " +
+
+                        "ON operations(cash_shift_id)"
+
+                )
+
+            }
+
+        }
+
+
+
+        val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `expense_payees` (
+                        `id` TEXT NOT NULL,
+                        `business_id` TEXT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `normalized_name` TEXT NOT NULL,
+                        `canonical_phone` TEXT,
+                        `account_reference` TEXT,
+                        `payee_type` TEXT NOT NULL,
+                        `created_at` INTEGER NOT NULL,
+                        `created_by_user_id` TEXT NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expense_payees_business_id_normalized_name` ON `expense_payees` (`business_id`, `normalized_name`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expense_payees_business_id_canonical_phone` ON `expense_payees` (`business_id`, `canonical_phone`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expense_payees_business_id_account_reference` ON `expense_payees` (`business_id`, `account_reference`)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `expenses` (
+                        `id` TEXT NOT NULL,
+                        `operation_id` TEXT NOT NULL,
+                        `business_id` TEXT NOT NULL,
+                        `branch_id` TEXT NOT NULL,
+                        `cash_shift_id` TEXT,
+                        `actor_user_id` TEXT NOT NULL,
+                        `payee_id` TEXT,
+                        `payee_name_snapshot` TEXT NOT NULL,
+                        `payee_phone_snapshot` TEXT,
+                        `payee_account_snapshot` TEXT,
+                        `category` TEXT NOT NULL,
+                        `amount_minor` INTEGER NOT NULL,
+                        `payment_category` TEXT NOT NULL,
+                        `currency_code` TEXT NOT NULL,
+                        `reference` TEXT,
+                        `note` TEXT,
+                        `recurrence_id` TEXT,
+                        `occurred_at` INTEGER NOT NULL,
+                        `created_at` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expenses_business_id_branch_id_occurred_at` ON `expenses` (`business_id`, `branch_id`, `occurred_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expenses_payee_id` ON `expenses` (`payee_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expenses_cash_shift_id` ON `expenses` (`cash_shift_id`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_expenses_operation_id` ON `expenses` (`operation_id`)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `expense_events` (
+                        `id` TEXT NOT NULL,
+                        `expense_id` TEXT NOT NULL,
+                        `operation_id` TEXT NOT NULL,
+                        `event_type` TEXT NOT NULL,
+                        `actor_user_id` TEXT NOT NULL,
+                        `previous_amount_minor` INTEGER,
+                        `new_amount_minor` INTEGER,
+                        `previous_payment_category` TEXT,
+                        `new_payment_category` TEXT,
+                        `previous_category` TEXT,
+                        `new_category` TEXT,
+                        `previous_payee_id` TEXT,
+                        `new_payee_id` TEXT,
+                        `reason` TEXT,
+                        `occurred_at` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expense_events_expense_id_occurred_at` ON `expense_events` (`expense_id`, `occurred_at`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_expense_events_operation_id` ON `expense_events` (`operation_id`)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `expense_recurrences` (
+                        `id` TEXT NOT NULL,
+                        `business_id` TEXT NOT NULL,
+                        `branch_id` TEXT NOT NULL,
+                        `payee_id` TEXT,
+                        `category` TEXT NOT NULL,
+                        `default_amount_minor` INTEGER,
+                        `default_payment_category` TEXT,
+                        `frequency` TEXT NOT NULL,
+                        `next_due_at` INTEGER NOT NULL,
+                        `is_active` INTEGER NOT NULL,
+                        `created_at` INTEGER NOT NULL,
+                        `created_by_user_id` TEXT NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expense_recurrences_business_id_branch_id` ON `expense_recurrences` (`business_id`, `branch_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expense_recurrences_payee_id` ON `expense_recurrences` (`payee_id`)")
+            }
+        }
+        val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `document_media_links` (
+                        `document_id` TEXT NOT NULL,
+                        `media_id` TEXT NOT NULL,
+                        `position` INTEGER NOT NULL,
+                        `created_at` INTEGER NOT NULL,
+                        PRIMARY KEY(`document_id`, `media_id`),
+                        FOREIGN KEY(`document_id`) REFERENCES `documents`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT,
+                        FOREIGN KEY(`media_id`) REFERENCES `media_assets`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_document_media_links_document_id` " +
+                        "ON `document_media_links` (`document_id`)"
+                )
+
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_document_media_links_media_id` " +
+                        "ON `document_media_links` (`media_id`)"
+                )
+            }
+        }
         @Volatile
+
         private var INSTANCE: DmrDatabase? = null
 
         fun getInstance(context: Context): DmrDatabase {
@@ -453,6 +637,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                             .addCallback(FinancialImmutabilityCallback)
                             .build()
                     } catch (e: Exception) {
@@ -478,6 +663,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()

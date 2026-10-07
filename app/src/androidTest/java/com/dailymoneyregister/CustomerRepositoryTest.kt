@@ -1,4 +1,4 @@
-package com.dailymoneyregister
+﻿package com.dailymoneyregister
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
@@ -57,7 +57,7 @@ class CustomerRepositoryTest {
 
     @Before
     fun setUp() = runBlocking {
-        context = ApplicationProvider.getApplicationContext()
+        context = com.dailymoneyregister.isolatedAndroidTestContext(ApplicationProvider.getApplicationContext())
         trustedSessionStore = TrustedSessionStore(context)
         trustedSessionStore.clear()
         database = DmrDatabase.createInMemory(context)
@@ -259,3 +259,4 @@ class CustomerRepositoryTest {
         const val PHONE_NOBODY = "+96895550000"
     }
 }
+

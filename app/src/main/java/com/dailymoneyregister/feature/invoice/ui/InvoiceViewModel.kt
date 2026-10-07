@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailymoneyregister.R
 import com.dailymoneyregister.core.command.CommandResult
-import com.dailymoneyregister.core.database.dao.CustomerDao
 import com.dailymoneyregister.core.device.DeviceIdentityProvider
 import com.dailymoneyregister.core.identity.InvalidPhoneNumberException
 import com.dailymoneyregister.core.model.ids.IdGenerator
@@ -61,7 +60,6 @@ data class InvoiceUiState(
 @HiltViewModel
 class InvoiceViewModel @Inject constructor(
     private val invoiceRepository: InvoiceRepository,
-    private val customerDao: CustomerDao,
     private val deviceIdentityProvider: DeviceIdentityProvider
 ) : ViewModel() {
 
@@ -72,16 +70,17 @@ class InvoiceViewModel @Inject constructor(
 
     /** UI gate only. The repository enforces the real permission check again. */
     fun canIssueInvoice(): Boolean {
-        val session = SessionManager.currentSession.value ?: return false
-        if (session.requiresPinChange) return false
         return PermissionChecker.isPermitted(
-            session.user,
-            session.membership,
+            SessionManager.currentSession.value,
             PermissionAction.ISSUE_INVOICE
         )
     }
 
     fun openForm() {
+        if (!canIssueInvoice()) {
+            fail(generic("Permission denied"))
+            return
+        }
         val branch = SessionManager.activeBranch ?: return
         val phone = try {
             PhoneNumberInputValue(countryCode = branch.countryCode.uppercase())
@@ -131,7 +130,7 @@ class InvoiceViewModel @Inject constructor(
 
         lookupJob = viewModelScope.launch {
             val customer = try {
-                customerDao.getCustomerByPhone(businessId, normalized)
+                invoiceRepository.findCustomerByPhone(businessId, normalized)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -149,6 +148,11 @@ class InvoiceViewModel @Inject constructor(
     fun issue(draft: DraftState) {
         val current = _uiState.value
         if (current.isIssuing) return
+
+        if (!canIssueInvoice()) {
+            fail(generic("Permission denied"))
+            return
+        }
 
         val session = SessionManager.currentSession.value
         if (session == null) {
@@ -255,6 +259,10 @@ class InvoiceViewModel @Inject constructor(
     private var renderedInvoiceCache: IssuedInvoice? = null
 
     private fun launchShare(context: Context, onReady: (File) -> Unit) {
+        if (!canIssueInvoice()) {
+            fail(generic("Permission denied"))
+            return
+        }
         val documentId = _uiState.value.issuedDocumentId ?: return
         if (_uiState.value.isPreparingShare) return
 

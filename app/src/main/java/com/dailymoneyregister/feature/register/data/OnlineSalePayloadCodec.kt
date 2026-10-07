@@ -14,7 +14,8 @@ import com.dailymoneyregister.feature.register.domain.DraftState
 
 object OnlineSalePayloadCodec {
     const val COMMAND_TYPE = "ONLINE_SALE"
-    const val CURRENT_SCHEMA_VERSION = 1
+    const val LEGACY_SCHEMA_VERSION = 1
+    const val CURRENT_SCHEMA_VERSION = 2
 
     fun encode(cmd: OnlineSaleCommand): String = buildString {
         appendLine("v=$CURRENT_SCHEMA_VERSION")
@@ -28,6 +29,8 @@ object OnlineSalePayloadCodec {
         appendLine("currencyDecimalPlaces=${cmd.currencyDecimalPlaces}")
         appendLine("deviceId=${DurableEnvelopeCodec.escape(cmd.deviceId)}")
         appendLine("occurredAt=${cmd.occurredAt}")
+        appendLine("customerName=${DurableEnvelopeCodec.escape(cmd.customerName ?: "")}")
+        appendLine("customerPhone=${DurableEnvelopeCodec.escape(cmd.customerPhone ?: "")}")
         val d = cmd.draftState
         appendLine("manualAmount=${d.manualAmount.amount}")
         appendLine("manualDescription=${DurableEnvelopeCodec.escape(d.manualDescription ?: "")}")
@@ -64,7 +67,7 @@ object OnlineSalePayloadCodec {
             deviceId = required(parse(intentPayload), "deviceId"),
             occurredAt = requiredLong(parse(intentPayload), "occurredAt"),
             requestFingerprint = "",
-            commandSchemaVersion = CURRENT_SCHEMA_VERSION,
+            commandSchemaVersion = requiredInt(parse(intentPayload), "v"),
             intentPayload = intentPayload,
             status = OperationStatus.PENDING
         ),
@@ -84,6 +87,16 @@ object OnlineSalePayloadCodec {
         val decimalPlaces = requiredInt(map, "currencyDecimalPlaces")
         val deviceId = required(map, "deviceId")
         val occurredAt = requiredLong(map, "occurredAt")
+        val customerName = if (op.commandSchemaVersion >= CURRENT_SCHEMA_VERSION) {
+            required(map, "customerName").ifBlank { null }
+        } else {
+            null
+        }
+        val customerPhone = if (op.commandSchemaVersion >= CURRENT_SCHEMA_VERSION) {
+            required(map, "customerPhone").ifBlank { null }
+        } else {
+            null
+        }
         require(operationId == op.id) { "Online Sale payload operationId does not match Operation row." }
         require(businessId == op.businessId) { "Online Sale payload businessId does not match Operation row." }
         require(branchId == op.branchId) { "Online Sale payload branchId does not match Operation row." }
@@ -126,7 +139,9 @@ object OnlineSalePayloadCodec {
             currencyCode = currencyCode,
             currencyDecimalPlaces = decimalPlaces,
             deviceId = deviceId,
-            occurredAt = occurredAt
+            occurredAt = occurredAt,
+            customerName = customerName,
+            customerPhone = customerPhone
         )
         if (verifyFingerprint) require(command.requestFingerprint == op.requestFingerprint) {
             "Online Sale recovery fingerprint does not match the persisted Operation."
@@ -140,7 +155,7 @@ object OnlineSalePayloadCodec {
         val map = parse(op.intentPayload)
         require(requiredInt(map, "v") == CURRENT_SCHEMA_VERSION) { "Unsupported Online Sale payload schema version." }
         require(required(map, "commandType") == COMMAND_TYPE) { "Operation '${op.id}' is not an ONLINE_SALE command." }
-        require(op.commandSchemaVersion == CURRENT_SCHEMA_VERSION) { "Online Sale schema version mismatch." }
+        require(op.commandSchemaVersion == LEGACY_SCHEMA_VERSION || op.commandSchemaVersion == CURRENT_SCHEMA_VERSION) { "Online Sale schema version mismatch." }
         return map
     }
 

@@ -48,8 +48,8 @@ fun RegisterSecondaryActionBar(
             ) {
                 rowActions.forEach { (label, action) ->
                     val displayLabel = when (label) {
-                        R.string.clear -> "Day Closing"
-                        R.string.share -> "Expenses"
+                        R.string.clear -> stringResource(R.string.dmr20_day_closing)
+                        R.string.share -> stringResource(R.string.dmr20_expenses)
                         else -> stringResource(label)
                     }
 

@@ -356,7 +356,7 @@ class RegisterViewModelSessionTest {
     private fun viewModel(
         execute: suspend (CashSaleCommand, UserAccountEntity, UserBranchMembershipEntity?) -> CommandResult<TransactionEntity> =
             { _, _, _ -> error("No sale should be admitted") }
-    ): RegisterViewModel = RegisterViewModel(
+    ): RegisterViewModel = com.dailymoneyregister.feature.register.ui.testRegisterViewModel(
         observeToday = { _, _ -> flowOf(emptyList()) },
         executeSale = execute,
         deviceId = { "test-device" }
@@ -388,10 +388,8 @@ class RegisterViewModelSessionTest {
         assertEquals(0, state.draftState.taxRateBps)
         assertEquals(rounding, state.draftState.taxRoundingMode)
         assertFalse(state.draftState.isTaxEnabled)
-        assertFalse(state.isTaxDialogOpen)
-        assertFalse(state.isShippingPackingDialogOpen)
-        assertFalse(state.isItemizedBillDialogOpen)
-        assertFalse(state.isAddItemDialogOpen)
+        assertEquals(RegisterDestination.Register, state.destination)
+        assertNull(state.overlay)
         assertFalse(state.isExecuting)
         assertNull(state.inFlightSaleCommand)
         assertNull(state.lastCompletedTransaction)

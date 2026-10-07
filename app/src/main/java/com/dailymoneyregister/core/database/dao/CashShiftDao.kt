@@ -1,4 +1,4 @@
-package com.dailymoneyregister.core.database.dao
+﻿package com.dailymoneyregister.core.database.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
@@ -21,6 +21,20 @@ interface CashShiftDao {
 
     @Query("SELECT * FROM cash_shifts WHERE branch_id = :branchId ORDER BY created_at DESC LIMIT 1")
     suspend fun getLatestShiftForBranch(branchId: String): CashShiftEntity?
+
+    @Query(
+        """
+        SELECT * FROM cash_shifts
+        WHERE branch_id = :branchId
+          AND user_id = :userId
+        ORDER BY created_at DESC
+        LIMIT 1
+        """
+    )
+    suspend fun getLatestShiftForCashier(
+        branchId: String,
+        userId: String
+    ): CashShiftEntity?
 
     @Query("SELECT * FROM cash_shift_events WHERE shift_id = :shiftId ORDER BY occurred_at ASC")
     suspend fun getEventsForShift(shiftId: String): List<CashShiftEventEntity>

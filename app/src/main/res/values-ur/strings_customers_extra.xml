@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="customers_unlinked_banner">%1$d پرانی انوائسز ابھی کسی گاہک سے منسلک نہیں ہیں۔</string>
+    <plurals name="customers_unlinked_banner">
+        <item quantity="one">%1$d پرانی انوائسز ابھی کسی گاہک سے منسلک نہیں ہیں۔</item>
+        <item quantity="other">%1$d پرانی انوائسز ابھی کسی گاہک سے منسلک نہیں ہیں۔</item>
+    </plurals>
     <string name="customers_unlinked_action">منسلک کریں</string>
     <string name="customers_link_confirm_title">پرانی انوائسز منسلک کریں؟</string>
     <string name="customers_link_confirm_body">ہر پرانی انوائس کو اس انوائس میں محفوظ فون نمبر اور نام کے ذریعے گاہک سے منسلک کیا جائے گا۔ جو گاہک ابھی موجود نہیں، وہ بنائے جائیں گے۔ انوائسز، ادائیگیاں اور موجودہ گاہک تبدیل نہیں ہوں گے۔</string>
     <string name="customers_link_confirm_action">منسلک کریں</string>
-    <string name="customers_link_result">%1$d انوائسز منسلک ہوئیں۔ نئے گاہک بنائے گئے: %2$d۔ چھوڑی گئیں: %3$d۔</string>
+    <plurals name="customers_link_result">
+        <item quantity="one">%1$d انوائسز منسلک ہوئیں۔ نئے گاہک بنائے گئے: %2$d۔ چھوڑی گئیں: %3$d۔</item>
+        <item quantity="other">%1$d انوائسز منسلک ہوئیں۔ نئے گاہک بنائے گئے: %2$d۔ چھوڑی گئیں: %3$d۔</item>
+    </plurals>
     <string name="customers_link_error">انوائسز منسلک نہیں ہو سکیں: %1$s</string>
     <string name="customers_invoice_options_hint">اس انوائس کو دوبارہ PDF کے طور پر شیئر کریں۔</string>
-    <string name="customers_preparing_pdf">PDF تیار ہو رہی ہے...</string>
+    <string name="customers_preparing_pdf">PDF تیار ہو رہی ہے…</string>
     <string name="customers_share_error">انوائس تیار نہیں ہو سکی: %1$s</string>
 </resources>

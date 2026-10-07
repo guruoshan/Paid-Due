@@ -155,7 +155,7 @@ class TransactionLifecycleActionsViewModelTest {
         submitRefund: suspend (RefundCommand) -> CommandResult<RefundExecutionResult> = { error("Unexpected refund") },
         submitVoid: suspend (VoidCommand) -> CommandResult<VoidExecutionResult> = { error("Unexpected void") },
         submitPaymentChange: suspend (PaymentMethodChangeCommand) -> CommandResult<PaymentMethodChangeExecutionResult> = { error("Unexpected payment change") }
-    ) = RegisterViewModel(
+    ) = com.dailymoneyregister.feature.register.ui.testRegisterViewModel(
         observeToday = { _, _ -> flowOf(emptyList()) },
         executeSale = { _, _, _ -> error("Unexpected sale") },
         deviceId = { "device" },

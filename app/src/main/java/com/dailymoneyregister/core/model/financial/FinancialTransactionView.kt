@@ -45,6 +45,24 @@ data class FinancialTransactionView(
         get() = refundedAmount.isPositive && refundedAmount < currentAmount
     val isFullyRefunded: Boolean
         get() = refundedAmount.isPositive && refundedAmount == currentAmount
+
+    /** Stable transaction classification shared by non-UI read projections. */
+    val financialKind: FinancialTransactionKind
+        get() = when (transaction.type) {
+            TransactionType.SALE -> FinancialTransactionKind.MERCHANDISE_SALE
+            TransactionType.COUPON_PURCHASE ->
+                if (transaction.description == "Coupon Top Up") {
+                    FinancialTransactionKind.COUPON_TOP_UP
+                } else {
+                    FinancialTransactionKind.COUPON_SALE
+                }
+        }
+}
+
+enum class FinancialTransactionKind {
+    MERCHANDISE_SALE,
+    COUPON_SALE,
+    COUPON_TOP_UP
 }
 
 enum class FinancialLifecycleState {

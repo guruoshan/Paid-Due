@@ -56,16 +56,40 @@ object PermissionChecker {
             PermissionAction.ACCEPT_ONLINE -> membership.canAcceptOnline
             PermissionAction.CREATE_CREDIT_SALE -> membership.canCreateCreditSale
             PermissionAction.USE_COUPON -> membership.canUseCoupon
-            PermissionAction.ISSUE_INVOICE -> membership.canIssueInvoice
-            PermissionAction.ISSUE_RECEIPT -> membership.canIssueReceipt
+            PermissionAction.ISSUE_INVOICE,
+            PermissionAction.ISSUE_RECEIPT -> true
             PermissionAction.REFUND -> membership.canRefund
             PermissionAction.VOID -> membership.canVoid
             PermissionAction.CORRECT_AMOUNT -> membership.canCorrectAmount
             PermissionAction.CHANGE_PAYMENT_METHOD -> membership.canChangePaymentMethod
             PermissionAction.VIEW_BROAD_HISTORY -> membership.canViewBroadHistory
             PermissionAction.MANAGE_PRODUCTS -> membership.canManageProducts
-            PermissionAction.VIEW_REPORTS -> membership.canViewReports
+            PermissionAction.VIEW_REPORTS -> false
         }
+    }
+
+    /**
+     * Session-aware gate for presentation/read actions. This rejects stale or
+     * mismatched cashier memberships before applying the central action policy.
+     */
+    fun isPermitted(session: ActiveSession?, action: PermissionAction): Boolean {
+        session ?: return false
+        if (session.requiresPinChange || !session.user.isActive) return false
+        if (session.user.businessId != session.business.id) return false
+        if (session.branch.businessId != session.business.id) return false
+
+        if (session.user.role == UserRole.CASHIER) {
+            val membership = session.membership ?: return false
+            if (
+                membership.userId != session.user.id ||
+                membership.branchId != session.branch.id ||
+                membership.role != UserRole.CASHIER
+            ) {
+                return false
+            }
+        }
+
+        return isPermitted(session.user, session.membership, action)
     }
 }
 

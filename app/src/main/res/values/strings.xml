@@ -30,7 +30,10 @@
     <string name="password">Password</string>
     <string name="enter_6_digit_pin">Enter 6-Digit Cashier PIN</string>
     <string name="login">Login</string>
-    <string name="locked_out_msg">Too many failed attempts. Locked out for %1$d seconds.</string>
+    <plurals name="locked_out_msg">
+        <item quantity="one">Too many failed attempts. Locked out for %1$d second.</item>
+        <item quantity="other">Too many failed attempts. Locked out for %1$d seconds.</item>
+    </plurals>
 
     <!-- Hub Screen -->
     <string name="admin_hub_title">Paid&amp;Due - Admin</string>
@@ -113,7 +116,10 @@
     <string name="unit_price">Unit Price</string>
     <string name="quantity">Quantity</string>
     <string name="item_desc_optional">Description (Optional)</string>
-    <string name="items_count">%1$d items</string>
+    <plurals name="items_count">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
 
     <!-- Tax & Shipping Dialogs -->
     <string name="tax_rate_percent">Tax Rate (%)</string>
@@ -147,12 +153,15 @@
     <string name="coupon_whatsapp_balance_message">Hello %1$s,\n\nYour current coupon balance at %2$s is %3$s.\n\nThank you!\n\nPowered by Paid&amp;Due</string>
     <string name="coupon_whatsapp_invalid_phone">A valid international phone number is required.</string>
     <string name="coupon_whatsapp_open_failed">Could not open WhatsApp.</string>
-    <string name="coupon_loading">Loading…</string>
+    <string name="coupon_loading">Loadingâ€¦</string>
 
     <!-- Invoice form (added) -->
     <string name="inv_create">Create invoice</string>
     <string name="inv_form_title">New invoice</string>
-    <string name="inv_form_intro">Enter the customer details. This invoice will list %1$d item(s), total %2$s.</string>
+    <plurals name="inv_form_intro">
+        <item quantity="one">Enter the customer details. This invoice will list %1$d item, total %2$s.</item>
+        <item quantity="other">Enter the customer details. This invoice will list %1$d items, total %2$s.</item>
+    </plurals>
     <string name="inv_customer_title">Title (optional)</string>
     <string name="inv_title_mr">Mr.</string>
     <string name="inv_title_mrs">Mrs.</string>
@@ -162,7 +171,7 @@
     <string name="inv_customer_address">Address / note (optional)</string>
     <string name="inv_existing_customer">Existing customer: %1$s</string>
     <string name="inv_save">Save invoice</string>
-    <string name="inv_saving">Saving…</string>
+    <string name="inv_saving">Savingâ€¦</string>
     <string name="inv_saved_title">Invoice saved</string>
     <string name="inv_saved_message">Invoice %1$s was saved. It is a customer document and does not record a payment or sales revenue.</string>
     <string name="inv_error_no_items">Add at least one item to create an invoice.</string>
@@ -181,7 +190,7 @@
     <string name="inv_pdf_reference">Invoice no.: %1$s</string>
     <string name="inv_pdf_date_time">Date: %1$s</string>
     <string name="inv_pdf_bill_to">Bill to</string>
-    <string name="inv_pdf_item_charges">Per item - Shipping %1$s • Packing %2$s</string>
+    <string name="inv_pdf_item_charges">Per item - Shipping %1$s â€¢ Packing %2$s</string>
     <string name="inv_pdf_subtotal">Subtotal</string>
     <string name="inv_pdf_tax">Tax (%1$s%%)</string>
     <string name="inv_pdf_item_shipping">Item shipping</string>
@@ -207,7 +216,7 @@
     <string name="biz_details_phone">Phone (optional)</string>
     <string name="biz_details_tax_id">Tax registration number (optional)</string>
     <string name="biz_details_save">Save</string>
-    <string name="biz_details_saving">Saving…</string>
+    <string name="biz_details_saving">Savingâ€¦</string>
 
     <!-- Add Item / Bill screen additions (added) -->
     <string name="tax_with_rate">Tax (%1$s)</string>
@@ -278,7 +287,7 @@
     <string name="history_filter_phone">Phone</string>
     <string name="history_filter_name">Name</string>
     <string name="history_filter_amount">Amount</string>
-    <string name="history_loading">Loading history…</string>
+    <string name="history_loading">Loading historyâ€¦</string>
     <string name="history_empty">No transactions yet.</string>
     <string name="history_no_match">No matching transactions.</string>
     <string name="history_permission_denied">You do not have permission to view full transaction history.</string>
@@ -327,4 +336,71 @@
     <string name="online_add_qr">Add payment QR</string>
     <string name="online_customer_choice_hint">The customer may scan this QR or pay using another online or bank method.</string>
     <string name="online_cashier_confirmation_warning">Confirm only after you have verified that payment was received.</string>
+
+    <!-- Coupon UI resources restored for existing CouponCompactDialogR7A references. -->
+    <string name="coupon_redemption_receipt">Coupon used by %1$s: %2$s. Remaining balance: %3$s</string>
+    <string name="coupon_search_phone">Phone</string>
+    <string name="coupon_search_name">Name</string>
+    <string name="coupon_purchase_search">Search customer</string>
+    <string name="coupon_purchase_search_button">Search</string>
+    <string name="coupon_wallet_balance">Coupon balance: %1$s</string>
+    <string name="coupon_create_customer">Create customer</string>
+    <string name="coupon_purchase_amount">Coupon amount (%1$s)</string>
+    <string name="coupon_purchase_users">Authorized users</string>
+    <string name="coupon_purchase_purchaser_included">Purchaser is included as an authorized user</string>
+    <string name="coupon_remainder_amount">Remaining amount: %1$s</string>
+    <string name="online_qr_not_configured">Payment QR is not configured</string>
+
+    <!-- BOARDLOCK Day Closing reconciliation -->
+    <string name="dmr22_shift_closed">Shift Closed</string>
+    <string name="dmr22_shift_closed_success">Shift closed successfully.</string>
+    <string name="dmr22_expected_cash">Expected cash: %1$s</string>
+    <string name="dmr22_cash_counted">Cash counted: %1$s</string>
+    <string name="dmr22_difference">Difference: %1$s</string>
+    <string name="dmr22_status">Status: %1$s</string>
+    <string name="dmr22_status_short">SHORT</string>
+    <string name="dmr22_status_exact">EXACT</string>
+    <string name="dmr22_status_over">OVER</string>
+    <string name="dmr22_shift_owner">Shift owner: %1$s</string>
+    <string name="dmr22_closed_by">Closed by: %1$s</string>
+    <string name="dmr22_closed_at">Closed at: %1$s</string>
+
+    <!-- Staff lifecycle: edit / permissions / disable / enable / reset PIN -->
+    <string name="staff_more_actions">More actions</string>
+    <string name="staff_status_disabled">Disabled</string>
+    <string name="staff_edit_details">Edit details</string>
+    <string name="staff_edit_details_title">Edit Cashier</string>
+    <string name="staff_edit_permissions">Edit permissions</string>
+    <string name="staff_edit_permissions_title">Permissions: %1$s</string>
+    <string name="staff_reset_pin">Reset PIN</string>
+    <string name="staff_reset_pin_title">Reset PIN for %1$s</string>
+    <string name="staff_reset_pin_note">The cashier must choose a new PIN the next time they sign in.</string>
+    <string name="staff_new_pin">New 6-digit PIN</string>
+    <string name="staff_disable">Disable cashier</string>
+    <string name="staff_disable_title">Disable %1$s?</string>
+    <string name="staff_disable_message">This cashier will not be able to sign in or record sales until you enable them again. Past records are kept.</string>
+    <string name="staff_enable">Enable cashier</string>
+    <string name="staff_enable_title">Enable %1$s?</string>
+    <string name="staff_enable_message">This cashier will be able to sign in again.</string>
+    <string name="staff_cashier_updated">%1$s updated</string>
+    <string name="staff_permissions_updated">Permissions updated for %1$s</string>
+    <string name="staff_cashier_disabled">%1$s disabled</string>
+    <string name="staff_cashier_enabled">%1$s enabled</string>
+    <string name="staff_pin_reset_done">PIN reset for %1$s. They must set a new PIN at next sign-in.</string>
+    <string name="staff_cashier_unavailable">This cashier could not be loaded.</string>
+    <string name="staff_perm_create_sale">Create sales</string>
+    <string name="staff_perm_accept_cash">Accept cash</string>
+    <string name="staff_perm_accept_online">Accept online payments</string>
+    <string name="staff_perm_credit_sale">Create credit sales</string>
+    <string name="staff_perm_coupon">Use coupons</string>
+    <string name="staff_perm_invoice">Issue invoices</string>
+    <string name="staff_perm_receipt">Issue receipts</string>
+    <string name="staff_perm_refund">Issue refunds</string>
+    <string name="staff_perm_void">Void transactions</string>
+    <string name="staff_perm_correct_amount">Correct amounts</string>
+    <string name="staff_perm_change_payment">Change payment method</string>
+    <string name="staff_perm_broad_history">View full history</string>
+    <string name="staff_perm_manage_products">Manage products</string>
+    <string name="staff_perm_view_reports">View reports</string>
+    <string name="admin_email">Admin email</string>
 </resources>

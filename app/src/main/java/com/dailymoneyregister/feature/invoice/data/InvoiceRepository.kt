@@ -100,6 +100,11 @@ class InvoiceRepository @Inject constructor(
             IssuedInvoice(it, InvoiceSnapshotCodec.decode(it.snapshotJson))
         }
 
+    suspend fun findCustomerByPhone(
+        businessId: String,
+        canonicalPhone: String
+    ): CustomerEntity? = customerDao.getCustomerByPhone(businessId, canonicalPhone)
+
     // ------------------------------------------------------------------
     // Internals
     // ------------------------------------------------------------------

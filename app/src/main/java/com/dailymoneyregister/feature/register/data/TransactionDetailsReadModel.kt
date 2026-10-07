@@ -12,6 +12,20 @@ import com.dailymoneyregister.core.model.financial.FinancialTransactionView
 import com.dailymoneyregister.core.model.financial.RecentFinancialActivity
 
 /**
+ * Read-only presentation eligibility derived from the authoritative
+ * financial-integrity validators for the same persisted transaction lifetime.
+ *
+ * These booleans are not permission checks and are not a financial source of
+ * truth. Command execution must still run the authoritative validators.
+ */
+data class TransactionActionEligibility(
+    val canCorrectAmount: Boolean = false,
+    val canRefund: Boolean = false,
+    val canVoid: Boolean = false,
+    val canChangePaymentMethod: Boolean = false
+)
+
+/**
  * Read-only aggregate for Transaction Details.
  *
  * BOARDLOCK:
@@ -55,5 +69,7 @@ data class TransactionDetailsReadModel(
     val paymentMethodChanges: List<PaymentMethodChangeEventEntity>,
     val voidEvents: List<VoidEventEntity>,
     val refundEvents: List<RefundEventEntity>,
-    val settlements: List<SettlementEntryEntity>
+    val settlements: List<SettlementEntryEntity>,
+    val actionEligibility: TransactionActionEligibility =
+        TransactionActionEligibility()
 )

@@ -29,7 +29,10 @@
     <string name="password">পাসওয়ার্ড</string>
     <string name="enter_6_digit_pin">৬-সংখ্যার ক্যাশিয়ার পিন লিখুন</string>
     <string name="login">লগইন</string>
-    <string name="locked_out_msg">অতিরিক্ত ব্যর্থ প্রচেষ্টা। %1$d সেকেন্ডের জন্য লক করা হয়েছে।</string>
+    <plurals name="locked_out_msg">
+        <item quantity="one">অতিরিক্ত ব্যর্থ প্রচেষ্টা। %1$d সেকেন্ডের জন্য লক করা হয়েছে।</item>
+        <item quantity="other">অতিরিক্ত ব্যর্থ প্রচেষ্টা। %1$d সেকেন্ডের জন্য লক করা হয়েছে।</item>
+    </plurals>
 
     <!-- Hub Screen -->
     <string name="admin_hub_title">ডেইলি মানি রেজিস্টার - অ্যাডমিন</string>
@@ -100,7 +103,10 @@
     <string name="unit_price">একক মূল্য</string>
     <string name="quantity">পরিমাণ</string>
     <string name="item_desc_optional">বিবরণ (ঐচ্ছিক)</string>
-    <string name="items_count">%1$d আইটেম</string>
+    <plurals name="items_count">
+        <item quantity="one">%1$d আইটেম</item>
+        <item quantity="other">%1$d আইটেম</item>
+    </plurals>
 
     <!-- Tax & Shipping Dialogs -->
     <string name="tax_rate_percent">ট্যাক্স হার (%)</string>
@@ -118,7 +124,10 @@
     <!-- Invoice form (added) -->
     <string name="inv_create">ইনভয়েস তৈরি করুন</string>
     <string name="inv_form_title">নতুন ইনভয়েস</string>
-    <string name="inv_form_intro">গ্রাহকের তথ্য লিখুন। এই ইনভয়েসে %1$dটি আইটেম আছে, মোট %2$s।</string>
+    <plurals name="inv_form_intro">
+        <item quantity="one">গ্রাহকের তথ্য লিখুন। এই ইনভয়েসে %1$dটি আইটেম আছে, মোট %2$s।</item>
+        <item quantity="other">গ্রাহকের তথ্য লিখুন। এই ইনভয়েসে %1$dটি আইটেম আছে, মোট %2$s।</item>
+    </plurals>
     <string name="inv_customer_title">উপাধি (ঐচ্ছিক)</string>
     <string name="inv_title_mr">জনাব</string>
     <string name="inv_title_mrs">শ্রীমতী</string>
@@ -289,4 +298,17 @@
     <string name="tx_change_payment_permission">এই পেমেন্ট পদ্ধতি পরিবর্তনের অনুমতি আপনার নেই।</string>
     <string name="tx_change_payment_failed">পেমেন্ট পদ্ধতি পরিবর্তন করা যায়নি। লেনদেনের বর্তমান অবস্থা দেখুন।</string>
     <string name="tx_lifecycle_conflict">এই লেনদেন পরিবর্তিত হয়েছে। সর্বশেষ বিবরণ দেখে আবার চেষ্টা করুন।</string>
+
+    <string name="coupon_redemption_receipt">%1$s দ্বারা কুপন ব্যবহার করা হয়েছে: %2$s। অবশিষ্ট ব্যালেন্স: %3$s</string>
+    <string name="coupon_search_phone">ফোন</string>
+    <string name="coupon_search_name">নাম</string>
+    <string name="coupon_purchase_search">গ্রাহক খুঁজুন</string>
+    <string name="coupon_purchase_search_button">খুঁজুন</string>
+    <string name="coupon_wallet_balance">কুপন ব্যালেন্স: %1$s</string>
+    <string name="coupon_create_customer">গ্রাহক তৈরি করুন</string>
+    <string name="coupon_purchase_amount">কুপনের পরিমাণ (%1$s)</string>
+    <string name="coupon_purchase_users">অনুমোদিত ব্যবহারকারী</string>
+    <string name="coupon_purchase_purchaser_included">ক্রেতাকে অনুমোদিত ব্যবহারকারী হিসেবে অন্তর্ভুক্ত করা হয়েছে</string>
+    <string name="coupon_remainder_amount">অবশিষ্ট পরিমাণ: %1$s</string>
+    <string name="online_qr_not_configured">পেমেন্ট QR কনফিগার করা হয়নি</string>
 </resources>

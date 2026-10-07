@@ -12,33 +12,68 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dailymoneyregister.R
 import com.dailymoneyregister.core.i18n.LanguageRegistry
 import com.dailymoneyregister.core.i18n.SupportedLanguage
 import com.dailymoneyregister.core.model.timezone.TimezoneRegistry
+import com.dailymoneyregister.core.ui.PasswordField
+import com.dailymoneyregister.core.ui.PhoneNumberInput
+import com.dailymoneyregister.core.ui.PhoneNumberInputValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SetupScreen(
     viewModel: SetupViewModel,
-    onSetupCompleted: () -> Unit
+    onSetupCompleted: () -> Unit,
+    onBack: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
+    val title = when (state.currentStep) {
+        SetupStep.LANGUAGE_SELECTION -> R.string.choose_language
+        SetupStep.ADMIN_PERSONAL -> R.string.setup_step_your_details
+        SetupStep.BUSINESS_PROFILE -> R.string.setup_step_business_branch
+        SetupStep.COUNTRY_SELECTION -> R.string.setup_step_country
+        SetupStep.CURRENCY_CONFIG -> R.string.setup_step_currency
+        SetupStep.TIMEZONE_CONFIG -> R.string.setup_step_timezone_tax
+        SetupStep.ADMIN_CREATION -> R.string.setup_step_password
+        SetupStep.COMPLETE -> R.string.setup_step_done
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.setup_title)) },
+                title = { Text(stringResource(title)) },
+                navigationIcon = {
+                    if (state.currentStep != SetupStep.COMPLETE) {
+                        IconButton(
+                            onClick = {
+                                if (state.currentStep == SetupStep.ADMIN_PERSONAL ||
+                                    state.currentStep == SetupStep.LANGUAGE_SELECTION
+                                ) {
+                                    onBack()
+                                } else {
+                                    viewModel.onPreviousStep()
+                                }
+                            }
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.back)
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -75,6 +110,22 @@ fun SetupScreen(
                         onContinue = { viewModel.onNextFromLanguage() }
                     )
                 }
+                SetupStep.ADMIN_PERSONAL -> {
+                    AdminPersonalStepContent(
+                        name = state.adminDisplayName,
+                        username = state.adminUsername,
+                        email = state.adminEmail,
+                        phone = PhoneNumberInputValue(
+                            countryCode = state.adminPhoneCountryCode,
+                            rawNumber = state.adminPhone
+                        ),
+                        onNameChanged = viewModel::onAdminNameChanged,
+                        onUsernameChanged = viewModel::onAdminUsernameChanged,
+                        onEmailChanged = viewModel::onAdminEmailChanged,
+                        onPhoneChanged = viewModel::onAdminPhoneChanged,
+                        onContinue = viewModel::onNextFromAdminPersonal
+                    )
+                }
                 SetupStep.BUSINESS_PROFILE -> {
                     BusinessProfileStepContent(
                         businessName = state.businessName,
@@ -106,12 +157,11 @@ fun SetupScreen(
                     )
                 }
                 SetupStep.ADMIN_CREATION -> {
+
                     AdminCreationStepContent(
-                        name = state.adminDisplayName,
-                        phone = state.adminPhone,
                         password = state.adminPasswordPlain,
                         isExecuting = state.isExecuting,
-                        onChanged = { n, u, p -> viewModel.onAdminDetailsChanged(n, u, p) },
+                        onPasswordChanged = viewModel::onAdminPasswordChanged,
                         onFinish = { viewModel.executeFinishSetup(onSetupCompleted) }
                     )
                 }
@@ -122,6 +172,69 @@ fun SetupScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AdminPersonalStepContent(
+    name: String,
+    username: String,
+    email: String,
+    phone: PhoneNumberInputValue,
+    onNameChanged: (String) -> Unit,
+    onUsernameChanged: (String) -> Unit,
+    onEmailChanged: (String) -> Unit,
+    onPhoneChanged: (PhoneNumberInputValue) -> Unit,
+    onContinue: () -> Unit
+) {
+    OutlinedTextField(
+        value = name,
+        onValueChange = onNameChanged,
+        label = { Text(stringResource(R.string.admin_name)) },
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp)
+    )
+
+    OutlinedTextField(
+        value = username,
+        onValueChange = onUsernameChanged,
+        label = { Text(stringResource(R.string.admin_username)) },
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp)
+    )
+
+    OutlinedTextField(
+        value = email,
+        onValueChange = onEmailChanged,
+        label = { Text(stringResource(R.string.admin_email)) },
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp)
+    )
+
+    PhoneNumberInput(
+        value = phone,
+        onValueChange = onPhoneChanged,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 24.dp)
+    )
+
+    Button(
+        onClick = onContinue,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+    ) {
+        Text(
+            stringResource(R.string.continue_btn),
+            fontSize = 16.sp
+        )
     }
 }
 
@@ -428,45 +541,30 @@ private fun TimezoneStepContent(
 
 @Composable
 private fun AdminCreationStepContent(
-    name: String,
-    phone: String,
     password: String,
     isExecuting: Boolean,
-    onChanged: (String, String, String) -> Unit,
+    onPasswordChanged: (String) -> Unit,
     onFinish: () -> Unit
 ) {
-    Text(
-        text = stringResource(R.string.create_admin_account),
-        fontSize = 20.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(bottom = 16.dp)
-    )
+    var confirmPassword by rememberSaveable { mutableStateOf("") }
 
-    OutlinedTextField(
-        value = name,
-        onValueChange = { onChanged(it, phone, password) },
-        label = { Text(stringResource(R.string.admin_name)) },
-        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
-    )
-
-    OutlinedTextField(
-        value = phone,
-        onValueChange = { onChanged(name, it, password) },
-        label = { Text(stringResource(R.string.whatsapp_mobile_number)) },
-        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
-    )
-
-    OutlinedTextField(
+    PasswordField(
         value = password,
-        onValueChange = { onChanged(name, phone, it) },
-        label = { Text(stringResource(R.string.admin_password)) },
-        visualTransformation = PasswordVisualTransformation(),
+        onValueChange = onPasswordChanged,
+        label = stringResource(R.string.admin_password),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+    )
+
+    PasswordField(
+        value = confirmPassword,
+        onValueChange = { confirmPassword = it },
+        label = stringResource(R.string.confirm_password),
         modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
     )
 
     Button(
         onClick = onFinish,
-        enabled = !isExecuting,
+        enabled = !isExecuting && password == confirmPassword,
         modifier = Modifier.fillMaxWidth().height(50.dp)
     ) {
         if (isExecuting) {

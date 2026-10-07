@@ -21,6 +21,7 @@ import com.dailymoneyregister.core.model.enums.SubjectType
     tableName = "operations",
     indices = [
         Index(value = ["transaction_id"]),
+        Index(value = ["cash_shift_id"]),
         Index(value = ["business_id"]),
         Index(value = ["branch_id"]),
         Index(value = ["occurred_at"]),
@@ -49,6 +50,15 @@ data class OperationEntity(
 
     @ColumnInfo(name = "transaction_id")
     val transactionId: String? = null,
+
+    /**
+     * Immutable cashier-shift attribution.
+     *
+     * Historical rows remain NULL. No migration guesses which old
+     * transaction belonged to which shift.
+     */
+    @ColumnInfo(name = "cash_shift_id")
+    val cashShiftId: String? = null,
 
     @ColumnInfo(name = "actor_user_id")
     val actorUserId: String,

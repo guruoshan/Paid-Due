@@ -20,8 +20,7 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     val languageManager: LanguageManager,
     private val settingsRepository: SettingsRepository,
-    private val merchantQrRepository: MerchantQrRepository,
-    private val businessBranchDao: com.dailymoneyregister.core.database.dao.BusinessBranchDao
+    private val merchantQrRepository: MerchantQrRepository
 ) : ViewModel() {
 
     private val _merchantQr = kotlinx.coroutines.flow.MutableStateFlow<MerchantQrSelection?>(null)
@@ -146,8 +145,8 @@ class SettingsViewModel @Inject constructor(
     private suspend fun refreshSessionBusinessAndBranch(businessId: String, branchId: String) {
         val current = SessionManager.currentSession.value ?: return
         if (current.business.id != businessId || current.branch.id != branchId) return
-        val business = businessBranchDao.getBusinessById(businessId) ?: return
-        val branch = businessBranchDao.getBranchById(branchId) ?: return
+        val (business, branch) =
+            settingsRepository.getBusinessAndBranch(businessId, branchId) ?: return
         SessionManager.setSession(current.copy(business = business, branch = branch))
     }
 

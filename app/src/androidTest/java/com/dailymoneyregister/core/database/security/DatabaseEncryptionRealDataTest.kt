@@ -1,4 +1,4 @@
-package com.dailymoneyregister.core.database.security
+﻿package com.dailymoneyregister.core.database.security
 
 import android.content.Context
 import androidx.room.Room
@@ -42,7 +42,7 @@ class DatabaseEncryptionRealDataTest {
     @Test
     fun realisticDmrDataSurvivesEncryptionAndRoomReopen() = runBlocking {
         val context =
-            ApplicationProvider.getApplicationContext<Context>()
+            com.dailymoneyregister.isolatedAndroidTestContext(ApplicationProvider.getApplicationContext<Context>())
 
         val databaseName =
             "session7_real_data_survival.db"
@@ -618,3 +618,4 @@ class DatabaseEncryptionRealDataTest {
             }
     }
 }
+

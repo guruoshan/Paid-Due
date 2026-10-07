@@ -1,5 +1,6 @@
 package com.dailymoneyregister.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
@@ -10,6 +11,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -25,6 +28,8 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
+
+    private var pendingInviteToken by mutableStateOf<String?>(null)
 
     @Inject
     lateinit var setupRepository: SetupRepository
@@ -46,6 +51,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) captureInviteToken(intent)
 
         setContent {
             val currentLanguage by languageManager.currentLanguage.collectAsState()
@@ -73,11 +79,26 @@ class MainActivity : AppCompatActivity() {
                             debugSessionBootstrapper = debugSessionBootstrapper,
                             startupRecoveryCoordinator = startupRecoveryCoordinator,
                             trustedSessionStore = trustedSessionStore,
-                            trustedSessionRestorer = trustedSessionRestorer
+                            trustedSessionRestorer = trustedSessionRestorer,
+                            pendingInviteToken = pendingInviteToken,
+                            onInviteHandled = { pendingInviteToken = null }
                         )
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        captureInviteToken(intent)
+    }
+
+    private fun captureInviteToken(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (data.scheme == "paiddue" && data.host == "invite") {
+            pendingInviteToken = data.getQueryParameter("t")?.takeIf { it.isNotBlank() }
         }
     }
 }

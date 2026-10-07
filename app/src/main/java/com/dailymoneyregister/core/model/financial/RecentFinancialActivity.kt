@@ -1,4 +1,4 @@
-package com.dailymoneyregister.core.model.financial
+﻿package com.dailymoneyregister.core.model.financial
 
 import com.dailymoneyregister.core.database.entity.AmountCorrectionEventEntity
 import com.dailymoneyregister.core.database.entity.CreditRepaymentEntity
@@ -22,7 +22,8 @@ enum class RecentActivityType {
     REFUND_TO_COUPON,
     VOID,
     AMOUNT_CORRECTION,
-    PAYMENT_METHOD_CHANGE
+    PAYMENT_METHOD_CHANGE,
+    EXPENSE
 }
 
 enum class RecentActivitySourceType {
@@ -31,7 +32,8 @@ enum class RecentActivitySourceType {
     REFUND_EVENT,
     VOID_EVENT,
     AMOUNT_CORRECTION_EVENT,
-    PAYMENT_METHOD_CHANGE_EVENT
+    PAYMENT_METHOD_CHANGE_EVENT,
+    EXPENSE
 }
 
 enum class RecentActivityStatus {
@@ -40,7 +42,7 @@ enum class RecentActivityStatus {
 
 data class RecentFinancialActivity(
     val activityId: String,
-    val transactionId: String,
+    val transactionId: String?,
     val operationId: String?,
     val type: RecentActivityType,
     val signedEffect: MoneyMinorUnits,
@@ -111,7 +113,8 @@ data class RecentFinancialActivity(
                     MoneyMinorUnits(externalAmount)
 
                 RecentActivityType.REFUND,
-                RecentActivityType.VOID ->
+                RecentActivityType.VOID,
+                RecentActivityType.EXPENSE ->
                     MoneyMinorUnits(Math.negateExact(externalAmount))
 
                 RecentActivityType.AMOUNT_CORRECTION -> when {
@@ -159,7 +162,9 @@ object RecentActivityReadModelResolver {
 
         return RecentFinancialActivity(
             activityId = "credit-repayment:${repayment.id}",
-            transactionId = repayment.id,
+            // A repayment is authoritative financial activity, but it is not
+            // a TransactionEntity and must not route to Transaction Details.
+            transactionId = null,
             operationId = repayment.operationId,
             type = RecentActivityType.CREDIT_REPAYMENT,
             signedEffect = MoneyMinorUnits(repayment.amountMinor),
