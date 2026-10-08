@@ -25,6 +25,7 @@
     <!-- Auth / Login -->
     <string name="login_title">ڈیلی منی رجسٹر</string>
     <string name="admin_login">ایڈمن لاگ ان</string>
+    <string name="email_address">ای میل پتہ</string>
     <string name="cashier_login">کیشیئر پن لاگ ان</string>
     <string name="password">پاس ورڈ</string>
     <string name="enter_6_digit_pin">6 ہندسوں کا کیشیئر پن درج کریں</string>

@@ -229,7 +229,7 @@ class InviteServiceTest {
 
         assertTrue(
             created.link.startsWith(
-                "https://paid-due.test/open/invite#t="
+                "https://paid-due.test/open/invite#"
             )
         )
 

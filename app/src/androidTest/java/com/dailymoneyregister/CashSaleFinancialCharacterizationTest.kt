@@ -210,6 +210,167 @@ class CashSaleFinancialCharacterizationTest {
         }
     }
 
+    @Test
+    fun pendingCashSaleSurvivesReopenAndQueuesExactlyOnce() = runBlocking {
+        val databaseName = "boardlock_g3_cash_sale_recovery.db"
+        val testContext = context
+        val operationId = "g3-pending-operation"
+        val transactionId = "g3-pending-transaction"
+
+        // Only this dedicated test database can be deleted.
+        // Never use the production database name.
+        database.close()
+        testContext.deleteDatabase(databaseName)
+
+        fun openTestDatabase(): DmrDatabase =
+            androidx.room.Room.databaseBuilder(
+                testContext,
+                DmrDatabase::class.java,
+                databaseName
+            )
+                .addMigrations(DmrDatabase.MIGRATION_12_13)
+                .addCallback(
+                    com.dailymoneyregister.core.database.security
+                        .FinancialImmutabilityCallback
+                )
+                .allowMainThreadQueries()
+                .build()
+
+        fun countRowsForOperation(table: String): Int {
+            require(table in setOf(
+                "operations",
+                "financial_sync_outbox",
+                "settlement_entries"
+            ))
+            return database.openHelper.readableDatabase.query(
+                "SELECT COUNT(*) FROM $table WHERE operation_id = ?".let {
+                    if (table == "operations") {
+                        "SELECT COUNT(*) FROM operations WHERE id = ?"
+                    } else {
+                        it
+                    }
+                },
+                arrayOf(operationId)
+            ).use {
+                check(it.moveToFirst())
+                it.getInt(0)
+            }
+        }
+
+        try {
+            // 1. Persist a genuine PENDING cash-sale command
+            // using the existing characterization fixture.
+            database = openTestDatabase()
+            repository = RegisterRepository(
+                database,
+                CommandExecutor(database)
+            )
+            seedAuthoritativeFixture()
+
+            val command = v3Command(operationId, transactionId)
+            insertPending(command.intentPayload)
+
+            assertEquals(
+                com.dailymoneyregister.core.model.enums.OperationStatus.PENDING,
+                database.operationDao().getOperationById(operationId)?.status
+            )
+            assertEquals(1, countRowsForOperation("operations"))
+            assertEquals(0, countRowsForOperation("financial_sync_outbox"))
+            assertEquals(0, countRowsForOperation("settlement_entries"))
+
+            // 2. Close and reopen the same persisted test database.
+            // This simulates a durable interrupted command.
+            database.close()
+
+            database = openTestDatabase()
+            repository = RegisterRepository(
+                database,
+                CommandExecutor(database)
+            )
+
+            // 3. Invoke the real production recovery method.
+            repository.recoverPendingCashSales()
+
+            val recoveredOperation =
+                database.operationDao().getOperationById(operationId)
+
+            assertEquals(
+                com.dailymoneyregister.core.model.enums.OperationStatus.SUCCEEDED,
+                recoveredOperation?.status
+            )
+
+            val recoveredTransaction =
+                database.transactionDao().getTransactionById(transactionId)
+
+            assertNotNull(recoveredTransaction)
+            assertEquals(1500L, recoveredTransaction!!.grandTotalMinor)
+
+            assertEquals(1, countRowsForOperation("operations"))
+            assertEquals(1, countRowsForOperation("settlement_entries"))
+            assertEquals(1, countRowsForOperation("financial_sync_outbox"))
+
+            val outbox = database.openHelper.readableDatabase.query(
+                """
+                SELECT operation_id, transaction_id, status,
+                       request_fingerprint
+                FROM financial_sync_outbox
+                WHERE operation_id = ?
+                """.trimIndent(),
+                arrayOf(operationId)
+            ).use {
+                assertTrue(it.moveToFirst())
+                listOf(
+                    it.getString(0),
+                    it.getString(1),
+                    it.getString(2),
+                    it.getString(3)
+                )
+            }
+
+            assertEquals(operationId, outbox[0])
+            assertEquals(transactionId, outbox[1])
+            assertEquals("QUEUED", outbox[2])
+            assertEquals(command.requestFingerprint, outbox[3])
+
+            // 4. Recovery retried on the same database.
+            repository.recoverPendingCashSales()
+
+            assertEquals(1, countRowsForOperation("operations"))
+            assertEquals(1, countRowsForOperation("settlement_entries"))
+            assertEquals(1, countRowsForOperation("financial_sync_outbox"))
+
+            // 5. Recovery retried after another database reopen.
+            database.close()
+            database = openTestDatabase()
+            repository = RegisterRepository(
+                database,
+                CommandExecutor(database)
+            )
+
+            repository.recoverPendingCashSales()
+
+            assertEquals(1, countRowsForOperation("operations"))
+            assertEquals(1, countRowsForOperation("settlement_entries"))
+            assertEquals(1, countRowsForOperation("financial_sync_outbox"))
+
+            val settlements =
+                database.transactionDao()
+                    .getSettlementsForTransaction(transactionId)
+
+            assertEquals(1, settlements.size)
+            assertEquals(1500L, settlements.single().amountSignedMinor)
+        } finally {
+            database.close()
+            testContext.deleteDatabase(databaseName)
+
+            // Keep the JUnit @After database-close path valid.
+            database = DmrDatabase.createInMemory(testContext)
+            repository = RegisterRepository(
+                database,
+                CommandExecutor(database)
+            )
+        }
+    }
     private suspend fun insertPending(payload: String) {
         val command = CashSalePayloadCodec.decode(payload)
         val payloadVersion = payload.lineSequence()

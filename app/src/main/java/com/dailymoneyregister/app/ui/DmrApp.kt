@@ -354,7 +354,7 @@ fun DmrApp(
                         }
 
                     navController.navigate(destination) {
-                        popUpTo(Routes.LOGIN) {
+                        popUpTo(0) {
                             inclusive = true
                         }
                     }

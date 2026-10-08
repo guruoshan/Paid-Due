@@ -14,6 +14,7 @@ import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.ui.PhoneNumberInputValue
 import com.dailymoneyregister.feature.admin.data.CashierLifecycleRepository
 import com.dailymoneyregister.feature.admin.data.CashierManagementRepository
+import com.dailymoneyregister.feature.admin.data.CashierManagementRepository.DirectoryEntry
 import com.dailymoneyregister.feature.admin.data.CashierPermissionsConfig
 import com.dailymoneyregister.feature.admin.data.CreateCashierParams
 import com.dailymoneyregister.feature.admin.data.StaffTarget
@@ -104,7 +105,7 @@ class CashierManagementViewModel @Inject constructor(
     private val adminId = SessionManager.activeUser?.id ?: ""
     private val branchCountryCode = SessionManager.activeBranch?.countryCode ?: "OM"
 
-    val cashiers: StateFlow<List<UserAccountEntity>> = repository.observeCashiers(businessId)
+    val cashiers: StateFlow<List<DirectoryEntry>> = repository.observeCashiers(businessId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _uiState = MutableStateFlow(CashierManagementUiState())
@@ -114,6 +115,16 @@ class CashierManagementViewModel @Inject constructor(
         CashierInviteUiState(phone = PhoneNumberInputValue(branchCountryCode))
     )
     val inviteState: StateFlow<CashierInviteUiState> = _inviteState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            repository.refreshCloudDirectory().onFailure { error ->
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = UiText.Dynamic(error.message ?: "Cloud employee directory unavailable; showing offline staff")
+                )
+            }
+        }
+    }
 
     fun openInviteDialog() {
         _inviteState.value = CashierInviteUiState(
@@ -304,9 +315,10 @@ class CashierManagementViewModel @Inject constructor(
         )
     }
 
-    fun openEditDetails(cashier: UserAccountEntity) {
+    fun openEditDetails(cashier: DirectoryEntry) {
+        val local = cashier.localAccount ?: return remoteEditUnavailable()
         viewModelScope.launch {
-            val snapshot = lifecycleRepository.getEditSnapshot(businessId, branchId, cashier.id)
+            val snapshot = lifecycleRepository.getEditSnapshot(businessId, branchId, local.id)
             _uiState.value = if (snapshot == null) {
                 _uiState.value.copy(errorMessage = UiText.Resource(R.string.staff_cashier_unavailable))
             } else {
@@ -325,9 +337,10 @@ class CashierManagementViewModel @Inject constructor(
         }
     }
 
-    fun openEditPermissions(cashier: UserAccountEntity) {
+    fun openEditPermissions(cashier: DirectoryEntry) {
+        val local = cashier.localAccount ?: return remoteEditUnavailable()
         viewModelScope.launch {
-            val snapshot = lifecycleRepository.getEditSnapshot(businessId, branchId, cashier.id)
+            val snapshot = lifecycleRepository.getEditSnapshot(businessId, branchId, local.id)
             _uiState.value = if (snapshot == null) {
                 _uiState.value.copy(errorMessage = UiText.Resource(R.string.staff_cashier_unavailable))
             } else {
@@ -345,7 +358,8 @@ class CashierManagementViewModel @Inject constructor(
         }
     }
 
-    fun openResetPin(cashier: UserAccountEntity) {
+    fun openResetPin(cashier: DirectoryEntry) {
+        if (cashier.localAccount == null) return remoteEditUnavailable()
         _uiState.value = _uiState.value.copy(
             isCreateDialogOpen = false,
             dialog = StaffDialogState.ResetPin(cashier.id, cashier.displayName),
@@ -354,7 +368,8 @@ class CashierManagementViewModel @Inject constructor(
         )
     }
 
-    fun openDisableConfirm(cashier: UserAccountEntity) {
+    fun openDisableConfirm(cashier: DirectoryEntry) {
+        if (cashier.localAccount == null) return remoteEditUnavailable()
         _uiState.value = _uiState.value.copy(
             isCreateDialogOpen = false,
             dialog = StaffDialogState.ConfirmDisable(cashier.id, cashier.displayName),
@@ -363,12 +378,19 @@ class CashierManagementViewModel @Inject constructor(
         )
     }
 
-    fun openEnableConfirm(cashier: UserAccountEntity) {
+    fun openEnableConfirm(cashier: DirectoryEntry) {
+        if (cashier.localAccount == null) return remoteEditUnavailable()
         _uiState.value = _uiState.value.copy(
             isCreateDialogOpen = false,
             dialog = StaffDialogState.ConfirmEnable(cashier.id, cashier.displayName),
             errorMessage = null,
             successMessage = null
+        )
+    }
+
+    private fun remoteEditUnavailable() {
+        _uiState.value = _uiState.value.copy(
+            errorMessage = UiText.Dynamic("Cloud cashier changes require an authorized server operation")
         )
     }
 

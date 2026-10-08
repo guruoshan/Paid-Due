@@ -29,7 +29,8 @@ import kotlinx.coroutines.launch
 class ReportingViewModel @Inject constructor(
     private val repository: ReportingReadRepository,
     private val filterOptionsRepository:
-        ReportingFilterOptionsRepository
+        ReportingFilterOptionsRepository,
+    private val syncScheduler: com.dailymoneyregister.core.cloud.sync.FinancialSyncScheduler
 ) : ViewModel() {
 
     private val _uiState =
@@ -43,6 +44,7 @@ class ReportingViewModel @Inject constructor(
     private var loadJob: Job? = null
 
     init {
+        syncScheduler.triggerSync()
         initialize()
     }
 

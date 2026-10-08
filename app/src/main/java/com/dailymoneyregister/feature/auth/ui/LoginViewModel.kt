@@ -108,8 +108,8 @@ class LoginViewModel @Inject constructor(
 
     fun executeLogin(onSuccess: (ActiveSession) -> Unit) {
         val s = _uiState.value
-        if (s.username.isBlank()) {
-            _uiState.value = s.copy(errorMessage = UiText.Resource(R.string.username_required))
+        LoginInputValidator.error(s.mode, s.username, s.password)?.let { error ->
+            _uiState.value = s.copy(errorMessage = UiText.Dynamic(error))
             return
         }
 
@@ -149,6 +149,7 @@ class LoginViewModel @Inject constructor(
             }
         }
     }
+
 
     private fun clearLockoutState() {
         lockoutQueryJob?.cancel()
