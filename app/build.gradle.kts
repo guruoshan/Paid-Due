@@ -117,7 +117,7 @@ android {
                     )
                 )
                 .orElse(
-                    "https://paidanddue.guruoshan2208.workers.dev"
+                    "https://ttvdpgxqvvtjnxxfkoui.supabase.co/functions/v1/api"
                 )
                 .get()
                 .trim()
