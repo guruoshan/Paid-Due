@@ -119,7 +119,7 @@ Required work before calling inbound complete:
 
 - Production Supabase project `ttvdpgxqvvtjnxxfkoui`: migration `fix_cashier_financial_download_auth` applied successfully. It replaces the cashier download RPC's impossible `profiles.auth_user_id = membership.auth_user_id` check with active `staff_identities`, active membership, active business, and same-branch checks. The RPC remains executable by `service_role` only; `authenticated` and `anon` remain denied.
 - Post-migration read-only check: both active cashier memberships returned successfully from the RPC (one-row bounded probe); function privilege check confirmed service_role=true, authenticated=false, anon=false. The query did not modify financial records.
-- Source migration committed on `fix/backend-compatibility-audit-2026-10`: `5682f40c54cbbe98f4a0e56c34da67c7c6495bae`.
+- Source migration is tracked at `supabase/migrations/20261009225104_fix_cashier_financial_download_auth.sql`, matching the migration version recorded by Supabase. The repair branch contains the migration; no financial rows were changed.
 
 ## Applied source repair — inbound receiver gate (2026-10-10)
 
