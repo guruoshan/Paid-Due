@@ -29,7 +29,9 @@ class FinancialSyncEngine @Inject constructor(
 
     private val inMemoryCursors = mutableMapOf<String, VersionedInboundCursor>()
     private val syncMutex = Mutex()
-    private val retryNotBefore = mutableMapOf<String, Long>()
+    private val retryBackoffStore = RetryBackoffStore(
+        context?.getSharedPreferences("dmr_financial_sync_retry", Context.MODE_PRIVATE)
+    )
     private var outboxInitialized = false
     private val lastInboundRejectionLogAt = mutableMapOf<String, Long>()
 
@@ -111,7 +113,7 @@ class FinancialSyncEngine @Inject constructor(
 
         val now = System.currentTimeMillis()
         val pendingList = outboxDao.getPendingUpload(50)
-            .filter { now >= (retryNotBefore[it.operationId] ?: Long.MIN_VALUE) }
+            .filter { now >= (retryBackoffStore.nextRetryAt(it.operationId) ?: Long.MIN_VALUE) }
         
         val statusCounts = outboxDao.getStatusCounts()
         val countsStr = statusCounts.joinToString(", ") { "${it.operationType}[${it.status}]=${it.count}" }
@@ -176,9 +178,9 @@ class FinancialSyncEngine @Inject constructor(
                     }
                 }
                 if (nextState == FinancialSyncDeliveryState.WAITING_RETRY) {
-                    retryNotBefore[outboxItem.operationId] = now + retryDelayMillis(outboxItem.attemptCount + 1)
+                    retryBackoffStore.save(outboxItem.operationId, now + retryDelayMillis(outboxItem.attemptCount + 1))
                 } else {
-                    retryNotBefore.remove(outboxItem.operationId)
+                    retryBackoffStore.clear(outboxItem.operationId)
                 }
                 if (nextState == FinancialSyncDeliveryState.ACKNOWLEDGED) syncedCount++
             } catch (cancelled: CancellationException) {
@@ -199,7 +201,7 @@ class FinancialSyncEngine @Inject constructor(
                         incrementAttempt = 1
                     )
                 }
-                retryNotBefore[outboxItem.operationId] = now + retryDelayMillis(outboxItem.attemptCount + 1)
+                retryBackoffStore.save(outboxItem.operationId, now + retryDelayMillis(outboxItem.attemptCount + 1))
             }
         }
 
