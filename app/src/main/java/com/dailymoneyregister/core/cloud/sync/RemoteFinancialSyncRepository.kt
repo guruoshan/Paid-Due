@@ -305,7 +305,7 @@ class RemoteFinancialSyncRepository @Inject constructor(
         ).jsonObject
 
         val dtoList = supabase.postgrest.rpc(
-            function = "fetch_financial_envelopes_v2",
+            function = "fetch_financial_envelopes_v3",
             parameters = paramJsonObj
         ).decodeList<RemoteEnvelopeV2Dto>()
 
