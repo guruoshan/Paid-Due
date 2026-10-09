@@ -26,9 +26,11 @@ fun buildConfigString(value: String): String =
         .replace("\\", "\\\\")
         .replace("\"", "\\\"") + "\""
 android {
+    // Fail closed by default: inbound operation materializers and end-to-end verification are incomplete.
+    // Enable only explicitly in a controlled test build after the receiver contract passes.
     val inboundApplyDefault = providers.gradleProperty("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES")
         .orElse(providers.environmentVariable("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES"))
-        .orElse("true")
+        .orElse("false")
         .get()
         .toBooleanStrictOrNull() ?: false
     namespace = "com.dailymoneyregister"
