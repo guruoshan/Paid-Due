@@ -70,6 +70,21 @@ interface BusinessRestorer {
         usernameOrEmail: String,
         passwordPlain: String
     ): RemoteBusinessRestorationResult
+
+    /**
+     * Establishes a server-authenticated Admin session for sync without changing
+     * local financial or business records. Implementations must verify tenant,
+     * branch, user, and membership against the authenticated backend identity.
+     */
+    suspend fun authenticateAdminForSync(
+        usernameOrEmail: String,
+        passwordPlain: String,
+        expectedBusinessId: String,
+        expectedBranchId: String,
+        expectedUserId: String,
+        expectedMembershipId: String
+    ): RemoteBusinessRestorationResult =
+        RemoteBusinessRestorationResult.Failed("Admin cloud authentication unavailable")
 }
 
 @Singleton
@@ -191,6 +206,55 @@ class RemoteBusinessRestorer @Inject constructor(
             )
         }
     }
+    override suspend fun authenticateAdminForSync(
+        usernameOrEmail: String,
+        passwordPlain: String,
+        expectedBusinessId: String,
+        expectedBranchId: String,
+        expectedUserId: String,
+        expectedMembershipId: String
+    ): RemoteBusinessRestorationResult {
+        val authResult = remoteAdminAuthRepository.signIn(usernameOrEmail, passwordPlain)
+        if (authResult !is RemoteAdminAuthResult.Authenticated) {
+            val reason = (authResult as? RemoteAdminAuthResult.Failed)?.message
+                ?: "Admin cloud authentication unavailable"
+            return RemoteBusinessRestorationResult.Failed(reason)
+        }
+
+        return try {
+            val rows = supabase.postgrest.rpc("restore_admin_by_auth_id")
+                .decodeList<RemoteStaffRestorationRpcRow>()
+            val row = rows.singleOrNull()
+                ?: return RemoteBusinessRestorationResult.Failed(
+                    "Cloud Admin membership is missing or ambiguous"
+                )
+
+            val localBranch = businessBranchDao.getFirstBranch(expectedBusinessId)
+            if (
+                row.businessId != expectedBusinessId ||
+                row.branchId != expectedBranchId ||
+                row.localUserId != expectedUserId ||
+                row.membershipId != expectedMembershipId ||
+                localBranch?.id != expectedBranchId ||
+                remoteAdminAuthRepository.currentAuthUserId() != authResult.authUserId
+            ) {
+                return RemoteBusinessRestorationResult.Failed(
+                    "Authenticated Admin does not match the active local business membership"
+                )
+            }
+
+            RemoteBusinessRestorationResult.Success(
+                businessId = row.businessId,
+                branchId = row.branchId,
+                userId = row.localUserId
+            )
+        } catch (e: Exception) {
+            RemoteBusinessRestorationResult.Failed(
+                e.message ?: "Admin cloud authentication unavailable"
+            )
+        }
+    }
+
     override suspend fun restoreAdminIfEmpty(
         usernameOrEmail: String,
         passwordPlain: String
