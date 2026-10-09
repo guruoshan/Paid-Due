@@ -186,7 +186,11 @@ class FinancialSyncEngine @Inject constructor(
                 val items = transactionDao.getItemsForTransaction(outboxItem.transactionId)
                 val settlements = transactionDao.getSettlementsForOperation(outboxItem.operationId)
                 val expense = expenseDao.getExpenseByOperationId(outboxItem.operationId)
-                val financialEvidence = FinancialEnvelopeEvidenceLoader.load(database, opEntity)
+                val financialEvidence = FinancialEnvelopeEvidenceLoader.load(
+                    database = database,
+                    operation = opEntity,
+                    settlements = settlements
+                )
                 val envelope = FinancialEnvelopeCodec.encode(
                     operation = opEntity,
                     transaction = txEntity,
