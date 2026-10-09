@@ -4,7 +4,7 @@
 **Base:** `migration/offline-first-supabase-v1`  
 **Repair branch:** `fix/backend-compatibility-audit-2026-10`  
 **Production backend/schema/data:** unchanged  
-**Status (updated 2026-10-10):** Receiver remains incomplete. GitHub Actions run `37984632299` completed successfully on commit `593cba76ea759aa3d5c6b9e9f94f576918e57d93`; the `android-build-and-unit-tests` job passed `testDebugUnitTest` and `assembleDebug`. This verifies the default configuration only. It does not prove the missing inbound operation handlers or end-to-end device sync are complete.
+**Status (updated 2026-10-10):** Receiver remains incomplete. GitHub Actions run `37988695340` passed both default and explicitly inbound-enabled build/unit-test steps on commit `6fefc4d8817e76e64b006557e20f77194b464c8b`. Subsequent commits add remote digest validation, tests, and staged digest-bearing RPC contracts; their CI is pending. The live download RPCs were read-only inspected and confirmed not to return `canonical_sha256`. Inbound now fails closed until the new RPC contract is reviewed and deployed separately. No production database/function was changed.
 
 ## Required receiver contract — all supported financial operations
 
@@ -59,12 +59,12 @@ The receiver must cover the complete backend operation contract:
 - FinancialEnvelopeCodec currently serializes transaction/items/settlements and expense snapshots only. It does not serialize the dedicated amount-correction, payment-method-change, void, refund, credit-repayment/allocation, coupon-ledger, expense-event, or cash-shift event evidence required to reconstruct those operations on another device.
 - FinancialSyncEngine.syncOutbound passes the transaction, items, settlements, and expense to the codec; it does not load and pass the other event/ledger rows. Therefore, simply adding inbound dispatch cases would not complete two-way sync.
 - The outbox recognizes many operation types for Admin delivery, but its one-time classifier marks Cashier expense/cash-shift operations as NOT_SYNCABLE_YET. That policy must be reconciled with actual server permissions and product contract before claiming every operation can flow both ways; do not bypass backend authorization to force uploads.
-- Inbound DTO handling currently carries canonical text/payload but does not expose a separate backend canonical_sha256 field to the materializer. The end-to-end integrity contract must verify the digest returned by the server, not just trust the JSON parse.
+- Inbound DTO now carries `canonical_sha256`, and the engine recomputes SHA-256 over `canonical_text` and rejects missing/mismatched digests before applying. A read-only query of the live project `ttvdpgxqvvtjnxxfkoui` confirmed `fetch_financial_envelopes_v2`, `fetch_financial_envelopes`, and `fetch_cashier_financial_envelopes` all currently return only canonical text/payload, not the digest. Therefore the new check intentionally blocks live inbound application until a digest-bearing backend contract is approved and deployed.
 
 ### Build verification
 - Added `.github/workflows/paid-due-repair-validation.yml` to run `testDebugUnitTest` and `assembleDebug`.
 - CI run `37980101900` failed during Android SDK setup before Gradle ran. The workflow was corrected; run `37984632299` then completed with `android-build-and-unit-tests: success` on current head `593cba76ea759aa3d5c6b9e9f94f576918e57d93`.
-- This workflow does not yet build with `PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES=true`, and passing CI does not validate missing operation handlers.
+- CI run `37988695340` passed both the default build/test step and a second build/test step with `PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES=true`. This checks compilation/tests under both configurations; it does not validate missing operation handlers or live backend compatibility.
 - No production Supabase schema, RLS, Edge Function, financial data, merge, or release was changed.
 
 ## Implementation gap — receiver is not yet complete
@@ -87,3 +87,14 @@ Required work before calling inbound complete:
 - No production SQL, RLS, function ACL, deployment, or financial data was changed by this audit update.
 - Commits `318242f45c640c0abb6ef7c30af3544b04c03778` and `80c94fc7945fba83073287bcb7b4428e9d98338e` changed the materializer and audit contract. The current head's default Android build/unit-test CI passes, but feature-flag-on build, dedicated inbound-operation tests, and Admin/Cashier device verification are still outstanding.
 - Do not merge or release solely because the inbound flag is enabled. Completion requires the full receiver contract, tests, and device verification above.
+
+
+## Follow-up — inbound digest contract (2026-10-10)
+
+- Android now carries the server-provided `canonical_sha256` field through `RemoteEnvelopeV2Dto` and `RemoteEnvelopeV2`.
+- Before any envelope reaches the materializer, the sync engine computes SHA-256 over the exact `canonical_text` and requires a non-empty matching digest. Missing/mismatched digest is reported as an inbound rejection; the cursor is not advanced.
+- Added a unit-test assertion for a valid digest and a negative test that verifies a mismatched digest is rejected before the inbound applier is called.
+- Read-only inspection of the live function signatures confirmed the three existing download RPCs do not return `canonical_sha256`. No live SQL or Edge Function was changed.
+- Added `BOARDLOCK/staged_sql/fetch_financial_envelopes_digest_v3.sql`, proposing new Admin `fetch_financial_envelopes_v3` and Cashier `fetch_cashier_financial_envelopes_v2` RPCs that include the stored digest and preserve scoped authorization. Android and the Cashier Edge Function source now target these new names.
+- **Deployment dependency:** the staged SQL and Edge Function are not deployed. Inbound remains blocked until backend review, deployment, read-only signature verification, and safe device testing. Do not enable inbound in production.
+- Latest branch CI for these follow-up commits is pending; no pass is claimed for the new digest changes yet.
