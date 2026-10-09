@@ -23,8 +23,13 @@ internal object RemoteEnvelopeEvidenceApplier {
         actorUserId: String,
         transactionId: String? = null
     ) {
-        val customerJson = evidence.optJSONObject("customer")
-        if (customerJson != null) {
+        val customersArray = evidence.optJSONArray("customers")
+        val customerSnapshots = if (customersArray != null) {
+            (0 until customersArray.length()).map { customersArray.getJSONObject(it) }
+        } else {
+            listOfNotNull(evidence.optJSONObject("customer"))
+        }
+        for (customerJson in customerSnapshots) {
             val customer = CustomerEntity(
                 id = customerJson.getString("id"),
                 businessId = customerJson.getString("business_id"),
@@ -41,7 +46,12 @@ internal object RemoteEnvelopeEvidenceApplier {
                 }
                 database.customerDao().insertCustomer(customer)
             } else {
-                require(existing == customer) { "Customer identity collision in inbound evidence" }
+                // Names may be mutable customer-profile data. A financial envelope
+                // must not overwrite them; immutable ID/business/phone identity must match.
+                require(
+                    existing.businessId == customer.businessId &&
+                        existing.canonicalPhone == customer.canonicalPhone
+                ) { "Customer identity collision in inbound evidence" }
             }
         }
 
