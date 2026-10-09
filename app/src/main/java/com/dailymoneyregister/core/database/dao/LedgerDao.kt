@@ -175,6 +175,9 @@ interface LedgerDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAuthorizedUserEvent(event: CouponAuthorizedUserEventEntity)
 
+    @Query("SELECT * FROM coupon_authorized_users WHERE wallet_id = :walletId")
+    suspend fun getAuthorizedUsersForWallet(walletId: String): List<CouponAuthorizedUserEntity>
+
     @Query("SELECT * FROM coupon_authorized_users WHERE wallet_id = :walletId AND is_active = 1")
     suspend fun getActiveAuthorizedUsers(walletId: String): List<CouponAuthorizedUserEntity>
 
