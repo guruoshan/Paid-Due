@@ -5,8 +5,6 @@ on:
     branches:
       - fix/backend-compatibility-audit-2026-10
   pull_request:
-    branches:
-      - main
 
 permissions:
   contents: read
