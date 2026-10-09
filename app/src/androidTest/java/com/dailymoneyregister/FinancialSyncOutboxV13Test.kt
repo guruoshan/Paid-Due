@@ -74,6 +74,21 @@ class FinancialSyncOutboxV13Test {
     }
 
     @Test
+    fun downloadedCashSaleLeavesNoOutboxButLocalCashSaleQueuesOnce() = withDb { db ->
+        // Simulate the committed inbound/materialized operation: inbound rows do not
+        // pass through the local outbox trigger.
+        seedSale(db, "downloaded-cash", "CASH")
+        db.openHelper.writableDatabase.execSQL(
+            "UPDATE operations SET status = 'SUCCEEDED' WHERE id = 'downloaded-cash'"
+        )
+        assertEquals(0, count(db, "downloaded-cash"))
+
+        seedSale(db, "local-cash", "CASH")
+        succeed(db, "local-cash")
+        assertEquals(1, count(db, "local-cash"))
+    }
+
+    @Test
     fun pendingCashSaleDoesNotQueue() = withDb { db ->
         seedSale(db, "cash-pending", "CASH")
 
