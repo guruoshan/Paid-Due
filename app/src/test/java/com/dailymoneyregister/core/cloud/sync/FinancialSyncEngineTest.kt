@@ -27,6 +27,7 @@ class FinancialSyncEngineTest {
     private val operationDao = mockk<OperationDao>()
     private val transactionDao = mockk<TransactionDao>()
     private val expenseDao = mockk<ExpenseDao>()
+    private val businessBranchDao = mockk<com.dailymoneyregister.core.database.dao.BusinessBranchDao>()
     private val remoteRepo = mockk<RemoteFinancialSyncRepository>()
     private val inboundApplier = FakeInboundEnvelopeApplier()
 
@@ -103,7 +104,10 @@ class FinancialSyncEngineTest {
         coEvery { db.operationDao() } returns operationDao
         coEvery { db.transactionDao() } returns transactionDao
         coEvery { db.expenseDao() } returns expenseDao
+        coEvery { db.businessBranchDao() } returns businessBranchDao
 
+        coEvery { outboxDao.classifyExistingRows() } returns 0
+        coEvery { outboxDao.resetStaleInFlight() } returns 0
         coEvery { outboxDao.getPendingUpload(any()) } returns listOf(outboxItem)
         coEvery { outboxDao.getStatusCounts() } returns emptyList()
         coEvery { outboxDao.updateStatus(any(), any(), any()) } returns 1
@@ -113,6 +117,22 @@ class FinancialSyncEngineTest {
         coEvery { transactionDao.getItemsForTransaction(txId) } returns emptyList()
         coEvery { transactionDao.getSettlementsForOperation(opId) } returns emptyList()
         coEvery { expenseDao.getExpenseByOperationId(opId) } returns null
+        coEvery { businessBranchDao.getBranchById("branch-1") } returns
+            com.dailymoneyregister.core.database.entity.BranchEntity(
+                id = "branch-1",
+                businessId = "biz-1",
+                name = "Main",
+                code = "MAIN",
+                countryCode = "AE",
+                currencyCode = "AED",
+                currencyDecimalPlaces = 2,
+                currencySymbol = "AED",
+                timezoneId = "Asia/Dubai",
+                taxRoundingMode = com.dailymoneyregister.core.model.tax.TaxRoundingMode.HALF_UP,
+                defaultTaxRateBps = 0,
+                createdAt = 1L,
+                updatedAt = 1L
+            )
 
         coEvery { remoteRepo.uploadEnvelope(any(), any(), any(), any()) } answers {
             val env = firstArg<FinancialEnvelopeCodec.EncodedEnvelope>()
@@ -123,7 +143,7 @@ class FinancialSyncEngineTest {
 
         assertEquals(1, count)
         coVerify { outboxDao.updateStatus(opId, "IN_FLIGHT") }
-        coVerify { remoteRepo.uploadEnvelope(any(), "membership-1", any(), any()) }
+        coVerify { remoteRepo.uploadEnvelope(any(), "membership-1", "Asia/Dubai", any()) }
         coVerify { outboxDao.deleteAcknowledged(opId) }
     }
 
@@ -191,6 +211,13 @@ class FinancialSyncEngineTest {
         assertEquals(1, count)
         coVerify { remoteRepo.fetchRemoteEnvelopesV2("biz-1", null, null, any()) }
         assertEquals(listOf(opId), inboundApplier.appliedOperationIds)
+    }
+
+    @Test
+    fun retryBackoffIsExponentialAndCapped() {
+        assertEquals(15_000L, engine.retryDelayMillis(1))
+        assertEquals(30_000L, engine.retryDelayMillis(2))
+        assertEquals(900_000L, engine.retryDelayMillis(99))
     }
 
     private class FakeInboundEnvelopeApplier : InboundEnvelopeApplier {

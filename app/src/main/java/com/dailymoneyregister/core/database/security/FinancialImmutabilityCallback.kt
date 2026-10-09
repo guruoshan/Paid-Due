@@ -96,72 +96,11 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
                     "DROP TRIGGER IF EXISTS financial_sync_outbox_after_cash_sale_success"
                 )
                 db.execSQL(
-"""
-                CREATE TRIGGER financial_sync_outbox_after_cash_sale_success
-                AFTER UPDATE ON operations
-                WHEN OLD.status != 'SUCCEEDED'
-                  AND NEW.status = 'SUCCEEDED'
-                  AND NEW.operation_type = 'RECORD_SALE'
-                  AND NEW.result_reference_type = 'TRANSACTION'
-                  AND NEW.result_reference_id = NEW.transaction_id
-                  AND NEW.transaction_id IS NOT NULL
-                  AND NEW.branch_id IS NOT NULL
-                  AND EXISTS (
-                      SELECT 1 FROM transactions t
-                      WHERE t.id = NEW.transaction_id
-                        AND t.branch_id = NEW.branch_id
-                  )
-                  AND EXISTS (
-                      SELECT 1 FROM settlement_entries s
-                      WHERE s.operation_id = NEW.id
-                        AND s.transaction_id = NEW.transaction_id
-                        AND s.entry_purpose = 'SALE_FUNDING'
-                        AND s.category = 'CASH'
-                        AND s.channel = 'CASH_TENDER'
-                  )
-                  AND NOT EXISTS (
-                      SELECT 1 FROM settlement_entries other
-                      WHERE other.operation_id = NEW.id
-                        AND other.transaction_id = NEW.transaction_id
-                        AND other.entry_purpose = 'SALE_FUNDING'
-                        AND (
-                            other.category != 'CASH'
-                            OR other.channel != 'CASH_TENDER'
-                        )
-                  )
-                BEGIN
-                    INSERT OR IGNORE INTO financial_sync_outbox (
-                        operation_id,
-                        business_id,
-                        branch_id,
-                        transaction_id,
-                        actor_user_id,
-                        device_id,
-                        request_fingerprint,
-                        command_schema_version,
-                        occurred_at,
-                        status,
-                        attempt_count
-                    )
-                    VALUES (
-                        NEW.id,
-                        NEW.business_id,
-                        NEW.branch_id,
-                        NEW.transaction_id,
-                        NEW.actor_user_id,
-                        NEW.device_id,
-                        NEW.request_fingerprint,
-                        NEW.command_schema_version,
-                        NEW.occurred_at,
-                        'QUEUED',
-                        0
-                    );
-                END
-                """.trimIndent()
+                    "DROP TRIGGER IF EXISTS financial_sync_outbox_after_operation_success"
                 )
                 db.execSQL(
                     """
-                    CREATE TRIGGER IF NOT EXISTS financial_sync_outbox_after_operation_success
+                    CREATE TRIGGER financial_sync_outbox_after_operation_success
                     AFTER UPDATE ON operations
                     WHEN OLD.status != 'SUCCEEDED'
                       AND NEW.status = 'SUCCEEDED'
@@ -187,13 +126,40 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
                             NEW.id,
                             NEW.business_id,
                             NEW.branch_id,
-                            COALESCE(NEW.transaction_id, NEW.id),
+                            COALESCE(NEW.transaction_id, NEW.result_reference_id, NEW.id),
                             NEW.actor_user_id,
                             NEW.device_id,
                             NEW.request_fingerprint,
                             NEW.command_schema_version,
                             NEW.occurred_at,
-                            'QUEUED',
+                            CASE
+                                WHEN EXISTS (
+                                    SELECT 1 FROM user_accounts u
+                                    WHERE u.id = NEW.actor_user_id AND u.role = 'ADMIN'
+                                ) AND NEW.operation_type IN (
+                                    'RECORD_SALE', 'RECORD_CREDIT_REPAYMENT',
+                                    'RECORD_COUPON_PURCHASE', 'RECORD_AMOUNT_CORRECTION',
+                                    'RECORD_PAYMENT_METHOD_CHANGE', 'RECORD_VOID', 'RECORD_REFUND',
+                                    'RECORD_EXPENSE', 'RECORD_EXPENSE_CORRECTION', 'RECORD_EXPENSE_VOID',
+                                    'OPEN_CASH_SHIFT', 'COUNT_CASH_SHIFT', 'CLOSE_CASH_SHIFT'
+                                ) THEN 'QUEUED'
+                                WHEN EXISTS (
+                                    SELECT 1 FROM user_accounts u
+                                    WHERE u.id = NEW.actor_user_id AND u.role = 'CASHIER'
+                                ) AND NEW.operation_type IN (
+                                    'RECORD_SALE', 'RECORD_CREDIT_REPAYMENT',
+                                    'RECORD_COUPON_PURCHASE', 'RECORD_REFUND', 'RECORD_VOID',
+                                    'RECORD_AMOUNT_CORRECTION', 'RECORD_PAYMENT_METHOD_CHANGE'
+                                ) THEN 'QUEUED'
+                                WHEN EXISTS (
+                                    SELECT 1 FROM user_accounts u
+                                    WHERE u.id = NEW.actor_user_id AND u.role = 'CASHIER'
+                                ) AND NEW.operation_type IN (
+                                    'RECORD_EXPENSE', 'RECORD_EXPENSE_CORRECTION', 'RECORD_EXPENSE_VOID',
+                                    'OPEN_CASH_SHIFT', 'COUNT_CASH_SHIFT', 'CLOSE_CASH_SHIFT'
+                                ) THEN 'NOT_SYNCABLE_YET'
+                                ELSE 'NOT_APPLICABLE'
+                            END,
                             0
                         );
                     END

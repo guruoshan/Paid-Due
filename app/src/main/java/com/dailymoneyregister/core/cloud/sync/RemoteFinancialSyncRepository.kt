@@ -63,9 +63,8 @@ class RemoteFinancialSyncRepository @Inject constructor(
     suspend fun uploadEnvelope(
         envelope: FinancialEnvelopeCodec.EncodedEnvelope,
         actorMembershipId: String,
-        branchTimezoneId: String = "Asia/Muscat",
-        businessLocalDate: String = java.time.Instant.ofEpochMilli(envelope.occurredAt)
-            .atZone(java.time.ZoneId.of(branchTimezoneId)).toLocalDate().toString()
+        branchTimezoneId: String,
+        businessLocalDate: String = businessLocalDateFor(envelope.occurredAt, branchTimezoneId)
     ): FinancialSyncReceipt {
         val currentSession =
             com.dailymoneyregister.core.security.SessionManager
@@ -322,6 +321,12 @@ internal object FinancialSyncErrorClassifier {
         }
     }
 }
+
+internal fun businessLocalDateFor(occurredAtMillis: Long, timezoneId: String): String =
+    java.time.Instant.ofEpochMilli(occurredAtMillis)
+        .atZone(java.time.ZoneId.of(timezoneId))
+        .toLocalDate()
+        .toString()
 
 @Serializable
 data class FetchEnvelopesV2Params(

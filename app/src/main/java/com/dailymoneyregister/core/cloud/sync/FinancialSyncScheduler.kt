@@ -8,6 +8,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,7 +26,11 @@ class FinancialSyncScheduler @Inject constructor(
         started = true
 
         scope.launch {
-            SessionManager.currentSession.collectLatest { session ->
+            SessionManager.currentSession
+                .map { session -> session?.let { it.membership?.id to it } }
+                .distinctUntilChanged { old, new -> old?.first == new?.first }
+                .collectLatest { keyedSession ->
+                val session = keyedSession?.second
                 if (session == null) return@collectLatest
 
                 val membershipId = session.membership?.id
@@ -69,7 +75,7 @@ class FinancialSyncScheduler @Inject constructor(
         try {
             when (role) {
                 UserRole.ADMIN -> {
-                    syncEngine.syncOutbound(membershipId)
+                    syncEngine.syncOutbound(membershipId, role)
                     syncEngine.syncInbound(businessId)
                 }
 
@@ -82,7 +88,7 @@ class FinancialSyncScheduler @Inject constructor(
                         return
                     }
 
-                    val uploaded = syncEngine.syncOutbound(membershipId)
+                    val uploaded = syncEngine.syncOutbound(membershipId, role)
 
                     Log.i(
                         "PaidDueFinancialSync",

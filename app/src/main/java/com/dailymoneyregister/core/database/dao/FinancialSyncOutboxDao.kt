@@ -73,6 +73,43 @@ interface FinancialSyncOutboxDao {
         incrementAttempt: Int = 0
     ): Int
 
+    @Query("UPDATE financial_sync_outbox SET status = 'WAITING_RETRY' WHERE status = 'IN_FLIGHT'")
+    suspend fun resetStaleInFlight(): Int
+
+    @Query(
+        """
+        UPDATE financial_sync_outbox
+        SET status = CASE
+            WHEN (SELECT role FROM user_accounts WHERE id = actor_user_id) = 'ADMIN'
+                 AND operation_id IN (
+                    SELECT id FROM operations WHERE operation_type IN (
+                        'RECORD_SALE', 'RECORD_CREDIT_REPAYMENT', 'RECORD_COUPON_PURCHASE',
+                        'RECORD_AMOUNT_CORRECTION', 'RECORD_PAYMENT_METHOD_CHANGE', 'RECORD_VOID',
+                        'RECORD_REFUND', 'RECORD_EXPENSE', 'RECORD_EXPENSE_CORRECTION',
+                        'RECORD_EXPENSE_VOID', 'OPEN_CASH_SHIFT', 'COUNT_CASH_SHIFT', 'CLOSE_CASH_SHIFT'
+                    )
+                 ) THEN status
+            WHEN (SELECT role FROM user_accounts WHERE id = actor_user_id) = 'CASHIER'
+                 AND operation_id IN (
+                    SELECT id FROM operations WHERE operation_type IN (
+                        'RECORD_SALE', 'RECORD_CREDIT_REPAYMENT', 'RECORD_COUPON_PURCHASE',
+                        'RECORD_AMOUNT_CORRECTION', 'RECORD_PAYMENT_METHOD_CHANGE', 'RECORD_VOID', 'RECORD_REFUND'
+                    )
+                 ) THEN status
+            WHEN (SELECT role FROM user_accounts WHERE id = actor_user_id) = 'CASHIER'
+                 AND operation_id IN (
+                    SELECT id FROM operations WHERE operation_type IN (
+                        'RECORD_EXPENSE', 'RECORD_EXPENSE_CORRECTION', 'RECORD_EXPENSE_VOID',
+                        'OPEN_CASH_SHIFT', 'COUNT_CASH_SHIFT', 'CLOSE_CASH_SHIFT'
+                    )
+                 ) THEN 'NOT_SYNCABLE_YET'
+            ELSE 'NOT_APPLICABLE'
+        END
+        WHERE status IN ('QUEUED', 'WAITING_RETRY', 'IN_FLIGHT')
+        """
+    )
+    suspend fun classifyExistingRows(): Int
+
     @Query(
         """
         DELETE FROM financial_sync_outbox

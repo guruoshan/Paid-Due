@@ -3,10 +3,16 @@ package com.dailymoneyregister.core.cloud.sync
 import android.content.Context
 import android.util.Log
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.security.SessionManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 @Singleton
 class FinancialSyncEngine @Inject constructor(
@@ -22,6 +28,9 @@ class FinancialSyncEngine @Inject constructor(
     ) : this(database, remoteSyncRepository, inboundEnvelopeApplier, null)
 
     private val inMemoryCursors = mutableMapOf<String, Pair<String, String>>()
+    private val syncMutex = Mutex()
+    private val retryNotBefore = mutableMapOf<String, Long>()
+    private var outboxInitialized = false
 
     private fun getStoredCursor(businessId: String): Pair<String, String>? {
         val prefs = context?.getSharedPreferences("dmr_inbound_cursors", Context.MODE_PRIVATE)
@@ -45,14 +54,25 @@ class FinancialSyncEngine @Inject constructor(
             .apply()
     }
 
-    suspend fun syncOutbound(actorMembershipId: String): Int {
+    suspend fun syncOutbound(
+        actorMembershipId: String,
+        role: UserRole = SessionManager.currentSession.value?.user?.role ?: UserRole.ADMIN
+    ): Int = syncMutex.withLock {
         require(actorMembershipId.isNotBlank()) { "Financial sync requires an authorized membership" }
         val outboxDao = database.financialSyncOutboxDao()
         val operationDao = database.operationDao()
         val transactionDao = database.transactionDao()
         val expenseDao = database.expenseDao()
 
+        if (!outboxInitialized) {
+            outboxDao.classifyExistingRows()
+            outboxDao.resetStaleInFlight()
+            outboxInitialized = true
+        }
+
+        val now = System.currentTimeMillis()
         val pendingList = outboxDao.getPendingUpload(50)
+            .filter { now >= (retryNotBefore[it.operationId] ?: Long.MIN_VALUE) }
         
         val statusCounts = outboxDao.getStatusCounts()
         val countsStr = statusCounts.joinToString(", ") { "${it.operationType}[${it.status}]=${it.count}" }
@@ -61,66 +81,103 @@ class FinancialSyncEngine @Inject constructor(
         var syncedCount = 0
 
         for (outboxItem in pendingList) {
-            val currentState = runCatching {
-                FinancialSyncDeliveryState.valueOf(outboxItem.status)
-            }.getOrDefault(FinancialSyncDeliveryState.QUEUED)
+            try {
+                val opEntity = operationDao.getOperationById(outboxItem.operationId)
+                    ?: error("Operation ${outboxItem.operationId} is missing")
+                val policyState = FinancialSyncOperationPolicy.initialState(role, opEntity.operationType)
+                if (policyState != FinancialSyncDeliveryState.QUEUED) {
+                    withContext(NonCancellable) {
+                        outboxDao.updateStatus(outboxItem.operationId, policyState.name)
+                    }
+                    continue
+                }
 
-            val inFlightState = try {
-                FinancialSyncOutboxPolicy.beginUpload(currentState)
-            } catch (e: Exception) {
-                continue
-            }
+                val currentState = FinancialSyncDeliveryState.valueOf(outboxItem.status)
+                val inFlightState = FinancialSyncOutboxPolicy.beginUpload(currentState)
+                withContext(NonCancellable) {
+                    outboxDao.updateStatus(outboxItem.operationId, inFlightState.name)
+                }
 
-            outboxDao.updateStatus(outboxItem.operationId, inFlightState.name)
-
-            val opEntity = operationDao.getOperationById(outboxItem.operationId)
-            if (opEntity == null) {
-                outboxDao.updateStatus(outboxItem.operationId, FinancialSyncDeliveryState.WAITING_RETRY.name, incrementAttempt = 1)
-                continue
-            }
-            val txEntity = outboxItem.transactionId.let { transactionDao.getTransactionById(it) }
-            val items = outboxItem.transactionId.let { transactionDao.getItemsForTransaction(it) }
-            val settlements = transactionDao.getSettlementsForOperation(outboxItem.operationId)
-            val expense = expenseDao.getExpenseByOperationId(outboxItem.operationId)
-
-            val envelope = FinancialEnvelopeCodec.encode(
-                operation = opEntity,
-                transaction = txEntity,
-                items = items,
-                settlements = settlements,
-                expense = expense
-            )
-
-            val receipt = remoteSyncRepository.uploadEnvelope(
-                envelope = envelope,
-                actorMembershipId = actorMembershipId
-            )
-
-            val identity = FinancialSyncIdentity(
-                operationId = envelope.operationId,
-                businessId = envelope.businessId,
-                branchId = envelope.branchId,
-                actorMembershipId = actorMembershipId,
-                deviceId = envelope.deviceId,
-                commandSchemaVersion = envelope.commandSchemaVersion,
-                canonicalSha256 = envelope.canonicalSha256
-            )
-
-            val nextState = FinancialSyncOutboxPolicy.applyReceipt(
-                identity = identity,
-                state = inFlightState,
-                receipt = receipt
-            )
-
-            outboxDao.updateStatus(outboxItem.operationId, nextState.name, incrementAttempt = 1)
-
-            if (nextState == FinancialSyncDeliveryState.ACKNOWLEDGED) {
-                outboxDao.deleteAcknowledged(outboxItem.operationId)
-                syncedCount++
+                val branch = database.businessBranchDao().getBranchById(outboxItem.branchId)
+                    ?: error("Branch ${outboxItem.branchId} is missing")
+                require(branch.businessId == outboxItem.businessId) {
+                    "Outbox branch does not belong to its business"
+                }
+                val txEntity = transactionDao.getTransactionById(outboxItem.transactionId)
+                val items = transactionDao.getItemsForTransaction(outboxItem.transactionId)
+                val settlements = transactionDao.getSettlementsForOperation(outboxItem.operationId)
+                val expense = expenseDao.getExpenseByOperationId(outboxItem.operationId)
+                val envelope = FinancialEnvelopeCodec.encode(opEntity, txEntity, items, settlements, expense)
+                val receipt = remoteSyncRepository.uploadEnvelope(
+                    envelope = envelope,
+                    actorMembershipId = actorMembershipId,
+                    branchTimezoneId = branch.timezoneId
+                )
+                val identity = FinancialSyncIdentity(
+                    envelope.operationId,
+                    envelope.businessId,
+                    envelope.branchId,
+                    actorMembershipId,
+                    envelope.deviceId,
+                    envelope.commandSchemaVersion,
+                    envelope.canonicalSha256
+                )
+                val nextState = FinancialSyncOutboxPolicy.applyReceipt(identity, inFlightState, receipt)
+                withContext(NonCancellable) {
+                    outboxDao.updateStatus(outboxItem.operationId, nextState.name, incrementAttempt = 1)
+                    when (receipt) {
+                        is FinancialSyncReceipt.NeedsAttention -> persistAttention(
+                            outboxItem.operationId,
+                            receipt.message
+                        )
+                        else -> Unit
+                    }
+                    if (nextState == FinancialSyncDeliveryState.ACKNOWLEDGED) {
+                        outboxDao.deleteAcknowledged(outboxItem.operationId)
+                    }
+                }
+                if (nextState == FinancialSyncDeliveryState.WAITING_RETRY) {
+                    retryNotBefore[outboxItem.operationId] = now + retryDelayMillis(outboxItem.attemptCount + 1)
+                } else {
+                    retryNotBefore.remove(outboxItem.operationId)
+                }
+                if (nextState == FinancialSyncDeliveryState.ACKNOWLEDGED) syncedCount++
+            } catch (cancelled: CancellationException) {
+                withContext(NonCancellable) {
+                    outboxDao.updateStatus(
+                        outboxItem.operationId,
+                        FinancialSyncDeliveryState.WAITING_RETRY.name,
+                        incrementAttempt = 1
+                    )
+                }
+                throw cancelled
+            } catch (error: Exception) {
+                Log.e("PaidDueFinancialSync", "OUTBOUND_ITEM_FAILED operation=${outboxItem.operationId}", error)
+                withContext(NonCancellable) {
+                    outboxDao.updateStatus(
+                        outboxItem.operationId,
+                        FinancialSyncDeliveryState.WAITING_RETRY.name,
+                        incrementAttempt = 1
+                    )
+                }
+                retryNotBefore[outboxItem.operationId] = now + retryDelayMillis(outboxItem.attemptCount + 1)
             }
         }
 
         return syncedCount
+    }
+
+    private fun persistAttention(operationId: String, message: String) {
+        context?.getSharedPreferences("dmr_financial_sync_attention", Context.MODE_PRIVATE)
+            ?.edit()
+            ?.putString(operationId, message)
+            ?.apply()
+        FinancialSyncStatus.report(FinancialSyncProblem(operationId, message))
+    }
+
+    internal fun retryDelayMillis(attempt: Int): Long {
+        val exponent = (attempt - 1).coerceIn(0, 6)
+        return (15_000L shl exponent).coerceAtMost(15 * 60_000L)
     }
 
     suspend fun syncInbound(businessId: String): Int {
