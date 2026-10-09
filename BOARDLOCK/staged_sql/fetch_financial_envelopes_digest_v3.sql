@@ -114,14 +114,19 @@ begin
     if not exists (
         select 1
         from public.business_memberships m
-        join public.businesses b on b.id = m.business_id and b.is_active
-        join public.branches br on br.id = m.branch_id
-            and br.business_id = m.business_id and br.is_active
+        join private.staff_identities s
+          on s.id = m.staff_identity_id and s.is_active = true
+        join public.businesses b
+          on b.id = m.business_id and b.is_active = true
+        join public.branches br
+          on br.id = m.branch_id
+         and br.business_id = m.business_id
+         and br.is_active = true
         where m.id = p_membership_id
           and m.business_id = p_business_id
           and m.branch_id = p_branch_id
           and m.role = 'CASHIER'
-          and m.is_active
+          and m.is_active = true
           and m.staff_identity_id is not null
     ) then
         raise exception 'Cashier authorization required' using errcode = '42501';
