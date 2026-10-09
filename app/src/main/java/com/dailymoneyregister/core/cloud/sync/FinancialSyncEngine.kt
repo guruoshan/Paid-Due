@@ -111,6 +111,34 @@ class FinancialSyncEngine @Inject constructor(
             outboxInitialized = true
         }
 
+        val activeSession = SessionManager.currentSession.value
+        if (
+            role == UserRole.ADMIN &&
+            activeSession?.user?.role == UserRole.ADMIN &&
+            activeSession.membership?.id == actorMembershipId &&
+            activeSession.business.id.isNotBlank() &&
+            activeSession.branch.id.isNotBlank() &&
+            remoteSyncRepository.isAdminSessionAuthorized(
+                expectedMembershipId = actorMembershipId,
+                expectedBusinessId = activeSession.business.id,
+                expectedBranchId = activeSession.branch.id
+            )
+        ) {
+            // Recover blocked delivery metadata only for this verified Admin's own
+            // operations in the active tenant. Financial operations and IDs remain unchanged.
+            val recovered = outboxDao.requeueAuthRequiredForActor(
+                businessId = activeSession.business.id,
+                branchId = activeSession.branch.id,
+                actorUserId = activeSession.user.id
+            )
+            if (recovered > 0) {
+                Log.i(
+                    "PaidDueFinancialSync",
+                    "AUTH_REQUIRED_RECOVERED count=$recovered actor=${activeSession.user.id}"
+                )
+            }
+        }
+
         val now = System.currentTimeMillis()
         val pendingList = outboxDao.getPendingUpload(50)
             .filter { now >= (retryBackoffStore.nextRetryAt(it.operationId) ?: Long.MIN_VALUE) }
