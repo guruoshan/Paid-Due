@@ -100,7 +100,7 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
                 )
                 db.execSQL(
                     """
-                    CREATE TRIGGER financial_sync_outbox_after_operation_success
+                    CREATE TRIGGER financial_sync_outbox_after_cash_sale_success
                     AFTER UPDATE ON operations
                     WHEN OLD.status != 'SUCCEEDED'
                       AND NEW.status = 'SUCCEEDED'
