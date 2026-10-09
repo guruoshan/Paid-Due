@@ -2,7 +2,6 @@ package com.dailymoneyregister.core.cloud.sync
 
 import android.content.Context
 import android.util.Log
-import com.dailymoneyregister.BuildConfig
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.security.SessionManager
@@ -255,7 +254,7 @@ class FinancialSyncEngine @Inject constructor(
             totalFetched += envelopes.size
             Log.i("PaidDueFinancialSync", "INBOUND_FETCHED ${envelopes.size}")
 
-            if (!BuildConfig.APPLY_INBOUND_FINANCIAL_ENVELOPES) {
+            if (!InboundApplicationGate.enabled()) {
                 Log.w("PaidDueFinancialSync", "INBOUND_APPLY_DISABLED fetched=${envelopes.size}")
                 return totalApplied
             }

@@ -26,6 +26,11 @@ fun buildConfigString(value: String): String =
         .replace("\\", "\\\\")
         .replace("\"", "\\\"") + "\""
 android {
+    val inboundApplyDefault = providers.gradleProperty("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES")
+        .orElse(providers.environmentVariable("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES"))
+        .orElse("false")
+        .get()
+        .toBooleanStrictOrNull() ?: false
     namespace = "com.dailymoneyregister"
     compileSdk {
         version = release(37)
@@ -137,7 +142,7 @@ android {
 
     buildTypes {
         release {
-            buildConfigField("boolean", "APPLY_INBOUND_FINANCIAL_ENVELOPES", "false")
+            buildConfigField("boolean", "APPLY_INBOUND_FINANCIAL_ENVELOPES", inboundApplyDefault.toString())
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -147,7 +152,6 @@ android {
         }
         debug {
             applicationIdSuffix = ".debug"
-            buildConfigField("boolean", "APPLY_INBOUND_FINANCIAL_ENVELOPES", "true")
         }
     }
     compileOptions {

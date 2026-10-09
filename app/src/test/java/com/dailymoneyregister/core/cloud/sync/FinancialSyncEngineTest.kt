@@ -18,9 +18,12 @@ import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Before
+import org.junit.After
 import org.junit.Test
 
 class FinancialSyncEngineTest {
+    @Before fun enableInboundForTests() { InboundApplicationGate.testOverride = true }
+    @After fun resetInboundForTests() { InboundApplicationGate.testOverride = null }
 
     private val db = mockk<DmrDatabase>()
     private val outboxDao = mockk<FinancialSyncOutboxDao>()
