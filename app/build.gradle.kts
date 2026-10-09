@@ -28,7 +28,7 @@ fun buildConfigString(value: String): String =
 android {
     val inboundApplyDefault = providers.gradleProperty("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES")
         .orElse(providers.environmentVariable("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES"))
-        .orElse("false")
+        .orElse("true")
         .get()
         .toBooleanStrictOrNull() ?: false
     namespace = "com.dailymoneyregister"
