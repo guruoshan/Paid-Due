@@ -43,6 +43,29 @@ object RemoteEnvelopeMaterializer {
 
         val jsonPayload = envelope.payloadJson
 
+        // The transport row and canonical payload are two representations of the
+        // same immutable envelope. Reject disagreement before any duplicate check
+        // or database write, rather than trusting either representation alone.
+        val payloadBranchId = jsonPayload.optString("branch_id").ifBlank { null }
+        val payloadOccurredAt = jsonPayload.optLong("occurred_at", Long.MIN_VALUE)
+        val envelopeOccurredAt = runCatching {
+            java.time.Instant.parse(envelope.occurredAtIso).toEpochMilli()
+        }.getOrNull()
+        if (
+            jsonPayload.optString("operation_id") != opId ||
+            jsonPayload.optString("business_id") != envelope.businessId ||
+            payloadBranchId != envelope.branchId ||
+            jsonPayload.optString("operation_type") != opTypeStr ||
+            envelopeOccurredAt == null ||
+            payloadOccurredAt != envelopeOccurredAt ||
+            jsonPayload.optString("request_fingerprint").isBlank() ||
+            jsonPayload.optInt("command_schema_version", 0) < 1
+        ) {
+            return InboundProcessResult.Rejected(
+                "Envelope metadata does not match its canonical payload"
+            )
+        }
+
         // Tenant and branch checks must run before operation dispatch so no handler
         // can materialize an envelope outside the active Admin scope.
         if (envelope.businessId != sessionBusinessId) {
