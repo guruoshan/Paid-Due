@@ -362,7 +362,10 @@ object RemoteEnvelopeMaterializer {
             "RECORD_COUPON_PURCHASE" -> {
                 val couponTotal = (financialEvidence.optJSONArray("coupon_ledger_events") ?: org.json.JSONArray())
                     .let { events ->
-                        (0 until events.length()).sumOf { events.getJSONObject(it).optLong("amount_signed_minor", 0L) }
+                        (0 until events.length())
+                            .map { events.getJSONObject(it) }
+                            .filter { it.optString("type") == "PURCHASE" }
+                            .sumOf { it.optLong("amount_signed_minor", 0L) }
                     }
                 if (couponTotal != grandTotalMinor) {
                     return InboundProcessResult.Rejected("Coupon purchase ledger amount does not match purchase total")
