@@ -287,6 +287,11 @@ class FinancialSyncEngine @Inject constructor(
                     }
                     is InboundProcessResult.UnsupportedYet -> {
                         Log.i("PaidDueFinancialSync", "INBOUND_UNSUPPORTED_YET type=${result.operationType}")
+                        FinancialSyncStatus.recordUnsupported(
+                            context,
+                            businessId,
+                            envelope.operationId
+                        )
                         totalSkipped++
                         pageLastProcessedEnvelope = envelope
                     }
