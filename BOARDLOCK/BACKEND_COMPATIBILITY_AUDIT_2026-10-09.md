@@ -106,3 +106,10 @@ Required work before calling inbound complete:
 - Removed only the `profiles` join from the **staged cashier RPC**; the active membership/business/branch checks and requirement for a non-null `staff_identity_id` remain. The Admin RPC's profile check was preserved.
 - Commit: `2ee414b0c986b05745827f1ed118544e48995afb` on `fix/backend-compatibility-audit-2026-10`.
 - This is a source/staging correction only. It has not been deployed or tested against a database. Production SQL and financial data remain unchanged. The two local Pixel `NEEDS_ATTENTION` operation IDs still require a read-only local outbox export; this fix does not claim to resolve those outbound rows.
+
+
+## Follow-up — local outbox terminal-state diagnosis (2026-10-10)
+
+- Source inspection confirms `FinancialSyncOutboxDao.getPendingUpload()` selects only `QUEUED` and `WAITING_RETRY`. Rows in `NEEDS_ATTENTION` are not automatically retried. This is a terminal delivery state by design, so seeing `NEEDS_ATTENTION` plus no later upload request is consistent with the scheduler excluding those rows.
+- This proves why a row already in `NEEDS_ATTENTION` will not be sent again; it does **not** prove what originally moved either Pixel row into that state or identify the two operation IDs. The server-side candidate IDs must not be substituted for local outbox IDs.
+- Required read-only evidence remains the Pixel outbox rows (operation ID, status, last error/attention message, attempt count, timestamps) plus matching logcat entries around the last state transition. Do not bulk-reset or auto-retry `NEEDS_ATTENTION` rows: permanent validation/integrity failures require diagnosis first.
