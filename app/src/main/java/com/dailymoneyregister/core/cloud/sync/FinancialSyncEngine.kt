@@ -314,6 +314,26 @@ class FinancialSyncEngine @Inject constructor(
             var pageLastProcessedEnvelope: RemoteEnvelopeV2? = null
 
             for (envelope in envelopes) {
+                // Verify the digest returned by the backend before parsing or applying
+                // any financial evidence. A missing digest is not treated as trusted data.
+                val remoteDigest = envelope.canonicalSha256
+                val calculatedDigest = com.dailymoneyregister.core.command.CommandFingerprint
+                    .sha256(envelope.canonicalText)
+                if (
+                    remoteDigest.isNullOrBlank() ||
+                    !remoteDigest.equals(calculatedDigest, ignoreCase = true)
+                ) {
+                    reportInboundRejection(
+                        envelope.operationId,
+                        if (remoteDigest.isNullOrBlank()) {
+                            "Remote envelope is missing canonical_sha256"
+                        } else {
+                            "Remote canonical_sha256 does not match canonical_text"
+                        }
+                    )
+                    return totalApplied
+                }
+
                 val result = try {
                     inboundEnvelopeApplier.apply(
                         database = database,
