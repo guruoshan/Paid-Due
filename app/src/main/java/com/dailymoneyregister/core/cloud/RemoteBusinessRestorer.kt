@@ -217,11 +217,15 @@ class RemoteBusinessRestorer @Inject constructor(
     ): RemoteBusinessRestorationResult {
         suspend fun resolveCurrentScope(): RemoteStaffRestorationRpcRow? {
             if (!remoteAdminAuthRepository.hasAuthenticatedSession()) return null
-            return runCatching {
+            return try {
                 supabase.postgrest.rpc("restore_admin_by_auth_id")
                     .decodeList<RemoteStaffRestorationRpcRow>()
                     .singleOrNull()
-            }.getOrNull()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
         }
 
         suspend fun matchesExpected(row: RemoteStaffRestorationRpcRow): Boolean {
