@@ -113,3 +113,22 @@ Required work before calling inbound complete:
 - Source inspection confirms `FinancialSyncOutboxDao.getPendingUpload()` selects only `QUEUED` and `WAITING_RETRY`. Rows in `NEEDS_ATTENTION` are not automatically retried. This is a terminal delivery state by design, so seeing `NEEDS_ATTENTION` plus no later upload request is consistent with the scheduler excluding those rows.
 - This proves why a row already in `NEEDS_ATTENTION` will not be sent again; it does **not** prove what originally moved either Pixel row into that state or identify the two operation IDs. The server-side candidate IDs must not be substituted for local outbox IDs.
 - Required read-only evidence remains the Pixel outbox rows (operation ID, status, last error/attention message, attempt count, timestamps) plus matching logcat entries around the last state transition. Do not bulk-reset or auto-retry `NEEDS_ATTENTION` rows: permanent validation/integrity failures require diagnosis first.
+
+
+## Applied repair — cashier download authorization (2026-10-10)
+
+- Production Supabase project `ttvdpgxqvvtjnxxfkoui`: migration `fix_cashier_financial_download_auth` applied successfully. It replaces the cashier download RPC's impossible `profiles.auth_user_id = membership.auth_user_id` check with active `staff_identities`, active membership, active business, and same-branch checks. The RPC remains executable by `service_role` only; `authenticated` and `anon` remain denied.
+- Post-migration read-only check: both active cashier memberships returned successfully from the RPC (one-row bounded probe); function privilege check confirmed service_role=true, authenticated=false, anon=false. The query did not modify financial records.
+- Source migration committed on `fix/backend-compatibility-audit-2026-10`: `5682f40c54cbbe98f4a0e56c34da67c7c6495bae`.
+
+## Applied source repair — inbound receiver gate (2026-10-10)
+
+- Production contains 41 financial envelopes; read-only integrity query found 0 missing/invalid SHA-256 digests and 0 canonical-text/JSONB mismatches.
+- Debug builds now default inbound application ON so the receiver can apply supported validated envelopes and the cross-device path can be tested. Release builds remain OFF by default. The existing Gradle property/environment override remains available for an explicitly approved release rollout.
+- This is source configuration only; no Android build was deployed. The physical Admin device must be rebuilt/reinstalled from this repair branch to exercise inbound application. Any rejected envelope must be diagnosed; do not bypass validation.
+
+## Still unresolved
+
+- The two local Pixel `NEEDS_ATTENTION` outbox rows have not been exported, so their original failure and exact IDs are not yet proven. Do not substitute server-side candidate IDs for local IDs.
+- Cashier upload still intentionally allowlists only sale/lifecycle operations with existing membership permission columns. Cash-shift and expense sync need an explicit permission model and server contract before they can safely be enabled; do not weaken the allowlist blindly.
+- Full end-to-end Android build/test and physical-device reconciliation are still required. No release build or app deployment has been performed.
