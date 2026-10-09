@@ -637,6 +637,20 @@ object RemoteEnvelopeMaterializer {
                 if (total != repaymentJson.getLong("amount_minor")) {
                     return InboundProcessResult.Rejected("Credit repayment settlements do not balance to repayment amount")
                 }
+                val ledgerEvents = evidence.optJSONArray("credit_ledger_events") ?: org.json.JSONArray()
+                val repaymentEvents = (0 until ledgerEvents.length()).map { ledgerEvents.getJSONObject(it) }
+                    .filter {
+                        it.optString("type") == "REPAYMENT" &&
+                            it.optString("repayment_id") == repaymentJson.optString("id")
+                    }
+                if (
+                    repaymentEvents.size != 1 ||
+                    repaymentEvents.single().optLong("amount_signed_minor", 0L) != -repaymentJson.getLong("amount_minor") ||
+                    repaymentEvents.single().optString("customer_id") != customerId ||
+                    repaymentEvents.single().optString("currency_code") != repaymentJson.optString("currency_code")
+                ) {
+                    return InboundProcessResult.Rejected("Credit repayment is missing its matching negative ledger event")
+                }
             }
             OperationType.OPEN_CASH_SHIFT,
             OperationType.COUNT_CASH_SHIFT,
@@ -667,6 +681,17 @@ object RemoteEnvelopeMaterializer {
                 ) {
                     return InboundProcessResult.Rejected("Cash count cannot be negative")
                 }
+                if (
+                    payload.optString("subject_type").isNotBlank() &&
+                        payload.optString("subject_type") != SubjectType.CASH_SHIFT.name ||
+                    payload.optString("subject_id").isNotBlank() &&
+                        payload.optString("subject_id") != shiftJson.optString("id")
+                ) {
+                    return InboundProcessResult.Rejected("Cash-shift subject metadata mismatch")
+                }
+                if ((payload.optJSONArray("settlements")?.length() ?: 0) != 0) {
+                    return InboundProcessResult.Rejected("Cash-shift lifecycle operations cannot carry settlements")
+                }
             }
             OperationType.RECORD_EXPENSE_CORRECTION,
             OperationType.RECORD_EXPENSE_VOID -> {
@@ -679,10 +704,58 @@ object RemoteEnvelopeMaterializer {
                 ) {
                     return InboundProcessResult.Rejected("Expense lifecycle evidence belongs to another tenant or branch")
                 }
-                if ((0 until expenseEvents.length()).none {
-                    expenseEvents.getJSONObject(it).optString("operation_id") == envelope.operationId
-                }) {
-                    return InboundProcessResult.Rejected("Expense lifecycle event does not reference the operation")
+                val operationEvents = (0 until expenseEvents.length())
+                    .map { expenseEvents.getJSONObject(it) }
+                    .filter { it.optString("operation_id") == envelope.operationId }
+                if (operationEvents.size != 1) {
+                    return InboundProcessResult.Rejected("Expense lifecycle operation must have exactly one event")
+                }
+                if (
+                    payload.optString("subject_type").isNotBlank() &&
+                        payload.optString("subject_type") != SubjectType.EXPENSE.name ||
+                    payload.optString("subject_id").isNotBlank() &&
+                        payload.optString("subject_id") != expenseSnapshot.optString("id")
+                ) {
+                    return InboundProcessResult.Rejected("Expense lifecycle subject metadata mismatch")
+                }
+                val settlements = payload.optJSONArray("settlements") ?: org.json.JSONArray()
+                if (settlements.length() == 0) {
+                    return InboundProcessResult.Rejected("Expense lifecycle operation is missing signed settlement evidence")
+                }
+                var total = 0L
+                for (i in 0 until settlements.length()) {
+                    val row = settlements.getJSONObject(i)
+                    if (
+                        row.optString("operation_id") != envelope.operationId ||
+                        row.optString("subject_type") != SubjectType.EXPENSE.name ||
+                        row.optString("subject_id") != expenseSnapshot.optString("id") ||
+                        row.optString("transaction_id").isNotBlank() ||
+                        row.optString("currency_code") != expenseSnapshot.optString("currency_code")
+                    ) {
+                        return InboundProcessResult.Rejected("Expense lifecycle settlement identity mismatch")
+                    }
+                    total = Math.addExact(total, row.getLong("amount_signed_minor"))
+                }
+                val event = operationEvents.single()
+                if (operationType == OperationType.RECORD_EXPENSE_VOID) {
+                    if (total != expenseSnapshot.optLong("amount_minor", 0L)) {
+                        return InboundProcessResult.Rejected("Expense void settlement does not reverse the original outflow")
+                    }
+                } else if (
+                    event.has("previous_amount_minor") &&
+                    !event.isNull("previous_amount_minor") &&
+                    event.has("new_amount_minor") &&
+                    !event.isNull("new_amount_minor")
+                ) {
+                    val expectedDelta = Math.subtractExact(
+                        event.getLong("previous_amount_minor"),
+                        event.getLong("new_amount_minor")
+                    )
+                    if (total != expectedDelta) {
+                        return InboundProcessResult.Rejected("Expense correction delta does not match signed settlements")
+                    }
+                } else if (event.optString("new_payment_category").isNotBlank() && total != 0L) {
+                    return InboundProcessResult.Rejected("Expense payment reclassification settlements must net to zero")
                 }
             }
             else -> return InboundProcessResult.UnsupportedYet(envelope.operationType)
