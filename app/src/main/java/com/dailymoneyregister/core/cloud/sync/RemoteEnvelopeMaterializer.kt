@@ -16,6 +16,7 @@ import com.dailymoneyregister.core.model.enums.PaymentChannel
 import com.dailymoneyregister.core.model.enums.SubjectType
 import com.dailymoneyregister.core.model.enums.TransactionType
 import org.json.JSONObject
+import java.math.BigDecimal
 
 sealed class InboundProcessResult {
     data object Applied : InboundProcessResult()
@@ -42,6 +43,15 @@ object RemoteEnvelopeMaterializer {
         val opTypeStr = envelope.operationType
 
         val jsonPayload = envelope.payloadJson
+
+        // Verify the canonical text and separately returned JSONB payload are
+        // semantically identical (object key order is irrelevant). The current
+        // backend fetch RPC does not expose canonical_sha256, so this is a
+        // consistency check, not a substitute for server-side digest verification.
+        val canonicalPayload = runCatching { JSONObject(envelope.canonicalText) }.getOrNull()
+        if (canonicalPayload == null || normalizeJson(canonicalPayload) != normalizeJson(jsonPayload)) {
+            return InboundProcessResult.Rejected("Canonical text and payload JSON disagree")
+        }
 
         // The transport row and canonical payload are two representations of the
         // same immutable envelope. Reject disagreement before any duplicate check
@@ -77,6 +87,14 @@ object RemoteEnvelopeMaterializer {
 
         val branchId = envelope.branchId ?: sessionBranchId
             ?: return InboundProcessResult.Rejected("Branch ID missing in envelope and admin session")
+
+        val payloadActorUserId = jsonPayload.optString("actor_user_id")
+        if (
+            payloadActorUserId.isBlank() ||
+            database.userDao().getUserByIdInBusiness(payloadActorUserId, sessionBusinessId) == null
+        ) {
+            return InboundProcessResult.Rejected("Referenced operation actor is missing locally")
+        }
 
         // A duplicate operation ID is only a replay when its immutable identity
         // matches the active tenant, branch, type, and request fingerprint. Scope
@@ -222,7 +240,9 @@ object RemoteEnvelopeMaterializer {
             val settlement = settlementsArray.getJSONObject(i)
             if (
                 settlement.getString("operation_id") != opId ||
-                settlement.optString("transaction_id").ifBlank { tJson.getString("id") } != tJson.getString("id")
+                settlement.optString("transaction_id") != tJson.getString("id") ||
+                settlement.optString("subject_type") != SubjectType.TRANSACTION.name ||
+                settlement.optString("subject_id") != tJson.getString("id")
             ) {
                 return InboundProcessResult.Rejected("Settlement references do not match the envelope")
             }
@@ -242,13 +262,79 @@ object RemoteEnvelopeMaterializer {
             }.getOrElse {
                 return InboundProcessResult.Rejected("Unknown settlement channel")
             }
-            if (category.name.isBlank() || channel.name.isBlank()) {
-                return InboundProcessResult.Rejected("Invalid settlement payment method")
+            val validPaymentPair = when (category) {
+                PaymentCategory.CASH -> channel == PaymentChannel.CASH_TENDER
+                PaymentCategory.ONLINE -> channel == PaymentChannel.MANUAL_QR || channel == PaymentChannel.SOFTPOS
+                PaymentCategory.CREDIT -> channel == PaymentChannel.CREDIT_ACCOUNT
+                PaymentCategory.COUPON -> channel == PaymentChannel.COUPON_WALLET
+            }
+            if (!validPaymentPair) {
+                return InboundProcessResult.Rejected("Settlement payment category/channel combination is invalid")
+            }
+            val purpose = runCatching {
+                EntryPurpose.valueOf(settlement.getString("entry_purpose"))
+            }.getOrElse {
+                return InboundProcessResult.Rejected("Unknown settlement entry purpose")
+            }
+            val expectedPurpose = when (opTypeStr) {
+                "RECORD_SALE" -> EntryPurpose.SALE_FUNDING
+                "RECORD_COUPON_PURCHASE" -> EntryPurpose.COUPON_PURCHASE_FUNDING
+                "RECORD_REFUND" -> EntryPurpose.REFUND_OUTFLOW
+                "RECORD_VOID" -> EntryPurpose.VOID_REVERSAL
+                "RECORD_AMOUNT_CORRECTION" -> EntryPurpose.FUNDING_CORRECTION
+                "RECORD_PAYMENT_METHOD_CHANGE" -> EntryPurpose.PAYMENT_METHOD_RECLASSIFICATION
+                else -> null
+            }
+            if (expectedPurpose != null && purpose != expectedPurpose) {
+                return InboundProcessResult.Rejected("Settlement purpose is incompatible with $opTypeStr")
+            }
+            val signedAmount = settlement.optLong("amount_signed_minor", 0L)
+            if ((opTypeStr == "RECORD_SALE" || opTypeStr == "RECORD_COUPON_PURCHASE") && signedAmount <= 0L) {
+                return InboundProcessResult.Rejected("Sale funding settlement must be positive")
+            }
+            if ((opTypeStr == "RECORD_REFUND" || opTypeStr == "RECORD_VOID") && signedAmount >= 0L) {
+                return InboundProcessResult.Rejected("Refund/void reversal settlement must be negative")
+            }
+            if ((opTypeStr == "RECORD_AMOUNT_CORRECTION" || opTypeStr == "RECORD_PAYMENT_METHOD_CHANGE") && signedAmount == 0L) {
+                return InboundProcessResult.Rejected("Correction/reclassification settlement cannot be zero")
             }
             val settlementActor = settlement.optString("actor_user_id").ifBlank { actorUserId }
             if (database.userDao().getUserByIdInBusiness(settlementActor, sessionBusinessId) == null) {
                 return InboundProcessResult.Rejected("Referenced settlement user '$settlementActor' is missing locally")
             }
+        }
+
+        val financialEvidence = jsonPayload.optJSONObject("financial_evidence") ?: JSONObject()
+        val hasCreditEvents = (financialEvidence.optJSONArray("credit_ledger_events")?.length() ?: 0) > 0
+        val hasCouponEvents = (financialEvidence.optJSONArray("coupon_ledger_events")?.length() ?: 0) > 0
+        when (opTypeStr) {
+            "RECORD_COUPON_PURCHASE" -> if (
+                (financialEvidence.optJSONArray("coupon_wallets")?.length() ?: 0) == 0 || !hasCouponEvents
+            ) return InboundProcessResult.Rejected("Coupon purchase is missing wallet/ledger evidence")
+            "RECORD_AMOUNT_CORRECTION" -> if (
+                (financialEvidence.optJSONArray("amount_correction_events")?.length() ?: 0) != 1
+            ) return InboundProcessResult.Rejected("Amount correction requires exactly one immutable correction event")
+            "RECORD_PAYMENT_METHOD_CHANGE" -> if (
+                (financialEvidence.optJSONArray("payment_method_change_events")?.length() ?: 0) != 1
+            ) return InboundProcessResult.Rejected("Payment-method change requires exactly one immutable event")
+            "RECORD_VOID" -> if (financialEvidence.optJSONObject("void_event") == null) {
+                return InboundProcessResult.Rejected("Void is missing its immutable void event")
+            }
+            "RECORD_REFUND" -> if (financialEvidence.optJSONObject("refund_event") == null) {
+                return InboundProcessResult.Rejected("Refund is missing its immutable refund event")
+            }
+        }
+        if ((0 until settlementsArray.length()).any {
+                settlementsArray.getJSONObject(it).optString("category") == PaymentCategory.CREDIT.name
+            } && !hasCreditEvents
+        ) {
+            return InboundProcessResult.Rejected("Credit funding/reversal is missing credit-ledger evidence")
+        }
+        if ((0 until settlementsArray.length()).any {
+                settlementsArray.getJSONObject(it).optString("category") == PaymentCategory.COUPON.name
+            } && !hasCouponEvents
+        ) {
+            return InboundProcessResult.Rejected("Coupon funding/reversal is missing coupon-ledger evidence")
         }
 
         // d) actor user and branch rows exist locally or are created in the same transaction
@@ -395,6 +481,18 @@ object RemoteEnvelopeMaterializer {
 
             InboundProcessResult.Applied
         }
+    }
+
+    private fun normalizeJson(value: Any?): Any? = when (value) {
+        is JSONObject -> {
+            val keys = value.keys().asSequence().toList().sorted()
+            keys.associateWith { key -> normalizeJson(value.get(key)) }
+        }
+        is org.json.JSONArray -> (0 until value.length()).map { index -> normalizeJson(value.get(index)) }
+        is Number -> runCatching { BigDecimal(value.toString()).stripTrailingZeros().toPlainString() }
+            .getOrElse { value.toString() }
+        JSONObject.NULL -> null
+        else -> value
     }
 
     private suspend fun materializeNonTransactionOperation(
