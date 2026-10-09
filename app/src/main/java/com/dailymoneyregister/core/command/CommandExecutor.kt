@@ -2,6 +2,9 @@ package com.dailymoneyregister.core.command
 
 import androidx.room.withTransaction
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.cloud.sync.FinancialSyncDeliveryState
+import com.dailymoneyregister.core.cloud.sync.FinancialSyncOperationPolicy
+import com.dailymoneyregister.core.database.entity.FinancialSyncOutboxEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.model.enums.OperationStatus
 import kotlinx.coroutines.CancellationException
@@ -184,6 +187,55 @@ class CommandExecutor(
                         check(changedRows == 1) {
                             "Operation '$opId' lost its PENDING state " +
                                 "before success could be recorded."
+                        }
+
+                        /*
+                         * Admit remote delivery in the same Room transaction as the
+                         * financial write and SUCCEEDED transition. A process death
+                         * therefore cannot leave a committed local operation without
+                         * its delivery metadata.
+                         *
+                         * The outbox contains no financial authority. For commands
+                         * without a transaction row, transaction_id is an empty
+                         * lookup sentinel; the canonical command remains in operations.
+                         */
+                        val actor = database.userDao().getUserByIdInBusiness(
+                            userId = current.actorUserId,
+                            businessId = current.businessId
+                        ) ?: throw IllegalStateException(
+                            "Operation actor is missing from its business."
+                        )
+                        val deliveryState = FinancialSyncOperationPolicy.initialState(
+                            role = actor.role,
+                            type = current.operationType
+                        )
+                        if (deliveryState != FinancialSyncDeliveryState.NOT_APPLICABLE) {
+                            val branchId = current.branchId
+                                ?: throw IllegalStateException(
+                                    "A synchronizable operation must have a branch."
+                                )
+                            val outbox = FinancialSyncOutboxEntity(
+                                operationId = current.id,
+                                businessId = current.businessId,
+                                branchId = branchId,
+                                transactionId = current.transactionId.orEmpty(),
+                                actorUserId = current.actorUserId,
+                                deviceId = current.deviceId,
+                                requestFingerprint = current.requestFingerprint,
+                                commandSchemaVersion = current.commandSchemaVersion,
+                                occurredAt = current.occurredAt,
+                                status = deliveryState.name,
+                                attemptCount = 0
+                            )
+                            val inserted = database.financialSyncOutboxDao()
+                                .insertOutbox(outbox)
+                            if (inserted == -1L) {
+                                val existing = database.financialSyncOutboxDao()
+                                    .findByOperationId(current.id)
+                                check(existing == outbox) {
+                                    "Outbox identity conflicts with operation '$opId'."
+                                }
+                            }
                         }
 
                         CommandResult.Success(
