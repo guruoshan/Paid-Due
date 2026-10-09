@@ -397,6 +397,232 @@ object RemoteEnvelopeMaterializer {
         }
     }
 
+    private suspend fun materializeNonTransactionOperation(
+        database: DmrDatabase,
+        envelope: RemoteEnvelopeV2,
+        branchId: String,
+        sessionBusinessId: String,
+        actorUserId: String
+    ): InboundProcessResult {
+        val payload = envelope.payloadJson
+        val operationType = runCatching { OperationType.valueOf(envelope.operationType) }
+            .getOrElse { return InboundProcessResult.UnsupportedYet(envelope.operationType) }
+        val evidence = payload.optJSONObject("financial_evidence") ?: JSONObject()
+        val repaymentJson = evidence.optJSONObject("credit_repayment")
+        val shiftJson = evidence.optJSONObject("cash_shift")
+        val shiftEventJson = evidence.optJSONObject("cash_shift_event")
+        val expenseSnapshot = evidence.optJSONObject("expense_snapshot")
+        val expenseEvents = evidence.optJSONArray("expense_events")
+
+        when (operationType) {
+            OperationType.RECORD_CREDIT_REPAYMENT -> {
+                if (repaymentJson == null) {
+                    return InboundProcessResult.Rejected("Missing credit repayment evidence")
+                }
+                if (
+                    repaymentJson.optString("operation_id") != envelope.operationId ||
+                    repaymentJson.optString("actor_user_id") != actorUserId ||
+                    repaymentJson.optLong("amount_minor", 0L) <= 0L
+                ) {
+                    return InboundProcessResult.Rejected("Credit repayment identity or amount is invalid")
+                }
+                val customerId = repaymentJson.optString("customer_id")
+                val customer = database.customerDao().getCustomerById(customerId)
+                    ?: evidence.optJSONObject("customer")?.let { null }
+                val branch = database.businessBranchDao().getBranchById(branchId)
+                    ?: return InboundProcessResult.Rejected("Referenced branch is missing locally")
+                if (branch.businessId != sessionBusinessId ||
+                    repaymentJson.optString("currency_code") != branch.currencyCode
+                ) {
+                    return InboundProcessResult.Rejected("Credit repayment business, branch, or currency mismatch")
+                }
+                if (customer != null && customer.businessId != sessionBusinessId) {
+                    return InboundProcessResult.Rejected("Credit repayment customer belongs to another business")
+                }
+                val settlements = payload.optJSONArray("settlements") ?: org.json.JSONArray()
+                if (settlements.length() == 0) {
+                    return InboundProcessResult.Rejected("Credit repayment has no funding settlement")
+                }
+                var total = 0L
+                for (i in 0 until settlements.length()) {
+                    val row = settlements.getJSONObject(i)
+                    if (
+                        row.optString("operation_id") != envelope.operationId ||
+                        row.optString("currency_code") != repaymentJson.optString("currency_code") ||
+                        row.optString("entry_purpose") != EntryPurpose.CREDIT_REPAYMENT_COLLECTION.name
+                    ) {
+                        return InboundProcessResult.Rejected("Credit repayment settlement identity mismatch")
+                    }
+                    total = Math.addExact(total, row.getLong("amount_signed_minor"))
+                }
+                if (total != repaymentJson.getLong("amount_minor")) {
+                    return InboundProcessResult.Rejected("Credit repayment settlements do not balance to repayment amount")
+                }
+            }
+            OperationType.OPEN_CASH_SHIFT,
+            OperationType.COUNT_CASH_SHIFT,
+            OperationType.CLOSE_CASH_SHIFT -> {
+                if (shiftJson == null || shiftEventJson == null) {
+                    return InboundProcessResult.Rejected("Missing cash-shift identity/event evidence")
+                }
+                val expectedEvent = when (operationType) {
+                    OperationType.OPEN_CASH_SHIFT -> CashShiftEventType.OPENED
+                    OperationType.COUNT_CASH_SHIFT -> CashShiftEventType.COUNTED
+                    else -> CashShiftEventType.CLOSED
+                }
+                if (
+                    shiftJson.optString("branch_id") != branchId ||
+                    shiftEventJson.optString("operation_id") != envelope.operationId ||
+                    shiftEventJson.optString("type") != expectedEvent.name ||
+                    shiftEventJson.optString("actor_user_id") != actorUserId
+                ) {
+                    return InboundProcessResult.Rejected("Cash-shift operation/event identity mismatch")
+                }
+                if (operationType == OperationType.OPEN_CASH_SHIFT &&
+                    shiftEventJson.optLong("amount_minor", -1L) < 0L
+                ) {
+                    return InboundProcessResult.Rejected("Cash-shift opening amount cannot be negative")
+                }
+                if (operationType == OperationType.COUNT_CASH_SHIFT &&
+                    shiftEventJson.optLong("amount_minor", -1L) < 0L
+                ) {
+                    return InboundProcessResult.Rejected("Cash count cannot be negative")
+                }
+            }
+            OperationType.RECORD_EXPENSE_CORRECTION,
+            OperationType.RECORD_EXPENSE_VOID -> {
+                if (expenseSnapshot == null || expenseEvents == null || expenseEvents.length() == 0) {
+                    return InboundProcessResult.Rejected("Missing linked expense event evidence")
+                }
+                if (
+                    expenseSnapshot.optString("business_id") != sessionBusinessId ||
+                    expenseSnapshot.optString("branch_id") != branchId
+                ) {
+                    return InboundProcessResult.Rejected("Expense lifecycle evidence belongs to another tenant or branch")
+                }
+                if ((0 until expenseEvents.length()).none {
+                    expenseEvents.getJSONObject(it).optString("operation_id") == envelope.operationId
+                }) {
+                    return InboundProcessResult.Rejected("Expense lifecycle event does not reference the operation")
+                }
+            }
+            else -> return InboundProcessResult.UnsupportedYet(envelope.operationType)
+        }
+
+        return try {
+            database.withTransaction {
+                val operationDao = database.operationDao()
+                val subjectType = payload.optString("subject_type").ifBlank {
+                    when (operationType) {
+                        OperationType.RECORD_CREDIT_REPAYMENT -> SubjectType.REPAYMENT.name
+                        OperationType.OPEN_CASH_SHIFT,
+                        OperationType.COUNT_CASH_SHIFT,
+                        OperationType.CLOSE_CASH_SHIFT -> SubjectType.CASH_SHIFT.name
+                        else -> SubjectType.EXPENSE.name
+                    }
+                }.let { SubjectType.valueOf(it) }
+                val subjectId = payload.optString("subject_id").ifBlank {
+                    repaymentJson?.optString("id")
+                        ?: shiftJson?.optString("id")
+                        ?: expenseSnapshot?.optString("id")
+                        ?: envelope.operationId
+                }
+                val fingerprint = payload.optString("request_fingerprint")
+                val occurredAt = java.time.Instant.parse(envelope.occurredAtIso).toEpochMilli()
+                val cashShiftId = payload.optString("cash_shift_id").ifBlank {
+                    shiftJson?.optString("id")?.ifBlank { null }
+                }
+                val operation = OperationEntity(
+                    id = envelope.operationId,
+                    businessId = sessionBusinessId,
+                    branchId = branchId,
+                    operationType = operationType,
+                    subjectType = subjectType,
+                    subjectId = subjectId,
+                    transactionId = null,
+                    cashShiftId = cashShiftId,
+                    actorUserId = actorUserId,
+                    deviceId = payload.optString("device_id").ifBlank { "remote" },
+                    occurredAt = occurredAt,
+                    requestFingerprint = fingerprint,
+                    commandSchemaVersion = payload.optInt("command_schema_version", 1),
+                    intentPayload = payload.optString("intent_payload", "{}"),
+                    status = OperationStatus.PENDING
+                )
+                val existing = operationDao.getOperationById(envelope.operationId)
+                if (existing == null) {
+                    operationDao.insertOperationIfAbsent(operation)
+                } else {
+                    check(
+                        existing.businessId == operation.businessId &&
+                            existing.branchId == operation.branchId &&
+                            existing.operationType == operation.operationType &&
+                            existing.requestFingerprint == operation.requestFingerprint
+                    ) { "Inbound operation identity collision" }
+                    if (existing.status == OperationStatus.SUCCEEDED) {
+                        return@withTransaction InboundProcessResult.Skipped
+                    }
+                }
+
+                val settlementsArray = payload.optJSONArray("settlements") ?: org.json.JSONArray()
+                val settlementRows = (0 until settlementsArray.length()).map { i ->
+                    val row = settlementsArray.getJSONObject(i)
+                    SettlementEntryEntity(
+                        id = row.getString("id"),
+                        operationId = row.getString("operation_id"),
+                        subjectType = SubjectType.valueOf(row.getString("subject_type")),
+                        subjectId = row.getString("subject_id"),
+                        transactionId = row.optString("transaction_id").ifBlank { null },
+                        entryPurpose = EntryPurpose.valueOf(row.getString("entry_purpose")),
+                        category = PaymentCategory.valueOf(row.getString("category")),
+                        channel = PaymentChannel.valueOf(row.getString("channel")),
+                        amountSignedMinor = row.getLong("amount_signed_minor"),
+                        currencyCode = row.getString("currency_code"),
+                        confirmationType = ConfirmationType.valueOf(row.getString("confirmation_type")),
+                        qrProfileIdSnapshot = row.optString("qr_profile_id_snapshot").ifBlank { null },
+                        occurredAt = row.optLong("occurred_at", occurredAt),
+                        actorUserId = row.optString("actor_user_id").ifBlank { actorUserId },
+                        providerRef = row.optString("provider_ref").ifBlank { null }
+                    )
+                }
+                val existingSettlements = database.transactionDao()
+                    .getSettlementsForOperation(envelope.operationId)
+                if (existingSettlements.isEmpty() && settlementRows.isNotEmpty()) {
+                    database.transactionDao().insertSettlements(settlementRows)
+                } else if (settlementRows.isNotEmpty()) {
+                    check(existingSettlements.toSet() == settlementRows.toSet()) {
+                        "Inbound settlement evidence conflicts with local history"
+                    }
+                }
+
+                RemoteEnvelopeEvidenceApplier.apply(
+                    database = database,
+                    evidence = evidence,
+                    operationId = envelope.operationId,
+                    businessId = sessionBusinessId,
+                    branchId = branchId,
+                    actorUserId = actorUserId,
+                    transactionId = null
+                )
+
+                val finalized = operationDao.markSucceededIfPending(
+                    operationId = envelope.operationId,
+                    requestFingerprint = fingerprint,
+                    resultReferenceType = subjectType.name,
+                    resultReferenceId = subjectId
+                )
+                check(finalized == 1 || operationDao.isOperationSucceeded(envelope.operationId)) {
+                    "Inbound non-transaction operation could not be finalized"
+                }
+                InboundProcessResult.Applied
+            }
+        } catch (error: Exception) {
+            InboundProcessResult.Rejected(
+                "Unable to materialize ${envelope.operationType}: ${error.message ?: "integrity validation failed"}"
+            )
+        }
+    }
+
     private suspend fun materializeEnvelope(
         database: DmrDatabase,
         jsonPayload: JSONObject
