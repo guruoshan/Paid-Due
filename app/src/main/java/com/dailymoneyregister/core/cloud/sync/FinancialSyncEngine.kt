@@ -28,9 +28,7 @@ class FinancialSyncEngine @Inject constructor(
         inboundEnvelopeApplier: InboundEnvelopeApplier = MaterializingInboundEnvelopeApplier()
     ) : this(database, remoteSyncRepository, inboundEnvelopeApplier, null)
 
-    private data class InboundCursor(val receivedAtIso: String, val operationId: String)
-
-    private val inMemoryCursors = mutableMapOf<String, InboundCursor>()
+    private val inMemoryCursors = mutableMapOf<String, VersionedInboundCursor>()
     private val syncMutex = Mutex()
     private val retryNotBefore = mutableMapOf<String, Long>()
     private var outboxInitialized = false
@@ -42,7 +40,7 @@ class FinancialSyncEngine @Inject constructor(
     private suspend fun getStoredCursor(
         businessId: String,
         adminAccountId: String
-    ): InboundCursor? {
+    ): VersionedInboundCursor? {
         if (
             database.businessBranchDao().getBusinessById(businessId) == null ||
             database.userDao().getUserByIdInBusiness(adminAccountId, businessId) == null
@@ -56,9 +54,7 @@ class FinancialSyncEngine @Inject constructor(
             return inMemoryCursors[key]
         }
         val raw = prefs.getString(key, null) ?: return null
-        val parts = raw.split("|", limit = 2)
-        if (parts.size != 2 || parts[0].isBlank() || parts[1].isBlank()) return null
-        return InboundCursor(parts[0], parts[1])
+        return InboundCursorCodec.decode(raw)
     }
 
     private fun saveStoredCursor(
@@ -70,11 +66,24 @@ class FinancialSyncEngine @Inject constructor(
         val key = cursorKey(businessId, adminAccountId)
         val prefs = context?.getSharedPreferences("dmr_inbound_cursors", Context.MODE_PRIVATE)
         if (prefs == null) {
-            inMemoryCursors[key] = InboundCursor(receivedAtIso, operationId)
+            inMemoryCursors[key] = VersionedInboundCursor(
+                InboundCursorCodec.CURRENT_MATERIALIZER_VERSION,
+                receivedAtIso,
+                operationId
+            )
             return
         }
         prefs.edit()
-            .putString(key, "$receivedAtIso|$operationId")
+            .putString(
+                key,
+                InboundCursorCodec.encode(
+                    VersionedInboundCursor(
+                        InboundCursorCodec.CURRENT_MATERIALIZER_VERSION,
+                        receivedAtIso,
+                        operationId
+                    )
+                )
+            )
             .commit()
     }
 
