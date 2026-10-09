@@ -4,7 +4,7 @@
 **Base:** `migration/offline-first-supabase-v1`  
 **Repair branch:** `fix/backend-compatibility-audit-2026-10`  
 **Production backend/schema/data:** unchanged  
-**Status:** Receiver remains incomplete. The repair branch now includes inbound envelope identity/replay hardening and an Android CI workflow. A first CI attempt failed during Android SDK setup before Gradle compilation or tests ran; a workflow fix was committed, but a successful build/test result is not yet verified.
+**Status (updated 2026-10-10):** Receiver remains incomplete. GitHub Actions run `37984632299` completed successfully on commit `593cba76ea759aa3d5c6b9e9f94f576918e57d93`; the `android-build-and-unit-tests` job passed `testDebugUnitTest` and `assembleDebug`. This verifies the default configuration only. It does not prove the missing inbound operation handlers or end-to-end device sync are complete.
 
 ## Required receiver contract — all supported financial operations
 
@@ -37,7 +37,7 @@ The receiver must cover the complete backend operation contract:
 - Admin inbound fetch uses `public.fetch_financial_envelopes_v2`, which requires an authenticated Supabase identity and active Admin membership.
 - Cashier financial upload/download uses the `/api/financial/upload` and `/api/financial/download` Edge Function routes with the custom cashier session token. Cashier authorization is checked server-side against membership and operation permissions.
 - The live Edge Function `api` is active. The Android branch config points at the matching Supabase project and API base URL.
-- The inbound gate default was changed to `true` in commit `1f4c36bb29da148970720646b2d5dd92e31db7c5` on this repair branch. This only enables the gate by default; it does **not** implement missing operation handlers or prove end-to-end safety.
+- The inbound gate is **disabled by default** at current head `593cba76ea759aa3d5c6b9e9f94f576918e57d93` (`PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES=false`). A controlled test build can explicitly override it; do not enable it for production until the receiver contract and device verification pass.
 
 ## Repairs already present on this branch
 
@@ -53,7 +53,7 @@ The receiver must cover the complete backend operation contract:
 - The previous receiver returned Skipped for any locally SUCCEEDED operation ID before validating the envelope's business/branch scope or immutable identity. It now validates payload metadata against the transport envelope and checks business, branch, operation type, and request fingerprint before treating an existing operation as a replay.
 - The generic materializer previously ignored the affected-row count from markSucceededIfPending and returned success even if the matching operation could not be finalized. It now requires successful finalization (or a confirmed already-succeeded operation); a failed check throws inside the Room transaction so related inserts roll back.
 - A resumed sale operation now also finalizes only after transaction, item, and settlement evidence is persisted.
-- These changes have NOT yet been compiled or tested. They are hardening changes, not proof of full receiver completion.
+- The current head has now passed the GitHub Actions Android build and unit-test job. These are hardening changes, not proof of full receiver completion; targeted inbound-operation coverage and device verification remain outstanding.
 
 ### Outbound evidence gap
 - FinancialEnvelopeCodec currently serializes transaction/items/settlements and expense snapshots only. It does not serialize the dedicated amount-correction, payment-method-change, void, refund, credit-repayment/allocation, coupon-ledger, expense-event, or cash-shift event evidence required to reconstruct those operations on another device.
@@ -62,8 +62,9 @@ The receiver must cover the complete backend operation contract:
 - Inbound DTO handling currently carries canonical text/payload but does not expose a separate backend canonical_sha256 field to the materializer. The end-to-end integrity contract must verify the digest returned by the server, not just trust the JSON parse.
 
 ### Build verification
-- Added .github/workflows/paid-due-repair-validation.yml to run testDebugUnitTest and assembleDebug.
-- CI run 37980101900 failed in the Android SDK setup step because the setup action attempted to install the obsolete SDK package tools; Gradle was never invoked. The workflow was updated to request explicit SDK packages. The subsequent run must be checked before reporting a build result.
+- Added `.github/workflows/paid-due-repair-validation.yml` to run `testDebugUnitTest` and `assembleDebug`.
+- CI run `37980101900` failed during Android SDK setup before Gradle ran. The workflow was corrected; run `37984632299` then completed with `android-build-and-unit-tests: success` on current head `593cba76ea759aa3d5c6b9e9f94f576918e57d93`.
+- This workflow does not yet build with `PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES=true`, and passing CI does not validate missing operation handlers.
 - No production Supabase schema, RLS, Edge Function, financial data, merge, or release was changed.
 
 ## Implementation gap — receiver is not yet complete
@@ -84,5 +85,5 @@ Required work before calling inbound complete:
 - A prior device log showed five Admin outbox rows in `AUTH_REQUIRED` (two `RECORD_SALE`, one each `CLOSE_CASH_SHIFT`, `COUNT_CASH_SHIFT`, and `RECORD_EXPENSE`) and 31 envelopes fetched from the cloud. Downloaded envelopes are not proof that blocked local records uploaded or that inbound operations were applied.
 - The live cloud baseline observed during the audit contained sales, cash-shift openings, a coupon purchase, and a refund. Envelope counts can change as new operations arrive; counts are not a completion criterion.
 - No production SQL, RLS, function ACL, deployment, or financial data was changed by this audit update.
-- Commits `318242f45c640c0abb6ef7c30af3544b04c03778` and `80c94fc7945fba83073287bcb7b4428e9d98338e` changed the materializer and audit contract. Build/device verification and focused inbound tests have not been run against the exact current head; do not claim these changes pass until verified.
+- Commits `318242f45c640c0abb6ef7c30af3544b04c03778` and `80c94fc7945fba83073287bcb7b4428e9d98338e` changed the materializer and audit contract. The current head's default Android build/unit-test CI passes, but feature-flag-on build, dedicated inbound-operation tests, and Admin/Cashier device verification are still outstanding.
 - Do not merge or release solely because the inbound flag is enabled. Completion requires the full receiver contract, tests, and device verification above.
