@@ -293,8 +293,13 @@ class FinancialSyncEngine @Inject constructor(
                             businessId,
                             envelope.operationId
                         )
-                        totalSkipped++
-                        pageLastProcessedEnvelope = envelope
+                        reportInboundRejection(
+                            envelope.operationId,
+                            "Unsupported inbound operation ${result.operationType}; deferred"
+                        )
+                        // Leave the cursor unchanged so this envelope remains
+                        // visible and cannot be mistaken for applied financial data.
+                        return totalApplied
                     }
                     is InboundProcessResult.Rejected -> {
                         reportInboundRejection(envelope.operationId, result.reason)

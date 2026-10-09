@@ -1,5 +1,5 @@
 import {
-  health, activateStaff, loginStaff, uploadFinancial, staffMetadata, json,
+  health, activateStaff, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, json,
 } from "./handlers.ts";
 
 // Supabase Function gateway normally forwards /api/<route> after /functions/v1/api.
@@ -18,6 +18,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     if (path === "/api/staff/login") return await loginStaff(request);
     if (path === "/api/financial/upload") return await uploadFinancial(request);
     if (path === "/api/staff/metadata") return await staffMetadata(request);
+    if (path === "/api/financial/download") return await downloadFinancial(request);
     return json({ outcome: "NOT_FOUND" }, 404);
   } catch (error: unknown) {
     // Never leak DB details, credential material, or bearer tokens in HTTP output.

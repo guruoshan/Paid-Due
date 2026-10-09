@@ -10,6 +10,7 @@ import kotlinx.serialization.json.jsonObject
 import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.dailymoneyregister.core.security.SessionManager
 
 @Serializable
 data class IngestEnvelopeParams(
@@ -228,6 +229,11 @@ class RemoteFinancialSyncRepository @Inject constructor(
             "Both cursor params (afterReceivedAt, afterOperationId) must be null together or both non-null"
         }
 
+        val cashierMembershipId = SessionManager.currentSession.value?.membership?.id
+        if (cashierMembershipId != null && CashierCloudSession.tokenFor(cashierMembershipId) != null) {
+            val rows = CashierCloudSession.download(cashierMembershipId, afterReceivedAt, afterOperationId, limit.coerceAtMost(100))
+            return rows.toEnvelopeList()
+        }
         val params = FetchEnvelopesV2Params(
             businessId = businessId,
             afterReceivedAt = afterReceivedAt,
@@ -261,6 +267,12 @@ class RemoteFinancialSyncRepository @Inject constructor(
                 payloadJson = jsonPayload
             )
         }
+    }
+
+    private fun org.json.JSONArray.toEnvelopeList(): List<RemoteEnvelopeV2> = (0 until length()).map { i ->
+        val row = getJSONObject(i)
+        val text = row.getString("canonical_text")
+        RemoteEnvelopeV2(row.getString("operation_id"), row.getString("business_id"), row.optString("branch_id", null), row.getString("operation_type"), row.getString("occurred_at"), row.getString("received_at"), text, JSONObject(row.optJSONObject("canonical_payload")?.toString() ?: text))
     }
 
     private suspend fun fetchRemoteEnvelopes(

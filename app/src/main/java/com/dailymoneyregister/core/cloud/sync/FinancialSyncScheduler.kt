@@ -93,9 +93,14 @@ class FinancialSyncScheduler @Inject constructor(
 
                     val uploaded = syncEngine.syncOutbound(membershipId, role)
 
+                    val applied = syncEngine.syncInbound(
+                        businessId,
+                        SessionManager.currentSession.value?.user?.id ?: membershipId
+                    )
+
                     Log.i(
                         "PaidDueFinancialSync",
-                        "CASHIER_UPLOAD_ACKNOWLEDGED=$uploaded"
+                        "CASHIER_UPLOAD_ACKNOWLEDGED=$uploaded INBOUND_APPLIED=$applied"
                     )
                 }
 

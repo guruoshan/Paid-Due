@@ -1,5 +1,5 @@
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.200.0/assert/mod.ts";
-import { health, activateStaff, loginStaff, uploadFinancial, staffMetadata } from "./handlers.ts";
+import { health, activateStaff, loginStaff, uploadFinancial, staffMetadata, downloadFinancial } from "./handlers.ts";
 import { sha256Hex, deriveCredential, hexToBytes, bytesToHex } from "./crypto.ts";
 
 Deno.test("GET /api/health returns 200 OK and expected version contract", async () => {
@@ -78,6 +78,11 @@ Deno.test("POST /api/financial/upload requires valid Bearer token", async () => 
   });
   const res2 = await uploadFinancial(req2);
   assertEquals(res2.status, 401);
+});
+
+Deno.test("GET /api/financial/download requires valid Bearer token", async () => {
+  const response = await downloadFinancial(new Request("http://localhost/api/financial/download", { method: "GET" }));
+  if (response.status !== 401) throw new Error(`expected 401, got ${response.status}`);
 });
 
 Deno.test("GET /api/staff/metadata requires valid Bearer token", async () => {

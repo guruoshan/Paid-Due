@@ -260,3 +260,26 @@ export async function staffMetadata(request: Request) {
     throw error;
   }
 }
+
+export async function downloadFinancial(request: Request) {
+  if (request.method !== "GET") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "GET" });
+  let session;
+  try { session = await verifyToken(request); } catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
+  const url = new URL(request.url);
+  const limit = Number(url.searchParams.get("limit") || "100");
+  const afterReceivedAt = url.searchParams.get("after_received_at");
+  const afterOperationId = url.searchParams.get("after_operation_id");
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100 ||
+      (!!afterReceivedAt !== !!afterOperationId)) return json({ outcome: "INVALID_REQUEST" }, 400);
+  try {
+    const rows = await rpc("fetch_cashier_financial_envelopes", {
+      p_business_id: session.business_id, p_branch_id: session.branch_id,
+      p_membership_id: session.membership_id, p_after_received_at: afterReceivedAt,
+      p_after_operation_id: afterOperationId, p_limit: limit,
+    });
+    return json({ envelopes: Array.isArray(rows) ? rows : [] }, 200);
+  } catch (error: any) {
+    if (error.status === 400 || error.status === 403) return json({ outcome: error.outcome }, error.status);
+    throw error;
+  }
+}

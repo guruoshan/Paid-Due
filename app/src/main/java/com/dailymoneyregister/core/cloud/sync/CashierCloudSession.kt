@@ -9,8 +9,10 @@ import com.dailymoneyregister.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
+import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.security.KeyStore
 import java.time.Instant
@@ -411,6 +413,34 @@ object CashierCloudSession {
         } finally {
             connection.disconnect()
         }
+    }
+
+    suspend fun download(
+        membershipId: String,
+        afterReceivedAt: String?,
+        afterOperationId: String?,
+        limit: Int
+    ): JSONArray = withContext(Dispatchers.IO) {
+        val token = tokenFor(membershipId) ?: throw SecurityException("CASHIER_CLOUD_SESSION_REQUIRED")
+        val baseUrl = BuildConfig.PAID_DUE_BACKEND_BASE_URL.trimEnd('/')
+        require(baseUrl.startsWith("https://"))
+        val query = buildString {
+            append("?limit=").append(limit)
+            if (afterReceivedAt != null) append("&after_received_at=").append(java.net.URLEncoder.encode(afterReceivedAt, "UTF-8"))
+            if (afterOperationId != null) append("&after_operation_id=").append(java.net.URLEncoder.encode(afterOperationId, "UTF-8"))
+        }
+        val connection = (URL("$baseUrl/api/financial/download$query").openConnection() as HttpURLConnection)
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 5000
+            connection.readTimeout = 15000
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            val status = connection.responseCode
+            if (status == 401 || status == 403) { clear(); throw SecurityException("CASHIER_CLOUD_SESSION_REJECTED") }
+            if (status !in 200..299) throw IOException("CASHIER_DOWNLOAD_HTTP_$status")
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            JSONObject(body).optJSONArray("envelopes") ?: JSONArray()
+        } finally { connection.disconnect() }
     }
 }
 
