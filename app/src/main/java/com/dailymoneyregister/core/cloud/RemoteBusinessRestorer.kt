@@ -21,6 +21,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 
 @Serializable
 private data class RemoteStaffRestorationRpcRow(
@@ -248,6 +249,8 @@ class RemoteBusinessRestorer @Inject constructor(
                 branchId = row.branchId,
                 userId = row.localUserId
             )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
             RemoteBusinessRestorationResult.Failed(
                 e.message ?: "Admin cloud authentication unavailable"
