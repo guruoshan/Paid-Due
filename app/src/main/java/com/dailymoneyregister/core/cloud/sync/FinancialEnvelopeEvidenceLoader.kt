@@ -31,21 +31,28 @@ internal object FinancialEnvelopeEvidenceLoader {
         val couponEvents = database.ledgerDao().getCouponEventsForOperation(operation.id)
         val walletIds = couponEvents.map { it.walletId }.distinct()
         val wallets = walletIds.mapNotNull { database.ledgerDao().getCouponWalletById(it) }
-        val authorizedUsers = wallets.flatMap {
+        val allWalletUsers = wallets.flatMap {
             database.ledgerDao().getAuthorizedUsersForWallet(it.id)
         }.distinctBy { it.id }
-        val authorizedUserEvents = authorizedUsers.flatMap {
+        val authorizedUserEvents = allWalletUsers.flatMap {
             database.ledgerDao().getAuthorizedUserEvents(it.id)
-        }.distinctBy { it.id }
+        }.filter { it.operationId == operation.id }.distinctBy { it.id }
+        // Only send user rows changed/created by this operation. Sending a later
+        // current-state snapshot with an older envelope could otherwise collide
+        // during out-of-order replay.
+        val eventUserIds = authorizedUserEvents.map { it.authorizedUserId }.toSet()
+        val authorizedUsers = allWalletUsers.filter { it.id in eventUserIds }
 
-        val customerId = transaction?.customerId
-            ?: repayment?.customerId
-            ?: wallets.firstOrNull()?.customerId
-            ?: expense?.payeeId
-        customerId?.let { id ->
-            database.customerDao().getCustomerById(id)?.let {
-                evidence.put("customer", it.toJson())
-            }
+        val customerIds = buildList {
+            transaction?.customerId?.let(::add)
+            repayment?.customerId?.let(::add)
+            wallets.forEach { add(it.customerId) }
+            expense?.payeeId?.let(::add)
+        }.distinct()
+        val customerSnapshots = customerIds.mapNotNull { database.customerDao().getCustomerById(it) }
+        if (customerSnapshots.isNotEmpty()) {
+            evidence.put("customers", JSONArray(customerSnapshots.map { it.toJson() }))
+            evidence.put("customer", customerSnapshots.first().toJson())
         }
 
         if (repayment != null) {
