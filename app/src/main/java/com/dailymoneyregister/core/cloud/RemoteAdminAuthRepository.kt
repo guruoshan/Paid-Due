@@ -3,6 +3,7 @@ package com.dailymoneyregister.core.cloud
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -61,6 +62,8 @@ class RemoteAdminAuthRepository @Inject constructor(
                     email = normalizedEmail
                 )
 
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (error: Throwable) {
 
             RemoteAdminAuthResult.Failed(
@@ -109,6 +112,8 @@ class RemoteAdminAuthRepository @Inject constructor(
                     "Authentication succeeded without an active session"
                 )
 
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (error: Throwable) {
 
             RemoteAdminAuthResult.Failed(
