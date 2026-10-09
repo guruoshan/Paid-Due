@@ -337,6 +337,39 @@ object RemoteEnvelopeMaterializer {
             return InboundProcessResult.Rejected("Coupon funding/reversal is missing coupon-ledger evidence")
         }
 
+        when (opTypeStr) {
+            "RECORD_REFUND" -> {
+                val refundAmount = financialEvidence.optJSONObject("refund_event")?.optLong("refund_amount_minor", 0L) ?: 0L
+                if (refundAmount <= 0L || settlementSum != -refundAmount) {
+                    return InboundProcessResult.Rejected("Refund event amount does not match its signed outflow settlements")
+                }
+            }
+            "RECORD_VOID" -> if (settlementSum != -grandTotalMinor) {
+                return InboundProcessResult.Rejected("Void reversal settlements do not reverse the original transaction total")
+            }
+            "RECORD_AMOUNT_CORRECTION" -> {
+                val event = financialEvidence.optJSONArray("amount_correction_events")?.optJSONObject(0)
+                    ?: return InboundProcessResult.Rejected("Amount correction event is missing")
+                val expectedDelta = event.optLong("corrected_amount_minor", Long.MIN_VALUE) -
+                    event.optLong("previous_amount_minor", Long.MAX_VALUE)
+                if (expectedDelta == 0L || settlementSum != expectedDelta) {
+                    return InboundProcessResult.Rejected("Amount correction delta does not match signed settlements")
+                }
+            }
+            "RECORD_PAYMENT_METHOD_CHANGE" -> if (settlementSum != 0L) {
+                return InboundProcessResult.Rejected("Payment-method reclassification settlements must net to zero")
+            }
+            "RECORD_COUPON_PURCHASE" -> {
+                val couponTotal = (financialEvidence.optJSONArray("coupon_ledger_events") ?: org.json.JSONArray())
+                    .let { events ->
+                        (0 until events.length()).sumOf { events.getJSONObject(it).optLong("amount_signed_minor", 0L) }
+                    }
+                if (couponTotal != grandTotalMinor) {
+                    return InboundProcessResult.Rejected("Coupon purchase ledger amount does not match purchase total")
+                }
+            }
+        }
+
         // d) actor user and branch rows exist locally or are created in the same transaction
         return database.withTransaction {
             val operationDao = database.operationDao()
