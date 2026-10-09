@@ -16,7 +16,7 @@
 | Cashier financial upload | `RemoteFinancialSyncRepository.uploadEnvelope` | Edge Function `POST /api/financial/upload` | `public.ingest_cashier_financial_envelope` | Implemented for the current cashier-supported operation allowlist; different server path from admin |
 | Admin financial download | `RemoteFinancialSyncRepository` / sync engine | Supabase Kotlin SDK → PostgREST RPC | `public.fetch_financial_envelopes_v2` | Cursor uses received timestamp + operation ID; local application is incomplete/gated |
 | Cashier financial download | `CashierCloudSession.download` / sync repository | Edge Function financial download route | `public.fetch_cashier_financial_envelopes` via service role | Server RPC is scoped to active cashier membership/branch; Edge route must validate the bearer session and pass only verified scope |
-| Local outbox creation | Financial command/repository enqueue paths; `FinancialSyncOutboxEntity` and DAO | Room only until scheduler uploads | Room operation + `financial_sync_outbox` | Entity/DAO exist; audit must prove atomic enqueue for every operation type |
+| Local outbox creation | `FinancialImmutabilityCallback.installGuards` installs `financial_sync_outbox_after_operation_success`; the trigger fires on the operation status transition to `SUCCEEDED` | Room transaction | `operations` → `financial_sync_outbox` | Trigger makes outbox insertion atomic with the successful operation update; role/type mapping and the legacy cash-only test expectations need reconciliation |
 | Outbound orchestration | `FinancialSyncEngine.syncOutbound` | Admin RPC or cashier Edge Function depending on role | Ingest receipt | Retry and receipt digest checks exist; support differs by role/type |
 | Inbound materialization | `FinancialSyncEngine.syncInbound`, `InboundEnvelopeApplier`, `RemoteEnvelopeMaterializer` | Download RPC/Edge route | Envelopes in `private.financial_operation_envelopes` | Not complete for all operation types; build flag defaults false |
 | Notification/catch-up | `FinancialSyncScheduler` | 15-second active-session loop + explicit trigger | Query-based download | Polling exists; Realtime is not implemented as the authority and must not replace catch-up queries |
@@ -62,8 +62,8 @@ The live cashier intake RPC uses a corresponding allowlist and permission mappin
 ## 4. Critical gaps before enabling full sync
 
 1. No single admin/cashier server intake contract despite overlapping payload fields.
-2. Outbound enqueue atomicity has not yet been proven for every operation family.
-3. Role-specific operation allowlists leave cash-shift and expense events unavailable to cashier upload.
+2. Outbox admission is implemented by a Room database trigger within the successful operation update; verify this behavior against every operation family and align existing cash-only assumptions.
+3. The Room trigger admits outbox rows for successful operations, but role/type mapping can leave cashier expense and cash-shift events as `NOT_SYNCABLE_YET`; existing tests and trigger comments include stale cash-only assumptions and need reconciliation against the intended all-payment offline-first design.
 4. Inbound materializer does not support all financial operation types.
 5. Inbound application is disabled by default; enabling it wholesale would be unsafe.
 6. Durable cursor and materialization checkpoint must be coordinated so a crash cannot skip unapplied records.
@@ -78,7 +78,7 @@ The live cashier intake RPC uses a corresponding allowlist and permission mappin
 - [x] Migration plan written.
 - [x] Source/configuration and live database RPC metadata inspected.
 - [x] Current operation allowlists and split upload/download paths documented.
-- [ ] Trace every financial command to its atomic Room enqueue path.
+- [x] Locate the database trigger that atomically creates outbox metadata on successful operation transition.\n- [ ] Test trigger admission for every operation family and reconcile legacy cash-only assumptions.
 - [ ] Review complete Edge Function routing and session validation tests.
 - [ ] Finalize versioned wire contract and server intake parity.
 - [ ] Implement and test changes on the working branch.
