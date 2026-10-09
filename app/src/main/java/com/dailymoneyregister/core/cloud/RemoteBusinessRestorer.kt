@@ -215,6 +215,39 @@ class RemoteBusinessRestorer @Inject constructor(
         expectedUserId: String,
         expectedMembershipId: String
     ): RemoteBusinessRestorationResult {
+        suspend fun resolveCurrentScope(): RemoteStaffRestorationRpcRow? {
+            if (!remoteAdminAuthRepository.hasAuthenticatedSession()) return null
+            return runCatching {
+                supabase.postgrest.rpc("restore_admin_by_auth_id")
+                    .decodeList<RemoteStaffRestorationRpcRow>()
+                    .singleOrNull()
+            }.getOrNull()
+        }
+
+        fun matchesExpected(row: RemoteStaffRestorationRpcRow): Boolean {
+            val localBranch = businessBranchDao.getFirstBranch(expectedBusinessId)
+            return row.businessId == expectedBusinessId &&
+                row.branchId == expectedBranchId &&
+                row.localUserId == expectedUserId &&
+                row.membershipId == expectedMembershipId &&
+                localBranch?.id == expectedBranchId
+        }
+
+        // Reuse a valid session for this exact tenant instead of signing in on
+        // every login. This avoids needless auth churn/rate limits.
+        val existingScope = resolveCurrentScope()
+        if (
+            existingScope != null &&
+            matchesExpected(existingScope) &&
+            remoteAdminAuthRepository.currentAuthUserId() != null
+        ) {
+            return RemoteBusinessRestorationResult.Success(
+                businessId = existingScope.businessId,
+                branchId = existingScope.branchId,
+                userId = existingScope.localUserId
+            )
+        }
+
         val authResult = remoteAdminAuthRepository.signIn(usernameOrEmail, passwordPlain)
         if (authResult !is RemoteAdminAuthResult.Authenticated) {
             val reason = (authResult as? RemoteAdminAuthResult.Failed)?.message
@@ -230,13 +263,8 @@ class RemoteBusinessRestorer @Inject constructor(
                     "Cloud Admin membership is missing or ambiguous"
                 )
 
-            val localBranch = businessBranchDao.getFirstBranch(expectedBusinessId)
             if (
-                row.businessId != expectedBusinessId ||
-                row.branchId != expectedBranchId ||
-                row.localUserId != expectedUserId ||
-                row.membershipId != expectedMembershipId ||
-                localBranch?.id != expectedBranchId ||
+                !matchesExpected(row) ||
                 remoteAdminAuthRepository.currentAuthUserId() != authResult.authUserId
             ) {
                 return RemoteBusinessRestorationResult.Failed(
