@@ -98,3 +98,11 @@ Required work before calling inbound complete:
 - Added `BOARDLOCK/staged_sql/fetch_financial_envelopes_digest_v3.sql`, proposing new Admin `fetch_financial_envelopes_v3` and Cashier `fetch_cashier_financial_envelopes_v2` RPCs that include the stored digest and preserve scoped authorization. Android and the Cashier Edge Function source now target these new names.
 - **Deployment dependency:** the staged SQL and Edge Function are not deployed. Inbound remains blocked until backend review, deployment, read-only signature verification, and safe device testing. Do not enable inbound in production.
 - Latest branch CI for these follow-up commits is pending; no pass is claimed for the new digest changes yet.
+
+
+## Follow-up — cashier download authorization defect (2026-10-10)
+
+- Read-only review of `BOARDLOCK/staged_sql/fetch_financial_envelopes_digest_v3.sql` found that `fetch_cashier_financial_envelopes_v2` joined `public.profiles` using `m.auth_user_id`, while the active cashier memberships under review have `auth_user_id IS NULL` and use `staff_identity_id`. That join made the authorization existence check impossible for those cashier memberships.
+- Removed only the `profiles` join from the **staged cashier RPC**; the active membership/business/branch checks and requirement for a non-null `staff_identity_id` remain. The Admin RPC's profile check was preserved.
+- Commit: `2ee414b0c986b05745827f1ed118544e48995afb` on `fix/backend-compatibility-audit-2026-10`.
+- This is a source/staging correction only. It has not been deployed or tested against a database. Production SQL and financial data remain unchanged. The two local Pixel `NEEDS_ATTENTION` operation IDs still require a read-only local outbox export; this fix does not claim to resolve those outbound rows.
