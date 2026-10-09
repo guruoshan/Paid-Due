@@ -812,6 +812,15 @@ object RemoteEnvelopeMaterializer {
             )
 
             operationDao.insertOperationIfAbsent(opEntity)
+            RemoteEnvelopeEvidenceApplier.apply(
+                database = database,
+                evidence = jsonPayload.optJSONObject("financial_evidence") ?: JSONObject(),
+                operationId = opId,
+                businessId = businessId,
+                branchId = branchId ?: error("Expense operation branch is missing"),
+                actorUserId = actorUserId,
+                transactionId = null
+            )
             val markedSucceeded = operationDao.markSucceededIfPending(
                 operationId = opId,
                 requestFingerprint = requestFingerprint,
