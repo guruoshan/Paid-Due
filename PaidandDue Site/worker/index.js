@@ -787,6 +787,68 @@ async function activateStaff(
 }
 
 
+async function previewStaff(request, env) {
+  if (request.method !== "POST") {
+    return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "POST" });
+  }
+
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().startsWith("application/json")) {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+
+  const raw = await request.text();
+  if (raw.length === 0 || raw.length > 1024) {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+
+  let body;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+
+  const token = typeof body.token === "string" ? body.token : "";
+  if (!TOKEN_REGEX.test(token)) {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+
+  const tokenHash = await sha256Hex(token);
+  const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+
+  /*
+   * Reuses the existing rate-limit binding with distinct key prefixes, so no
+   * new Cloudflare configuration is needed. Both the caller and the token are
+   * limited.
+   */
+  const byIp = await env.ACTIVATION_RATE_LIMITER.limit({ key: `preview-ip:${ip}` });
+  const byToken = await env.ACTIVATION_RATE_LIMITER.limit({ key: `preview-token:${tokenHash}` });
+  if (!byIp.success || !byToken.success) {
+    return json({ outcome: "TRY_AGAIN_LATER" }, 429, { "Retry-After": "60" });
+  }
+
+  const result = await rpc(env, "preview_staff_invite", { p_token_hash: tokenHash });
+  if (!Array.isArray(result) || result.length === 0) {
+    return json({ outcome: "INVALID_INVITE" }, 404);
+  }
+
+  const row = result[0];
+  return json({
+    outcome: "OK",
+    business_id: row.business_id ?? null,
+    business_name: row.business_name ?? null,
+    branch_id: row.branch_id ?? null,
+    branch_name: row.branch_name ?? null,
+    display_name: row.display_name ?? null,
+    canonical_phone: row.canonical_phone ?? null,
+    role: row.role ?? null,
+    permissions: row.permissions ?? null,
+    expires_at: row.expires_at ?? null,
+  }, 200);
+}
+
+
 function health() {
 
   return json(
@@ -863,6 +925,18 @@ export default {
       ) {
 
         return await activateStaff(
+          request,
+          env,
+        );
+      }
+
+
+      if (
+        url.pathname ===
+        "/api/staff/preview"
+      ) {
+
+        return await previewStaff(
           request,
           env,
         );

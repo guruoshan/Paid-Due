@@ -10,6 +10,8 @@ import dagger.hilt.android.HiltAndroidApp
 class DmrApplication : Application() {
 
     override fun onCreate() {
+        installCrashRecorder()
+
         /*
          * BOARDLOCK:
          * Database encryption preparation must finish before Hilt
@@ -33,5 +35,24 @@ class DmrApplication : Application() {
         }
 
         super.onCreate()
+    }
+
+    /**
+     * Records the last uncaught crash to app-private storage, then hands the
+     * crash to the previous handler so normal Android behaviour is unchanged.
+     * Writes nothing but the timestamp and stack trace (no financial data).
+     */
+    private fun installCrashRecorder() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching {
+                filesDir.resolve("last_crash.txt").writeText(
+                    "${System.currentTimeMillis()}\n" +
+                        "${thread.name}\n" +
+                        error.stackTraceToString().take(8000)
+                )
+            }
+            previous?.uncaughtException(thread, error)
+        }
     }
 }
