@@ -237,11 +237,11 @@ Required manual/device tests:
 |---|---|---|
 | Source baseline identified | DONE | Source commit `6a45e5b04ec975df4142428cd86ef0b83d5724e6` |
 | Working branch isolated | DONE | `migration/offline-first-supabase-v1` |
-| Read-only source/cloud audit | IN PROGRESS | Source tree, core sync files, RPC inventory, table schema, advisors reviewed |
-| Complete operation path map | OPEN | Must finish before code behavior changes |
-| Contract implementation | OPEN | No changes yet |
+| Read-only source/cloud audit | IN PROGRESS | Source tree, core sync files, RPC inventory, table schema, advisors reviewed; audit matrix records the atomic Room outbox trigger and current cash-sale-only contract |
+| Complete operation path map | IN PROGRESS | Confirmed Room trigger atomically creates outbox metadata when an operation transitions to SUCCEEDED; current contract/tests intend cash-only sales only, so expansion to other operation types remains gated |
+| Contract implementation | OPEN | No wire-contract changes yet |
 | Outbox/inbound implementation | OPEN | No changes yet |
-| Automated and device verification | OPEN | Not yet run |
+| Automated verification | IN PROGRESS | Deno Edge Function tests passed in GitHub Actions; Android jobs currently cannot install stable `platforms;android-37` in the hosted SDK repository. Added an API 36 compatibility validation workflow that temporarily substitutes SDK values in the runner workspace only; results pending |\n| Cash-only outbox trigger alignment | IMPLEMENTED, verification pending | Updated `FinancialImmutabilityCallback` trigger to queue only `RECORD_SALE` operations with cash-only `SALE_FUNDING` settlements and aligned trigger name with existing migration tests; production database untouched |\n| Physical-device verification | OPEN | Offline/reconnect and cross-device reconciliation not yet run |
 | Production migration/deployment | NOT AUTHORIZED BY THIS PLAN | Requires release gate and independent verification |
 
 ## 11. Definition of done
