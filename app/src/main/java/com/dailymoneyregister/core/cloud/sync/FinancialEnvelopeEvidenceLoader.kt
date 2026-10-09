@@ -2,6 +2,8 @@ package com.dailymoneyregister.core.cloud.sync
 
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.*
+import com.dailymoneyregister.core.model.enums.OperationType
+import com.dailymoneyregister.core.model.enums.PaymentCategory
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -15,20 +17,32 @@ internal object FinancialEnvelopeEvidenceLoader {
 
     suspend fun load(
         database: DmrDatabase,
-        operation: OperationEntity
+        operation: OperationEntity,
+        settlements: List<SettlementEntryEntity> = emptyList()
     ): JSONObject {
         val evidence = JSONObject()
+        val type = operation.operationType
         val transaction = operation.transactionId
             ?.let { database.transactionDao().getTransactionById(it) }
-        val expense = database.expenseDao().getExpenseByOperationId(operation.id)
-            ?: if (operation.subjectType.name == "EXPENSE") {
+        val expense = when {
+            type == OperationType.RECORD_EXPENSE ->
+                database.expenseDao().getExpenseByOperationId(operation.id)
+            operation.subjectType.name == "EXPENSE" ->
                 database.expenseDao().getExpenseById(operation.subjectId)
-            } else null
+            else -> null
+        }
 
-        val repaymentRows = database.ledgerDao()
-            .getCreditRepaymentsForOperation(operation.id)
+        val needsCreditEvidence = type == OperationType.RECORD_CREDIT_REPAYMENT ||
+            settlements.any { it.category == PaymentCategory.CREDIT }
+        val needsCouponEvidence = type == OperationType.RECORD_COUPON_PURCHASE ||
+            settlements.any { it.category == PaymentCategory.COUPON }
+        val repaymentRows = if (type == OperationType.RECORD_CREDIT_REPAYMENT) {
+            database.ledgerDao().getCreditRepaymentsForOperation(operation.id)
+        } else emptyList()
         val repayment = repaymentRows.singleOrNull()
-        val couponEvents = database.ledgerDao().getCouponEventsForOperation(operation.id)
+        val couponEvents = if (needsCouponEvidence) {
+            database.ledgerDao().getCouponEventsForOperation(operation.id)
+        } else emptyList()
         val walletIds = couponEvents.map { it.walletId }.distinct()
         val wallets = walletIds.mapNotNull { database.ledgerDao().getCouponWalletById(it) }
         val allWalletUsers = wallets.flatMap {
@@ -63,7 +77,9 @@ internal object FinancialEnvelopeEvidenceLoader {
                     .map { it.toJson() })
             )
         }
-        val creditEvents = database.ledgerDao().getCreditEventsForOperations(listOf(operation.id))
+        val creditEvents = if (needsCreditEvidence) {
+            database.ledgerDao().getCreditEventsForOperations(listOf(operation.id))
+        } else emptyList()
         if (creditEvents.isNotEmpty()) {
             evidence.put("credit_ledger_events", JSONArray(creditEvents.map { it.toJson() }))
         }
@@ -86,36 +102,46 @@ internal object FinancialEnvelopeEvidenceLoader {
 
         val txDao = database.transactionDao()
         val transactionId = operation.transactionId ?: transaction?.id
-        if (transactionId != null) {
+        if (transactionId != null && type == OperationType.RECORD_AMOUNT_CORRECTION) {
             val amountEvents = txDao.getAmountCorrectionsByOperationId(operation.id)
             if (amountEvents.isNotEmpty()) {
                 evidence.put("amount_correction_events", JSONArray(amountEvents.map { it.toJson() }))
             }
+        }
+        if (transactionId != null && type == OperationType.RECORD_PAYMENT_METHOD_CHANGE) {
             val paymentEvents = txDao.getPaymentMethodChanges(transactionId)
                 .filter { it.operationId == operation.id }
             if (paymentEvents.isNotEmpty()) {
-                evidence.put(
-                    "payment_method_change_events",
-                    JSONArray(paymentEvents.map { it.toJson() })
-                )
+                evidence.put("payment_method_change_events", JSONArray(paymentEvents.map { it.toJson() }))
             }
         }
-        txDao.getVoidEventByOperationId(operation.id)?.let {
-            evidence.put("void_event", it.toJson())
+        if (type == OperationType.RECORD_VOID) {
+            txDao.getVoidEventByOperationId(operation.id)?.let {
+                evidence.put("void_event", it.toJson())
+            }
         }
-        txDao.getRefundEventByOperationId(operation.id)?.let {
-            evidence.put("refund_event", it.toJson())
+        if (type == OperationType.RECORD_REFUND) {
+            txDao.getRefundEventByOperationId(operation.id)?.let {
+                evidence.put("refund_event", it.toJson())
+            }
         }
 
-        val shiftEvent = database.cashShiftDao().getEventByOperationId(operation.id)
-        if (shiftEvent != null) {
-            evidence.put("cash_shift_event", shiftEvent.toJson())
-            database.cashShiftDao().getShiftById(shiftEvent.shiftId)?.let {
-                evidence.put("cash_shift", it.toJson())
-            }
-        } else if (operation.subjectType.name == "CASH_SHIFT") {
-            database.cashShiftDao().getShiftById(operation.subjectId)?.let {
-                evidence.put("cash_shift", it.toJson())
+        if (type in setOf(
+                OperationType.OPEN_CASH_SHIFT,
+                OperationType.COUNT_CASH_SHIFT,
+                OperationType.CLOSE_CASH_SHIFT
+            )
+        ) {
+            val shiftEvent = database.cashShiftDao().getEventByOperationId(operation.id)
+            if (shiftEvent != null) {
+                evidence.put("cash_shift_event", shiftEvent.toJson())
+                database.cashShiftDao().getShiftById(shiftEvent.shiftId)?.let {
+                    evidence.put("cash_shift", it.toJson())
+                }
+            } else if (operation.subjectType.name == "CASH_SHIFT") {
+                database.cashShiftDao().getShiftById(operation.subjectId)?.let {
+                    evidence.put("cash_shift", it.toJson())
+                }
             }
         }
 
