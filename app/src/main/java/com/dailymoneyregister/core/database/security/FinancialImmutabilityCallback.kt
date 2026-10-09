@@ -105,6 +105,22 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
                     WHEN OLD.status != 'SUCCEEDED'
                       AND NEW.status = 'SUCCEEDED'
                       AND NEW.branch_id IS NOT NULL
+                      AND NEW.operation_type = 'RECORD_SALE'
+                      AND EXISTS (
+                          SELECT 1
+                          FROM settlement_entries s
+                          WHERE s.operation_id = NEW.id
+                            AND s.entry_purpose = 'SALE_FUNDING'
+                            AND s.category = 'CASH'
+                            AND s.channel = 'CASH_TENDER'
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM settlement_entries s
+                          WHERE s.operation_id = NEW.id
+                            AND s.entry_purpose = 'SALE_FUNDING'
+                            AND (s.category != 'CASH' OR s.channel != 'CASH_TENDER')
+                      )
                       AND NOT EXISTS (
                           SELECT 1 FROM financial_sync_outbox WHERE operation_id = NEW.id
                       )
