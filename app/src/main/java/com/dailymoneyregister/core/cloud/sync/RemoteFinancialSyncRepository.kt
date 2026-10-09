@@ -244,6 +244,23 @@ class RemoteFinancialSyncRepository @Inject constructor(
         }
     }
 
+    suspend fun isAdminSessionAuthorized(
+        expectedMembershipId: String,
+        expectedBusinessId: String,
+        expectedBranchId: String
+    ): Boolean {
+        if (supabase.auth.currentSessionOrNull() == null) return false
+
+        return runCatching {
+            val rows = supabase.postgrest.rpc("restore_admin_by_auth_id")
+                .decodeList<AdminSessionScopeDto>()
+            val scope = rows.singleOrNull() ?: return@runCatching false
+            scope.membershipId == expectedMembershipId &&
+                scope.businessId == expectedBusinessId &&
+                scope.branchId == expectedBranchId
+        }.getOrDefault(false)
+    }
+
     suspend fun fetchRemoteEnvelopesV2(
         businessId: String,
         afterReceivedAt: String? = null,
@@ -385,6 +402,13 @@ internal fun businessLocalDateFor(occurredAtMillis: Long, timezoneId: String): S
         .atZone(java.time.ZoneId.of(timezoneId))
         .toLocalDate()
         .toString()
+
+@Serializable
+private data class AdminSessionScopeDto(
+    @SerialName("membership_id") val membershipId: String,
+    @SerialName("business_id") val businessId: String,
+    @SerialName("branch_id") val branchId: String
+)
 
 @Serializable
 data class FetchEnvelopesV2Params(
