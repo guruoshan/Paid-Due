@@ -224,7 +224,7 @@ class RemoteBusinessRestorer @Inject constructor(
             }.getOrNull()
         }
 
-        fun matchesExpected(row: RemoteStaffRestorationRpcRow): Boolean {
+        suspend fun matchesExpected(row: RemoteStaffRestorationRpcRow): Boolean {
             val localBranch = businessBranchDao.getFirstBranch(expectedBusinessId)
             return row.businessId == expectedBusinessId &&
                 row.branchId == expectedBranchId &&
