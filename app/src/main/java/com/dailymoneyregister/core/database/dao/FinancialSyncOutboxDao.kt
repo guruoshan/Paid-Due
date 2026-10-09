@@ -75,6 +75,21 @@ interface FinancialSyncOutboxDao {
 
     @Query(
         """
+        SELECT COUNT(*) FROM financial_sync_outbox
+        WHERE status = 'AUTH_REQUIRED'
+          AND business_id = :businessId
+          AND branch_id = :branchId
+          AND actor_user_id = :actorUserId
+        """
+    )
+    suspend fun countAuthRequiredForActor(
+        businessId: String,
+        branchId: String,
+        actorUserId: String
+    ): Int
+
+    @Query(
+        """
         UPDATE financial_sync_outbox
         SET status = 'QUEUED'
         WHERE status = 'AUTH_REQUIRED'
