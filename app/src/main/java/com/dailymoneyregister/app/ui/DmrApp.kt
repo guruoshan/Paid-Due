@@ -1,6 +1,7 @@
 package com.dailymoneyregister.app.ui
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -53,6 +55,7 @@ import com.dailymoneyregister.feature.setup.data.SetupRepository
 import com.dailymoneyregister.feature.setup.ui.SetupScreen
 import com.dailymoneyregister.feature.setup.ui.SetupViewModel
 import com.dailymoneyregister.core.cloud.RemoteTenantBootstrapRecoveryViewModel
+import com.dailymoneyregister.core.cloud.sync.FinancialSyncStatus
 import kotlinx.coroutines.launch
 
 object Routes {
@@ -85,6 +88,16 @@ fun DmrApp(
     onInviteHandled: () -> Unit = {}
 ) {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    val syncProblem by FinancialSyncStatus.adminVisibleProblem.collectAsStateWithLifecycle()
+    val activeSession by SessionManager.currentSession.collectAsStateWithLifecycle()
+
+    LaunchedEffect(syncProblem, activeSession?.user?.role) {
+        val problem = syncProblem ?: return@LaunchedEffect
+        if (activeSession?.user?.role == UserRole.ADMIN) {
+            Toast.makeText(context, problem.message, Toast.LENGTH_LONG).show()
+        }
+    }
 
 
     val remoteTenantRecoveryViewModel: RemoteTenantBootstrapRecoveryViewModel =

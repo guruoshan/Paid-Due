@@ -2,8 +2,8 @@ package com.dailymoneyregister.core.cloud.sync
 
 import androidx.room.withTransaction
 import com.dailymoneyregister.core.database.DmrDatabase
-import com.dailymoneyregister.core.database.entity.ExpenseEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
+import com.dailymoneyregister.core.database.entity.ExpenseEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
 import com.dailymoneyregister.core.database.entity.TransactionItemEntity
@@ -92,7 +92,10 @@ object RemoteEnvelopeMaterializer {
         var settlementSum = 0L
         for (i in 0 until settlementsArray.length()) {
             val sJson = settlementsArray.getJSONObject(i)
-            settlementSum += sJson.getLong("amount_signed_minor")
+            settlementSum = Math.addExact(
+                settlementSum,
+                sJson.getLong("amount_signed_minor")
+            )
         }
 
         if (grandTotalMinor != settlementSum) {
@@ -101,78 +104,78 @@ object RemoteEnvelopeMaterializer {
 
         // c) currency matches the branch
         val branchEntity = database.businessBranchDao().getBranchById(branchId)
-        if (branchEntity != null && branchEntity.currencyCode != txCurrencyCode) {
+            ?: return InboundProcessResult.Rejected("Referenced branch '$branchId' is missing locally")
+        if (branchEntity.businessId != sessionBusinessId) {
+            return InboundProcessResult.Rejected("Referenced branch '$branchId' belongs to another business")
+        }
+        if (branchEntity.currencyCode != txCurrencyCode) {
             return InboundProcessResult.Rejected("Transaction currency '$txCurrencyCode' does not match branch currency '${branchEntity.currencyCode}'")
+        }
+
+        val actorUserId = jsonPayload.optString("actor_user_id")
+        if (actorUserId.isBlank()) {
+            return InboundProcessResult.Rejected("Actor user ID is missing")
+        }
+        val actor = database.userDao().getUserByIdInBusiness(actorUserId, sessionBusinessId)
+            ?: return InboundProcessResult.Rejected("Referenced actor user '$actorUserId' is missing locally")
+        val createdByUserId = tJson.optString("created_by_user_id").ifBlank { actorUserId }
+        if (database.userDao().getUserByIdInBusiness(createdByUserId, sessionBusinessId) == null) {
+            return InboundProcessResult.Rejected("Referenced transaction user '$createdByUserId' is missing locally")
+        }
+        if (tJson.getString("branch_id") != branchId) {
+            return InboundProcessResult.Rejected("Transaction branch does not match envelope branch")
+        }
+        for (i in 0 until settlementsArray.length()) {
+            val settlement = settlementsArray.getJSONObject(i)
+            if (
+                settlement.getString("operation_id") != opId ||
+                settlement.optString("transaction_id").ifBlank { tJson.getString("id") } != tJson.getString("id")
+            ) {
+                return InboundProcessResult.Rejected("Settlement references do not match the envelope")
+            }
+            if (
+                settlement.getString("currency_code") != txCurrencyCode ||
+                settlement.getString("category") != "CASH" ||
+                settlement.getString("channel") != "CASH_TENDER"
+            ) {
+                return InboundProcessResult.UnsupportedYet("RECORD_SALE_NON_CASH")
+            }
+            val settlementActor = settlement.optString("actor_user_id").ifBlank { actorUserId }
+            if (database.userDao().getUserByIdInBusiness(settlementActor, sessionBusinessId) == null) {
+                return InboundProcessResult.Rejected("Referenced settlement user '$settlementActor' is missing locally")
+            }
         }
 
         // d) actor user and branch rows exist locally or are created in the same transaction
         return database.withTransaction {
             val operationDao = database.operationDao()
             val transactionDao = database.transactionDao()
-            val userDao = database.userDao()
-            val branchDao = database.businessBranchDao()
-            val outboxDao = database.financialSyncOutboxDao()
-
-            val actorUserId = envelope.payloadJson.optString("actor_user_id").ifBlank { envelope.operationId }
-            val occurredAt = envelope.payloadJson.optLong("occurred_at", System.currentTimeMillis())
-
-            // Ensure Branch row exists locally
-            if (branchDao.getBranchById(branchId) == null) {
-                val business = branchDao.getBusinessById(sessionBusinessId)
-                    ?: return@withTransaction InboundProcessResult.Rejected("Business '$sessionBusinessId' not found locally")
-                branchDao.insertBranch(
-                    com.dailymoneyregister.core.database.entity.BranchEntity(
-                        id = branchId,
-                        businessId = sessionBusinessId,
-                        name = "Remote Branch",
-                        code = "REMOTE",
-                        countryCode = "OM",
-                        currencyCode = txCurrencyCode,
-                        currencyDecimalPlaces = tJson.optInt("currency_decimal_places", 3),
-                        currencySymbol = "OMR",
-                        timezoneId = "Asia/Muscat",
-                        taxRoundingMode = runCatching { com.dailymoneyregister.core.model.tax.TaxRoundingMode.valueOf(tJson.optString("tax_rounding_mode", "HALF_UP")) }.getOrDefault(com.dailymoneyregister.core.model.tax.TaxRoundingMode.HALF_UP),
-                        defaultTaxRateBps = tJson.optInt("tax_rate_bps", 0),
-                        address = null,
-                        phone = null,
-                        taxRegistrationNumber = null,
-                        createdAt = System.currentTimeMillis(),
-                        updatedAt = System.currentTimeMillis()
-                    )
-                )
-            }
-
-            // Ensure Actor User exists locally
-            if (userDao.getUserById(actorUserId) == null) {
-                val remoteUser = com.dailymoneyregister.core.database.entity.UserAccountEntity(
-                    id = actorUserId,
-                    identityId = actorUserId,
-                    businessId = sessionBusinessId,
-                    displayName = "Remote Cashier (${actorUserId.take(8)})",
-                    username = "remote_${actorUserId.take(8)}",
-                    role = com.dailymoneyregister.core.model.enums.UserRole.CASHIER,
-                    authType = com.dailymoneyregister.core.model.enums.AuthType.PIN,
-                    credentialHash = "",
-                    credentialSalt = "",
-                    languageCode = "en",
-                    isActive = true,
-                    mustChangePin = false,
-                    createdAt = occurredAt,
-                    updatedAt = System.currentTimeMillis()
-                )
-                userDao.insertHumanIdentity(
-                    com.dailymoneyregister.core.database.entity.HumanIdentityEntity(
-                        id = actorUserId,
-                        canonicalPhone = null,
-                        displayName = remoteUser.displayName,
-                        createdAt = occurredAt,
-                        updatedAt = System.currentTimeMillis()
-                    )
-                )
-                userDao.insertUser(remoteUser)
-            }
+            val occurredAt = java.time.Instant.parse(envelope.occurredAtIso).toEpochMilli()
 
             val txId = tJson.getString("id")
+
+            // Insert directly as SUCCEEDED. The outbox trigger only observes local
+            // lifecycle UPDATE transitions, so downloaded evidence cannot be requeued.
+            operationDao.insertOperationIfAbsent(
+                OperationEntity(
+                    id = opId,
+                    businessId = sessionBusinessId,
+                    branchId = branchId,
+                    operationType = OperationType.RECORD_SALE,
+                    subjectType = SubjectType.TRANSACTION,
+                    subjectId = txId,
+                    transactionId = txId,
+                    actorUserId = actorUserId,
+                    deviceId = envelope.payloadJson.optString("device_id", "remote"),
+                    occurredAt = occurredAt,
+                    requestFingerprint = envelope.payloadJson.optString("request_fingerprint", "remote-$opId"),
+                    commandSchemaVersion = envelope.payloadJson.optInt("command_schema_version", 1),
+                    intentPayload = envelope.payloadJson.optString("intent_payload", "{}"),
+                    status = OperationStatus.SUCCEEDED,
+                    resultReferenceType = "TRANSACTION",
+                    resultReferenceId = txId
+                )
+            )
 
             // 1. Transaction
             val tEntity = TransactionEntity(
@@ -189,7 +192,7 @@ object RemoteEnvelopeMaterializer {
                 grandTotalMinor = grandTotalMinor,
                 currencyCode = txCurrencyCode,
                 currencyDecimalPlaces = tJson.getInt("currency_decimal_places"),
-                createdByUserId = tJson.optString("created_by_user_id").ifBlank { actorUserId },
+                createdByUserId = createdByUserId,
                 deviceId = tJson.optString("device_id").ifBlank { "remote" },
                 createdAt = tJson.optLong("created_at", occurredAt),
                 description = tJson.optString("description").ifBlank { null },
@@ -259,52 +262,11 @@ object RemoteEnvelopeMaterializer {
                 transactionDao.insertSettlements(newSettlements)
             }
 
-            // Requirement 5: Make sure writing a downloaded sale does NOT queue it back for upload.
-            // Pre-insert an ACKNOWLEDGED outbox row so SQLite trigger 'financial_sync_outbox_after_operation_success'
-            // (which checks WHEN NOT EXISTS (SELECT 1 FROM financial_sync_outbox WHERE operation_id = NEW.id))
-            // WILL NOT queue it for upload!
-            val dummyOutbox = com.dailymoneyregister.core.database.entity.FinancialSyncOutboxEntity(
-                operationId = opId,
-                businessId = sessionBusinessId,
-                branchId = branchId,
-                transactionId = txId,
-                actorUserId = actorUserId,
-                deviceId = envelope.payloadJson.optString("device_id", "remote"),
-                requestFingerprint = envelope.payloadJson.optString("request_fingerprint", "remote-$opId"),
-                commandSchemaVersion = envelope.payloadJson.optInt("command_schema_version", 1),
-                occurredAt = occurredAt,
-                status = "ACKNOWLEDGED",
-                attemptCount = 0
-            )
-            outboxDao.insertOutbox(dummyOutbox)
-
-            // 5. Insert Operation Entity as SUCCEEDED
-            val opEntity = OperationEntity(
-                id = opId,
-                businessId = sessionBusinessId,
-                branchId = branchId,
-                operationType = OperationType.RECORD_SALE,
-                subjectType = SubjectType.TRANSACTION,
-                subjectId = txId,
-                transactionId = txId,
-                actorUserId = actorUserId,
-                deviceId = envelope.payloadJson.optString("device_id", "remote"),
-                occurredAt = occurredAt,
-                requestFingerprint = envelope.payloadJson.optString("request_fingerprint", "remote-$opId"),
-                commandSchemaVersion = envelope.payloadJson.optInt("command_schema_version", 1),
-                intentPayload = envelope.payloadJson.optString("intent_payload", "{}"),
-                status = OperationStatus.SUCCEEDED
-            )
-            operationDao.insertOperationIfAbsent(opEntity)
-
-            // Clean up outbox row
-            outboxDao.deleteAcknowledged(opId)
-
             InboundProcessResult.Applied
         }
     }
 
-    suspend fun materializeEnvelope(
+    private suspend fun materializeEnvelope(
         database: DmrDatabase,
         jsonPayload: JSONObject
     ): Boolean {
@@ -319,7 +281,9 @@ object RemoteEnvelopeMaterializer {
         val requestFingerprint = jsonPayload.optString("request_fingerprint", "remote-$opId")
         val intentPayload = jsonPayload.optString("intent_payload", "{}")
 
-        val opType = runCatching { OperationType.valueOf(opTypeStr) }.getOrDefault(OperationType.RECORD_SALE)
+        val opType = runCatching { OperationType.valueOf(opTypeStr) }.getOrElse {
+            return false
+        }
 
         return database.withTransaction {
             val operationDao = database.operationDao()

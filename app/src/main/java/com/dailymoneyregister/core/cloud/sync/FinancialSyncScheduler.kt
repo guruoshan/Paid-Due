@@ -76,7 +76,10 @@ class FinancialSyncScheduler @Inject constructor(
             when (role) {
                 UserRole.ADMIN -> {
                     syncEngine.syncOutbound(membershipId, role)
-                    syncEngine.syncInbound(businessId)
+                    syncEngine.syncInbound(
+                        businessId,
+                        SessionManager.currentSession.value?.user?.id ?: membershipId
+                    )
                 }
 
                 UserRole.CASHIER -> {

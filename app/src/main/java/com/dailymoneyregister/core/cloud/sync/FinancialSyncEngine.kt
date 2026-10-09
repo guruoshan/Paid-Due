@@ -2,6 +2,7 @@ package com.dailymoneyregister.core.cloud.sync
 
 import android.content.Context
 import android.util.Log
+import com.dailymoneyregister.BuildConfig
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.security.SessionManager
@@ -27,31 +28,61 @@ class FinancialSyncEngine @Inject constructor(
         inboundEnvelopeApplier: InboundEnvelopeApplier = MaterializingInboundEnvelopeApplier()
     ) : this(database, remoteSyncRepository, inboundEnvelopeApplier, null)
 
-    private val inMemoryCursors = mutableMapOf<String, Pair<String, String>>()
+    private data class InboundCursor(val receivedAtIso: String, val operationId: String)
+
+    private val inMemoryCursors = mutableMapOf<String, InboundCursor>()
     private val syncMutex = Mutex()
     private val retryNotBefore = mutableMapOf<String, Long>()
     private var outboxInitialized = false
+    private val lastInboundRejectionLogAt = mutableMapOf<String, Long>()
 
-    private fun getStoredCursor(businessId: String): Pair<String, String>? {
+    private fun cursorKey(businessId: String, adminAccountId: String): String =
+        "inbound_cursor_${businessId}_$adminAccountId"
+
+    private suspend fun getStoredCursor(
+        businessId: String,
+        adminAccountId: String
+    ): InboundCursor? {
+        if (
+            database.businessBranchDao().getBusinessById(businessId) == null ||
+            database.userDao().getUserByIdInBusiness(adminAccountId, businessId) == null
+        ) {
+            clearStoredCursor(businessId, adminAccountId)
+            return null
+        }
+        val key = cursorKey(businessId, adminAccountId)
         val prefs = context?.getSharedPreferences("dmr_inbound_cursors", Context.MODE_PRIVATE)
         if (prefs == null) {
-            return inMemoryCursors[businessId]
+            return inMemoryCursors[key]
         }
-        val raw = prefs.getString("inbound_cursor_$businessId", null) ?: return null
+        val raw = prefs.getString(key, null) ?: return null
         val parts = raw.split("|", limit = 2)
         if (parts.size != 2 || parts[0].isBlank() || parts[1].isBlank()) return null
-        return Pair(parts[0], parts[1])
+        return InboundCursor(parts[0], parts[1])
     }
 
-    private fun saveStoredCursor(businessId: String, receivedAtIso: String, operationId: String) {
+    private fun saveStoredCursor(
+        businessId: String,
+        adminAccountId: String,
+        receivedAtIso: String,
+        operationId: String
+    ) {
+        val key = cursorKey(businessId, adminAccountId)
         val prefs = context?.getSharedPreferences("dmr_inbound_cursors", Context.MODE_PRIVATE)
         if (prefs == null) {
-            inMemoryCursors[businessId] = Pair(receivedAtIso, operationId)
+            inMemoryCursors[key] = InboundCursor(receivedAtIso, operationId)
             return
         }
         prefs.edit()
-            .putString("inbound_cursor_$businessId", "$receivedAtIso|$operationId")
-            .apply()
+            .putString(key, "$receivedAtIso|$operationId")
+            .commit()
+    }
+
+    fun clearStoredCursor(businessId: String, adminAccountId: String) {
+        val key = cursorKey(businessId, adminAccountId)
+        inMemoryCursors.remove(key)
+        context?.getSharedPreferences("dmr_inbound_cursors", Context.MODE_PRIVATE)
+            ?.edit()?.remove(key)?.commit()
     }
 
     suspend fun syncOutbound(
@@ -180,14 +211,19 @@ class FinancialSyncEngine @Inject constructor(
         return (15_000L shl exponent).coerceAtMost(15 * 60_000L)
     }
 
-    suspend fun syncInbound(businessId: String): Int {
+    suspend fun syncInbound(
+        businessId: String,
+        adminAccountId: String
+    ): Int = syncMutex.withLock {
         val session = SessionManager.currentSession.value
         val sessionBusinessId = session?.business?.id ?: businessId
         val sessionBranchId = session?.membership?.branchId
 
-        val storedCursor = getStoredCursor(businessId)
-        var currentAfterReceivedAt: String? = storedCursor?.first
-        var currentAfterOperationId: String? = storedCursor?.second
+        val storedCursor = getStoredCursor(businessId, adminAccountId)
+        var currentAfterReceivedAt: String? = storedCursor?.let {
+            java.time.Instant.parse(it.receivedAtIso).minusSeconds(5).toString()
+        }
+        var currentAfterOperationId: String? = storedCursor?.operationId
 
         var totalApplied = 0
         var totalFetched = 0
@@ -210,15 +246,26 @@ class FinancialSyncEngine @Inject constructor(
             totalFetched += envelopes.size
             Log.i("PaidDueFinancialSync", "INBOUND_FETCHED ${envelopes.size}")
 
+            if (!BuildConfig.APPLY_INBOUND_FINANCIAL_ENVELOPES) {
+                Log.w("PaidDueFinancialSync", "INBOUND_APPLY_DISABLED fetched=${envelopes.size}")
+                return totalApplied
+            }
+
             var pageLastProcessedEnvelope: RemoteEnvelopeV2? = null
 
             for (envelope in envelopes) {
-                val result = inboundEnvelopeApplier.apply(
-                    database = database,
-                    envelope = envelope,
-                    sessionBusinessId = sessionBusinessId,
-                    sessionBranchId = sessionBranchId
-                )
+                val result = try {
+                    inboundEnvelopeApplier.apply(
+                        database = database,
+                        envelope = envelope,
+                        sessionBusinessId = sessionBusinessId,
+                        sessionBranchId = sessionBranchId
+                    )
+                } catch (error: Exception) {
+                    InboundProcessResult.Rejected(
+                        error.message ?: "Inbound envelope processing failed"
+                    )
+                }
 
                 when (result) {
                     is InboundProcessResult.Applied -> {
@@ -235,14 +282,7 @@ class FinancialSyncEngine @Inject constructor(
                         pageLastProcessedEnvelope = envelope
                     }
                     is InboundProcessResult.Rejected -> {
-                        Log.e("PaidDueFinancialSync", "INBOUND_REJECTED reason=${result.reason}")
-                        if (pageLastProcessedEnvelope != null) {
-                            saveStoredCursor(
-                                businessId = businessId,
-                                receivedAtIso = pageLastProcessedEnvelope.receivedAtIso,
-                                operationId = pageLastProcessedEnvelope.operationId
-                            )
-                        }
+                        reportInboundRejection(envelope.operationId, result.reason)
                         if (totalApplied > 0) Log.i("PaidDueFinancialSync", "INBOUND_APPLIED $totalApplied")
                         if (totalSkipped > 0) Log.i("PaidDueFinancialSync", "INBOUND_SKIPPED $totalSkipped")
                         return totalApplied
@@ -255,6 +295,7 @@ class FinancialSyncEngine @Inject constructor(
                 currentAfterOperationId = pageLastProcessedEnvelope.operationId
                 saveStoredCursor(
                     businessId = businessId,
+                    adminAccountId = adminAccountId,
                     receivedAtIso = currentAfterReceivedAt!!,
                     operationId = currentAfterOperationId!!
                 )
@@ -269,6 +310,25 @@ class FinancialSyncEngine @Inject constructor(
         if (totalSkipped > 0) Log.i("PaidDueFinancialSync", "INBOUND_SKIPPED $totalSkipped")
 
         return totalApplied
+    }
+
+    suspend fun syncInbound(businessId: String): Int =
+        syncInbound(
+            businessId,
+            SessionManager.currentSession.value?.user?.id ?: "test-admin"
+        )
+
+    private fun reportInboundRejection(operationId: String, reason: String) {
+        val message = "Inbound operation $operationId was rejected: $reason"
+        FinancialSyncStatus.report(FinancialSyncProblem(operationId, message))
+        context?.getSharedPreferences("dmr_financial_sync_attention", Context.MODE_PRIVATE)
+            ?.edit()?.putString("inbound_$operationId", message)?.apply()
+        val now = System.currentTimeMillis()
+        val lastLoggedAt = lastInboundRejectionLogAt[operationId] ?: Long.MIN_VALUE
+        if (lastLoggedAt == Long.MIN_VALUE || now - lastLoggedAt >= 60_000L) {
+            Log.e("PaidDueFinancialSync", "INBOUND_REJECTED operation=$operationId reason=$reason")
+            lastInboundRejectionLogAt[operationId] = now
+        }
     }
 
 }

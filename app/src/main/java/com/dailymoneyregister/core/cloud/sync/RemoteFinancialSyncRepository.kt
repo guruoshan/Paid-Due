@@ -259,7 +259,7 @@ class RemoteFinancialSyncRepository @Inject constructor(
         }
     }
 
-    suspend fun fetchRemoteEnvelopes(
+    private suspend fun fetchRemoteEnvelopes(
         businessId: String,
         sinceReceivedAtIso: String = "1970-01-01T00:00:00Z",
         limit: Int = 100

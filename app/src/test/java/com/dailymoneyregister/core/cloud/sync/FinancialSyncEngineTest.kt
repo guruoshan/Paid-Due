@@ -28,6 +28,7 @@ class FinancialSyncEngineTest {
     private val transactionDao = mockk<TransactionDao>()
     private val expenseDao = mockk<ExpenseDao>()
     private val businessBranchDao = mockk<com.dailymoneyregister.core.database.dao.BusinessBranchDao>()
+    private val userDao = mockk<com.dailymoneyregister.core.database.dao.UserDao>()
     private val remoteRepo = mockk<RemoteFinancialSyncRepository>()
     private val inboundApplier = FakeInboundEnvelopeApplier()
 
@@ -149,6 +150,10 @@ class FinancialSyncEngineTest {
 
     @Test
     fun syncInboundFetchesAndProcessesRemoteEnvelopes() = runTest {
+        coEvery { db.businessBranchDao() } returns businessBranchDao
+        coEvery { db.userDao() } returns userDao
+        coEvery { businessBranchDao.getBusinessById("biz-1") } returns mockk()
+        coEvery { userDao.getUserByIdInBusiness("test-admin", "biz-1") } returns mockk()
         val sampleJson = JSONObject().apply {
             put("operation_id", opId)
             put("business_id", "biz-1")
@@ -211,6 +216,16 @@ class FinancialSyncEngineTest {
         assertEquals(1, count)
         coVerify { remoteRepo.fetchRemoteEnvelopesV2("biz-1", null, null, any()) }
         assertEquals(listOf(opId), inboundApplier.appliedOperationIds)
+        coEvery {
+            remoteRepo.fetchRemoteEnvelopesV2(
+                "biz-1",
+                "2026-10-09T09:59:56Z",
+                opId,
+                any()
+            )
+        } returns emptyList()
+        assertEquals(0, engine.syncInbound("biz-1"))
+        coVerify(exactly = 0) { db.financialSyncOutboxDao() }
     }
 
     @Test

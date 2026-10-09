@@ -137,6 +137,7 @@ android {
 
     buildTypes {
         release {
+            buildConfigField("boolean", "APPLY_INBOUND_FINANCIAL_ENVELOPES", "false")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -146,6 +147,7 @@ android {
         }
         debug {
             applicationIdSuffix = ".debug"
+            buildConfigField("boolean", "APPLY_INBOUND_FINANCIAL_ENVELOPES", "true")
         }
     }
     compileOptions {
