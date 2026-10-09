@@ -117,7 +117,6 @@ begin
         join public.businesses b on b.id = m.business_id and b.is_active
         join public.branches br on br.id = m.branch_id
             and br.business_id = m.business_id and br.is_active
-        join public.profiles p on p.auth_user_id = m.auth_user_id and p.is_active
         where m.id = p_membership_id
           and m.business_id = p_business_id
           and m.branch_id = p_branch_id
