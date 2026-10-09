@@ -95,7 +95,9 @@ android {
                         "PAID_DUE_PUBLIC_INVITE_BASE_URL"
                     )
                 )
-                .orElse("")
+                .orElse(
+                    "https://ttvdpgxqvvtjnxxfkoui.supabase.co/functions/v1/api/open/invite"
+                )
                 .get()
                 .trim()
                 .trimEnd('/')
