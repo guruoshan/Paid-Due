@@ -12,12 +12,14 @@ import javax.inject.Singleton
 class FinancialSyncEngine @Inject constructor(
     private val database: DmrDatabase,
     private val remoteSyncRepository: RemoteFinancialSyncRepository,
+    private val inboundEnvelopeApplier: InboundEnvelopeApplier,
     @ApplicationContext private val context: Context? = null
 ) {
     constructor(
         database: DmrDatabase,
-        remoteSyncRepository: RemoteFinancialSyncRepository
-    ) : this(database, remoteSyncRepository, null)
+        remoteSyncRepository: RemoteFinancialSyncRepository,
+        inboundEnvelopeApplier: InboundEnvelopeApplier = MaterializingInboundEnvelopeApplier()
+    ) : this(database, remoteSyncRepository, inboundEnvelopeApplier, null)
 
     private val inMemoryCursors = mutableMapOf<String, Pair<String, String>>()
 
@@ -154,7 +156,7 @@ class FinancialSyncEngine @Inject constructor(
             var pageLastProcessedEnvelope: RemoteEnvelopeV2? = null
 
             for (envelope in envelopes) {
-                val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+                val result = inboundEnvelopeApplier.apply(
                     database = database,
                     envelope = envelope,
                     sessionBusinessId = sessionBusinessId,
@@ -211,4 +213,5 @@ class FinancialSyncEngine @Inject constructor(
 
         return totalApplied
     }
+
 }

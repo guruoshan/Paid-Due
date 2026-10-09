@@ -22,14 +22,15 @@ import org.junit.Test
 
 class FinancialSyncEngineTest {
 
-    private val db = mockk<DmrDatabase>(relaxed = true)
-    private val outboxDao = mockk<FinancialSyncOutboxDao>(relaxed = true)
-    private val operationDao = mockk<OperationDao>(relaxed = true)
-    private val transactionDao = mockk<TransactionDao>(relaxed = true)
-    private val expenseDao = mockk<ExpenseDao>(relaxed = true)
-    private val remoteRepo = mockk<RemoteFinancialSyncRepository>(relaxed = true)
+    private val db = mockk<DmrDatabase>()
+    private val outboxDao = mockk<FinancialSyncOutboxDao>()
+    private val operationDao = mockk<OperationDao>()
+    private val transactionDao = mockk<TransactionDao>()
+    private val expenseDao = mockk<ExpenseDao>()
+    private val remoteRepo = mockk<RemoteFinancialSyncRepository>()
+    private val inboundApplier = FakeInboundEnvelopeApplier()
 
-    private val engine = FinancialSyncEngine(db, remoteRepo)
+    private val engine = FinancialSyncEngine(db, remoteRepo, inboundApplier)
 
     private val opId = "0199c001-1234-7abc-8def-0123456789ab"
     private val txId = "tx-0199c001-1234-7abc-8def-0123456789ab"
@@ -104,6 +105,9 @@ class FinancialSyncEngineTest {
         coEvery { db.expenseDao() } returns expenseDao
 
         coEvery { outboxDao.getPendingUpload(any()) } returns listOf(outboxItem)
+        coEvery { outboxDao.getStatusCounts() } returns emptyList()
+        coEvery { outboxDao.updateStatus(any(), any(), any()) } returns 1
+        coEvery { outboxDao.deleteAcknowledged(any()) } returns 1
         coEvery { operationDao.getOperationById(opId) } returns operation
         coEvery { transactionDao.getTransactionById(txId) } returns transaction
         coEvery { transactionDao.getItemsForTransaction(txId) } returns emptyList()
@@ -179,15 +183,28 @@ class FinancialSyncEngineTest {
             payloadJson = sampleJson
         )
 
-        coEvery { db.operationDao() } returns operationDao
-        coEvery { db.transactionDao() } returns transactionDao
-        coEvery { db.expenseDao() } returns expenseDao
         coEvery { remoteRepo.fetchRemoteEnvelopesV2("biz-1", null, null, any()) } returns listOf(remoteEnvelope)
-        coEvery { operationDao.getOperationById(opId) } returns null // Not existing locally yet
+        inboundApplier.result = InboundProcessResult.Applied
 
         val count = engine.syncInbound("biz-1")
 
         assertEquals(1, count)
         coVerify { remoteRepo.fetchRemoteEnvelopesV2("biz-1", null, null, any()) }
+        assertEquals(listOf(opId), inboundApplier.appliedOperationIds)
+    }
+
+    private class FakeInboundEnvelopeApplier : InboundEnvelopeApplier {
+        var result: InboundProcessResult = InboundProcessResult.Skipped
+        val appliedOperationIds = mutableListOf<String>()
+
+        override suspend fun apply(
+            database: DmrDatabase,
+            envelope: RemoteEnvelopeV2,
+            sessionBusinessId: String,
+            sessionBranchId: String?
+        ): InboundProcessResult {
+            appliedOperationIds += envelope.operationId
+            return result
+        }
     }
 }
