@@ -236,6 +236,21 @@ object RemoteEnvelopeMaterializer {
         if (tJson.getString("branch_id") != branchId) {
             return InboundProcessResult.Rejected("Transaction branch does not match envelope branch")
         }
+        val branch = database.businessBranchDao().getBranchById(branchId)
+            ?: return InboundProcessResult.Rejected("Referenced transaction branch is missing locally")
+        if (branch.businessId != sessionBusinessId || branch.currencyCode != txCurrencyCode) {
+            return InboundProcessResult.Rejected("Transaction business/currency does not match the branch")
+        }
+        if (
+            jsonPayload.optString("subject_type").isNotBlank() &&
+                jsonPayload.optString("subject_type") != SubjectType.TRANSACTION.name ||
+            jsonPayload.optString("subject_id").isNotBlank() &&
+                jsonPayload.optString("subject_id") != tJson.getString("id") ||
+            jsonPayload.optString("transaction_id").isNotBlank() &&
+                jsonPayload.optString("transaction_id") != tJson.getString("id")
+        ) {
+            return InboundProcessResult.Rejected("Transaction subject metadata does not match the transaction snapshot")
+        }
         for (i in 0 until settlementsArray.length()) {
             val settlement = settlementsArray.getJSONObject(i)
             if (
@@ -427,8 +442,13 @@ object RemoteEnvelopeMaterializer {
                 description = tJson.optString("description").ifBlank { null },
                 displayRef = tJson.getString("display_ref")
             )
-            if (transactionDao.getTransactionById(txId) == null) {
+            val existingTransaction = transactionDao.getTransactionById(txId)
+            if (existingTransaction == null) {
                 transactionDao.insertTransaction(tEntity)
+            } else {
+                check(existingTransaction == tEntity) {
+                    "Original transaction snapshot conflicts with the existing immutable transaction"
+                }
             }
 
             // 2. Transaction Items
@@ -454,8 +474,22 @@ object RemoteEnvelopeMaterializer {
                         )
                     )
                 }
-                val existingItemIds = transactionDao.getItemsForTransaction(txId).map { it.id }.toSet()
-                val newItems = itemsList.filter { it.id !in existingItemIds }
+                check(itemsList.all { it.transactionId == txId && it.quantity > 0 && it.lineTotalMinor >= 0L }) {
+                    "Transaction item references or amounts are invalid"
+                }
+                check(itemsList.map { it.id }.distinct().size == itemsList.size) {
+                    "Transaction contains duplicate item IDs"
+                }
+                val existingItems = transactionDao.getItemsForTransaction(txId).associateBy { it.id }
+                for (incoming in itemsList) {
+                    val existing = existingItems[incoming.id]
+                    if (existing != null) {
+                        check(existing == incoming) {
+                            "Transaction item snapshot conflicts with existing immutable item evidence"
+                        }
+                    }
+                }
+                val newItems = itemsList.filter { it.id !in existingItems }
                 if (newItems.isNotEmpty()) {
                     transactionDao.insertTransactionItems(newItems)
                 }
@@ -485,7 +519,18 @@ object RemoteEnvelopeMaterializer {
                     )
                 )
             }
-            val existingSettlements = transactionDao.getSettlementsForOperation(opId).map { it.id }.toSet()
+            check(settlementsList.map { it.id }.distinct().size == settlementsList.size) {
+                "Operation contains duplicate settlement IDs"
+            }
+            val existingSettlements = transactionDao.getSettlementsForOperation(opId).associateBy { it.id }
+            for (incoming in settlementsList) {
+                val existing = existingSettlements[incoming.id]
+                if (existing != null) {
+                    check(existing == incoming) {
+                        "Settlement evidence conflicts with existing immutable settlement"
+                    }
+                }
+            }
             val newSettlements = settlementsList.filter { it.id !in existingSettlements }
             if (newSettlements.isNotEmpty()) {
                 transactionDao.insertSettlements(newSettlements)
