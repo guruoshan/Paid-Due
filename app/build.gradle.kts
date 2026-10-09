@@ -26,13 +26,14 @@ fun buildConfigString(value: String): String =
         .replace("\\", "\\\\")
         .replace("\"", "\\\"") + "\""
 android {
-    // Fail closed by default: inbound operation materializers and end-to-end verification are incomplete.
-    // Enable only explicitly in a controlled test build after the receiver contract passes.
-    val inboundApplyDefault = providers.gradleProperty("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES")
+    // Debug builds exercise the inbound receiver so cross-device sync can be verified.
+    // Release remains fail-closed unless explicitly enabled for an approved rollout.
+    val inboundApplyOverride = providers.gradleProperty("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES")
         .orElse(providers.environmentVariable("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES"))
-        .orElse("false")
-        .get()
-        .toBooleanStrictOrNull() ?: false
+        .orNull
+    val parsedInboundApplyOverride = inboundApplyOverride?.toBooleanStrictOrNull()
+    val inboundApplyDebug = parsedInboundApplyOverride ?: (inboundApplyOverride == null)
+    val inboundApplyRelease = parsedInboundApplyOverride ?: false
     namespace = "com.dailymoneyregister"
     compileSdk {
         version = release(37)
@@ -153,11 +154,11 @@ android {
             buildConfigField(
                 "boolean",
                 "APPLY_INBOUND_FINANCIAL_ENVELOPES",
-                inboundApplyDefault.toString()
+                inboundApplyDebug.toString()
             )
         }
         release {
-            buildConfigField("boolean", "APPLY_INBOUND_FINANCIAL_ENVELOPES", inboundApplyDefault.toString())
+            buildConfigField("boolean", "APPLY_INBOUND_FINANCIAL_ENVELOPES", inboundApplyRelease.toString())
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
