@@ -1,0 +1,40 @@
+name: Paid-Due repair branch validation
+
+on:
+  push:
+    branches:
+      - fix/backend-compatibility-audit-2026-10
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paid-due-android-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-build-and-unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Build debug APK and run unit tests
+        run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
