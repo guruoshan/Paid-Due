@@ -4,7 +4,7 @@
 **Base:** `migration/offline-first-supabase-v1`  
 **Repair branch:** `fix/backend-compatibility-audit-2026-10`  
 **Production backend/schema/data:** unchanged  
-**Status:** Partial receiver implementation committed on the repair branch. Inbound is enabled by default; non-cash/split-tender sales and validated `RECORD_EXPENSE` snapshots now have materialization paths. The receiver is still incomplete and has not been build/test/device-verified after these changes.
+**Status:** Receiver remains incomplete. The repair branch now includes inbound envelope identity/replay hardening and an Android CI workflow. A first CI attempt failed during Android SDK setup before Gradle compilation or tests ran; a workflow fix was committed, but a successful build/test result is not yet verified.
 
 ## Required receiver contract — all supported financial operations
 
@@ -46,6 +46,25 @@ The receiver must cover the complete backend operation contract:
 3. **Admin upload accepted any decoded RPC row as an acknowledgement.** The app now requires the backend receipt status to be exactly `ACKNOWLEDGED`; unexpected statuses go to `NEEDS_ATTENTION`, not false success.
 4. **Cashier inbound could fall through to the Admin RPC if the custom session was missing.** The app now fails closed rather than switching authentication paths.
 5. **Admin inbound fetch explicitly requires a Supabase Auth session.** A local Room session is not treated as backend authentication.
+
+## Bidirectional audit findings — 2026-10-09 follow-up
+
+### Inbound integrity and replay
+- The previous receiver returned Skipped for any locally SUCCEEDED operation ID before validating the envelope's business/branch scope or immutable identity. It now validates payload metadata against the transport envelope and checks business, branch, operation type, and request fingerprint before treating an existing operation as a replay.
+- The generic materializer previously ignored the affected-row count from markSucceededIfPending and returned success even if the matching operation could not be finalized. It now requires successful finalization (or a confirmed already-succeeded operation); a failed check throws inside the Room transaction so related inserts roll back.
+- A resumed sale operation now also finalizes only after transaction, item, and settlement evidence is persisted.
+- These changes have NOT yet been compiled or tested. They are hardening changes, not proof of full receiver completion.
+
+### Outbound evidence gap
+- FinancialEnvelopeCodec currently serializes transaction/items/settlements and expense snapshots only. It does not serialize the dedicated amount-correction, payment-method-change, void, refund, credit-repayment/allocation, coupon-ledger, expense-event, or cash-shift event evidence required to reconstruct those operations on another device.
+- FinancialSyncEngine.syncOutbound passes the transaction, items, settlements, and expense to the codec; it does not load and pass the other event/ledger rows. Therefore, simply adding inbound dispatch cases would not complete two-way sync.
+- The outbox recognizes many operation types for Admin delivery, but its one-time classifier marks Cashier expense/cash-shift operations as NOT_SYNCABLE_YET. That policy must be reconciled with actual server permissions and product contract before claiming every operation can flow both ways; do not bypass backend authorization to force uploads.
+- Inbound DTO handling currently carries canonical text/payload but does not expose a separate backend canonical_sha256 field to the materializer. The end-to-end integrity contract must verify the digest returned by the server, not just trust the JSON parse.
+
+### Build verification
+- Added .github/workflows/paid-due-repair-validation.yml to run testDebugUnitTest and assembleDebug.
+- CI run 37980101900 failed in the Android SDK setup step because the setup action attempted to install the obsolete SDK package tools; Gradle was never invoked. The workflow was updated to request explicit SDK packages. The subsequent run must be checked before reporting a build result.
+- No production Supabase schema, RLS, Edge Function, financial data, merge, or release was changed.
 
 ## Implementation gap — receiver is not yet complete
 
