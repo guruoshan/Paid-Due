@@ -4,7 +4,7 @@
 **Base:** `migration/offline-first-supabase-v1`  
 **Repair branch:** `fix/backend-compatibility-audit-2026-10`  
 **Production backend/schema/data:** unchanged  
-**Status:** Receiver completeness is the required target. The inbound feature flag is enabled by default on this repair branch, but the receiver implementation is not yet complete; do not describe all transaction types as working until implementation and tests prove it.
+**Status:** Partial receiver implementation committed on the repair branch. Inbound is enabled by default; non-cash/split-tender sales and validated `RECORD_EXPENSE` snapshots now have materialization paths. The receiver is still incomplete and has not been build/test/device-verified after these changes.
 
 ## Required receiver contract — all supported financial operations
 
@@ -49,11 +49,11 @@ The receiver must cover the complete backend operation contract:
 
 ## Implementation gap — receiver is not yet complete
 
-The current `RemoteEnvelopeMaterializer` only applies cash `RECORD_SALE`; other operation types return `UnsupportedYet`. Therefore, the full receiver contract above is a **required implementation target, not a claim that the app already supports every operation**.
+The current `RemoteEnvelopeMaterializer` now accepts recognized payment categories/channels for `RECORD_SALE` (rather than rejecting everything except `CASH`/`CASH_TENDER`) and routes a tenant/branch/actor/currency-validated `RECORD_EXPENSE` payload through the existing atomic materializer. Correction/refund/void/credit/coupon/cash-shift handlers are still not implemented. Therefore, the full receiver contract above remains a **required implementation target, not a claim that the app already supports every operation**.
 
 Required work before calling inbound complete:
 
-- Implement an idempotent, atomic materializer for every operation listed above, matching the existing Room schema and canonical backend payloads. Inspect the actual entities/DAOs and established financial write paths; do not invent parallel financial sources of truth or add schema migrations unless a demonstrated gap makes one necessary.
+- Implement and verify dedicated idempotent, atomic handlers for `RECORD_CREDIT_REPAYMENT`, `RECORD_COUPON_PURCHASE` and other supported coupon operations, `RECORD_AMOUNT_CORRECTION`, `RECORD_PAYMENT_METHOD_CHANGE`, `RECORD_VOID`, `RECORD_REFUND`, `RECORD_EXPENSE_CORRECTION`, `RECORD_EXPENSE_VOID`, and all cash-shift operations, matching the existing Room entities/DAOs and canonical backend payloads. Do not mark a handler complete until it persists the proper linked event/ledger rows and is covered by tests. Do not invent parallel financial sources of truth or add schema migrations unless a demonstrated gap makes one necessary.
 - Preserve the causal links between each original operation and its correction, refund, void, repayment, coupon ledger entry, expense event, or cash-shift event.
 - Handle ordering, duplicate delivery, partial failure, cursor restart, replay, and old-client/new-client compatibility.
 - Add tests for every operation type, each payment method/tender pattern, repeated delivery, out-of-order delivery, invalid hashes/payloads, missing linked records, tenant/branch mismatch, crash/restart, and cursor durability.
@@ -65,5 +65,5 @@ Required work before calling inbound complete:
 - A prior device log showed five Admin outbox rows in `AUTH_REQUIRED` (two `RECORD_SALE`, one each `CLOSE_CASH_SHIFT`, `COUNT_CASH_SHIFT`, and `RECORD_EXPENSE`) and 31 envelopes fetched from the cloud. Downloaded envelopes are not proof that blocked local records uploaded or that inbound operations were applied.
 - The live cloud baseline observed during the audit contained sales, cash-shift openings, a coupon purchase, and a refund. Envelope counts can change as new operations arrive; counts are not a completion criterion.
 - No production SQL, RLS, function ACL, deployment, or financial data was changed by this audit update.
-- A prior audit snapshot said build/device verification had not yet been completed for this repair branch. Re-run verification against the exact current commit; do not rely on stale audit statements or claim tests passed without current evidence.
+- Commits `318242f45c640c0abb6ef7c30af3544b04c03778` and `80c94fc7945fba83073287bcb7b4428e9d98338e` changed the materializer and audit contract. Build/device verification and focused inbound tests have not been run against the exact current head; do not claim these changes pass until verified.
 - Do not merge or release solely because the inbound flag is enabled. Completion requires the full receiver contract, tests, and device verification above.
