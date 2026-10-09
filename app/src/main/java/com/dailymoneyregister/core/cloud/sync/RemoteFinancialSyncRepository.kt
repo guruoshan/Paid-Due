@@ -5,6 +5,7 @@ import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import org.json.JSONObject
 import javax.inject.Inject
@@ -24,7 +25,7 @@ data class IngestEnvelopeParams(
     @SerialName("p_business_local_date") val businessLocalDate: String,
     @SerialName("p_canonical_text") val canonicalText: String,
     @SerialName("p_canonical_sha256") val canonicalSha256: String,
-    @SerialName("p_canonical_payload") val canonicalPayloadJson: String
+    @SerialName("p_canonical_payload") val canonicalPayload: JsonObject
 )
 
 @Serializable
@@ -133,6 +134,14 @@ class RemoteFinancialSyncRepository @Inject constructor(
                 FinancialSyncReceipt.Unauthorized(
                     envelope.operationId
                 )
+            } catch (e: FinancialUploadHttpException) {
+                FinancialSyncErrorClassifier.classify(
+                    operationId = envelope.operationId,
+                    statusCode = e.statusCode,
+                    code = null,
+                    outcome = e.outcome,
+                    serverMessage = e.serverMessage
+                )
             } catch (e: Exception) {
                 android.util.Log.e(
                     "PaidDueFinancialSync",
@@ -161,19 +170,12 @@ class RemoteFinancialSyncRepository @Inject constructor(
                 businessLocalDate = businessLocalDate,
                 canonicalText = envelope.canonicalText,
                 canonicalSha256 = envelope.canonicalSha256,
-                canonicalPayloadJson = envelope.canonicalText
+                canonicalPayload = json.parseToJsonElement(envelope.canonicalText).jsonObject
             )
 
-            val paramJsonObj = kotlinx.serialization.json.JsonObject(
-                json.parseToJsonElement(
-                    json.encodeToString(
-                        IngestEnvelopeParams.serializer(),
-                        params
-                    )
-                ).jsonObject +
-                    ("p_canonical_payload" to
-                        json.parseToJsonElement(envelope.canonicalText))
-            )
+            val paramJsonObj = json.parseToJsonElement(
+                json.encodeToString(IngestEnvelopeParams.serializer(), params)
+            ).jsonObject
 
             val responseList = supabase.postgrest.rpc(
                 function = "ingest_financial_envelope",
@@ -188,20 +190,28 @@ class RemoteFinancialSyncRepository @Inject constructor(
                 canonicalSha256 = receipt.canonicalSha256,
                 duplicate = receipt.duplicate
             )
-        } catch (e: Exception) {
+        } catch (e: io.github.jan.supabase.postgrest.exception.PostgrestRestException) {
             android.util.Log.e(
                 "PaidDueFinancialSync",
                 "UPLOAD_FAILED",
                 e
             )
-            val msg = e.message.orEmpty()
-            if (msg.contains("Integrity conflict")) {
-                FinancialSyncReceipt.IntegrityConflict(envelope.operationId)
-            } else if (msg.contains("Access denied") || msg.contains("42501")) {
-                FinancialSyncReceipt.Unauthorized(envelope.operationId)
-            } else {
-                FinancialSyncReceipt.Retryable(envelope.operationId, RetryReason.NETWORK)
-            }
+            FinancialSyncErrorClassifier.classify(
+                operationId = envelope.operationId,
+                statusCode = e.statusCode,
+                code = e.code,
+                outcome = FinancialSyncErrorClassifier.extractOutcome(
+                    e.error,
+                    e.description,
+                    e.details.toString()
+                ),
+                serverMessage = listOfNotNull(e.error, e.description)
+                    .firstOrNull { it.isNotBlank() }
+                    ?: "Server rejected the financial operation"
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("PaidDueFinancialSync", "UPLOAD_FAILED", e)
+            FinancialSyncReceipt.Retryable(envelope.operationId, RetryReason.NETWORK)
         }
     }
 
@@ -264,6 +274,52 @@ class RemoteFinancialSyncRepository @Inject constructor(
             ).decodeList<RemoteEnvelopeDto>()
 
         return dtoList.map { JSONObject(it.canonicalText) }
+    }
+}
+
+internal object FinancialSyncErrorClassifier {
+    private val permanentOutcomes = setOf(
+        "INVALID_ENVELOPE",
+        "UNSUPPORTED_OPERATION_TYPE",
+        "OPERATION_NOT_PERMITTED",
+        "OPERATION_COLLISION",
+        "DIGEST_MISMATCH",
+        "LOCAL_DATE_MISMATCH",
+        "BRANCH_TIMEZONE_MISMATCH",
+        "INVALID_ADMIN_MEMBERSHIP"
+    )
+
+    fun extractOutcome(vararg structuredFields: String?): String? =
+        structuredFields.asSequence()
+            .filterNotNull()
+            .flatMap { field -> Regex("[A-Z][A-Z0-9_]+").findAll(field).map { it.value } }
+            .firstOrNull { it in permanentOutcomes }
+
+    fun classify(
+        operationId: String,
+        statusCode: Int,
+        code: String?,
+        outcome: String?,
+        serverMessage: String
+    ): FinancialSyncReceipt {
+        val normalizedOutcome = outcome?.trim()?.uppercase()
+        if (normalizedOutcome in permanentOutcomes) {
+            return FinancialSyncReceipt.NeedsAttention(
+                operationId,
+                serverMessage.ifBlank { normalizedOutcome!! }
+            )
+        }
+        if (statusCode == 401 || statusCode == 403 || code == "42501") {
+            return FinancialSyncReceipt.Unauthorized(operationId)
+        }
+        return if (statusCode >= 500 || statusCode == 408 || statusCode == 429) {
+            FinancialSyncReceipt.Retryable(operationId, RetryReason.SERVER_UNAVAILABLE)
+        } else {
+            FinancialSyncReceipt.NeedsAttention(
+                operationId,
+                serverMessage.ifBlank { "Financial upload rejected (HTTP $statusCode)" }
+            )
+        }
     }
 }
 

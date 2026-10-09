@@ -395,8 +395,10 @@ object CashierCloudSession {
                         .optString("outcome", "UNKNOWN")
                 }.getOrDefault("UNKNOWN")
 
-                throw IllegalStateException(
-                    "FINANCIAL_UPLOAD_HTTP_${status}_OUTCOME_${outcome}"
+                throw FinancialUploadHttpException(
+                    statusCode = status,
+                    outcome = outcome,
+                    serverMessage = responseBody
                 )
             }
 
@@ -411,3 +413,9 @@ object CashierCloudSession {
         }
     }
 }
+
+class FinancialUploadHttpException(
+    val statusCode: Int,
+    val outcome: String,
+    val serverMessage: String
+) : Exception("Financial upload rejected with HTTP $statusCode ($outcome)")

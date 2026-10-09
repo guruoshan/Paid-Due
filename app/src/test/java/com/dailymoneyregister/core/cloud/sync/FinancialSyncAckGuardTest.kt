@@ -56,6 +56,7 @@ class FinancialSyncAckGuardTest {
                 is FinancialSyncReceipt.Rejected -> receipt.operationId
                 is FinancialSyncReceipt.IntegrityConflict -> receipt.operationId
                 is FinancialSyncReceipt.Unauthorized -> receipt.operationId
+                is FinancialSyncReceipt.NeedsAttention -> receipt.operationId
             })
         }
     }

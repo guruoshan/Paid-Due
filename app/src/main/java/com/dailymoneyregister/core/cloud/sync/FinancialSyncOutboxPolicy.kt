@@ -14,6 +14,9 @@ enum class FinancialSyncDeliveryState {
     IN_FLIGHT,
     WAITING_RETRY,
     AUTH_REQUIRED,
+    NOT_APPLICABLE,
+    NOT_SYNCABLE_YET,
+    NEEDS_ATTENTION,
     INTEGRITY_CONFLICT,
     REJECTED,
     ACKNOWLEDGED
@@ -69,6 +72,9 @@ object FinancialSyncOutboxPolicy {
 
             is FinancialSyncReceipt.Rejected ->
                 FinancialSyncDeliveryState.REJECTED
+
+            is FinancialSyncReceipt.NeedsAttention ->
+                FinancialSyncDeliveryState.NEEDS_ATTENTION
         }
     }
 }

@@ -56,6 +56,11 @@ sealed interface FinancialSyncReceipt {
         val reason: RejectReason
     ) : FinancialSyncReceipt
 
+    data class NeedsAttention(
+        override val operationId: String,
+        val message: String
+    ) : FinancialSyncReceipt
+
     /** Same operation identity but conflicting digest: never retry automatically. */
     data class IntegrityConflict(override val operationId: String) : FinancialSyncReceipt
 
