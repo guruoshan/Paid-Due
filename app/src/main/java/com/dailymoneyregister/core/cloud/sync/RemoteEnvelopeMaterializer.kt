@@ -134,11 +134,24 @@ object RemoteEnvelopeMaterializer {
             }
         }
 
-        // Operation-specific correction/refund/void/credit/coupon/cash-shift
-        // handlers must persist their own immutable linked events. Never fall back
-        // to a generic sale/expense insert for those operations.
-        if (opTypeStr != "RECORD_SALE") {
-            return InboundProcessResult.UnsupportedYet(opTypeStr)
+        // Transaction-linked operations share the immutable original transaction
+        // snapshot, but each must also carry its own typed event/ledger evidence.
+        val transactionOperationTypes = setOf(
+            "RECORD_SALE",
+            "RECORD_COUPON_PURCHASE",
+            "RECORD_AMOUNT_CORRECTION",
+            "RECORD_PAYMENT_METHOD_CHANGE",
+            "RECORD_VOID",
+            "RECORD_REFUND"
+        )
+        if (opTypeStr !in transactionOperationTypes) {
+            return materializeNonTransactionOperation(
+                database = database,
+                envelope = envelope,
+                branchId = branchId,
+                sessionBusinessId = sessionBusinessId,
+                actorUserId = jsonPayload.optString("actor_user_id")
+            )
         }
 
         // Check transaction payload
@@ -147,33 +160,39 @@ object RemoteEnvelopeMaterializer {
         }
         val tJson = jsonPayload.getJSONObject("transaction")
         val txType = tJson.optString("type", "")
-        if (txType != "SALE") {
-            return InboundProcessResult.Rejected("Transaction type '$txType' is not SALE for RECORD_SALE")
+        val validTransactionType = when (opTypeStr) {
+            "RECORD_SALE" -> txType == "SALE"
+            "RECORD_COUPON_PURCHASE" -> txType == "COUPON_PURCHASE"
+            else -> txType == "SALE" || txType == "COUPON_PURCHASE"
+        }
+        if (!validTransactionType) {
+            return InboundProcessResult.Rejected(
+                "Transaction type '$txType' is incompatible with operation '$opTypeStr'"
+            )
         }
 
         val grandTotalMinor = tJson.getLong("grand_total_minor")
         val txCurrencyCode = tJson.getString("currency_code")
 
-        // b) grand_total_minor equals the settlement sum
-        if (!jsonPayload.has("settlements") || jsonPayload.isNull("settlements")) {
-            return InboundProcessResult.Rejected("Missing settlements payload for RECORD_SALE")
-        }
-        val settlementsArray = jsonPayload.getJSONArray("settlements")
-        if (settlementsArray.length() == 0) {
-            return InboundProcessResult.Rejected("Empty settlements array for RECORD_SALE")
+        // Sale and Coupon purchase funding must balance to the immutable total.
+        // Lifecycle operations carry only their own signed compensation/reclassification
+        // settlements, so their settlement sum is not compared with the original sale.
+        val settlementsArray = jsonPayload.optJSONArray("settlements") ?: org.json.JSONArray()
+        val requiresFullFunding = opTypeStr == "RECORD_SALE" || opTypeStr == "RECORD_COUPON_PURCHASE"
+        if (requiresFullFunding && settlementsArray.length() == 0) {
+            return InboundProcessResult.Rejected("Missing funding settlements for $opTypeStr")
         }
 
         var settlementSum = 0L
         for (i in 0 until settlementsArray.length()) {
             val sJson = settlementsArray.getJSONObject(i)
-            settlementSum = Math.addExact(
-                settlementSum,
-                sJson.getLong("amount_signed_minor")
-            )
+            settlementSum = Math.addExact(settlementSum, sJson.getLong("amount_signed_minor"))
         }
 
-        if (grandTotalMinor != settlementSum) {
-            return InboundProcessResult.Rejected("grand_total_minor ($grandTotalMinor) does not equal settlement sum ($settlementSum)")
+        if (requiresFullFunding && grandTotalMinor != settlementSum) {
+            return InboundProcessResult.Rejected(
+                "grand_total_minor ($grandTotalMinor) does not equal settlement sum ($settlementSum)"
+            )
         }
 
         // c) currency matches the branch
@@ -247,10 +266,12 @@ object RemoteEnvelopeMaterializer {
                     id = opId,
                     businessId = sessionBusinessId,
                     branchId = branchId,
-                    operationType = OperationType.RECORD_SALE,
-                    subjectType = SubjectType.TRANSACTION,
-                    subjectId = txId,
+                    operationType = OperationType.valueOf(opTypeStr),
+                    subjectType = jsonPayload.optString("subject_type").ifBlank { SubjectType.TRANSACTION.name }
+                        .let { SubjectType.valueOf(it) },
+                    subjectId = jsonPayload.optString("subject_id").ifBlank { txId },
                     transactionId = txId,
+                    cashShiftId = jsonPayload.optString("cash_shift_id").ifBlank { null },
                     actorUserId = actorUserId,
                     deviceId = envelope.payloadJson.optString("device_id", "remote"),
                     occurredAt = occurredAt,
@@ -267,7 +288,7 @@ object RemoteEnvelopeMaterializer {
             val tEntity = TransactionEntity(
                 id = txId,
                 branchId = branchId,
-                type = TransactionType.SALE,
+                type = TransactionType.valueOf(txType),
                 customerId = tJson.optString("customer_id").ifBlank { null },
                 subtotalMinor = tJson.getLong("subtotal_minor"),
                 taxRateBps = tJson.getInt("tax_rate_bps"),
@@ -348,8 +369,20 @@ object RemoteEnvelopeMaterializer {
                 transactionDao.insertSettlements(newSettlements)
             }
 
+            // Apply operation-specific immutable event/ledger evidence in this
+            // same Room transaction. No linked financial row is a second source of truth.
+            RemoteEnvelopeEvidenceApplier.apply(
+                database = database,
+                evidence = jsonPayload.optJSONObject("financial_evidence") ?: JSONObject(),
+                operationId = opId,
+                businessId = sessionBusinessId,
+                branchId = branchId,
+                actorUserId = actorUserId,
+                transactionId = txId
+            )
+
             // If this replay resumed a PENDING operation, finalize it only after
-            // all linked transaction, item, and settlement evidence is durable.
+            // all linked transaction, item, settlement, and event evidence is durable.
             val markedSucceeded = operationDao.markSucceededIfPending(
                 operationId = opId,
                 requestFingerprint = jsonPayload.optString("request_fingerprint", "remote-$opId"),
