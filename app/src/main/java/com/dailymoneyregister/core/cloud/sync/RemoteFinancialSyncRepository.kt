@@ -66,6 +66,10 @@ class RemoteFinancialSyncRepository @Inject constructor(
         branchTimezoneId: String,
         businessLocalDate: String = businessLocalDateFor(envelope.occurredAt, branchTimezoneId)
     ): FinancialSyncReceipt {
+        android.util.Log.i(
+            "PaidDueFinancialSync",
+            "UPLOAD_TIMEZONE operation=${envelope.operationId} branch_timezone_id=$branchTimezoneId business_local_date=$businessLocalDate"
+        )
         val currentSession =
             com.dailymoneyregister.core.security.SessionManager
                 .currentSession.value
