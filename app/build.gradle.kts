@@ -141,6 +141,13 @@ android {
     }
 
     buildTypes {
+        getByName("debug") {
+            buildConfigField(
+                "boolean",
+                "APPLY_INBOUND_FINANCIAL_ENVELOPES",
+                inboundApplyDefault.toString()
+            )
+        }
         release {
             buildConfigField("boolean", "APPLY_INBOUND_FINANCIAL_ENVELOPES", inboundApplyDefault.toString())
             isMinifyEnabled = true
