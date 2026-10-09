@@ -370,8 +370,60 @@ internal object RemoteEnvelopeEvidenceApplier {
             }
             val existing = database.expenseDao().getEventsForExpense(event.expenseId)
                 .firstOrNull { it.operationId == operationId }
-            if (existing == null) database.expenseDao().insertExpenseEvent(event)
-            else require(existing == event) { "Expense event conflicts with local history" }
+            if (existing != null) {
+                require(existing == event) { "Expense event conflicts with local history" }
+                continue
+            }
+
+            event.previousAmountMinor?.let { previous ->
+                require(previous == expense.amountMinor) {
+                    "Expense correction previous amount does not match the current authoritative snapshot"
+                }
+            }
+            event.previousPaymentCategory?.let { previous ->
+                require(previous == expense.paymentCategory) {
+                    "Expense correction previous payment category does not match the current snapshot"
+                }
+            }
+            event.previousCategory?.let { previous ->
+                require(previous == expense.category) {
+                    "Expense correction previous category does not match the current snapshot"
+                }
+            }
+            event.newAmountMinor?.let { next ->
+                require(next > 0L) { "Corrected expense amount must be positive; use a void event to cancel an expense" }
+            }
+            event.newPaymentCategory?.let { next ->
+                require(next == PaymentCategory.CASH.name || next == PaymentCategory.ONLINE.name) {
+                    "Expense supports Cash or Online only"
+                }
+            }
+
+            database.expenseDao().insertExpenseEvent(event)
+            if (!event.eventType.uppercase().contains("VOID")) {
+                val payeeChanged = event.previousPayeeId != event.newPayeeId
+                val newPayee = if (payeeChanged) {
+                    event.newPayeeId?.let { database.customerDao().getCustomerById(it) }
+                } else null
+                if (payeeChanged && event.newPayeeId != null) {
+                    require(newPayee?.businessId == businessId) {
+                        "Corrected expense payee is missing or belongs to another business"
+                    }
+                }
+                val updatedExpense = expense.copy(
+                    payeeId = if (payeeChanged) event.newPayeeId else expense.payeeId,
+                    payeeNameSnapshot = if (payeeChanged) newPayee?.name.orEmpty() else expense.payeeNameSnapshot,
+                    payeePhoneSnapshot = if (payeeChanged) newPayee?.canonicalPhone else expense.payeePhoneSnapshot,
+                    category = event.newCategory ?: expense.category,
+                    amountMinor = event.newAmountMinor ?: expense.amountMinor,
+                    paymentCategory = event.newPaymentCategory ?: expense.paymentCategory
+                )
+                if (updatedExpense != expense) {
+                    check(database.expenseDao().updateExpense(updatedExpense) == 1) {
+                        "Corrected expense snapshot could not be updated"
+                    }
+                }
+            }
         }
     }
 }
