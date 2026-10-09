@@ -1039,6 +1039,52 @@ async function uploadFinancialEnvelope(request, env) {
 }
 
 
+/*
+ * Cashier refresh: returns the CURRENT cloud permissions and branch details for the
+ * cashier who owns the session token, so admin changes reach the cashier device
+ * without a re-login.
+ */
+async function refreshStaff(request, env) {
+  if (request.method !== "POST") {
+    return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "POST" });
+  }
+
+  const authorization = request.headers.get("Authorization") || "";
+  const bearer = /^Bearer ([0-9a-f]{64})$/.exec(authorization);
+  if (!bearer) {
+    return json({ outcome: "UNAUTHORIZED" }, 401);
+  }
+
+  const sessions = await rpc(env, "verify_cashier_sync_session", {
+    p_token_hash: await sha256Hex(bearer[1]),
+  });
+  if (!Array.isArray(sessions) || sessions.length !== 1) {
+    return json({ outcome: "SESSION_EXPIRED" }, 401);
+  }
+  const session = sessions[0];
+
+  const rate = await env.ACTIVATION_RATE_LIMITER.limit({
+    key: "refresh:" + session.membership_id,
+  });
+  if (!rate.success) {
+    return json({ outcome: "TRY_AGAIN_LATER" }, 429, { "Retry-After": "60" });
+  }
+
+  const rows = await rpc(env, "cashier_restoration_payload", {
+    p_membership_id: session.membership_id,
+  });
+  if (
+    !Array.isArray(rows) || rows.length !== 1 || !rows[0].payload ||
+    rows[0].payload.membership_id !== session.membership_id
+  ) {
+    // Membership deactivated or business/branch inactive: tell the device.
+    return json({ outcome: "MEMBERSHIP_UNAVAILABLE" }, 403);
+  }
+
+  return json({ outcome: "OK", restoration: rows[0].payload }, 200);
+}
+
+
 function health() {
 
   return json(
@@ -1123,6 +1169,10 @@ export default {
 
       if (url.pathname === "/api/staff/login") {
         return await loginStaff(request, env);
+      }
+
+      if (url.pathname === "/api/staff/refresh") {
+        return await refreshStaff(request, env);
       }
 
       if (url.pathname === "/api/financial/upload") {

@@ -1,0 +1,9 @@
+-- APPLIED to Supabase project ttvdpgxqvvtjnxxfkoui on 2026-10-09 (migrations in Supabase history):
+--   add_admin_ingest_financial_envelope   -> public.ingest_financial_envelope(...)  (admin upload)
+--   add_admin_update_cashier_permissions_and_branch_details
+--       -> public.update_cashier_permissions(p_membership_id text, p_permissions jsonb)
+--       -> public.update_branch_details(p_business_id, p_branch_id, p_business_name,
+--                                       p_address, p_phone, p_tax_registration_number)
+-- All three: SECURITY DEFINER, search_path '', EXECUTE only for `authenticated`, caller must be an
+-- active ADMIN of the exact business/branch. Pull the exact SQL from the Supabase migration list.
+-- Worker: POST /api/staff/refresh (Bearer cashier session) returns current permissions + branch details.
