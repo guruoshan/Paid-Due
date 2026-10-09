@@ -220,18 +220,20 @@ internal object RemoteEnvelopeEvidenceApplier {
             )
         }
         require(couponEvents.all { it.operationId == operationId }) { "Coupon ledger operation mismatch" }
-        val existingCouponEvents = database.ledgerDao().getCouponEventsForOperation(operationId)
-        if (existingCouponEvents.isEmpty() && couponEvents.isNotEmpty()) {
-            couponEvents.forEach { event ->
-                require(
-                    wallets.any { it.id == event.walletId } ||
-                        database.ledgerDao().getCouponWalletById(event.walletId) != null
-                ) { "Coupon ledger event references a missing wallet" }
-                database.ledgerDao().insertCouponEvent(event)
-            }
-        } else if (couponEvents.isNotEmpty()) {
-            require(existingCouponEvents.toSet() == couponEvents.toSet()) {
-                "Coupon ledger evidence conflicts with local history"
+        if (couponEvents.isNotEmpty()) {
+            val existingCouponEvents = database.ledgerDao().getCouponEventsForOperation(operationId)
+            if (existingCouponEvents.isEmpty()) {
+                couponEvents.forEach { event ->
+                    require(
+                        wallets.any { it.id == event.walletId } ||
+                            database.ledgerDao().getCouponWalletById(event.walletId) != null
+                    ) { "Coupon ledger event references a missing wallet" }
+                    database.ledgerDao().insertCouponEvent(event)
+                }
+            } else {
+                require(existingCouponEvents.toSet() == couponEvents.toSet()) {
+                    "Coupon ledger evidence conflicts with local history"
+                }
             }
         }
 
