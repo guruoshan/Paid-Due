@@ -208,7 +208,8 @@ class FinancialSyncEngineTest {
             occurredAtIso = "2026-10-09T10:00:00Z",
             receivedAtIso = "2026-10-09T10:00:01Z",
             canonicalText = sampleJson.toString(),
-            payloadJson = sampleJson
+            payloadJson = sampleJson,
+            canonicalSha256 = com.dailymoneyregister.core.command.CommandFingerprint.sha256(sampleJson.toString())
         )
 
         coEvery { remoteRepo.fetchRemoteEnvelopesV2("biz-1", null, null, any()) } returns listOf(remoteEnvelope)
@@ -229,6 +230,33 @@ class FinancialSyncEngineTest {
         } returns emptyList()
         assertEquals(0, engine.syncInbound("biz-1"))
         coVerify(exactly = 0) { db.financialSyncOutboxDao() }
+    }
+
+    @Test
+    fun syncInboundRejectsMissingOrMismatchedRemoteDigestBeforeApplying() = runTest {
+        coEvery { db.businessBranchDao() } returns businessBranchDao
+        coEvery { db.userDao() } returns userDao
+        coEvery { businessBranchDao.getBusinessById("biz-1") } returns mockk()
+        coEvery { userDao.getUserByIdInBusiness("test-admin", "biz-1") } returns mockk()
+
+        val payload = JSONObject().put("operation_id", opId).put("business_id", "biz-1")
+        val remoteEnvelope = RemoteEnvelopeV2(
+            operationId = opId,
+            businessId = "biz-1",
+            branchId = "branch-1",
+            operationType = "RECORD_SALE",
+            occurredAtIso = "2026-10-09T10:00:00Z",
+            receivedAtIso = "2026-10-09T10:00:01Z",
+            canonicalText = payload.toString(),
+            payloadJson = payload,
+            canonicalSha256 = "0".repeat(64)
+        )
+        coEvery { remoteRepo.fetchRemoteEnvelopesV2("biz-1", null, null, any()) } returns listOf(remoteEnvelope)
+
+        val count = engine.syncInbound("biz-1")
+
+        assertEquals(0, count)
+        assertEquals(emptyList<String>(), inboundApplier.appliedOperationIds)
     }
 
     @Test
