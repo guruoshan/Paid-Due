@@ -164,6 +164,27 @@ export async function loginStaff(
     for (let i = 0; i < 32; i++) difference |= actual[i] ^ expected[i];
     if (difference !== 0) return json({ outcome: "INVALID_CREDENTIALS" }, 401);
 
+    // Build the exact restoration contract consumed by RemoteBusinessRestorer.
+    // PIN verification has succeeded; scope the RPC to this credential's membership.
+    const restorationRows = await rpc("fetch_cashier_restoration", {
+      p_membership_id: staff.membership_id
+    });
+    if (!Array.isArray(restorationRows) || restorationRows.length !== 1) {
+      return json({ outcome: "RESTORATION_UNAVAILABLE" }, 403);
+    }
+    const restoration = restorationRows[0];
+    if (
+      restoration.membership_id !== staff.membership_id ||
+      restoration.canonical_phone !== phone ||
+      typeof restoration.permissions !== "object" ||
+      restoration.permissions === null ||
+      typeof restoration.local_user_id !== "string" ||
+      typeof restoration.business_id !== "string" ||
+      typeof restoration.branch_id !== "string"
+    ) {
+      throw new Error("RESTORATION_CONTRACT_INVALID");
+    }
+
     const tokenBytes = new Uint8Array(32);
     crypto.getRandomValues(tokenBytes);
     const sessionToken = Array.from(tokenBytes).map(x => x.toString(16).padStart(2, "0")).join("");
@@ -180,7 +201,8 @@ export async function loginStaff(
       outcome: "AUTHENTICATED",
       membership_id: staff.membership_id,
       session_token: sessionToken,
-      expires_at: sessions[0].expires_at
+      expires_at: sessions[0].expires_at,
+      restoration
     }, 200);
 
   } catch (error: any) {
