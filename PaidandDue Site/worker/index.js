@@ -849,6 +849,196 @@ async function previewStaff(request, env) {
 }
 
 
+/*
+ * Re-synced from the deployed worker (login + upload existed only on Cloudflare,
+ * not in git). Hardening added vs. deployed version: per-IP login limiter and a
+ * dummy PBKDF2 for unknown phones so response time does not reveal whether an
+ * account exists.
+ */
+function hexToBytes(hex) {
+  return Uint8Array.from(hex.match(/.{2}/g), (x) => parseInt(x, 16));
+}
+
+async function pbkdf2Bits(pin, salt, iterations) {
+  const key = await crypto.subtle.importKey(
+    "raw", encoder.encode(pin), "PBKDF2", false, ["deriveBits"],
+  );
+  return new Uint8Array(await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations }, key, 256,
+  ));
+}
+
+async function loginStaff(request, env) {
+  if (request.method !== "POST") {
+    return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "POST" });
+  }
+
+  const contentType = request.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().startsWith("application/json")) {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+
+  const raw = await request.text();
+  if (!raw || raw.length > 1024) {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+
+  let body;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+
+  const phone = body.canonical_phone;
+  const pin = body.pin;
+  if (
+    typeof phone !== "string" || !PHONE_REGEX.test(phone) ||
+    typeof pin !== "string" || !PIN_REGEX.test(pin)
+  ) {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+
+  const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  const byPhone = await env.ACTIVATION_RATE_LIMITER.limit({
+    key: "login:" + await sha256Hex(phone),
+  });
+  const byIp = await env.ACTIVATION_RATE_LIMITER.limit({ key: "login-ip:" + ip });
+  if (!byPhone.success || !byIp.success) {
+    return json({ outcome: "TRY_AGAIN_LATER" }, 429, { "Retry-After": "60" });
+  }
+
+  const rows = await rpc(env, "cashier_login_credential", { p_phone: phone });
+
+  const dummySalt = new Uint8Array(16);
+  const match = Array.isArray(rows) && rows.length === 1
+    ? /^pbkdf2-sha256:(\d+):([0-9a-f]{64})$/.exec(rows[0].credential_hash || "")
+    : null;
+
+  if (
+    !match ||
+    !/^[0-9a-f]{32}$/.test(rows[0].credential_salt || "")
+  ) {
+    await pbkdf2Bits(pin, dummySalt, PBKDF2_ITERATIONS);
+    return json({ outcome: "INVALID_CREDENTIALS" }, 401);
+  }
+
+  const staff = rows[0];
+  const iterations = Number(match[1]);
+  if (!Number.isSafeInteger(iterations) || iterations < 10000 || iterations > 1000000) {
+    return json({ outcome: "INVALID_CREDENTIALS" }, 401);
+  }
+
+  const actual = await pbkdf2Bits(pin, hexToBytes(staff.credential_salt), iterations);
+  const expected = hexToBytes(match[2]);
+  let difference = 0;
+  for (let i = 0; i < 32; i++) {
+    difference |= actual[i] ^ expected[i];
+  }
+  if (difference !== 0) {
+    return json({ outcome: "INVALID_CREDENTIALS" }, 401);
+  }
+
+  const restorationRows = await rpc(env, "cashier_restoration_payload", {
+    p_membership_id: staff.membership_id,
+  });
+  if (
+    !Array.isArray(restorationRows) ||
+    restorationRows.length !== 1 ||
+    !restorationRows[0].payload ||
+    restorationRows[0].payload.membership_id !== staff.membership_id
+  ) {
+    throw new Error("CASHIER_RESTORATION_DATA_UNAVAILABLE");
+  }
+
+  const tokenBytes = new Uint8Array(32);
+  crypto.getRandomValues(tokenBytes);
+  const sessionToken = bytesToHex(tokenBytes);
+  const sessionTokenHash = await sha256Hex(sessionToken);
+
+  const sessions = await rpc(env, "create_cashier_sync_session", {
+    p_membership_id: staff.membership_id,
+    p_token_hash: sessionTokenHash,
+  });
+  if (!Array.isArray(sessions) || sessions.length !== 1) {
+    throw new Error("SESSION_CREATION_FAILED");
+  }
+
+  return json({
+    outcome: "AUTHENTICATED",
+    membership_id: staff.membership_id,
+    session_token: sessionToken,
+    expires_at: sessions[0].expires_at,
+    restoration: restorationRows[0].payload,
+  }, 200);
+}
+
+async function uploadFinancialEnvelope(request, env) {
+  if (request.method !== "POST") {
+    return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "POST" });
+  }
+
+  const authorization = request.headers.get("Authorization") || "";
+  const bearer = /^Bearer ([0-9a-f]{64})$/.exec(authorization);
+  if (!bearer) {
+    return json({ outcome: "UNAUTHORIZED" }, 401);
+  }
+
+  const sessions = await rpc(env, "verify_cashier_sync_session", {
+    p_token_hash: await sha256Hex(bearer[1]),
+  });
+  if (!Array.isArray(sessions) || sessions.length !== 1) {
+    return json({ outcome: "SESSION_EXPIRED" }, 401);
+  }
+  const session = sessions[0];
+
+  const contentType = request.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().startsWith("application/json")) {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+
+  const raw = await request.text();
+  if (!raw || raw.length > 300000) {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+
+  let envelope;
+  try {
+    envelope = JSON.parse(raw);
+  } catch {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+
+  if (
+    !envelope || typeof envelope !== "object" || Array.isArray(envelope) ||
+    envelope.p_business_id !== session.business_id ||
+    envelope.p_branch_id !== session.branch_id ||
+    envelope.p_actor_membership_id !== session.membership_id
+  ) {
+    return json({ outcome: "FORBIDDEN" }, 403);
+  }
+
+  const required = [
+    "p_business_id", "p_operation_id", "p_branch_id", "p_actor_membership_id",
+    "p_device_id", "p_operation_type", "p_schema_version", "p_occurred_at",
+    "p_branch_timezone_id", "p_business_local_date", "p_canonical_text",
+    "p_canonical_sha256", "p_canonical_payload",
+  ];
+  if (
+    Object.keys(envelope).length !== required.length ||
+    required.some((key) => !(key in envelope))
+  ) {
+    return json({ outcome: "INVALID_ENVELOPE" }, 400);
+  }
+
+  const result = await rpc(env, "ingest_cashier_financial_envelope", envelope);
+  if (!Array.isArray(result) || result.length !== 1) {
+    throw new Error("FINANCIAL_INGEST_RESULT_INVALID");
+  }
+  return json(result[0], 200);
+}
+
+
 function health() {
 
   return json(
@@ -930,6 +1120,14 @@ export default {
         );
       }
 
+
+      if (url.pathname === "/api/staff/login") {
+        return await loginStaff(request, env);
+      }
+
+      if (url.pathname === "/api/financial/upload") {
+        return await uploadFinancialEnvelope(request, env);
+      }
 
       if (
         url.pathname ===

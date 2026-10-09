@@ -1,0 +1,25 @@
+-- STAGED, NOT APPLIED. Add these checks to public.ingest_cashier_financial_envelope,
+-- right after the existing "INVALID_ENVELOPE" validation block and before the INSERT.
+-- Without them a cashier device can post any occurred_at / business_local_date,
+-- which would skew date-based reports.
+--
+--   if p_occurred_at > now() + interval '10 minutes' then
+--       raise exception 'OCCURRED_AT_IN_FUTURE';
+--   end if;
+--
+--   if not exists (
+--       select 1 from public.branches br
+--       where br.id = p_branch_id and br.business_id = p_business_id
+--         and br.timezone_id = p_branch_timezone_id
+--   ) then
+--       raise exception 'BRANCH_TIMEZONE_MISMATCH';
+--   end if;
+--
+--   if p_business_local_date is distinct from
+--      (p_occurred_at at time zone p_branch_timezone_id)::date then
+--       raise exception 'LOCAL_DATE_MISMATCH';
+--   end if;
+--
+-- Also decide which membership permission allows RECORD_EXPENSE*, OPEN/COUNT/CLOSE_CASH_SHIFT.
+-- The function currently rejects them (allowed = false), so cashier shift and expense
+-- records will NOT sync until you choose.

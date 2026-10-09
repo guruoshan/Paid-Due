@@ -16,3 +16,12 @@ Still to do:
    for duplicates on a real device database.
 5. Turn on leaked-password protection in Supabase Auth.
 6. `ONBOARDING_PROGRESS.md` still says the invite endpoint is missing; it now exists.
+
+## Added after the sync discovery (same day)
+- `worker/index.js` now contains `/api/staff/login` and `/api/financial/upload`, copied
+  from the deployed Cloudflare worker (they existed only there). Login gained a per-IP
+  limiter and equal-time handling for unknown phones.
+- `staged_sync_fetch_keyset.sql`: fixes admin paging that can skip rows (new function).
+- `staged_sync_ingest_validation.sql`: date/timezone checks for uploads (notes, to merge
+  into the existing function) plus the unsynced expense/shift permission gap.
+- Admin devices pull through Supabase RPC with their own login; cashiers can only upload.
