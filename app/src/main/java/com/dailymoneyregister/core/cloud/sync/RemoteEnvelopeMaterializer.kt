@@ -41,12 +41,6 @@ object RemoteEnvelopeMaterializer {
         val opId = envelope.operationId
         val opTypeStr = envelope.operationType
 
-        // Requirement 3: Skip envelopes whose operation already exists locally as SUCCEEDED
-        val existingOp = database.operationDao().getOperationById(opId)
-        if (existingOp != null && existingOp.status == OperationStatus.SUCCEEDED) {
-            return InboundProcessResult.Skipped
-        }
-
         val jsonPayload = envelope.payloadJson
 
         // Tenant and branch checks must run before operation dispatch so no handler
@@ -60,6 +54,27 @@ object RemoteEnvelopeMaterializer {
 
         val branchId = envelope.branchId ?: sessionBranchId
             ?: return InboundProcessResult.Rejected("Branch ID missing in envelope and admin session")
+
+        // A duplicate operation ID is only a replay when its immutable identity
+        // matches the active tenant, branch, type, and request fingerprint. Scope
+        // checks intentionally precede duplicate handling.
+        val incomingFingerprint = jsonPayload.optString("request_fingerprint")
+        val existingOp = database.operationDao().getOperationById(opId)
+        if (existingOp != null) {
+            if (
+                existingOp.businessId != envelope.businessId ||
+                existingOp.branchId != branchId ||
+                existingOp.operationType.name != opTypeStr ||
+                existingOp.requestFingerprint != incomingFingerprint
+            ) {
+                return InboundProcessResult.Rejected(
+                    "Operation ID collision: existing operation identity does not match inbound envelope"
+                )
+            }
+            if (existingOp.status == OperationStatus.SUCCEEDED) {
+                return InboundProcessResult.Skipped
+            }
+        }
 
         // Expense creation already has a canonical expense snapshot and a Room
         // entity. Route only RECORD_EXPENSE through the generic atomic writer after
@@ -310,6 +325,18 @@ object RemoteEnvelopeMaterializer {
                 transactionDao.insertSettlements(newSettlements)
             }
 
+            // If this replay resumed a PENDING operation, finalize it only after
+            // all linked transaction, item, and settlement evidence is durable.
+            val markedSucceeded = operationDao.markSucceededIfPending(
+                operationId = opId,
+                requestFingerprint = jsonPayload.optString("request_fingerprint", "remote-$opId"),
+                resultReferenceType = "TRANSACTION",
+                resultReferenceId = txId
+            )
+            check(markedSucceeded == 1 || operationDao.isOperationSucceeded(opId)) {
+                "Inbound sale could not be finalized with the matching request fingerprint"
+            }
+
             InboundProcessResult.Applied
         }
     }
@@ -339,8 +366,18 @@ object RemoteEnvelopeMaterializer {
             val expenseDao = database.expenseDao()
 
             val existingOp = operationDao.getOperationById(opId)
-            if (existingOp != null && existingOp.status == OperationStatus.SUCCEEDED) {
-                return@withTransaction true // Already materialized locally
+            if (existingOp != null) {
+                if (
+                    existingOp.businessId != businessId ||
+                    existingOp.branchId != branchId ||
+                    existingOp.operationType != opType ||
+                    existingOp.requestFingerprint != requestFingerprint
+                ) {
+                    return@withTransaction false
+                }
+                if (existingOp.status == OperationStatus.SUCCEEDED) {
+                    return@withTransaction true // Same immutable operation already materialized
+                }
             }
 
             var txId: String? = null
@@ -493,12 +530,15 @@ object RemoteEnvelopeMaterializer {
             )
 
             operationDao.insertOperationIfAbsent(opEntity)
-            operationDao.markSucceededIfPending(
+            val markedSucceeded = operationDao.markSucceededIfPending(
                 operationId = opId,
                 requestFingerprint = requestFingerprint,
                 resultReferenceType = txType,
                 resultReferenceId = txId ?: opId
             )
+            check(markedSucceeded == 1 || operationDao.isOperationSucceeded(opId)) {
+                "Inbound operation could not be finalized with the matching request fingerprint"
+            }
 
             true
         }
