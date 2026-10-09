@@ -108,6 +108,7 @@ interface FinancialSyncOutboxDao {
         WHERE status IN ('QUEUED', 'WAITING_RETRY', 'IN_FLIGHT')
         """
     )
+    /** One-time startup cleanup: marks legacy rows by delivery state; never deletes operations or evidence. */
     suspend fun classifyExistingRows(): Int
 
     @Query(
