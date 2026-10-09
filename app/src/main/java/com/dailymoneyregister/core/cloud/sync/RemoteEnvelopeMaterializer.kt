@@ -47,16 +47,10 @@ object RemoteEnvelopeMaterializer {
             return InboundProcessResult.Skipped
         }
 
-        // Requirement 3: For operation types other than a cash RECORD_SALE, do NOT write anything locally;
-        // log them as INBOUND_UNSUPPORTED_YET with the type and advance past them. Never default an unknown type to RECORD_SALE.
-        if (opTypeStr != "RECORD_SALE") {
-            return InboundProcessResult.UnsupportedYet(opTypeStr)
-        }
-
         val jsonPayload = envelope.payloadJson
 
-        // Requirement 4: Verification before writing:
-        // a) branch and business match the admin session
+        // Tenant and branch checks must run before operation dispatch so no handler
+        // can materialize an envelope outside the active Admin scope.
         if (envelope.businessId != sessionBusinessId) {
             return InboundProcessResult.Rejected("Business mismatch: envelope business='${envelope.businessId}' vs session business='$sessionBusinessId'")
         }
@@ -66,6 +60,48 @@ object RemoteEnvelopeMaterializer {
 
         val branchId = envelope.branchId ?: sessionBranchId
             ?: return InboundProcessResult.Rejected("Branch ID missing in envelope and admin session")
+
+        // Expense creation already has a canonical expense snapshot and a Room
+        // entity. Route only RECORD_EXPENSE through the generic atomic writer after
+        // validating its tenant/branch/actor links. Corrections/voids require their
+        // dedicated immutable event rows and are deliberately not treated as creates.
+        if (opTypeStr == "RECORD_EXPENSE") {
+            val expense = jsonPayload.optJSONObject("expense")
+                ?: return InboundProcessResult.Rejected("Missing expense object for RECORD_EXPENSE")
+            if (expense.optString("operation_id") != opId ||
+                expense.optString("business_id") != sessionBusinessId ||
+                expense.optString("branch_id") != branchId
+            ) {
+                return InboundProcessResult.Rejected("Expense references do not match the envelope tenant, branch, or operation")
+            }
+            val actorUserId = expense.optString("actor_user_id").ifBlank {
+                jsonPayload.optString("actor_user_id")
+            }
+            if (actorUserId.isBlank() ||
+                database.userDao().getUserByIdInBusiness(actorUserId, sessionBusinessId) == null
+            ) {
+                return InboundProcessResult.Rejected("Referenced expense actor is missing locally")
+            }
+            val branch = database.businessBranchDao().getBranchById(branchId)
+                ?: return InboundProcessResult.Rejected("Referenced branch '$branchId' is missing locally")
+            if (branch.businessId != sessionBusinessId ||
+                expense.optString("currency_code") != branch.currencyCode
+            ) {
+                return InboundProcessResult.Rejected("Expense branch or currency does not match the active business")
+            }
+            return if (materializeEnvelope(database, jsonPayload)) {
+                InboundProcessResult.Applied
+            } else {
+                InboundProcessResult.Rejected("Expense envelope could not be materialized")
+            }
+        }
+
+        // Operation-specific correction/refund/void/credit/coupon/cash-shift
+        // handlers must persist their own immutable linked events. Never fall back
+        // to a generic sale/expense insert for those operations.
+        if (opTypeStr != "RECORD_SALE") {
+            return InboundProcessResult.UnsupportedYet(opTypeStr)
+        }
 
         // Check transaction payload
         if (!jsonPayload.has("transaction") || jsonPayload.isNull("transaction")) {
@@ -133,12 +169,24 @@ object RemoteEnvelopeMaterializer {
             ) {
                 return InboundProcessResult.Rejected("Settlement references do not match the envelope")
             }
-            if (
-                settlement.getString("currency_code") != txCurrencyCode ||
-                settlement.getString("category") != "CASH" ||
-                settlement.getString("channel") != "CASH_TENDER"
-            ) {
-                return InboundProcessResult.UnsupportedYet("RECORD_SALE_NON_CASH")
+            if (settlement.getString("currency_code") != txCurrencyCode) {
+                return InboundProcessResult.Rejected("Settlement currency does not match transaction currency")
+            }
+            // Payment methods are data, not a reason to reject a valid sale. Parse
+            // both enum fields so cash, online/card, and split-tender sales are
+            // supported while malformed/unknown tender values fail closed.
+            val category = runCatching {
+                PaymentCategory.valueOf(settlement.getString("category"))
+            }.getOrElse {
+                return InboundProcessResult.Rejected("Unknown settlement category")
+            }
+            val channel = runCatching {
+                PaymentChannel.valueOf(settlement.getString("channel"))
+            }.getOrElse {
+                return InboundProcessResult.Rejected("Unknown settlement channel")
+            }
+            if (category.name.isBlank() || channel.name.isBlank()) {
+                return InboundProcessResult.Rejected("Invalid settlement payment method")
             }
             val settlementActor = settlement.optString("actor_user_id").ifBlank { actorUserId }
             if (database.userDao().getUserByIdInBusiness(settlementActor, sessionBusinessId) == null) {
