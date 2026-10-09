@@ -8,6 +8,7 @@ import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
 import com.dailymoneyregister.core.database.entity.TransactionItemEntity
 import com.dailymoneyregister.core.model.enums.ConfirmationType
+import com.dailymoneyregister.core.model.enums.CashShiftEventType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.OperationStatus
 import com.dailymoneyregister.core.model.enums.OperationType
