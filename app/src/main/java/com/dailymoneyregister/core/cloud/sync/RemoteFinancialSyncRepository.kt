@@ -1,6 +1,7 @@
 package com.dailymoneyregister.core.cloud.sync
 
 import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -158,6 +159,17 @@ class RemoteFinancialSyncRepository @Inject constructor(
             }
         }
 
+        // The RPC requires auth.uid() and validates this Admin membership server-side.
+        // A local Room session is not a Supabase Auth session; fail closed and keep
+        // the durable outbox row recoverable until the Admin signs in remotely.
+        if (supabase.auth.currentSessionOrNull() == null) {
+            android.util.Log.w(
+                "PaidDueFinancialSync",
+                "ADMIN_SUPABASE_AUTH_REQUIRED operation=${envelope.operationId}"
+            )
+            return FinancialSyncReceipt.Unauthorized(envelope.operationId)
+        }
+
         return try {
             val isoOccurredAt = java.time.Instant.ofEpochMilli(envelope.occurredAt).toString()
 
@@ -188,6 +200,19 @@ class RemoteFinancialSyncRepository @Inject constructor(
 
             val receipt = responseList.firstOrNull()
                 ?: return FinancialSyncReceipt.Retryable(envelope.operationId, RetryReason.SERVER_UNAVAILABLE)
+
+            // Never treat a syntactically valid RPC row as success unless the
+            // backend explicitly returned its committed acknowledgement status.
+            if (receipt.status != "ACKNOWLEDGED") {
+                android.util.Log.e(
+                    "PaidDueFinancialSync",
+                    "UPLOAD_RECEIPT_STATUS_UNEXPECTED operation=${envelope.operationId} status=${receipt.status}"
+                )
+                return FinancialSyncReceipt.NeedsAttention(
+                    envelope.operationId,
+                    "Unexpected server receipt status: ${receipt.status}"
+                )
+            }
 
             FinancialSyncReceipt.Acknowledged(
                 operationId = receipt.operationId,
@@ -229,11 +254,28 @@ class RemoteFinancialSyncRepository @Inject constructor(
             "Both cursor params (afterReceivedAt, afterOperationId) must be null together or both non-null"
         }
 
-        val cashierMembershipId = SessionManager.currentSession.value?.membership?.id
-        if (cashierMembershipId != null && CashierCloudSession.tokenFor(cashierMembershipId) != null) {
-            val rows = CashierCloudSession.download(cashierMembershipId, afterReceivedAt, afterOperationId, limit.coerceAtMost(100))
+        val activeSession = SessionManager.currentSession.value
+        if (activeSession?.user?.role == com.dailymoneyregister.core.model.enums.UserRole.CASHIER) {
+            val cashierMembershipId = activeSession.membership?.id
+                ?: throw SecurityException("CASHIER_MEMBERSHIP_REQUIRED")
+            if (CashierCloudSession.tokenFor(cashierMembershipId) == null) {
+                // Do not fall through to the Admin Supabase RPC with a publishable key.
+                throw SecurityException("CASHIER_CLOUD_SESSION_REQUIRED")
+            }
+            val rows = CashierCloudSession.download(
+                cashierMembershipId,
+                afterReceivedAt,
+                afterOperationId,
+                limit.coerceAtMost(100)
+            )
             return rows.toEnvelopeList()
         }
+
+        // The Admin download RPC also requires an authenticated Supabase identity.
+        if (supabase.auth.currentSessionOrNull() == null) {
+            throw SecurityException("ADMIN_SUPABASE_AUTH_REQUIRED")
+        }
+
         val params = FetchEnvelopesV2Params(
             businessId = businessId,
             afterReceivedAt = afterReceivedAt,
