@@ -73,6 +73,9 @@ export async function handleRequest(request: Request): Promise<Response> {
     if (path === "/api/financial/upload") return await uploadFinancial(request);
     if (path === "/api/staff/metadata") return await staffMetadata(request);
     if (path === "/api/financial/download") return await downloadFinancial(request);
+    if (path === "/api/staff/notifications") return await listCashierNotifications(request);
+    if (path === "/api/staff/notifications/read") return await markCashierNotificationRead(request);
+    if (path === "/api/staff/permission-requests") return await requestCashierPermission(request);
     return json({ outcome: "NOT_FOUND" }, 404);
   } catch (error: unknown) {
     // Never leak DB details, credential material, or bearer tokens in HTTP output.

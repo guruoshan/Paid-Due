@@ -1,5 +1,5 @@
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.200.0/assert/mod.ts";
-import { health, loginStaff, uploadFinancial, staffMetadata, downloadFinancial } from "./handlers.ts";
+import { health, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, listCashierNotifications, markCashierNotificationRead, requestCashierPermission } from "./handlers.ts";
 import { sha256Hex, deriveCredential, hexToBytes, bytesToHex } from "./crypto.ts";
 
 Deno.test("GET /api/health returns 200 OK and expected version contract", async () => {
@@ -103,7 +103,7 @@ Deno.test("Contract: Cashier metadata response permissions schema", () => {
     can_change_payment_method: false,
     can_view_broad_history: false,
     can_manage_products: false,
-    can_view_reports: false
+    can_view_reports: false,
   };
   assertEquals(typeof mockPermissions.can_create_sale, "boolean");
   assertEquals(Object.keys(mockPermissions).length, 14);
@@ -118,4 +118,28 @@ Deno.test("Contract: Duplicate financial envelope response format", () => {
   };
   assertEquals(mockAck.status, "ACKNOWLEDGED");
   assertEquals(mockAck.duplicate, true);
+});
+
+
+Deno.test("GET /api/staff/notifications requires a valid cashier session", async () => {
+  const response = await listCashierNotifications(new Request("http://localhost/api/staff/notifications"));
+  assertEquals(response.status, 401);
+});
+
+Deno.test("POST /api/staff/notifications/read requires a valid cashier session", async () => {
+  const response = await markCashierNotificationRead(new Request("http://localhost/api/staff/notifications/read", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notification_id: "00000000-0000-4000-8000-000000000001" })
+  }));
+  assertEquals(response.status, 401);
+});
+
+Deno.test("POST /api/staff/permission-requests requires a valid cashier session", async () => {
+  const response = await requestCashierPermission(new Request("http://localhost/api/staff/permission-requests", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ permission_key: "VIEW_BROAD_HISTORY" })
+  }));
+  assertEquals(response.status, 401);
 });

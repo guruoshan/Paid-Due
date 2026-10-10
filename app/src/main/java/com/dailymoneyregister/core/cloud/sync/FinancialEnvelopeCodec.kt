@@ -1,6 +1,8 @@
 package com.dailymoneyregister.core.cloud.sync
 
 import com.dailymoneyregister.core.command.CommandFingerprint
+import com.dailymoneyregister.core.model.enums.OperationType
+import com.dailymoneyregister.feature.register.data.RegisterShiftLifecyclePayloadCodec
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
@@ -36,8 +38,7 @@ object FinancialEnvelopeCodec {
         transaction: TransactionEntity? = null,
         items: List<TransactionItemEntity> = emptyList(),
         settlements: List<SettlementEntryEntity> = emptyList(),
-        expense: ExpenseEntity? = null,
-        financialEvidence: JSONObject = JSONObject()
+        expense: ExpenseEntity? = null
     ): EncodedEnvelope {
         val root = JSONObject()
         root.put("operation_id", operation.id)
@@ -50,13 +51,6 @@ object FinancialEnvelopeCodec {
         root.put("command_schema_version", operation.commandSchemaVersion)
         root.put("request_fingerprint", operation.requestFingerprint)
         root.put("intent_payload", operation.intentPayload)
-        root.put("subject_type", operation.subjectType.name)
-        root.put("subject_id", operation.subjectId)
-        root.put("transaction_id", operation.transactionId.orEmpty())
-        root.put("cash_shift_id", operation.cashShiftId.orEmpty())
-        if (financialEvidence.length() > 0) {
-            root.put("financial_evidence", financialEvidence)
-        }
 
         if (transaction != null) {
             val txJson = JSONObject()
@@ -148,6 +142,14 @@ object FinancialEnvelopeCodec {
             eJson.put("occurred_at", expense.occurredAt)
             eJson.put("created_at", expense.createdAt)
             root.put("expense", eJson)
+        }
+
+        if (operation.operationType == OperationType.CLOSE_CASH_SHIFT) {
+            runCatching {
+                RegisterShiftLifecyclePayloadCodec.decodeClose(operation).reportSnapshot
+            }.getOrNull()?.let { snapshot ->
+                root.put("day_closing_report", JSONObject(snapshot.toJsonString()))
+            }
         }
 
         val canonicalText = root.toString()

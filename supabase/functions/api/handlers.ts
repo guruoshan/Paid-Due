@@ -305,3 +305,88 @@ export async function downloadFinancial(request: Request) {
     throw error;
   }
 }
+
+
+const PERMISSION_KEYS = new Set([
+  "CREATE_SALE", "ACCEPT_CASH", "ACCEPT_ONLINE", "CREATE_CREDIT_SALE", "USE_COUPON",
+  "ISSUE_INVOICE", "REFUND", "VOID", "CORRECT_AMOUNT",
+  "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY",
+]);
+
+async function verifyNotificationToken(request: Request): Promise<any> {
+  const auth = request.headers.get("Authorization") || "";
+  const match = /^Bearer\s+([0-9a-f]{64})$/i.exec(auth);
+  if (!match) throw new Error("UNAUTHORIZED");
+  const tokenHash = await sha256Hex(match[1]);
+  try {
+    const rows = await rpc("verify_cashier_notification_session", { p_token_hash: tokenHash });
+    if (!Array.isArray(rows) || rows.length !== 1) throw new Error("UNAUTHORIZED");
+    return rows[0];
+  } catch {
+    throw new Error("UNAUTHORIZED");
+  }
+}
+
+export async function listCashierNotifications(request: Request) {
+  if (request.method !== "GET") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "GET" });
+  let session;
+  try { session = await verifyNotificationToken(request); }
+  catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
+  try {
+    const rows = await rpc("list_cashier_notifications", { p_membership_id: session.membership_id });
+    return json({ notifications: Array.isArray(rows) ? rows : [] }, 200);
+  } catch {
+    return json({ outcome: "NOTIFICATION_SERVICE_UNAVAILABLE" }, 503);
+  }
+}
+
+export async function markCashierNotificationRead(request: Request) {
+  if (request.method !== "POST") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "POST" });
+  let session;
+  try { session = await verifyNotificationToken(request); }
+  catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
+  let body: any;
+  try { body = await request.json(); } catch { return json({ outcome: "INVALID_REQUEST" }, 400); }
+  if (typeof body.notification_id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.notification_id)) {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+  try {
+    await rpc("mark_cashier_notification_read", {
+      p_membership_id: session.membership_id,
+      p_notification_id: body.notification_id,
+    });
+    return json({ status: "OK" }, 200);
+  } catch {
+    return json({ outcome: "NOTIFICATION_SERVICE_UNAVAILABLE" }, 503);
+  }
+}
+
+export async function requestCashierPermission(request: Request) {
+  if (request.method !== "POST") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "POST" });
+  let session;
+  try { session = await verifyToken(request); }
+  catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
+  let body: any;
+  try { body = await request.json(); } catch { return json({ outcome: "INVALID_REQUEST" }, 400); }
+  const permissionKey = body.permission_key;
+  const note = body.note;
+  if (typeof permissionKey !== "string" || !PERMISSION_KEYS.has(permissionKey) ||
+      (note !== undefined && note !== null && (typeof note !== "string" || note.length > 500))) {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+  try {
+    const rows = await rpc("create_cashier_permission_request", {
+      p_membership_id: session.membership_id,
+      p_permission_key: permissionKey,
+      p_note: typeof note === "string" ? note : null,
+    });
+    if (!Array.isArray(rows) || rows.length !== 1) throw new Error("INVALID_REQUEST_RESULT");
+    return json({ request_id: rows[0].request_id, created_at: rows[0].created_at, duplicate: rows[0].duplicate }, 200);
+  } catch (error: any) {
+    if (error?.status === 400 || error?.status === 403) {
+      return json({ outcome: "REQUEST_NOT_ALLOWED" }, error.status);
+    }
+    return json({ outcome: "PERMISSION_REQUEST_UNAVAILABLE" }, 503);
+  }
+}
