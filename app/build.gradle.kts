@@ -70,74 +70,7 @@ android {
             buildConfigString(paidDueSupabasePublishableKey)
         )
 
-        /*
-         * Paid&Due employee invitation public URL.
-         *
-         * Configure with either:
-         *
-         *   gradle.properties:
-         *   PAID_DUE_PUBLIC_INVITE_BASE_URL=https://<paid-due-owned-host>/open/invite
-         *
-         * or environment variable:
-         *   PAID_DUE_PUBLIC_INVITE_BASE_URL
-         *
-         * Empty means invite sharing fails closed.
-         * This is a public URL, not a secret.
-         */
-        val paidDueInviteBaseUrl =
-            providers.gradleProperty("PAID_DUE_PUBLIC_INVITE_BASE_URL")
-                .orElse(
-                    providers.environmentVariable(
-                        "PAID_DUE_PUBLIC_INVITE_BASE_URL"
-                    )
-                )
-                .orElse("")
-                .get()
-                .trim()
-                .trimEnd('/')
 
-        buildConfigField(
-            "String",
-            "PAID_DUE_PUBLIC_INVITE_BASE_URL",
-            "\"${paidDueInviteBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\""
-        )
-
-        /*
-         * Paid&Due public backend origin.
-         *
-         * This is public configuration, not a secret.
-         */
-        val paidDueBackendBaseUrl =
-            providers.gradleProperty(
-                "PAID_DUE_BACKEND_BASE_URL"
-            )
-                .orElse(
-                    providers.environmentVariable(
-                        "PAID_DUE_BACKEND_BASE_URL"
-                    )
-                )
-                .orElse(
-                    "https://paidanddue.guruoshan2208.workers.dev"
-                )
-                .get()
-                .trim()
-                .trimEnd('/')
-
-        check(
-            paidDueBackendBaseUrl.startsWith(
-                "https://"
-            )
-        ) {
-            "PAID_DUE_BACKEND_BASE_URL must use HTTPS."
-        }
-
-        buildConfigField(
-            "String",
-            "PAID_DUE_BACKEND_BASE_URL",
-            buildConfigString(
-                paidDueBackendBaseUrl
-            )
-        )
     }
 
     buildTypes {
