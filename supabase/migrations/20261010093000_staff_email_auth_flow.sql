@@ -382,3 +382,6 @@ REVOKE ALL ON FUNCTION public.revoke_staff_invite_for_email(text,uuid) FROM PUBL
 GRANT EXECUTE ON FUNCTION public.revoke_staff_invite_for_email(text,uuid) TO service_role;
 REVOKE ALL ON FUNCTION public.activate_staff_invite_for_auth(text,uuid,text,text,text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.activate_staff_invite_for_auth(text,uuid,text,text,text) TO service_role;
+
+REVOKE ALL ON FUNCTION public.check_auth_rate_limit(text,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.check_auth_rate_limit(text,text) TO service_role;
