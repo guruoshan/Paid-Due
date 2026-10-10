@@ -20,11 +20,13 @@
     <string name="admin_password_too_short">Password must be at least 8 characters.</string>
     <string name="business_already_exists">A business already exists on this device. Please log in.</string>
     <string name="go_to_login">Go to Login</string>
-    <string name="invite_by_whatsapp">Invite by WhatsApp</string>
+    <string name="invite_by_email">Invite by email</string>
+    <string name="invite_sent_title">Invitation email sent</string>
+    <string name="invite_sent_message">Supabase sent a staff invitation to %1$s.</string>
     <string name="invite_branch">Branch</string>
     <string name="create_invite">Create Invite</string>
     <string name="invite_ready_for">Invite ready for %1$s</string>
-    <string name="invite_expiry_note">Valid for 48 hours, one use</string>
+    <string name="invite_expiry_note">The invitation expires in 48 hours. The employee must open the email and finish activation in Paid&amp;Due.</string>
     <string name="send_on_whatsapp">Send on WhatsApp</string>
     <string name="copy_link">Copy link</string>
     <string name="link_copied">Link copied</string>
