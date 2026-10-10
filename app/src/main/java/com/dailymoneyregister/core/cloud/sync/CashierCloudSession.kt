@@ -196,6 +196,13 @@ object CashierCloudSession {
         return value.token
     }
 
+    /** The active server membership ID, exposed only while the encrypted cloud session is valid. */
+    fun currentMembershipId(): String? {
+        val value = credential ?: return null
+        if (!Instant.now().isBefore(value.expiresAt)) return null
+        return value.membershipId
+    }
+
     suspend fun authenticate(
         canonicalPhone: String,
         pin: String,
