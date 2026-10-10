@@ -12,11 +12,9 @@ import io.github.jan.supabase.postgrest.Postgrest
 import javax.inject.Singleton
 
 /**
- * Paid&Due cloud foundation.
- *
- * This client does not make Supabase the financial source of truth yet.
- * No Room, financial writer, reporting, credit, refund, coupon, or
- * transaction synchronization is performed by this module.
+ * Shared Supabase client for Auth and PostgREST.
+ * Supabase owns cloud identity and shared records; Room is retained for the
+ * device-side offline projection and synchronization outbox.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -41,7 +39,10 @@ object SupabaseModule {
             supabaseKey = BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY
         ) {
             install(Postgrest)
-            install(Auth)
+            install(Auth) {
+                scheme = "paiddue"
+                host = "invite"
+            }
         }
     }
 }

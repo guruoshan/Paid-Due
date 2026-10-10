@@ -1,9 +1,8 @@
 package com.dailymoneyregister.feature.admin.ui
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.widget.Toast
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
 import com.dailymoneyregister.core.ui.nativeLabel
 
 import com.dailymoneyregister.core.ui.asString
@@ -22,7 +21,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,8 +30,6 @@ import com.dailymoneyregister.feature.admin.data.CashierManagementRepository.Dir
 import com.dailymoneyregister.core.i18n.LanguageRegistry
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.ui.PhoneNumberInput
-import com.dailymoneyregister.feature.customers.ui.PreparedWhatsAppMessage
-import com.dailymoneyregister.feature.customers.ui.WhatsAppTransport
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,18 +53,10 @@ fun CashierManagementScreen(
             )
         },
         floatingActionButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ExtendedFloatingActionButton(
-                    onClick = viewModel::openInviteDialog
-                ) {
-                    Text(stringResource(R.string.invite_by_whatsapp))
-                }
-                FloatingActionButton(
-                    onClick = { viewModel.openCreateDialog() },
-                    containerColor = MaterialTheme.colorScheme.primary
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_cashier))
-                }
+            ExtendedFloatingActionButton(
+                onClick = viewModel::openInviteDialog
+            ) {
+                Text(stringResource(R.string.invite_by_whatsapp))
             }
         }
     ) { padding ->
@@ -121,7 +109,8 @@ fun CashierManagementScreen(
                             onEditPermissions = { viewModel.openEditPermissions(cashier) },
                             onResetPin = { viewModel.openResetPin(cashier) },
                             onDisable = { viewModel.openDisableConfirm(cashier) },
-                            onEnable = { viewModel.openEnableConfirm(cashier) }
+                            onEnable = { viewModel.openEnableConfirm(cashier) },
+                            onRemove = { viewModel.openRemoveConfirm(cashier) }
                         )
                     }
                 }
@@ -158,9 +147,24 @@ fun CashierManagementScreen(
             } else {
                 InviteReadyDialog(
                     createdInvite = createdInvite,
-                    businessName = SessionManager.activeBusiness?.name.orEmpty(),
-                    context = context,
-                    onClose = viewModel::clearInvite
+                    onClose = viewModel::clearInvite,
+                    onSendWhatsApp = {
+                        val message = "You have been invited to join Paid&Due as " +
+                            createdInvite.displayName + ". Tap this link to activate your account and set your 6-digit PIN: " +
+                            createdInvite.inviteUrl +
+                            "\n\nThis invitation expires in 48 hours and can be used once."
+                        val phoneDigits = createdInvite.canonicalPhone.filter(Char::isDigit)
+                        val whatsappUri = Uri.parse("https://wa.me/" + phoneDigits + "?text=" + Uri.encode(message))
+                        try {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, whatsappUri))
+                        } catch (_: Exception) {
+                            val share = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, message)
+                            }
+                            context.startActivity(Intent.createChooser(share, "Send cashier invitation"))
+                        }
+                    }
                 )
             }
         }
@@ -208,6 +212,15 @@ fun CashierManagementScreen(
                 state = state,
                 onDismiss = { viewModel.dismissStaffDialog() },
                 onConfirm = { viewModel.confirmEnable() }
+            )
+
+            is StaffDialogState.ConfirmRemove -> ConfirmDialog(
+                title = stringResource(R.string.staff_delete_title, dialog.name),
+                message = stringResource(R.string.staff_delete_message),
+                confirmLabel = stringResource(R.string.staff_delete),
+                state = state,
+                onDismiss = { viewModel.dismissStaffDialog() },
+                onConfirm = { viewModel.confirmRemove() }
             )
 
             StaffDialogState.None -> Unit
@@ -260,11 +273,7 @@ private fun CreateInviteDialog(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 8.dp)
                 )
-                listOf(
-                    CashierPermissionKey.CREATE_CREDIT_SALE,
-                    CashierPermissionKey.REFUND,
-                    CashierPermissionKey.VOID
-                ).forEach { key ->
+                CashierPermissionKey.editableValues.forEach { key ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
                             checked = state.permissions[key.name] == true,
@@ -296,59 +305,21 @@ private fun CreateInviteDialog(
 @Composable
 private fun InviteReadyDialog(
     createdInvite: com.dailymoneyregister.feature.invite.data.CreatedInvite,
-    businessName: String,
-    context: Context,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onSendWhatsApp: () -> Unit
 ) {
-    val message = stringResource(
-        R.string.staff_invite_whatsapp_message,
-        businessName,
-        createdInvite.link
-    )
     AlertDialog(
         onDismissRequest = onClose,
-        title = {
-            Text(stringResource(R.string.invite_ready_for, createdInvite.invite.displayName))
-        },
+        title = { Text(stringResource(R.string.invite_sent_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.invite_sent_message, createdInvite.canonicalPhone))
                 Text(stringResource(R.string.invite_expiry_note))
-                Text(createdInvite.link)
             }
         },
         confirmButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                Button(
-                    onClick = {
-                        WhatsAppTransport.share(
-                            context,
-                            PreparedWhatsAppMessage(
-                                text = message,
-                                recipientPhone = createdInvite.invite.canonicalPhone
-                            )
-                        )
-                    }
-                ) {
-                    Text(stringResource(R.string.send_on_whatsapp))
-                }
-                TextButton(
-                    onClick = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(
-                            ClipData.newPlainText(
-                                context.getString(R.string.invite_link_clip_label),
-                                createdInvite.link
-                            )
-                        )
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.link_copied),
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                ) {
-                    Text(stringResource(R.string.copy_link))
-                }
+            Button(onClick = onSendWhatsApp) {
+                Text(stringResource(R.string.send_whatsapp_invitation))
             }
         },
         dismissButton = {
@@ -364,7 +335,8 @@ private fun CashierRow(
     onEditPermissions: () -> Unit,
     onResetPin: () -> Unit,
     onDisable: () -> Unit,
-    onEnable: () -> Unit
+    onEnable: () -> Unit,
+    onRemove: () -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -403,7 +375,7 @@ private fun CashierRow(
                 }
             }
 
-            if (cashier.localAccount != null) Box {
+            if (cashier.membershipId != null || cashier.localAccount != null) Box {
                 IconButton(onClick = { menuOpen = true }) {
                     Icon(
                         Icons.Default.MoreVert,
@@ -411,28 +383,39 @@ private fun CashierRow(
                     )
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.staff_edit_details)) },
-                        onClick = { menuOpen = false; onEditDetails() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.staff_edit_permissions)) },
-                        onClick = { menuOpen = false; onEditPermissions() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.staff_reset_pin)) },
-                        onClick = { menuOpen = false; onResetPin() }
-                    )
-                    if (cashier.isActive) {
+                    if (cashier.membershipId != null) {
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.staff_disable)) },
-                            onClick = { menuOpen = false; onDisable() }
+                            text = { Text(stringResource(R.string.staff_edit_permissions)) },
+                            onClick = { menuOpen = false; onEditPermissions() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.staff_delete)) },
+                            onClick = { menuOpen = false; onRemove() }
                         )
                     } else {
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.staff_enable)) },
-                            onClick = { menuOpen = false; onEnable() }
+                            text = { Text(stringResource(R.string.staff_edit_details)) },
+                            onClick = { menuOpen = false; onEditDetails() }
                         )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.staff_edit_permissions)) },
+                            onClick = { menuOpen = false; onEditPermissions() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.staff_reset_pin)) },
+                            onClick = { menuOpen = false; onResetPin() }
+                        )
+                        if (cashier.isActive) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.staff_disable)) },
+                                onClick = { menuOpen = false; onDisable() }
+                            )
+                        } else {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.staff_enable)) },
+                                onClick = { menuOpen = false; onEnable() }
+                            )
+                        }
                     }
                 }
             }

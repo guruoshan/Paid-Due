@@ -78,40 +78,6 @@ android {
         )
 
         /*
-         * Paid&Due employee invitation public URL.
-         *
-         * Configure with either:
-         *
-         *   gradle.properties:
-         *   PAID_DUE_PUBLIC_INVITE_BASE_URL=https://<paid-due-owned-host>/open/invite
-         *
-         * or environment variable:
-         *   PAID_DUE_PUBLIC_INVITE_BASE_URL
-         *
-         * Empty means invite sharing fails closed.
-         * This is a public URL, not a secret.
-         */
-        val paidDueInviteBaseUrl =
-            providers.gradleProperty("PAID_DUE_PUBLIC_INVITE_BASE_URL")
-                .orElse(
-                    providers.environmentVariable(
-                        "PAID_DUE_PUBLIC_INVITE_BASE_URL"
-                    )
-                )
-                .orElse(
-                    "https://ttvdpgxqvvtjnxxfkoui.supabase.co/functions/v1/api/open/invite"
-                )
-                .get()
-                .trim()
-                .trimEnd('/')
-
-        buildConfigField(
-            "String",
-            "PAID_DUE_PUBLIC_INVITE_BASE_URL",
-            "\"${paidDueInviteBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\""
-        )
-
-        /*
          * Paid&Due public backend origin.
          *
          * This is public configuration, not a secret.

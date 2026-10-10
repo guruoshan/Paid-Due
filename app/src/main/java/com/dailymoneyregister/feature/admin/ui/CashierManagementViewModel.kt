@@ -45,7 +45,8 @@ sealed interface StaffDialogState {
     data class EditPermissions(
         val userId: String,
         val name: String,
-        val permissions: CashierPermissionsConfig
+        val permissions: CashierPermissionsConfig,
+        val membershipId: String? = null
     ) : StaffDialogState
 
     data class ResetPin(
@@ -56,7 +57,9 @@ sealed interface StaffDialogState {
 
     data class ConfirmDisable(val userId: String, val name: String) : StaffDialogState
 
-    data class ConfirmEnable(val userId: String, val name: String) : StaffDialogState
+    data class ConfirmEnable(val userId: String, val name: String)
+
+    data class ConfirmRemove(val userId: String, val name: String, val membershipId: String) : StaffDialogState
 }
 
 data class CashierManagementUiState(
@@ -88,9 +91,20 @@ data class CashierInviteUiState(
 )
 
 private fun invitePermissionDefaults(): Map<String, Boolean> = mapOf(
+    CashierPermissionKey.CREATE_SALE.name to true,
+    CashierPermissionKey.ACCEPT_CASH.name to true,
+    CashierPermissionKey.ACCEPT_ONLINE.name to true,
     CashierPermissionKey.CREATE_CREDIT_SALE.name to false,
+    CashierPermissionKey.USE_COUPON.name to false,
+    CashierPermissionKey.ISSUE_INVOICE.name to true,
+    CashierPermissionKey.ISSUE_RECEIPT.name to true,
     CashierPermissionKey.REFUND.name to false,
-    CashierPermissionKey.VOID.name to false
+    CashierPermissionKey.VOID.name to false,
+    CashierPermissionKey.CORRECT_AMOUNT.name to false,
+    CashierPermissionKey.CHANGE_PAYMENT_METHOD.name to false,
+    CashierPermissionKey.VIEW_BROAD_HISTORY.name to false,
+    CashierPermissionKey.MANAGE_PRODUCTS.name to false,
+    CashierPermissionKey.VIEW_REPORTS.name to false
 )
 
 @HiltViewModel
@@ -154,11 +168,12 @@ class CashierManagementViewModel @Inject constructor(
             _inviteState.value = state.copy(errorMessage = UiText.Resource(R.string.cashier_name_required))
             return
         }
+
         val canonicalPhone = runCatching {
             state.phone.normalizedNumber()
         }.getOrElse { error ->
             _inviteState.value = state.copy(
-                errorMessage = UiText.Dynamic(error.message ?: "Invalid WhatsApp / Mobile Number")
+                errorMessage = UiText.Dynamic(error.message ?: "Invalid mobile number")
             )
             return
         }
@@ -338,6 +353,22 @@ class CashierManagementViewModel @Inject constructor(
     }
 
     fun openEditPermissions(cashier: DirectoryEntry) {
+        if (cashier.membershipId != null) {
+            val permissions = cashier.cloudPermissions ?: return remoteEditUnavailable()
+            _uiState.value = _uiState.value.copy(
+                isCreateDialogOpen = false,
+                dialog = StaffDialogState.EditPermissions(
+                    userId = cashier.id,
+                    name = cashier.displayName,
+                    permissions = permissions,
+                    membershipId = cashier.membershipId
+                ),
+                errorMessage = null,
+                successMessage = null
+            )
+            return
+        }
+
         val local = cashier.localAccount ?: return remoteEditUnavailable()
         viewModelScope.launch {
             val snapshot = lifecycleRepository.getEditSnapshot(businessId, branchId, local.id)
@@ -383,6 +414,16 @@ class CashierManagementViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             isCreateDialogOpen = false,
             dialog = StaffDialogState.ConfirmEnable(cashier.id, cashier.displayName),
+            errorMessage = null,
+            successMessage = null
+        )
+    }
+
+    fun openRemoveConfirm(cashier: DirectoryEntry) {
+        val membershipId = cashier.membershipId ?: return remoteEditUnavailable()
+        _uiState.value = _uiState.value.copy(
+            isCreateDialogOpen = false,
+            dialog = StaffDialogState.ConfirmRemove(cashier.id, cashier.displayName, membershipId),
             errorMessage = null,
             successMessage = null
         )
@@ -446,8 +487,15 @@ class CashierManagementViewModel @Inject constructor(
 
     fun saveEditPermissions() {
         val d = _uiState.value.dialog as? StaffDialogState.EditPermissions ?: return
-        runLifecycle(UiText.Resource(R.string.staff_permissions_updated, listOf(d.name))) {
-            lifecycleRepository.updateCashierPermissions(target(d.userId), d.permissions)
+        val membershipId = d.membershipId
+        if (membershipId != null) {
+            runCloudAction(UiText.Resource(R.string.staff_permissions_updated, listOf(d.name))) {
+                repository.updateCloudCashierPermissions(membershipId, d.permissions)
+            }
+        } else {
+            runLifecycle(UiText.Resource(R.string.staff_permissions_updated, listOf(d.name))) {
+                lifecycleRepository.updateCashierPermissions(target(d.userId), d.permissions)
+            }
         }
     }
 
@@ -473,6 +521,46 @@ class CashierManagementViewModel @Inject constructor(
         val d = _uiState.value.dialog as? StaffDialogState.ConfirmEnable ?: return
         runLifecycle(UiText.Resource(R.string.staff_cashier_enabled, listOf(d.name))) {
             lifecycleRepository.enableCashier(target(d.userId))
+        }
+    }
+
+    fun confirmRemove() {
+        val d = _uiState.value.dialog as? StaffDialogState.ConfirmRemove ?: return
+        runCloudAction(UiText.Resource(R.string.staff_cashier_removed, listOf(d.name))) {
+            repository.removeCloudCashier(d.membershipId)
+        }
+    }
+
+    private fun runCloudAction(
+        successMessage: UiText,
+        block: suspend () -> Unit
+    ) {
+        if (_uiState.value.isExecuting) return
+        _uiState.value = _uiState.value.copy(isExecuting = true, errorMessage = null)
+        viewModelScope.launch {
+            val result = try {
+                Result.success(block())
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure(error)
+            }
+            val current = _uiState.value
+            _uiState.value = if (result.isSuccess) {
+                current.copy(
+                    isExecuting = false,
+                    dialog = StaffDialogState.None,
+                    errorMessage = null,
+                    successMessage = successMessage
+                )
+            } else {
+                current.copy(
+                    isExecuting = false,
+                    errorMessage = UiText.Dynamic(
+                        result.exceptionOrNull()?.message ?: "Unable to update cashier in Supabase"
+                    )
+                )
+            }
         }
     }
 

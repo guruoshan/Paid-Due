@@ -17,9 +17,10 @@ data class StaffInvite(
 )
 
 data class CreatedInvite(
-    val token: String,
-    val link: String,
-    val invite: StaffInvite
+    val displayName: String,
+    val canonicalPhone: String,
+    val inviteUrl: String,
+    val expiresAt: Long
 )
 
 sealed interface InviteResult {

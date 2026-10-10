@@ -7,3 +7,13 @@ interface InviteStore {
     suspend fun revoke(hash: String, now: Long)
     suspend fun listForBusiness(businessId: String): List<StaffInvite>
 }
+
+interface StaffInviteLinkCreator {
+    suspend fun createInviteLink(
+        businessId: String,
+        branchId: String,
+        displayName: String,
+        canonicalPhone: String,
+        permissions: Map<String, Boolean>
+    ): CreatedInvite
+}

@@ -18,6 +18,8 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import com.dailymoneyregister.app.ui.DmrApp
 import com.dailymoneyregister.core.i18n.LanguageManager
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.handleDeeplinks
 import com.dailymoneyregister.core.security.DebugSessionBootstrapper
 import com.dailymoneyregister.core.startup.StartupRecoveryCoordinator
 import com.dailymoneyregister.core.security.TrustedSessionStore
@@ -30,6 +32,9 @@ import javax.inject.Inject
 class MainActivity : AppCompatActivity() {
 
     private var pendingInviteToken by mutableStateOf<String?>(null)
+
+    @Inject
+    lateinit var supabase: SupabaseClient
 
     @Inject
     lateinit var financialSyncScheduler: com.dailymoneyregister.core.cloud.sync.FinancialSyncScheduler
@@ -54,6 +59,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        supabase.handleDeeplinks(intent)
         com.dailymoneyregister.core.cloud.sync.CashierCloudSession.initialize(applicationContext)
         if (savedInstanceState == null) captureInviteToken(intent)
         financialSyncScheduler.startAutoSync()
@@ -97,6 +103,7 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        supabase.handleDeeplinks(intent)
         captureInviteToken(intent)
     }
 

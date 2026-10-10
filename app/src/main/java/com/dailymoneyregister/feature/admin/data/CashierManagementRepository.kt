@@ -66,6 +66,12 @@ class CashierManagementRepository @Inject constructor(
         deviceIdentityProvider,
         object : EmployeeDirectoryCloudSource {
             override suspend fun listCashiers(): List<CloudCashierDirectoryEntry> = emptyList()
+            override suspend fun updateCashierPermissions(membershipId: String, permissions: Map<String, Boolean>) {
+                error("Cloud employee directory is unavailable")
+            }
+            override suspend fun removeCashier(membershipId: String) {
+                error("Cloud employee directory is unavailable")
+            }
         }
     )
     private val userDao = database.userDao()
@@ -78,13 +84,16 @@ class CashierManagementRepository @Inject constructor(
         val username: String,
         val languageCode: String,
         val isActive: Boolean,
-        val localAccount: UserAccountEntity?
+        val localAccount: UserAccountEntity?,
+        val membershipId: String? = null,
+        val cloudPermissions: CashierPermissionsConfig? = null,
+        val canonicalPhone: String? = null
     )
 
     fun observeCashiers(businessId: String): Flow<List<DirectoryEntry>> =
         combine(userDao.observeCashiers(businessId), cloudCashiers) { local, cloud ->
             val localById = local.associateBy { it.id }
-            val cloudRows = cloud.map { remote ->
+            val cloudRows = cloud.filterNot { it.isRemoved }.map { remote ->
                 val localAccount = localById[remote.userId]
                 DirectoryEntry(
                     id = remote.userId,
@@ -92,7 +101,10 @@ class CashierManagementRepository @Inject constructor(
                     username = localAccount?.username ?: remote.canonicalPhone,
                     languageCode = localAccount?.languageCode ?: "en",
                     isActive = remote.isActive,
-                    localAccount = localAccount
+                    localAccount = localAccount,
+                    membershipId = remote.membershipId,
+                    cloudPermissions = remote.permissions.toCashierPermissionsConfig(),
+                    canonicalPhone = remote.canonicalPhone
                 )
             }
             val cloudIds = cloud.asSequence().map { it.userId }.toSet()
@@ -102,7 +114,20 @@ class CashierManagementRepository @Inject constructor(
         }
 
     suspend fun refreshCloudDirectory(): Result<Unit> = runCatching {
-        cloudCashiers.value = cloudSource.listCashiers().distinctBy { it.userId }
+        cloudCashiers.value = cloudSource.listCashiers().distinctBy { it.membershipId }
+    }
+
+    suspend fun updateCloudCashierPermissions(
+        membershipId: String,
+        permissions: CashierPermissionsConfig
+    ) {
+        cloudSource.updateCashierPermissions(membershipId, permissions.toRemotePermissionMap())
+        refreshCloudDirectory().getOrThrow()
+    }
+
+    suspend fun removeCloudCashier(membershipId: String) {
+        cloudSource.removeCashier(membershipId)
+        refreshCloudDirectory().getOrThrow()
     }
 
     suspend fun createCashier(
@@ -345,3 +370,38 @@ class CashierManagementRepository @Inject constructor(
 }
 
 
+
+
+private fun Map<String, Boolean>.toCashierPermissionsConfig() = CashierPermissionsConfig(
+    canCreateSale = this["CREATE_SALE"] ?: true,
+    canAcceptCash = this["ACCEPT_CASH"] ?: true,
+    canAcceptOnline = this["ACCEPT_ONLINE"] ?: true,
+    canCreateCreditSale = this["CREATE_CREDIT_SALE"] ?: false,
+    canUseCoupon = this["USE_COUPON"] ?: false,
+    canIssueInvoice = this["ISSUE_INVOICE"] ?: true,
+    canIssueReceipt = this["ISSUE_RECEIPT"] ?: true,
+    canRefund = this["REFUND"] ?: false,
+    canVoid = this["VOID"] ?: false,
+    canCorrectAmount = this["CORRECT_AMOUNT"] ?: false,
+    canChangePaymentMethod = this["CHANGE_PAYMENT_METHOD"] ?: false,
+    canViewBroadHistory = this["VIEW_BROAD_HISTORY"] ?: false,
+    canManageProducts = this["MANAGE_PRODUCTS"] ?: false,
+    canViewReports = this["VIEW_REPORTS"] ?: false
+)
+
+private fun CashierPermissionsConfig.toRemotePermissionMap(): Map<String, Boolean> = mapOf(
+    "CREATE_SALE" to canCreateSale,
+    "ACCEPT_CASH" to canAcceptCash,
+    "ACCEPT_ONLINE" to canAcceptOnline,
+    "CREATE_CREDIT_SALE" to canCreateCreditSale,
+    "USE_COUPON" to canUseCoupon,
+    "ISSUE_INVOICE" to canIssueInvoice,
+    "ISSUE_RECEIPT" to canIssueReceipt,
+    "REFUND" to canRefund,
+    "VOID" to canVoid,
+    "CORRECT_AMOUNT" to canCorrectAmount,
+    "CHANGE_PAYMENT_METHOD" to canChangePaymentMethod,
+    "VIEW_BROAD_HISTORY" to canViewBroadHistory,
+    "MANAGE_PRODUCTS" to canManageProducts,
+    "VIEW_REPORTS" to canViewReports
+)
