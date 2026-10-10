@@ -505,87 +505,8 @@ fun DmrApp(
             )
         }
 
-        composable(Routes.NOTIFICATIONS) {
-            NotificationsScreen(onNavigateBack = { navController.popBackStack() })
-        }
-
-        composable(
-            route = Routes.NOTIFICATION_PERMISSION_REQUEST,
-            arguments = listOf(navArgument("permissionKey") { type = NavType.StringType })
-        ) { entry ->
-            NotificationsScreen(
-                onNavigateBack = { navController.popBackStack() },
-                requestPermission = entry.arguments?.getString("permissionKey")
-            )
-        }
-
-        composable(Routes.MANAGE_CASHIERS) {
-
-            val cashierViewModel: CashierManagementViewModel =
-                hiltViewModel()
-
-            CashierManagementScreen(
-                viewModel = cashierViewModel,
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
-        }
-
-        composable(Routes.REPORTS) {
-
-            val reportingViewModel: ReportingViewModel =
-                hiltViewModel()
-
-            ReportingScreen(
-                viewModel = reportingViewModel,
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onOpenCustomer = { customerId ->
-                    navController.navigate("customers/$customerId")
-                }
-            )
-        }
-
-        composable(Routes.SETTINGS) {
-
-            val settingsViewModel:
-                com.dailymoneyregister.feature.settings.ui.SettingsViewModel =
-                hiltViewModel()
-
-            SettingsScreen(
-                viewModel = settingsViewModel,
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onNavigateToCustomers = {
-                    navController.navigate(Routes.CUSTOMERS)
-                },
-                onLogout = {
-                    trustedSessionStore.clear()
-                    SessionManager.clearSession()
-                    navController.navigate(Routes.WELCOME) {
-                        popUpTo(0) {
-                            inclusive = true
-                        }
-                    }
-                }
-            )
-        }
-
         composable(Routes.CUSTOMERS) {
-            if (!PermissionChecker.isPermitted(
-                    SessionManager.currentSession.value,
-                    PermissionAction.VIEW_CUSTOMERS
-                )
-            ) {
-                PermissionAccessBlockedScreen(
-                    featureLabel = "Customer",
-                    onNavigateBack = { navController.popBackStack() },
-                    onAskPermission = { navController.navigate("notifications/request/VIEW_CUSTOMERS") }
-                )
-            } else {
+
             val customersViewModel: CustomersViewModel =
                 hiltViewModel()
 
@@ -607,7 +528,6 @@ fun DmrApp(
                     onDismissLinkConfirm = customersViewModel::dismissLinkConfirm
                 )
             )
-            }
         }
 
         composable(
@@ -616,17 +536,7 @@ fun DmrApp(
                 navArgument("customerId") { type = NavType.StringType }
             )
         ) {
-            if (!PermissionChecker.isPermitted(
-                    SessionManager.currentSession.value,
-                    PermissionAction.VIEW_CUSTOMERS
-                )
-            ) {
-                PermissionAccessBlockedScreen(
-                    featureLabel = "Customer",
-                    onNavigateBack = { navController.popBackStack() },
-                    onAskPermission = { navController.navigate("notifications/request/VIEW_CUSTOMERS") }
-                )
-            } else {
+
             val customerDetailViewModel: CustomerDetailViewModel =
                 hiltViewModel()
 
@@ -649,7 +559,6 @@ fun DmrApp(
                     onShareWhatsApp = customerDetailViewModel::shareWhatsApp
                 )
             )
-            }
         }
     }
 
