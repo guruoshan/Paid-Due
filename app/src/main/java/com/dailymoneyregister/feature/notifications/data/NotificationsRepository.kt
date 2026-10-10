@@ -10,6 +10,7 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
+import io.github.jan.supabase.realtime.realtime
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
