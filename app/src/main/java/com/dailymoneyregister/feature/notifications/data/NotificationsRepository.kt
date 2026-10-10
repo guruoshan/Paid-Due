@@ -8,6 +8,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.realtime.PostgresAction
+import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -79,7 +80,7 @@ class NotificationsRepository @Inject constructor(
         }
         val userId = SessionManager.currentSession.value?.user?.id ?: "admin"
         val channel = supabase.channel("paid-due-notifications-$userId")
-        val changes = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "private") {
+        val changes = channel.postgresChangeFlow<PostgresAction>(schema = "private") {
             table = "business_notifications"
         }
         val watcher = launch {
