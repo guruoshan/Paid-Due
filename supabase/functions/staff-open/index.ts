@@ -48,7 +48,7 @@ p{line-height:1.5;color:#555}
   const button = document.getElementById("open");
   const status = document.getElementById("status");
 
-  if (!TOKEN_REGEX.test(token)) {
+  if (!/^[A-Za-z0-9_-]{32,128}$/.test(token)) {
     message.textContent = "This invitation link is invalid or incomplete. Ask your administrator for a new link.";
     status.textContent = "";
     return;
