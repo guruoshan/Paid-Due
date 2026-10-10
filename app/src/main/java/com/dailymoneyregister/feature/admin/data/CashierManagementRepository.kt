@@ -93,7 +93,7 @@ class CashierManagementRepository @Inject constructor(
     fun observeCashiers(businessId: String): Flow<List<DirectoryEntry>> =
         combine(userDao.observeCashiers(businessId), cloudCashiers) { local, cloud ->
             val localById = local.associateBy { it.id }
-            val cloudRows = cloud.map { remote ->
+            val cloudRows = cloud.filterNot { it.isRemoved }.map { remote ->
                 val localAccount = localById[remote.userId]
                 DirectoryEntry(
                     id = remote.userId,
