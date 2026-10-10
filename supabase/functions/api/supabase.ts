@@ -1,7 +1,6 @@
 export function supabaseHeaders(secretKey: string) {
   if (typeof secretKey !== "string" || !secretKey.startsWith("sb_secret_") && !secretKey.startsWith("ey")) {
-    // Edge functions locally use Anon/Service keys which start with 'ey'. 
-    // Worker used 'sb_secret_'. We accept both.
+    // Supabase Edge Functions may use a project secret key or a legacy service-role JWT.
     throw new Error("SUPABASE_SECRET_INVALID");
   }
   return {
