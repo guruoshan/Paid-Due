@@ -80,9 +80,9 @@ Deno.test("Contract: Admin update_cashier_permissions expects uppercase keys", (
   const permissionsKeys = [
     'CREATE_SALE', 'ACCEPT_CASH', 'ACCEPT_ONLINE', 'CREATE_CREDIT_SALE', 'USE_COUPON',
     'ISSUE_INVOICE', 'ISSUE_RECEIPT', 'REFUND', 'VOID', 'CORRECT_AMOUNT',
-    'CHANGE_PAYMENT_METHOD', 'VIEW_BROAD_HISTORY', 'MANAGE_PRODUCTS', 'VIEW_REPORTS', 'VIEW_CUSTOMERS'
+    'CHANGE_PAYMENT_METHOD', 'VIEW_BROAD_HISTORY', 'MANAGE_PRODUCTS', 'VIEW_REPORTS'
   ];
-  assertEquals(permissionsKeys.length, 15);
+  assertEquals(permissionsKeys.length, 14);
   for (const key of permissionsKeys) {
     assertEquals(key, key.toUpperCase());
   }
@@ -104,10 +104,9 @@ Deno.test("Contract: Cashier metadata response permissions schema", () => {
     can_view_broad_history: false,
     can_manage_products: false,
     can_view_reports: false,
-    can_view_customers: true
   };
   assertEquals(typeof mockPermissions.can_create_sale, "boolean");
-  assertEquals(Object.keys(mockPermissions).length, 15);
+  assertEquals(Object.keys(mockPermissions).length, 14);
 });
 
 Deno.test("Contract: Duplicate financial envelope response format", () => {
@@ -140,7 +139,7 @@ Deno.test("POST /api/staff/permission-requests requires a valid cashier session"
   const response = await requestCashierPermission(new Request("http://localhost/api/staff/permission-requests", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ permission_key: "VIEW_CUSTOMERS" })
+    body: JSON.stringify({ permission_key: "VIEW_BROAD_HISTORY" })
   }));
   assertEquals(response.status, 401);
 });
