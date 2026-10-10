@@ -26,6 +26,7 @@ fun buildConfigString(value: String): String =
         .replace("\\", "\\\\")
         .replace("\"", "\\\"") + "\""
 android {
+    // Fail closed for all build types; inbound financial application requires explicit opt-in.
     val inboundApplyDefault = providers.gradleProperty("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES")
         .orElse(providers.environmentVariable("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES"))
         .orElse("false")
@@ -46,9 +47,13 @@ android {
         testInstrumentationRunner = "com.dailymoneyregister.HiltTestRunner"
         val paidDueSupabaseUrl =
             paidDueConfig("PAID_DUE_SUPABASE_URL").trim()
+                .ifBlank { "https://ttvdpgxqvvtjnxxfkoui.supabase.co" }
 
+        // Publishable/anon keys are public client configuration, not secrets.
+        // Keep overrides available for local/staging builds.
         val paidDueSupabasePublishableKey =
             paidDueConfig("PAID_DUE_SUPABASE_PUBLISHABLE_KEY").trim()
+                .ifBlank { "sb_publishable_6IHSTMfMOmK2ecB58U7tjA_CWJwDyZt" }
 
         check(paidDueSupabaseUrl.startsWith("https://")) {
             "PAID_DUE_SUPABASE_URL must be configured as HTTPS."
@@ -70,7 +75,42 @@ android {
             buildConfigString(paidDueSupabasePublishableKey)
         )
 
+        /*
+         * Paid&Due public backend origin.
+         *
+         * This is public configuration, not a secret.
+         */
+        val paidDueBackendBaseUrl =
+            providers.gradleProperty(
+                "PAID_DUE_BACKEND_BASE_URL"
+            )
+                .orElse(
+                    providers.environmentVariable(
+                        "PAID_DUE_BACKEND_BASE_URL"
+                    )
+                )
+                .orElse(
+                    "https://ttvdpgxqvvtjnxxfkoui.supabase.co/functions/v1/api"
+                )
+                .get()
+                .trim()
+                .trimEnd('/')
 
+        check(
+            paidDueBackendBaseUrl.startsWith(
+                "https://"
+            )
+        ) {
+            "PAID_DUE_BACKEND_BASE_URL must use HTTPS."
+        }
+
+        buildConfigField(
+            "String",
+            "PAID_DUE_BACKEND_BASE_URL",
+            buildConfigString(
+                paidDueBackendBaseUrl
+            )
+        )
     }
 
     buildTypes {
