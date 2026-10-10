@@ -18,7 +18,6 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import com.dailymoneyregister.app.ui.DmrApp
 import com.dailymoneyregister.core.i18n.LanguageManager
-import com.dailymoneyregister.core.security.DebugSessionBootstrapper
 import com.dailymoneyregister.core.startup.StartupRecoveryCoordinator
 import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.core.security.TrustedSessionRestorer
@@ -39,9 +38,6 @@ class MainActivity : AppCompatActivity() {
 
     @Inject
     lateinit var languageManager: LanguageManager
-
-    @Inject
-    lateinit var debugSessionBootstrapper: DebugSessionBootstrapper
 
     @Inject
     lateinit var startupRecoveryCoordinator: StartupRecoveryCoordinator
@@ -81,7 +77,6 @@ class MainActivity : AppCompatActivity() {
                         DmrApp(
                             setupRepository = setupRepository,
                             languageManager = languageManager,
-                            debugSessionBootstrapper = debugSessionBootstrapper,
                             startupRecoveryCoordinator = startupRecoveryCoordinator,
                             trustedSessionStore = trustedSessionStore,
                             trustedSessionRestorer = trustedSessionRestorer,
