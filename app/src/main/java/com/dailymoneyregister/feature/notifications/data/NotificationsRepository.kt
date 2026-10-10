@@ -89,7 +89,7 @@ class NotificationsRepository @Inject constructor(
             channel.subscribe(blockUntilSubscribed = true)
             awaitClose { watcher.cancel() }
         } finally {
-            launch { runCatching { supabase.removeChannel(channel) } }
+            launch { runCatching { supabase.realtime.removeChannel(channel) } }
         }
     }
 
