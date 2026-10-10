@@ -1,0 +1,13 @@
+project_id = "ttvdpgxqvvtjnxxfkoui"
+
+[auth]
+additional_redirect_urls = ["paiddue://invite"]
+
+[functions.api]
+verify_jwt = false
+
+[functions.staff-invite]
+verify_jwt = true
+
+[functions.staff-activate]
+verify_jwt = true
