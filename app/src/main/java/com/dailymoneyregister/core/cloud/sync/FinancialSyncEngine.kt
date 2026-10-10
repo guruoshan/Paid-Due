@@ -111,6 +111,44 @@ class FinancialSyncEngine @Inject constructor(
             outboxInitialized = true
         }
 
+        val activeSession = SessionManager.currentSession.value
+        if (
+            role == UserRole.ADMIN &&
+            activeSession != null &&
+            activeSession.user.role == UserRole.ADMIN &&
+            activeSession.membership?.id == actorMembershipId &&
+            activeSession.business.id.isNotBlank() &&
+            activeSession.branch.id.isNotBlank()
+        ) {
+            val authBlockedCount = outboxDao.countAuthRequiredForActor(
+                businessId = activeSession.business.id,
+                branchId = activeSession.branch.id,
+                actorUserId = activeSession.user.id
+            )
+            if (
+                authBlockedCount > 0 &&
+                remoteSyncRepository.isAdminSessionAuthorized(
+                    expectedMembershipId = actorMembershipId,
+                    expectedBusinessId = activeSession.business.id,
+                    expectedBranchId = activeSession.branch.id
+                )
+            ) {
+                // Recover blocked delivery metadata only for this verified Admin's own
+                // operations in the active tenant. Financial operations and IDs remain unchanged.
+                val recovered = outboxDao.requeueAuthRequiredForActor(
+                    businessId = activeSession.business.id,
+                    branchId = activeSession.branch.id,
+                    actorUserId = activeSession.user.id
+                )
+                if (recovered > 0) {
+                    Log.i(
+                        "PaidDueFinancialSync",
+                        "AUTH_REQUIRED_RECOVERED count=$recovered actor=${activeSession.user.id}"
+                    )
+                }
+            }
+        }
+
         val now = System.currentTimeMillis()
         val pendingList = outboxDao.getPendingUpload(50)
             .filter { now >= (retryBackoffStore.nextRetryAt(it.operationId) ?: Long.MIN_VALUE) }
@@ -148,7 +186,19 @@ class FinancialSyncEngine @Inject constructor(
                 val items = transactionDao.getItemsForTransaction(outboxItem.transactionId)
                 val settlements = transactionDao.getSettlementsForOperation(outboxItem.operationId)
                 val expense = expenseDao.getExpenseByOperationId(outboxItem.operationId)
-                val envelope = FinancialEnvelopeCodec.encode(opEntity, txEntity, items, settlements, expense)
+                val financialEvidence = FinancialEnvelopeEvidenceLoader.load(
+                    database = database,
+                    operation = opEntity,
+                    settlements = settlements
+                )
+                val envelope = FinancialEnvelopeCodec.encode(
+                    operation = opEntity,
+                    transaction = txEntity,
+                    items = items,
+                    settlements = settlements,
+                    expense = expense,
+                    financialEvidence = financialEvidence
+                )
                 val receipt = remoteSyncRepository.uploadEnvelope(
                     envelope = envelope,
                     actorMembershipId = actorMembershipId,
@@ -264,6 +314,26 @@ class FinancialSyncEngine @Inject constructor(
             var pageLastProcessedEnvelope: RemoteEnvelopeV2? = null
 
             for (envelope in envelopes) {
+                // Verify the digest returned by the backend before parsing or applying
+                // any financial evidence. A missing digest is not treated as trusted data.
+                val remoteDigest = envelope.canonicalSha256
+                val calculatedDigest = com.dailymoneyregister.core.command.CommandFingerprint
+                    .sha256(envelope.canonicalText)
+                if (
+                    remoteDigest.isNullOrBlank() ||
+                    !remoteDigest.equals(calculatedDigest, ignoreCase = true)
+                ) {
+                    reportInboundRejection(
+                        envelope.operationId,
+                        if (remoteDigest.isNullOrBlank()) {
+                            "Remote envelope is missing canonical_sha256"
+                        } else {
+                            "Remote canonical_sha256 does not match canonical_text"
+                        }
+                    )
+                    return totalApplied
+                }
+
                 val result = try {
                     inboundEnvelopeApplier.apply(
                         database = database,

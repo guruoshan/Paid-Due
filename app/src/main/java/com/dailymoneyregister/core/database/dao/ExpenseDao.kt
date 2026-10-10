@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
 import com.dailymoneyregister.core.database.entity.ExpenseEventEntity
 import com.dailymoneyregister.core.database.entity.ExpensePayeeEntity
@@ -18,6 +19,9 @@ interface ExpenseDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertExpense(expense: ExpenseEntity)
+
+    @Update
+    suspend fun updateExpense(expense: ExpenseEntity): Int
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertExpenseEvent(event: ExpenseEventEntity)

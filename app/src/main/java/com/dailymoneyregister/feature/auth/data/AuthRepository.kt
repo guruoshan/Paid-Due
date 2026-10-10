@@ -15,6 +15,7 @@ import com.dailymoneyregister.core.identity.PhoneNumberNormalizer
 import com.dailymoneyregister.core.cloud.BusinessRestorer
 import com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult
 import javax.inject.Inject
+import kotlinx.coroutines.withTimeoutOrNull
 
 sealed class AuthResult {
     data class Success(
@@ -313,6 +314,45 @@ class AuthRepository @Inject constructor(
                 authenticatedUser.id,
                 branch.id
             )
+
+        // Admin login remains offline-first: a cloud failure must not invalidate
+        // the already-verified local login. When online, establish/verify Supabase
+        // Auth before SessionManager starts the sync scheduler. The backend RPC
+        // checks that this exact user, membership, business, and branch match.
+        if (membership != null) {
+            val cloudAuth = withTimeoutOrNull(3_500L) {
+                remoteBusinessRestorer.authenticateAdminForSync(
+                    usernameOrEmail = username,
+                    passwordPlain = passwordPlain,
+                    expectedBusinessId = business.id,
+                    expectedBranchId = branch.id,
+                    expectedUserId = authenticatedUser.id,
+                    expectedMembershipId = membership.id
+                )
+            }
+            when {
+                cloudAuth is RemoteBusinessRestorationResult.Success -> {
+                    android.util.Log.i(
+                        "PaidDueFinancialSync",
+                        "ADMIN_SUPABASE_AUTHENTICATED membership=${membership.id}"
+                    )
+                }
+                else -> {
+                    // No secrets or credential details in logs. Local login remains
+                    // available, but the sync engine will fail closed without a
+                    // matching server-authenticated Admin session.
+                    android.util.Log.w(
+                        "PaidDueFinancialSync",
+                        "ADMIN_SUPABASE_AUTH_UNAVAILABLE"
+                    )
+                }
+            }
+        } else {
+            android.util.Log.w(
+                "PaidDueFinancialSync",
+                "ADMIN_SUPABASE_AUTH_SKIPPED_MEMBERSHIP_MISSING"
+            )
+        }
 
         val session =
             ActiveSession(

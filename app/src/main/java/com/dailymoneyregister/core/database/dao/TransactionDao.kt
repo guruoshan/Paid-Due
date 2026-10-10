@@ -157,6 +157,16 @@ interface TransactionDao {
     @Query("SELECT * FROM settlement_entries WHERE operation_id = :operationId")
     suspend fun getSettlementsForOperation(operationId: String): List<SettlementEntryEntity>
 
+    @Query(
+        """
+        SELECT * FROM settlement_entries
+        WHERE subject_type = 'EXPENSE'
+          AND subject_id = :expenseId
+        ORDER BY occurred_at ASC, id ASC
+        """
+    )
+    suspend fun getSettlementsForExpense(expenseId: String): List<SettlementEntryEntity>
+
     @Query("SELECT * FROM settlement_entries WHERE operation_id IN (:operationIds)")
     suspend fun getSettlementsForOperations(
         operationIds: List<String>

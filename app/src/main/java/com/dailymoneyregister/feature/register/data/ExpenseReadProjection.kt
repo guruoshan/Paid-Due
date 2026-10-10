@@ -1,6 +1,7 @@
 ﻿package com.dailymoneyregister.feature.register.data
 
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
+import com.dailymoneyregister.core.database.entity.ExpenseEventEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.SubjectType
@@ -99,48 +100,61 @@ object ExpenseReadProjectionResolver {
 
     fun resolve(
         expense: ExpenseEntity,
-        settlement: SettlementEntryEntity
+        settlement: SettlementEntryEntity,
+        events: List<ExpenseEventEntity> = emptyList()
     ): ExpenseReadProjection {
 
         check(
-            settlement.operationId == expense.operationId
+            settlement.operationId == expense.operationId ||
+                events.any { it.operationId == settlement.operationId }
         ) {
             "Expense settlement operation mismatch for ${expense.id}"
         }
 
-        check(
-            settlement.subjectType == SubjectType.EXPENSE
-        ) {
+        check(settlement.subjectType == SubjectType.EXPENSE) {
             "Expense settlement subject type mismatch for ${expense.id}"
         }
-
-        check(
-            settlement.subjectId == expense.id
-        ) {
+        check(settlement.subjectId == expense.id) {
             "Expense settlement subject ID mismatch for ${expense.id}"
         }
-
         check(
-            settlement.entryPurpose == EntryPurpose.EXPENSE_OUTFLOW
+            settlement.entryPurpose == EntryPurpose.EXPENSE_OUTFLOW ||
+                (events.isNotEmpty() && settlement.entryPurpose in setOf(
+                    EntryPurpose.EXPENSE_CORRECTION,
+                    EntryPurpose.PAYMENT_METHOD_RECLASSIFICATION,
+                    EntryPurpose.VOID_REVERSAL
+                ))
         ) {
             "Expense settlement purpose mismatch for ${expense.id}"
         }
-
-        check(
-            settlement.transactionId == null
-        ) {
+        check(settlement.transactionId == null) {
             "Expense settlement must not reference TransactionEntity for ${expense.id}"
         }
+        check(settlement.category.name == expense.paymentCategory) {
+            "Expense settlement payment category does not match the current expense snapshot"
+        }
 
-        val expectedOutflow =
-            Math.negateExact(
-                expense.amountMinor
-            )
-
-        check(
-            settlement.amountSignedMinor == expectedOutflow
-        ) {
-            "Expense settlement amount mismatch for ${expense.id}"
+        if (events.isEmpty()) {
+            val expectedOutflow = Math.negateExact(expense.amountMinor)
+            check(settlement.amountSignedMinor == expectedOutflow) {
+                "Expense settlement amount mismatch for ${expense.id}"
+            }
+        } else {
+            val event = events.firstOrNull { it.operationId == settlement.operationId }
+            if (
+                event != null &&
+                event.previousAmountMinor != null &&
+                event.newAmountMinor != null &&
+                settlement.entryPurpose == EntryPurpose.EXPENSE_CORRECTION
+            ) {
+                val expectedDelta = Math.subtractExact(
+                    event.previousAmountMinor,
+                    event.newAmountMinor
+                )
+                check(settlement.amountSignedMinor == expectedDelta) {
+                    "Expense correction signed settlement does not match the event delta"
+                }
+            }
         }
 
         check(

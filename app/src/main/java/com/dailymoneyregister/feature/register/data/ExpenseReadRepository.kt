@@ -39,7 +39,11 @@ internal class ExpenseReadRepository(
             branchId = branchId,
             fromInclusive = fromInclusive,
             toExclusive = toExclusive
-        )
+        ).filter { expense ->
+            expenseDao.getEventsForExpense(expense.id).none {
+                it.eventType.uppercase().contains("VOID")
+            }
+        }
 
     suspend fun getExpenseDetails(
         expenseId: String
@@ -67,19 +71,30 @@ internal class ExpenseReadRepository(
             return null
         }
 
-        val settlements =
-            transactionDao
-                .getSettlementsForOperation(
-                    expense.operationId
-                )
-
-        check(settlements.size == 1) {
-            "Expense details settlement count mismatch for ${expense.id}"
+        val events = expenseDao.getEventsForExpense(expense.id)
+        if (events.any { it.eventType.uppercase().contains("VOID") }) {
+            return null
         }
+
+        val settlements = transactionDao.getSettlementsForExpense(expense.id)
+        check(settlements.isNotEmpty()) {
+            "Expense details settlement evidence is missing for ${expense.id}"
+        }
+        val latestEvent = events.maxWithOrNull(compareBy({ it.occurredAt }, { it.id }))
+        val settlement = latestEvent
+            ?.let { event ->
+                settlements.firstOrNull {
+                    it.operationId == event.operationId &&
+                        it.category.name == expense.paymentCategory
+                }
+            }
+            ?: settlements.lastOrNull { it.category.name == expense.paymentCategory }
+            ?: return null
 
         return ExpenseReadProjectionResolver.resolve(
             expense = expense,
-            settlement = settlements.single()
+            settlement = settlement,
+            events = events
         )
     }
 }

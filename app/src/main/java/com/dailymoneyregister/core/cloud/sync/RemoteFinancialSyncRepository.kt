@@ -1,6 +1,7 @@
 package com.dailymoneyregister.core.cloud.sync
 
 import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -158,6 +159,17 @@ class RemoteFinancialSyncRepository @Inject constructor(
             }
         }
 
+        // The RPC requires auth.uid() and validates this Admin membership server-side.
+        // A local Room session is not a Supabase Auth session; fail closed and keep
+        // the durable outbox row recoverable until the Admin signs in remotely.
+        if (supabase.auth.currentSessionOrNull() == null) {
+            android.util.Log.w(
+                "PaidDueFinancialSync",
+                "ADMIN_SUPABASE_AUTH_REQUIRED operation=${envelope.operationId}"
+            )
+            return FinancialSyncReceipt.Unauthorized(envelope.operationId)
+        }
+
         return try {
             val isoOccurredAt = java.time.Instant.ofEpochMilli(envelope.occurredAt).toString()
 
@@ -189,6 +201,19 @@ class RemoteFinancialSyncRepository @Inject constructor(
             val receipt = responseList.firstOrNull()
                 ?: return FinancialSyncReceipt.Retryable(envelope.operationId, RetryReason.SERVER_UNAVAILABLE)
 
+            // Never treat a syntactically valid RPC row as success unless the
+            // backend explicitly returned its committed acknowledgement status.
+            if (receipt.status != "ACKNOWLEDGED") {
+                android.util.Log.e(
+                    "PaidDueFinancialSync",
+                    "UPLOAD_RECEIPT_STATUS_UNEXPECTED operation=${envelope.operationId} status=${receipt.status}"
+                )
+                return FinancialSyncReceipt.NeedsAttention(
+                    envelope.operationId,
+                    "Unexpected server receipt status: ${receipt.status}"
+                )
+            }
+
             FinancialSyncReceipt.Acknowledged(
                 operationId = receipt.operationId,
                 canonicalSha256 = receipt.canonicalSha256,
@@ -219,6 +244,23 @@ class RemoteFinancialSyncRepository @Inject constructor(
         }
     }
 
+    suspend fun isAdminSessionAuthorized(
+        expectedMembershipId: String,
+        expectedBusinessId: String,
+        expectedBranchId: String
+    ): Boolean {
+        if (supabase.auth.currentSessionOrNull() == null) return false
+
+        return runCatching {
+            val rows = supabase.postgrest.rpc("restore_admin_by_auth_id")
+                .decodeList<AdminSessionScopeDto>()
+            val scope = rows.singleOrNull() ?: return@runCatching false
+            scope.membershipId == expectedMembershipId &&
+                scope.businessId == expectedBusinessId &&
+                scope.branchId == expectedBranchId
+        }.getOrDefault(false)
+    }
+
     suspend fun fetchRemoteEnvelopesV2(
         businessId: String,
         afterReceivedAt: String? = null,
@@ -229,11 +271,28 @@ class RemoteFinancialSyncRepository @Inject constructor(
             "Both cursor params (afterReceivedAt, afterOperationId) must be null together or both non-null"
         }
 
-        val cashierMembershipId = SessionManager.currentSession.value?.membership?.id
-        if (cashierMembershipId != null && CashierCloudSession.tokenFor(cashierMembershipId) != null) {
-            val rows = CashierCloudSession.download(cashierMembershipId, afterReceivedAt, afterOperationId, limit.coerceAtMost(100))
+        val activeSession = SessionManager.currentSession.value
+        if (activeSession?.user?.role == com.dailymoneyregister.core.model.enums.UserRole.CASHIER) {
+            val cashierMembershipId = activeSession.membership?.id
+                ?: throw SecurityException("CASHIER_MEMBERSHIP_REQUIRED")
+            if (CashierCloudSession.tokenFor(cashierMembershipId) == null) {
+                // Do not fall through to the Admin Supabase RPC with a publishable key.
+                throw SecurityException("CASHIER_CLOUD_SESSION_REQUIRED")
+            }
+            val rows = CashierCloudSession.download(
+                cashierMembershipId,
+                afterReceivedAt,
+                afterOperationId,
+                limit.coerceAtMost(100)
+            )
             return rows.toEnvelopeList()
         }
+
+        // The Admin download RPC also requires an authenticated Supabase identity.
+        if (supabase.auth.currentSessionOrNull() == null) {
+            throw SecurityException("ADMIN_SUPABASE_AUTH_REQUIRED")
+        }
+
         val params = FetchEnvelopesV2Params(
             businessId = businessId,
             afterReceivedAt = afterReceivedAt,
@@ -246,7 +305,7 @@ class RemoteFinancialSyncRepository @Inject constructor(
         ).jsonObject
 
         val dtoList = supabase.postgrest.rpc(
-            function = "fetch_financial_envelopes_v2",
+            function = "fetch_financial_envelopes_v3",
             parameters = paramJsonObj
         ).decodeList<RemoteEnvelopeV2Dto>()
 
@@ -264,7 +323,8 @@ class RemoteFinancialSyncRepository @Inject constructor(
                 occurredAtIso = dto.occurredAt,
                 receivedAtIso = dto.receivedAt,
                 canonicalText = dto.canonicalText,
-                payloadJson = jsonPayload
+                payloadJson = jsonPayload,
+                canonicalSha256 = dto.canonicalSha256
             )
         }
     }
@@ -272,7 +332,7 @@ class RemoteFinancialSyncRepository @Inject constructor(
     private fun org.json.JSONArray.toEnvelopeList(): List<RemoteEnvelopeV2> = (0 until length()).map { i ->
         val row = getJSONObject(i)
         val text = row.getString("canonical_text")
-        RemoteEnvelopeV2(row.getString("operation_id"), row.getString("business_id"), row.optString("branch_id", null), row.getString("operation_type"), row.getString("occurred_at"), row.getString("received_at"), text, JSONObject(row.optJSONObject("canonical_payload")?.toString() ?: text))
+        RemoteEnvelopeV2(row.getString("operation_id"), row.getString("business_id"), row.optString("branch_id", null), row.getString("operation_type"), row.getString("occurred_at"), row.getString("received_at"), text, JSONObject(row.optJSONObject("canonical_payload")?.toString() ?: text), row.optString("canonical_sha256").ifBlank { null })
     }
 
     private suspend fun fetchRemoteEnvelopes(
@@ -345,6 +405,13 @@ internal fun businessLocalDateFor(occurredAtMillis: Long, timezoneId: String): S
         .toString()
 
 @Serializable
+private data class AdminSessionScopeDto(
+    @SerialName("membership_id") val membershipId: String,
+    @SerialName("business_id") val businessId: String,
+    @SerialName("branch_id") val branchId: String
+)
+
+@Serializable
 data class FetchEnvelopesV2Params(
     @SerialName("p_business_id") val businessId: String,
     @SerialName("p_after_received_at") val afterReceivedAt: String? = null,
@@ -361,7 +428,8 @@ data class RemoteEnvelopeV2Dto(
     @SerialName("occurred_at") val occurredAt: String,
     @SerialName("received_at") val receivedAt: String,
     @SerialName("canonical_text") val canonicalText: String,
-    @SerialName("canonical_payload") val canonicalPayload: kotlinx.serialization.json.JsonElement? = null
+    @SerialName("canonical_payload") val canonicalPayload: kotlinx.serialization.json.JsonElement? = null,
+    @SerialName("canonical_sha256") val canonicalSha256: String? = null
 )
 
 data class RemoteEnvelopeV2(
@@ -372,7 +440,8 @@ data class RemoteEnvelopeV2(
     val occurredAtIso: String,
     val receivedAtIso: String,
     val canonicalText: String,
-    val payloadJson: JSONObject
+    val payloadJson: JSONObject,
+    val canonicalSha256: String? = null
 )
 
 

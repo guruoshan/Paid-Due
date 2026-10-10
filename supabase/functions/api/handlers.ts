@@ -294,7 +294,7 @@ export async function downloadFinancial(request: Request) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100 ||
       (!!afterReceivedAt !== !!afterOperationId)) return json({ outcome: "INVALID_REQUEST" }, 400);
   try {
-    const rows = await rpc("fetch_cashier_financial_envelopes", {
+    const rows = await rpc("fetch_cashier_financial_envelopes_v2", {
       p_business_id: session.business_id, p_branch_id: session.branch_id,
       p_membership_id: session.membership_id, p_after_received_at: afterReceivedAt,
       p_after_operation_id: afterOperationId, p_limit: limit,
