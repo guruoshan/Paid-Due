@@ -1,0 +1,28 @@
+name: Paid-Due backend validation
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  api-tests-and-typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Run API tests
+        working-directory: supabase/functions/api
+        run: deno test --frozen --allow-env --allow-net
+
+      - name: Type-check API entrypoint and handlers
+        working-directory: supabase/functions/api
+        run: deno check --frozen index.ts handlers.ts
