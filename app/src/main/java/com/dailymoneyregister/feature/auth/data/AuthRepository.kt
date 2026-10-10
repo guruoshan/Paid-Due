@@ -186,14 +186,14 @@ class AuthRepository @Inject constructor(
         passwordPlain: String
     ): AuthResult {
 
-        var business = businessBranchDao.getFirstBusiness()
-        if (business == null) {
-            val restoreResult = remoteBusinessRestorer.restoreAdminIfEmpty(username, passwordPlain)
-            if (restoreResult is com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult.Failed) {
-                return AuthResult.Error(restoreResult.message)
-            }
-            business = businessBranchDao.getFirstBusiness()
+        // Always authenticate with Supabase and validate the server membership,
+        // including on devices that already contain a local business.
+        val remoteResult = remoteBusinessRestorer.restoreAdminIfEmpty(username, passwordPlain)
+        if (remoteResult is RemoteBusinessRestorationResult.Failed) {
+            return AuthResult.Error(remoteResult.message)
         }
+
+        var business = businessBranchDao.getFirstBusiness()
 
         if (business == null) {
             return AuthResult.Error(
@@ -342,14 +342,19 @@ class AuthRepository @Inject constructor(
         pin: String
     ): AuthResult {
 
-        var business = businessBranchDao.getFirstBusiness()
-        if (business == null) {
-            val restoreResult = remoteBusinessRestorer.restoreCashierIfEmpty(username, pin)
-            if (restoreResult is com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult.Failed) {
-                return AuthResult.Error(restoreResult.message)
-            }
-            business = businessBranchDao.getFirstBusiness()
+        // Local PIN hashes are not online authority. Authenticate against the
+        // server first and require its business/branch/user/membership to match.
+        val initialBranch = businessBranchDao.getFirstBusiness()?.let {
+            businessBranchDao.getFirstBranch(it.id)
         }
+        val remoteResult = remoteBusinessRestorer.restoreCashierIfEmpty(
+            username, pin, initialBranch?.countryCode ?: "OM"
+        )
+        if (remoteResult is RemoteBusinessRestorationResult.Failed) {
+            return AuthResult.Error(remoteResult.message)
+        }
+
+        var business = businessBranchDao.getFirstBusiness()
 
         if (business == null) {
             return AuthResult.Error(
@@ -366,23 +371,8 @@ class AuthRepository @Inject constructor(
         val preRemaining = pinThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
         if (preRemaining > 0L) return AuthResult.LockedOut(preRemaining)
         var user = resolveLoginLookup(identifier, business.id)
-        if (user == null && identifier.canonicalPhone != null) {
-            val recovery = remoteBusinessRestorer.restoreCashierIfEmpty(username, pin, branch.countryCode)
-            when (recovery) {
-                is RemoteBusinessRestorationResult.Success -> {
-                    if (recovery.businessId != business.id || recovery.branchId != branch.id) {
-                        return AuthResult.Error("Cashier belongs to a different business or branch")
-                    }
-                    user = resolveLoginLookup(identifier, business.id)
-                    if (user == null) {
-                        return AuthResult.Error("Cashier recovery did not restore the local account")
-                    }
-                }
-                is RemoteBusinessRestorationResult.Failed -> {
-                    // Keep detailed remote error out of the wrong-account response.
-                    return AuthResult.Error(recovery.message)
-                }
-            }
+        if (user == null) {
+            return AuthResult.Error("Server-authorized cashier identity is not present locally; restore this device before signing in")
         }
         val accountKey = user?.let { accountThrottleKey(business.id, it.id) }
         val accountRemaining = accountKey?.let {
@@ -486,23 +476,6 @@ class AuthRepository @Inject constructor(
                 membership,
                 requiresPinChange = authenticatedUser.mustChangePin
             )
-
-        // Cashier cloud authentication is required for remote sync.
-        // Local/offline PIN authentication remains unchanged.
-        if (
-            com.dailymoneyregister.core.cloud.sync.CashierCloudSession
-                .tokenFor(membership.id) == null && identifier.canonicalPhone != null
-        ) {
-            runCatching {
-                com.dailymoneyregister.core.cloud.sync.CashierCloudSession.authenticate(
-                    canonicalPhone = identifier.canonicalPhone,
-                    pin = pin,
-                    expectedMembershipId = membership.id
-                )
-            }.onFailure {
-                android.util.Log.w("PaidDueFinancialSync", "CASHIER_CLOUD_AUTH_RETRY_FAILED")
-            }
-        }
 
         SessionManager.setSession(session)
 
