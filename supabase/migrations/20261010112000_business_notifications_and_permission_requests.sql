@@ -382,6 +382,9 @@ BEGIN
       can_view_customers = COALESCE((v_after->>'VIEW_CUSTOMERS')::boolean, can_view_customers),
       updated_at = now()
     WHERE id = v_target.id;
+    UPDATE private.cashier_sync_sessions
+       SET revoked_at = COALESCE(revoked_at, now())
+     WHERE membership_id = v_target.id AND revoked_at IS NULL;
     INSERT INTO private.staff_admin_audit_events(
       actor_auth_user_id,business_id,branch_id,membership_id,event_type,before_state,after_state,occurred_at
     ) VALUES(v_actor,v_req.business_id,v_req.branch_id,v_target.id,'PERMISSIONS_UPDATED',v_before,v_after,now());
