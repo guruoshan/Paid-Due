@@ -1,6 +1,7 @@
 package com.dailymoneyregister.core.security
 
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.cloud.BusinessRestorer
 import com.dailymoneyregister.core.i18n.LanguageManager
 import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.UserRole
@@ -11,7 +12,8 @@ import javax.inject.Singleton
 class TrustedSessionRestorer @Inject constructor(
     private val database: DmrDatabase,
     private val trustedSessionStore: TrustedSessionStore,
-    private val languageManager: LanguageManager
+    private val languageManager: LanguageManager,
+    private val businessRestorer: BusinessRestorer
 ) {
 
     suspend fun restore(): ActiveSession? {
@@ -50,6 +52,20 @@ class TrustedSessionRestorer @Inject constructor(
                 user.id,
                 branch.id
             )
+
+        // Local IDs and active flags are only cached data. Require a fresh
+        // server membership check before restoring a remembered session.
+        val remotelyAuthorized = when (user.role) {
+            UserRole.ADMIN -> businessRestorer.validateAdminSession(
+                business.id, branch.id, user.id
+            )
+            UserRole.CASHIER -> {
+                val activeMembership = membership
+                    ?: return invalidate()
+                businessRestorer.validateCashierSession(activeMembership.id)
+            }
+        }
+        if (!remotelyAuthorized) return invalidate()
 
         val session =
             when {
