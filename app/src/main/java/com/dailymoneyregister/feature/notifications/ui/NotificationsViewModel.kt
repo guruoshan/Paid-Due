@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -69,19 +70,22 @@ class NotificationsViewModel @Inject constructor(
         if (notificationWatchJob != null) return
         notificationWatchJob = viewModelScope.launch {
             if (_uiState.value.isAdmin) {
-                runCatching {
+                try {
                     repository.observeAdminNotificationInserts().collect {
                         while (_uiState.value.isLoading) delay(150)
                         refresh()
                     }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // Fall back to the durable inbox if Realtime is disabled or disconnects.
                 }
-            } else {
-                // Custom PIN cashiers do not have a Supabase Auth JWT for Realtime.
-                // Poll the durable inbox only while this screen's ViewModel is alive.
-                while (true) {
-                    delay(20_000)
-                    if (!_uiState.value.isLoading) refresh()
-                }
+            }
+            // Custom PIN cashiers have no Supabase Auth JWT for Realtime.
+            // Polling also remains as a fallback for Admins if the socket closes.
+            while (true) {
+                delay(20_000)
+                if (!_uiState.value.isLoading) refresh()
             }
         }
     }
