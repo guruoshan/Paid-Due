@@ -240,8 +240,8 @@ class RemoteInviteStore @Inject constructor(
         val body = response.bodyAsText()
         val responseJson = runCatching {
             activationJson.parseToJsonElement(body).jsonObject
-        }.getOrNull()
-        val outcome = responseJson?.get("outcome")?.jsonPrimitive?.content
+        }.getOrNull() ?: error("Supabase returned an invalid invitation response.")
+        val outcome = responseJson["outcome"]?.jsonPrimitive?.content
         if (response.status.value !in 200..299 || outcome != "INVITATION_CREATED") {
             val message = when (outcome) {
                 "RATE_LIMITED" -> "Too many invitations were created. Try again later."
