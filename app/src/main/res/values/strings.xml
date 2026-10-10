@@ -383,6 +383,10 @@
     <string name="staff_enable">Enable cashier</string>
     <string name="staff_enable_title">Enable %1$s?</string>
     <string name="staff_enable_message">This cashier will be able to sign in again.</string>
+    <string name="staff_delete">Remove cashier</string>
+    <string name="staff_delete_title">Remove %1$s?</string>
+    <string name="staff_delete_message">This cashier will be removed from the active staff list and will no longer be able to sign in. Past sales, refunds and audit history will be preserved.</string>
+    <string name="staff_cashier_removed">%1$s removed</string>
     <string name="staff_cashier_updated">%1$s updated</string>
     <string name="staff_permissions_updated">Permissions updated for %1$s</string>
     <string name="staff_cashier_disabled">%1$s disabled</string>
