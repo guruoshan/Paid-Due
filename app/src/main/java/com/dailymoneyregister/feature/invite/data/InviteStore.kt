@@ -8,13 +8,12 @@ interface InviteStore {
     suspend fun listForBusiness(businessId: String): List<StaffInvite>
 }
 
-interface StaffInviteEmailSender {
-    suspend fun sendEmailInvite(
-        email: String,
+interface StaffInviteLinkCreator {
+    suspend fun createInviteLink(
         businessId: String,
         branchId: String,
         displayName: String,
         canonicalPhone: String,
         permissions: Map<String, Boolean>
-    )
+    ): CreatedInvite
 }
