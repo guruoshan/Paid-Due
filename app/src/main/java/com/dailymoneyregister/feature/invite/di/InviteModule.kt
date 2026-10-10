@@ -18,6 +18,10 @@ abstract class InviteModule {
     @Singleton
     abstract fun bindInviteStore(store: RemoteInviteStore): InviteStore
 
+    @Binds
+    @Singleton
+    abstract fun bindStaffInviteEmailSender(store: RemoteInviteStore): com.dailymoneyregister.feature.invite.data.StaffInviteEmailSender
+
     companion object {
         @Provides
         @Singleton
