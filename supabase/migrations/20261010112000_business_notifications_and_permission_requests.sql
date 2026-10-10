@@ -143,7 +143,7 @@ BEGIN
         'report', COALESCE(v_report, '{}'::jsonb)
       )
     );
-    IF COALESCE(v_report ->> 'difference_minor', '0') ~ '^-?[0-9]*[1-9][0-9]*
+    IF COALESCE(v_report ->> 'difference_minor', '0') ~ '^-?[0-9]*[1-9][0-9]*$' THEN
       PERFORM private.enqueue_business_notification(
         'CASH_DIFFERENCE:' || NEW.business_id || ':' || NEW.operation_id || ':' || v_admin.membership_id,
         NEW.business_id,
