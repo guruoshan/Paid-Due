@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -107,7 +108,8 @@ internal fun RegisterMainContentHost(
     historyState: HistoryUiState,
     historyViewModel: HistoryViewModel,
     onNavigateToSettings: () -> Unit,
-    onNavigateToCustomers: () -> Unit
+    onNavigateToCustomers: () -> Unit,
+    onNavigateToNotifications: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val couponPaymentAction = couponPaymentActionUi(state)
@@ -150,6 +152,18 @@ internal fun RegisterMainContentHost(
                         )
                     }
     
+                    IconButton(
+                        onClick = onNavigateToNotifications,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = "Notifications",
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+
                     IconButton(
                         onClick = onNavigateToSettings,
                         modifier = Modifier.size(40.dp)
