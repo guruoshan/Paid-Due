@@ -1,9 +1,5 @@
 package com.dailymoneyregister.feature.admin.ui
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.widget.Toast
 import com.dailymoneyregister.core.ui.nativeLabel
 
 import com.dailymoneyregister.core.ui.asString
@@ -22,7 +18,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,8 +27,6 @@ import com.dailymoneyregister.feature.admin.data.CashierManagementRepository.Dir
 import com.dailymoneyregister.core.i18n.LanguageRegistry
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.ui.PhoneNumberInput
-import com.dailymoneyregister.feature.customers.ui.PreparedWhatsAppMessage
-import com.dailymoneyregister.feature.customers.ui.WhatsAppTransport
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,7 +37,6 @@ fun CashierManagementScreen(
     val cashiers by viewModel.cashiers.collectAsState()
     val state by viewModel.uiState.collectAsState()
     val inviteState by viewModel.inviteState.collectAsState()
-    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -61,7 +53,7 @@ fun CashierManagementScreen(
                 ExtendedFloatingActionButton(
                     onClick = viewModel::openInviteDialog
                 ) {
-                    Text(stringResource(R.string.invite_by_whatsapp))
+                    Text(stringResource(R.string.invite_by_email))
                 }
                 FloatingActionButton(
                     onClick = { viewModel.openCreateDialog() },
@@ -151,6 +143,7 @@ fun CashierManagementScreen(
                     branchName = SessionManager.activeBranch?.name.orEmpty(),
                     onDismiss = viewModel::clearInvite,
                     onNameChanged = viewModel::onInviteNameChanged,
+                    onEmailChanged = viewModel::onInviteEmailChanged,
                     onPhoneChanged = viewModel::onInvitePhoneChanged,
                     onPermissionChanged = viewModel::onInvitePermissionChanged,
                     onCreate = viewModel::createInvite
@@ -158,8 +151,6 @@ fun CashierManagementScreen(
             } else {
                 InviteReadyDialog(
                     createdInvite = createdInvite,
-                    businessName = SessionManager.activeBusiness?.name.orEmpty(),
-                    context = context,
                     onClose = viewModel::clearInvite
                 )
             }
@@ -221,6 +212,7 @@ private fun CreateInviteDialog(
     branchName: String,
     onDismiss: () -> Unit,
     onNameChanged: (String) -> Unit,
+    onEmailChanged: (String) -> Unit,
     onPhoneChanged: (com.dailymoneyregister.core.ui.PhoneNumberInputValue) -> Unit,
     onPermissionChanged: (CashierPermissionKey, Boolean) -> Unit,
     onCreate: () -> Unit
@@ -240,6 +232,13 @@ private fun CreateInviteDialog(
                     value = state.displayName,
                     onValueChange = onNameChanged,
                     label = { Text(stringResource(R.string.cashier_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = state.email,
+                    onValueChange = onEmailChanged,
+                    label = { Text(stringResource(R.string.email_address)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -296,62 +295,18 @@ private fun CreateInviteDialog(
 @Composable
 private fun InviteReadyDialog(
     createdInvite: com.dailymoneyregister.feature.invite.data.CreatedInvite,
-    businessName: String,
-    context: Context,
     onClose: () -> Unit
 ) {
-    val message = stringResource(
-        R.string.staff_invite_whatsapp_message,
-        businessName,
-        createdInvite.link
-    )
     AlertDialog(
         onDismissRequest = onClose,
-        title = {
-            Text(stringResource(R.string.invite_ready_for, createdInvite.invite.displayName))
-        },
+        title = { Text(stringResource(R.string.invite_sent_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.invite_sent_message, createdInvite.email))
                 Text(stringResource(R.string.invite_expiry_note))
-                Text(createdInvite.link)
             }
         },
         confirmButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                Button(
-                    onClick = {
-                        WhatsAppTransport.share(
-                            context,
-                            PreparedWhatsAppMessage(
-                                text = message,
-                                recipientPhone = createdInvite.invite.canonicalPhone
-                            )
-                        )
-                    }
-                ) {
-                    Text(stringResource(R.string.send_on_whatsapp))
-                }
-                TextButton(
-                    onClick = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(
-                            ClipData.newPlainText(
-                                context.getString(R.string.invite_link_clip_label),
-                                createdInvite.link
-                            )
-                        )
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.link_copied),
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                ) {
-                    Text(stringResource(R.string.copy_link))
-                }
-            }
-        },
-        dismissButton = {
             TextButton(onClick = onClose) { Text(stringResource(R.string.close)) }
         }
     )
