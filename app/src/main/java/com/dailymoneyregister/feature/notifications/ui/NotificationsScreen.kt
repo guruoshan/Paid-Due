@@ -60,14 +60,11 @@ private val permissionLabels = linkedMapOf(
     "CREATE_CREDIT_SALE" to "Create credit sales",
     "USE_COUPON" to "Use coupons",
     "ISSUE_INVOICE" to "Issue invoices",
-    "ISSUE_RECEIPT" to "Issue receipts",
     "REFUND" to "Refund transactions",
     "VOID" to "Void transactions",
     "CORRECT_AMOUNT" to "Correct amounts",
     "CHANGE_PAYMENT_METHOD" to "Change payment method",
-    "VIEW_BROAD_HISTORY" to "View full history",
-    "MANAGE_PRODUCTS" to "Manage products",
-    "VIEW_REPORTS" to "View reports"
+    "VIEW_BROAD_HISTORY" to "View full history"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
