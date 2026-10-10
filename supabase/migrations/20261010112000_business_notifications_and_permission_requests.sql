@@ -1,8 +1,5 @@
 -- Durable Paid&Due notifications and cashier permission requests.
 -- Notifications are an inbox projection, never a source of financial truth.
-ALTER TABLE public.business_memberships
-  ADD COLUMN IF NOT EXISTS can_view_customers boolean NOT NULL DEFAULT true;
-
 CREATE TABLE IF NOT EXISTS private.business_notifications (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   event_key text NOT NULL UNIQUE,
@@ -34,8 +31,7 @@ CREATE TABLE IF NOT EXISTS private.cashier_permission_requests (
   permission_key text NOT NULL CHECK (permission_key IN (
     'CREATE_SALE','ACCEPT_CASH','ACCEPT_ONLINE','CREATE_CREDIT_SALE',
     'USE_COUPON','ISSUE_INVOICE','REFUND','VOID',
-    'CORRECT_AMOUNT','CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY',
-    'VIEW_CUSTOMERS'
+    'CORRECT_AMOUNT','CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY'
   )),
   note text,
   status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','REJECTED')),
@@ -198,7 +194,7 @@ BEGIN
     'ISSUE_RECEIPT', OLD.can_issue_receipt, 'REFUND', OLD.can_refund, 'VOID', OLD.can_void,
     'CORRECT_AMOUNT', OLD.can_correct_amount, 'CHANGE_PAYMENT_METHOD', OLD.can_change_payment_method,
     'VIEW_BROAD_HISTORY', OLD.can_view_broad_history, 'MANAGE_PRODUCTS', OLD.can_manage_products,
-    'VIEW_REPORTS', OLD.can_view_reports, 'VIEW_CUSTOMERS', OLD.can_view_customers
+    'VIEW_REPORTS', OLD.can_view_reports
   );
   v_after := jsonb_build_object(
     'CREATE_SALE', NEW.can_create_sale, 'ACCEPT_CASH', NEW.can_accept_cash,
@@ -207,7 +203,7 @@ BEGIN
     'ISSUE_RECEIPT', NEW.can_issue_receipt, 'REFUND', NEW.can_refund, 'VOID', NEW.can_void,
     'CORRECT_AMOUNT', NEW.can_correct_amount, 'CHANGE_PAYMENT_METHOD', NEW.can_change_payment_method,
     'VIEW_BROAD_HISTORY', NEW.can_view_broad_history, 'MANAGE_PRODUCTS', NEW.can_manage_products,
-    'VIEW_REPORTS', NEW.can_view_reports, 'VIEW_CUSTOMERS', NEW.can_view_customers
+    'VIEW_REPORTS', NEW.can_view_reports
   );
   IF v_before IS NOT DISTINCT FROM v_after OR NEW.role <> 'CASHIER'
      OR NOT NEW.is_active OR NEW.removed_at IS NOT NULL THEN
@@ -230,7 +226,7 @@ CREATE TRIGGER trg_notify_cashier_of_permission_change
 AFTER UPDATE OF can_create_sale, can_accept_cash, can_accept_online, can_create_credit_sale,
   can_use_coupon, can_issue_invoice, can_issue_receipt, can_refund, can_void,
   can_correct_amount, can_change_payment_method, can_view_broad_history,
-  can_manage_products, can_view_reports, can_view_customers
+  can_manage_products, can_view_reports
 ON public.business_memberships
 FOR EACH ROW
 WHEN (OLD.role = 'CASHIER' AND NEW.role = 'CASHIER')
@@ -337,7 +333,7 @@ BEGIN
     SELECT 1 FROM jsonb_each(p_additional_permissions) e
     WHERE e.key NOT IN ('CREATE_SALE','ACCEPT_CASH','ACCEPT_ONLINE','CREATE_CREDIT_SALE',
       'USE_COUPON','ISSUE_INVOICE','REFUND','VOID','CORRECT_AMOUNT',
-      'CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY','VIEW_CUSTOMERS')
+      'CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY')
       OR jsonb_typeof(e.value) <> 'boolean' OR e.value <> 'true'::jsonb
   ) THEN RAISE EXCEPTION 'Additional permissions must be known permissions set to true' USING ERRCODE = '22023'; END IF;
 
@@ -360,7 +356,7 @@ BEGIN
       'ISSUE_RECEIPT',v_target.can_issue_receipt,'REFUND',v_target.can_refund,'VOID',v_target.can_void,
       'CORRECT_AMOUNT',v_target.can_correct_amount,'CHANGE_PAYMENT_METHOD',v_target.can_change_payment_method,
       'VIEW_BROAD_HISTORY',v_target.can_view_broad_history,'MANAGE_PRODUCTS',v_target.can_manage_products,
-      'VIEW_REPORTS',v_target.can_view_reports,'VIEW_CUSTOMERS',v_target.can_view_customers
+      'VIEW_REPORTS',v_target.can_view_reports
     );
     v_after := v_before || jsonb_build_object(v_req.permission_key, true) || p_additional_permissions;
     PERFORM set_config('app.skip_permissions_notification', 'true', true);
@@ -379,7 +375,6 @@ BEGIN
       can_view_broad_history = COALESCE((v_after->>'VIEW_BROAD_HISTORY')::boolean, can_view_broad_history),
       can_manage_products = COALESCE((v_after->>'MANAGE_PRODUCTS')::boolean, can_manage_products),
       can_view_reports = COALESCE((v_after->>'VIEW_REPORTS')::boolean, can_view_reports),
-      can_view_customers = COALESCE((v_after->>'VIEW_CUSTOMERS')::boolean, can_view_customers),
       updated_at = now()
     WHERE id = v_target.id;
     UPDATE private.cashier_sync_sessions
@@ -429,7 +424,7 @@ BEGIN
   IF p_membership_id IS NULL OR btrim(p_membership_id) = '' OR
      p_permission_key NOT IN ('CREATE_SALE','ACCEPT_CASH','ACCEPT_ONLINE','CREATE_CREDIT_SALE',
        'USE_COUPON','ISSUE_INVOICE','REFUND','VOID','CORRECT_AMOUNT',
-       'CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY','VIEW_CUSTOMERS') OR
+       'CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY') OR
      (p_note IS NOT NULL AND length(p_note) > 500) THEN
     RAISE EXCEPTION 'Invalid permission request' USING ERRCODE = '22023';
   END IF;
@@ -451,7 +446,6 @@ BEGIN
     WHEN 'VIEW_BROAD_HISTORY' THEN v_member.can_view_broad_history
     WHEN 'MANAGE_PRODUCTS' THEN v_member.can_manage_products
     WHEN 'VIEW_REPORTS' THEN v_member.can_view_reports
-    WHEN 'VIEW_CUSTOMERS' THEN v_member.can_view_customers
     ELSE false END;
   IF COALESCE(v_allowed, false) THEN RAISE EXCEPTION 'Permission is already granted' USING ERRCODE = '22023'; END IF;
 
@@ -641,9 +635,9 @@ BEGIN
     SELECT 1 FROM jsonb_object_keys(p_permissions) AS k(key)
     WHERE k.key NOT IN ('CREATE_SALE','ACCEPT_CASH','ACCEPT_ONLINE','CREATE_CREDIT_SALE','USE_COUPON',
       'ISSUE_INVOICE','ISSUE_RECEIPT','REFUND','VOID','CORRECT_AMOUNT','CHANGE_PAYMENT_METHOD',
-      'VIEW_BROAD_HISTORY','MANAGE_PRODUCTS','VIEW_REPORTS','VIEW_CUSTOMERS')
+      'VIEW_BROAD_HISTORY','MANAGE_PRODUCTS','VIEW_REPORTS')
   ) OR EXISTS (SELECT 1 FROM jsonb_each(p_permissions) e WHERE jsonb_typeof(e.value) <> 'boolean')
-    OR (SELECT count(*) FROM jsonb_object_keys(p_permissions)) <> 15 THEN
+    OR (SELECT count(*) FROM jsonb_object_keys(p_permissions)) <> 14 THEN
     RAISE EXCEPTION 'Invalid staff permissions' USING ERRCODE = '22023';
   END IF;
 
@@ -666,7 +660,7 @@ BEGIN
     'ISSUE_RECEIPT',v_target.can_issue_receipt,'REFUND',v_target.can_refund,'VOID',v_target.can_void,
     'CORRECT_AMOUNT',v_target.can_correct_amount,'CHANGE_PAYMENT_METHOD',v_target.can_change_payment_method,
     'VIEW_BROAD_HISTORY',v_target.can_view_broad_history,'MANAGE_PRODUCTS',v_target.can_manage_products,
-    'VIEW_REPORTS',v_target.can_view_reports,'VIEW_CUSTOMERS',v_target.can_view_customers
+    'VIEW_REPORTS',v_target.can_view_reports
   );
   v_after := p_permissions;
   UPDATE public.business_memberships SET
@@ -684,7 +678,6 @@ BEGIN
     can_view_broad_history=(p_permissions->>'VIEW_BROAD_HISTORY')::boolean,
     can_manage_products=(p_permissions->>'MANAGE_PRODUCTS')::boolean,
     can_view_reports=(p_permissions->>'VIEW_REPORTS')::boolean,
-    can_view_customers=(p_permissions->>'VIEW_CUSTOMERS')::boolean,
     updated_at=now()
   WHERE id=v_target.id;
   UPDATE private.cashier_sync_sessions SET revoked_at=COALESCE(revoked_at,now())
@@ -718,104 +711,6 @@ $function$;
 
 
 
-
--- Add the customer permission to the three server projections consumed by the
--- Admin roster, custom-PIN login restoration, and cashier metadata endpoint.
-CREATE OR REPLACE FUNCTION public.list_admin_cashiers_with_permissions()
-RETURNS TABLE(local_user_id text, membership_id text, branch_id text, display_name text,
-  canonical_phone text, is_active boolean, permissions jsonb, is_removed boolean)
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
-AS $function$
-DECLARE v_auth_user_id uuid := (SELECT auth.uid());
-BEGIN
-  IF v_auth_user_id IS NULL THEN RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501'; END IF;
-  RETURN QUERY
-  SELECT cashier.local_user_id, cashier.id, cashier.branch_id, staff.display_name, staff.canonical_phone,
-    (cashier.is_active AND staff.is_active AND cashier.removed_at IS NULL),
-    jsonb_build_object(
-      'CREATE_SALE',cashier.can_create_sale,'ACCEPT_CASH',cashier.can_accept_cash,
-      'ACCEPT_ONLINE',cashier.can_accept_online,'CREATE_CREDIT_SALE',cashier.can_create_credit_sale,
-      'USE_COUPON',cashier.can_use_coupon,'ISSUE_INVOICE',cashier.can_issue_invoice,
-      'ISSUE_RECEIPT',cashier.can_issue_receipt,'REFUND',cashier.can_refund,'VOID',cashier.can_void,
-      'CORRECT_AMOUNT',cashier.can_correct_amount,'CHANGE_PAYMENT_METHOD',cashier.can_change_payment_method,
-      'VIEW_BROAD_HISTORY',cashier.can_view_broad_history,'MANAGE_PRODUCTS',cashier.can_manage_products,
-      'VIEW_REPORTS',cashier.can_view_reports,'VIEW_CUSTOMERS',cashier.can_view_customers
-    ),
-    (cashier.removed_at IS NOT NULL)
-  FROM public.business_memberships admin_membership
-  JOIN public.profiles admin_profile ON admin_profile.auth_user_id=admin_membership.auth_user_id AND admin_profile.is_active=true
-  JOIN public.businesses business ON business.id=admin_membership.business_id AND business.is_active=true
-  JOIN public.branches branch ON branch.id=admin_membership.branch_id AND branch.business_id=admin_membership.business_id AND branch.is_active=true
-  JOIN public.business_memberships cashier ON cashier.business_id=admin_membership.business_id AND cashier.branch_id=admin_membership.branch_id AND cashier.role='CASHIER'
-  JOIN private.staff_identities staff ON staff.id=cashier.staff_identity_id
-  WHERE admin_membership.auth_user_id=v_auth_user_id AND admin_membership.role='ADMIN'
-    AND admin_membership.is_active=true AND admin_membership.removed_at IS NULL
-    AND admin_membership.staff_identity_id IS NULL AND cashier.staff_identity_id IS NOT NULL
-    AND cashier.local_user_id IS NOT NULL AND btrim(cashier.local_user_id)<>''
-  ORDER BY staff.display_name,cashier.local_user_id;
-END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.fetch_cashier_restoration(p_membership_id text)
-RETURNS TABLE(membership_id text, local_user_id text, staff_identity_id uuid, business_id text,
-  branch_id text, business_name text, branch_name text, branch_code text, country_code text,
-  currency_code text, currency_decimal_places integer, currency_symbol text, timezone_id text,
-  tax_rounding_mode text, default_tax_rate_bps integer, branch_address text, branch_phone text,
-  tax_registration_number text, display_name text, canonical_phone text, permissions jsonb)
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
-AS $function$
-  SELECT m.id,COALESCE(m.local_user_id,activation.local_user_id),si.id,b.id,br.id,b.name,br.name,
-    br.code,br.country_code,br.currency_code,br.currency_decimal_places,br.currency_symbol,
-    br.timezone_id,br.tax_rounding_mode,br.default_tax_rate_bps,br.address,br.phone,
-    br.tax_registration_number,si.display_name,si.canonical_phone,
-    jsonb_build_object(
-      'CREATE_SALE',m.can_create_sale,'ACCEPT_CASH',m.can_accept_cash,'ACCEPT_ONLINE',m.can_accept_online,
-      'CREATE_CREDIT_SALE',m.can_create_credit_sale,'USE_COUPON',m.can_use_coupon,'ISSUE_INVOICE',m.can_issue_invoice,
-      'ISSUE_RECEIPT',m.can_issue_receipt,'REFUND',m.can_refund,'VOID',m.can_void,
-      'CORRECT_AMOUNT',m.can_correct_amount,'CHANGE_PAYMENT_METHOD',m.can_change_payment_method,
-      'VIEW_BROAD_HISTORY',m.can_view_broad_history,'MANAGE_PRODUCTS',m.can_manage_products,
-      'VIEW_REPORTS',m.can_view_reports,'VIEW_CUSTOMERS',m.can_view_customers
-    )
-  FROM public.business_memberships m
-  JOIN public.businesses b ON b.id=m.business_id AND b.is_active=true
-  JOIN public.branches br ON br.id=m.branch_id AND br.business_id=m.business_id AND br.is_active=true
-  JOIN private.staff_identities si ON si.id=m.staff_identity_id AND si.is_active=true
-  LEFT JOIN private.staff_invite_activations activation ON activation.membership_id=m.id AND activation.staff_identity_id=si.id
-  WHERE m.id=p_membership_id AND m.role='CASHIER' AND m.is_active=true AND m.removed_at IS NULL
-    AND COALESCE(m.local_user_id,activation.local_user_id) IS NOT NULL
-    AND si.credential_hash IS NOT NULL AND si.credential_salt IS NOT NULL
-  LIMIT 1;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.fetch_cashier_metadata(p_business_id text,p_branch_id text,p_membership_id text)
-RETURNS TABLE(membership_id text,business_id text,business_name text,branch_id text,branch_name text,
-  branch_code text,branch_address text,branch_phone text,tax_registration_number text,country_code text,
-  currency_code text,currency_decimal_places integer,currency_symbol text,timezone_id text,
-  tax_rounding_mode text,default_tax_rate_bps integer,role text,permissions jsonb,
-  display_name text,canonical_phone text)
-LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
-AS $function$
-BEGIN
-  RETURN QUERY SELECT m.id,b.id,b.name,br.id,br.name,br.code,br.address,br.phone,br.tax_registration_number,
-    br.country_code,br.currency_code,br.currency_decimal_places,br.currency_symbol,br.timezone_id,
-    br.tax_rounding_mode,br.default_tax_rate_bps,m.role,
-    jsonb_build_object(
-      'can_create_sale',m.can_create_sale,'can_accept_cash',m.can_accept_cash,'can_accept_online',m.can_accept_online,
-      'can_create_credit_sale',m.can_create_credit_sale,'can_use_coupon',m.can_use_coupon,'can_issue_invoice',m.can_issue_invoice,
-      'can_issue_receipt',m.can_issue_receipt,'can_refund',m.can_refund,'can_void',m.can_void,
-      'can_correct_amount',m.can_correct_amount,'can_change_payment_method',m.can_change_payment_method,
-      'can_view_broad_history',m.can_view_broad_history,'can_manage_products',m.can_manage_products,
-      'can_view_reports',m.can_view_reports,'can_view_customers',m.can_view_customers
-    ),
-    si.display_name,si.canonical_phone
-  FROM public.business_memberships m
-  JOIN public.businesses b ON b.id=m.business_id AND b.is_active=true
-  JOIN public.branches br ON br.id=m.branch_id AND br.business_id=m.business_id AND br.is_active=true
-  JOIN private.staff_identities si ON si.id=m.staff_identity_id AND si.is_active=true
-  WHERE m.id=p_membership_id AND m.business_id=p_business_id AND m.branch_id=p_branch_id
-    AND m.role='CASHIER' AND m.is_active=true AND m.removed_at IS NULL;
-END;
-$function$;
 
 
 -- Admin realtime is delivered only to rows the authenticated Admin may read.
