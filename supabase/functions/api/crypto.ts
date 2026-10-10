@@ -43,7 +43,7 @@ export async function deterministicSalt(pepper: string, tokenHash: string): Prom
 }
 
 export async function deriveCredential(pin: string, tokenHash: string, pepper: string) {
-  const PBKDF2_ITERATIONS = 100000;
+  const PBKDF2_ITERATIONS = 600000;
   const PBKDF2_BITS = 256;
   const salt = await deterministicSalt(pepper, tokenHash);
 
