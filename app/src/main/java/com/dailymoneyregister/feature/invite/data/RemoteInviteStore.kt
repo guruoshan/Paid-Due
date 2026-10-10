@@ -20,7 +20,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.content
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -240,7 +240,7 @@ class RemoteInviteStore @Inject constructor(
         val responseJson = runCatching {
             activationJson.parseToJsonElement(body).jsonObject
         }.getOrNull() ?: error("Supabase returned an invalid invitation response.")
-        val outcome = responseJson["outcome"]?.jsonPrimitive?.content
+        val outcome = responseJson["outcome"]?.jsonPrimitive?.contentOrNull ?: ""
         if (response.status.value !in 200..299 || outcome != "INVITATION_CREATED") {
             val message = when (outcome) {
                 "RATE_LIMITED" -> "Too many invitations were created. Try again later."
