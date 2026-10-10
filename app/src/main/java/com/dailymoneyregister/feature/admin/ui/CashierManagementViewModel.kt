@@ -80,6 +80,7 @@ data class CashierManagementUiState(
 data class CashierInviteUiState(
     val isDialogOpen: Boolean = false,
     val displayName: String = "",
+    val email: String = "",
     val phone: PhoneNumberInputValue = PhoneNumberInputValue("OM"),
     val permissions: Map<String, Boolean> = invitePermissionDefaults(),
     val isExecuting: Boolean = false,
@@ -137,6 +138,10 @@ class CashierManagementViewModel @Inject constructor(
         _inviteState.value = _inviteState.value.copy(displayName = value, errorMessage = null)
     }
 
+    fun onInviteEmailChanged(value: String) {
+        _inviteState.value = _inviteState.value.copy(email = value, errorMessage = null)
+    }
+
     fun onInvitePhoneChanged(value: PhoneNumberInputValue) {
         _inviteState.value = _inviteState.value.copy(phone = value, errorMessage = null)
     }
@@ -154,6 +159,13 @@ class CashierManagementViewModel @Inject constructor(
             _inviteState.value = state.copy(errorMessage = UiText.Resource(R.string.cashier_name_required))
             return
         }
+        if (!state.email.trim().matches(Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"))) {
+            _inviteState.value = state.copy(
+                errorMessage = UiText.Dynamic("Enter a valid staff email address.")
+            )
+            return
+        }
+
         val canonicalPhone = runCatching {
             state.phone.normalizedNumber()
         }.getOrElse { error ->
@@ -167,6 +179,7 @@ class CashierManagementViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val created = inviteService.createInvite(
+                    email = state.email,
                     businessId = businessId,
                     branchId = branchId,
                     displayName = state.displayName,
