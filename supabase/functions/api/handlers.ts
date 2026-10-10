@@ -169,18 +169,61 @@ export async function loginStaff(
     const sessionToken = Array.from(tokenBytes).map(x => x.toString(16).padStart(2, "0")).join("");
     const tokenHash = await sha256Hex(sessionToken);
 
+    // Resolve the complete, current membership snapshot only after the
+    // server has verified the PIN. This response is used for safe local
+    // restoration; the Android client must still match stable tenant IDs.
+    if (typeof staff.business_id !== "string" ||
+        typeof staff.branch_id !== "string" ||
+        typeof staff.local_user_id !== "string") {
+      throw new Error("CASHIER_AUTHORITY_FIELDS_MISSING");
+    }
+    const metadataRows = await rpc("fetch_cashier_metadata", {
+      p_business_id: staff.business_id,
+      p_branch_id: staff.branch_id,
+      p_membership_id: staff.membership_id
+    });
+    if (!Array.isArray(metadataRows) || metadataRows.length !== 1) {
+      return json({ outcome: "MEMBERSHIP_NOT_ACTIVE" }, 403);
+    }
+    const metadata = metadataRows[0];
+    const p = metadata.permissions;
+    if (!p || typeof p !== "object") throw new Error("CASHIER_PERMISSIONS_MISSING");
+    const permissions = {
+      CREATE_SALE: p.can_create_sale,
+      ACCEPT_CASH: p.can_accept_cash,
+      ACCEPT_ONLINE: p.can_accept_online,
+      CREATE_CREDIT_SALE: p.can_create_credit_sale,
+      USE_COUPON: p.can_use_coupon,
+      ISSUE_INVOICE: p.can_issue_invoice,
+      ISSUE_RECEIPT: p.can_issue_receipt,
+      REFUND: p.can_refund,
+      VOID: p.can_void,
+      CORRECT_AMOUNT: p.can_correct_amount,
+      CHANGE_PAYMENT_METHOD: p.can_change_payment_method,
+      VIEW_BROAD_HISTORY: p.can_view_broad_history,
+      MANAGE_PRODUCTS: p.can_manage_products,
+      VIEW_REPORTS: p.can_view_reports
+    };
+    if (Object.values(permissions).some(value => typeof value !== "boolean")) {
+      throw new Error("CASHIER_PERMISSIONS_INVALID");
+    }
+
     const sessions = await rpc("create_cashier_sync_session", {
       p_membership_id: staff.membership_id,
       p_token_hash: tokenHash
     });
-
     if (!Array.isArray(sessions) || sessions.length !== 1) throw new Error("SESSION_CREATION_FAILED");
 
     return json({
       outcome: "AUTHENTICATED",
       membership_id: staff.membership_id,
       session_token: sessionToken,
-      expires_at: sessions[0].expires_at
+      expires_at: sessions[0].expires_at,
+      restoration: {
+        ...metadata,
+        local_user_id: staff.local_user_id,
+        permissions
+      }
     }, 200);
 
   } catch (error: any) {
