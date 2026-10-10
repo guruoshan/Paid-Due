@@ -1,8 +1,8 @@
 # BOARDLOCK — Supabase-primary / offline foundation audit
 
 **Scope:** foundation audit only, on `boardlock/supabase-primary-online-offline-v1`.
-**Result:** audited; no application, database, production configuration, or deployment changes made.
-**Release state:** NOT IMPLEMENTED / NOT VERIFIED. Do not merge or release.
+**Result:** audited; added an inert Kotlin authority policy contract and focused unit tests. No runtime login/session wiring, database, production configuration, or deployment changes made.
+**Release state:** FOUNDATION CONTRACT ONLY; integration NOT IMPLEMENTED / NOT VERIFIED. Do not merge or release.
 
 ## Agreed target
 
@@ -36,7 +36,9 @@
 
 The safe foundation boundary is **not** to patch only one login function or change the backend URL in isolation. Doing so could leave other paths authorizing from local state, route requests to an unintended server, or enable incomplete financial sync.
 
-The next implementation increment must be a coordinated, testable authentication/session contract:
+The first foundation artifact is now present as `OnlineOfflineAuthorityPolicy.kt` with `OnlineOfflineAuthorityPolicyTest.kt`. It is intentionally not wired into production paths; it cannot enforce authority until integrated with reliable connectivity detection and server validation.
+
+The next implementation increment must be a coordinated, testable authentication/session integration:
 - distinguish ONLINE, OFFLINE_WITHIN_APPROVED_GRACE, and DENIED/REAUTH_REQUIRED states;
 - require successful server authentication and active membership/permissions for online login;
 - validate remembered sessions with the server before online financial use;
@@ -63,5 +65,7 @@ This audit is based on source inspection of:
 - `app/build.gradle.kts`
 - `supabase/functions/api/index.ts` and `handlers.ts`
 - `BOARDLOCK/CROSS_DEVICE_SYNC.md`
+- `app/src/main/java/com/dailymoneyregister/core/security/OnlineOfflineAuthorityPolicy.kt` (new, inert contract)
+- `app/src/test/java/com/dailymoneyregister/core/security/OnlineOfflineAuthorityPolicyTest.kt` (new tests)
 
 No Gradle build, Android device test, live server test, Supabase migration, or deployment was run as part of this audit. No test result is claimed.
