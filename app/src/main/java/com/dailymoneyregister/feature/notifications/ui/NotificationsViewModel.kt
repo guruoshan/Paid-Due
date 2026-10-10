@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import javax.inject.Inject
 
 data class NotificationsUiState(
@@ -34,8 +36,11 @@ class NotificationsViewModel @Inject constructor(
     )
     val uiState: StateFlow<NotificationsUiState> = _uiState.asStateFlow()
 
+    private var notificationWatchJob: Job? = null
+
     fun refresh() {
         if (_uiState.value.isLoading) return
+        startRealtimeWatch()
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null, statusMessage = null)
             runCatching {
@@ -54,6 +59,18 @@ class NotificationsViewModel @Inject constructor(
                     isLoading = false,
                     errorMessage = error.message ?: "Unable to load notifications."
                 )
+            }
+        }
+    }
+
+    private fun startRealtimeWatch() {
+        if (!_uiState.value.isAdmin || notificationWatchJob != null) return
+        notificationWatchJob = viewModelScope.launch {
+            runCatching {
+                repository.observeAdminNotificationInserts().collect {
+                    delay(250)
+                    refresh()
+                }
             }
         }
     }
