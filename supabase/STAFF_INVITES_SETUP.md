@@ -1,6 +1,6 @@
 # Supabase staff invitation setup
 
-Paid&Due staff invitations are sent by Supabase Auth. No separate invite webpage or external Worker is required.
+Paid&Due staff invitations are sent by Supabase Auth without a separate invitation webpage or hosting service.
 
 ## Required hosted Auth settings
 
