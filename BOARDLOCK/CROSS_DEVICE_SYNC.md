@@ -6,7 +6,7 @@ No financial synchronization, cloud intake or Admin cross-device reporting is ac
 ## Current verified problem
 Cashiers on different phones commit transactions to their separate local Room
 databases. Admin reporting uses the Admin phone's Room data and therefore cannot
-see other devices' transactions. Supabase Auth identity and email activation do
+see other devices' transactions. Supabase Admin identity and token-link PIN activation do
 not provide financial synchronization.
 
 ## Authority and vocabulary
