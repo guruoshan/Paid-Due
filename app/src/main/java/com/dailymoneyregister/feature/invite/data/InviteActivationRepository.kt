@@ -166,9 +166,7 @@ class InviteActivationRepository @Inject constructor(
             try {
                 remoteInviteStore.activate(
                     token = token,
-                    pin = pin,
-                    canonicalPhone =
-                        credential.canonicalPhone
+                    pin = pin
                 )
             } catch (e: Exception) {
                 /*
