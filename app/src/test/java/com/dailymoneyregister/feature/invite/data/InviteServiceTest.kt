@@ -15,13 +15,12 @@ class InviteServiceTest {
     private val baseClock = Clock.fixed(baseInstant, ZoneOffset.UTC)
 
     @Test
-    fun invitationIsSentThroughSupabaseAndIsNotStoredLocally() = runTest {
+    fun createsOneTimeLinkThroughSupabaseWithoutLocalInviteCopy() = runTest {
         val store = FakeInviteStore()
-        val sender = FakeEmailSender()
-        val service = service(store, sender)
+        val creator = FakeLinkCreator()
+        val service = service(store, creator)
 
         val created = service.createInvite(
-            email = " Cashier@Example.com ",
             businessId = "business-1",
             branchId = "branch-1",
             displayName = "Cashier",
@@ -29,41 +28,39 @@ class InviteServiceTest {
             permissions = mapOf("REFUND" to false)
         )
 
-        assertEquals("cashier@example.com", sender.lastEmail)
-        assertEquals("business-1", sender.lastBusinessId)
-        assertEquals("branch-1", sender.lastBranchId)
-        assertEquals("Cashier", sender.lastDisplayName)
-        assertEquals("+919812345678", sender.lastPhone)
-        assertEquals(mapOf("REFUND" to false), sender.lastPermissions)
-        assertEquals("cashier@example.com", created.email)
+        assertEquals("business-1", creator.lastBusinessId)
+        assertEquals("branch-1", creator.lastBranchId)
+        assertEquals("Cashier", creator.lastDisplayName)
+        assertEquals("+919812345678", creator.lastPhone)
+        assertEquals(mapOf("REFUND" to false), creator.lastPermissions)
+        assertEquals("https://example.test/functions/v1/staff-open?t=secure-token", created.inviteUrl)
         assertEquals("Cashier", created.displayName)
         assertEquals(baseClock.millis() + 48L * 60L * 60L * 1000L, created.expiresAt)
         assertTrue(store.invites.isEmpty())
     }
 
     @Test
-    fun invalidEmailIsRejectedBeforeCallingSupabase() = runTest {
-        val sender = FakeEmailSender()
-        val service = service(FakeInviteStore(), sender)
+    fun invalidPhoneIsRejectedBeforeCallingSupabase() = runTest {
+        val creator = FakeLinkCreator()
+        val service = service(FakeInviteStore(), creator)
 
         val failure = runCatching {
             service.createInvite(
-                email = "not-an-email",
                 businessId = "business-1",
                 branchId = "branch-1",
                 displayName = "Cashier",
-                canonicalPhone = "+919812345678",
+                canonicalPhone = "not-a-phone",
                 permissions = emptyMap()
             )
         }
 
         assertTrue(failure.isFailure)
-        assertEquals(0, sender.sendCount)
+        assertEquals(0, creator.createCount)
     }
 
     @Test
     fun tokenHashIsSha256HexAndDoesNotExposeRawToken() {
-        val service = service(FakeInviteStore(), FakeEmailSender())
+        val service = service(FakeInviteStore(), FakeLinkCreator())
         val token = "abcdefghijklmnopqrstuvwxyzABCDEFG1234567890_-"
         val hash = service.hashToken(token)
         assertEquals(64, hash.length)
@@ -73,8 +70,7 @@ class InviteServiceTest {
     @Test
     fun remoteInviteValidationHonorsExpiryAndSingleUse() = runTest {
         val store = FakeInviteStore()
-        val sender = FakeEmailSender()
-        val service = service(store, sender)
+        val service = service(store, FakeLinkCreator())
         val token = "abcdefghijklmnopqrstuvwxyzABCDEFG1234567890_-"
         val hash = service.hashToken(token)
         val now = baseClock.millis()
@@ -100,12 +96,12 @@ class InviteServiceTest {
     @Test
     fun expiredInviteIsRejected() = runTest {
         val store = FakeInviteStore()
+        val service = service(store, FakeLinkCreator())
         val token = "abcdefghijklmnopqrstuvwxyzABCDEFG1234567890_-"
-        val seedService = service(store, FakeEmailSender())
         val now = baseClock.millis()
         store.create(
             StaffInvite(
-                tokenHash = seedService.hashToken(token),
+                tokenHash = service.hashToken(token),
                 businessId = "business-1",
                 branchId = "branch-1",
                 displayName = "Cashier",
@@ -116,39 +112,42 @@ class InviteServiceTest {
                 expiresAt = now - 1
             )
         )
-        assertEquals(InviteResult.Expired, seedService.validate(token))
+        assertEquals(InviteResult.Expired, service.validate(token))
     }
 
     private fun service(
         store: FakeInviteStore,
-        sender: FakeEmailSender,
+        creator: FakeLinkCreator,
         clock: Clock = baseClock
-    ) = InviteService(store = store, emailSender = sender, clock = clock)
+    ) = InviteService(store = store, linkCreator = creator, clock = clock)
 
-    private class FakeEmailSender : StaffInviteEmailSender {
-        var sendCount = 0
-        var lastEmail: String? = null
+    private class FakeLinkCreator : StaffInviteLinkCreator {
+        var createCount = 0
         var lastBusinessId: String? = null
         var lastBranchId: String? = null
         var lastDisplayName: String? = null
         var lastPhone: String? = null
         var lastPermissions: Map<String, Boolean>? = null
 
-        override suspend fun sendEmailInvite(
-            email: String,
+        override suspend fun createInviteLink(
             businessId: String,
             branchId: String,
             displayName: String,
             canonicalPhone: String,
             permissions: Map<String, Boolean>
-        ) {
-            sendCount++
-            lastEmail = email
+        ): CreatedInvite {
+            createCount++
             lastBusinessId = businessId
             lastBranchId = branchId
             lastDisplayName = displayName
             lastPhone = canonicalPhone
             lastPermissions = permissions
+            return CreatedInvite(
+                displayName = displayName,
+                canonicalPhone = canonicalPhone,
+                inviteUrl = "https://example.test/functions/v1/staff-open?t=secure-token",
+                expiresAt = baseClock.millis() + 48L * 60L * 60L * 1000L
+            )
         }
     }
 
