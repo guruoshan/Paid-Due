@@ -9,6 +9,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.realtime.Realtime
 import javax.inject.Singleton
 
 /**
@@ -39,6 +40,7 @@ object SupabaseModule {
             supabaseKey = BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY
         ) {
             install(Postgrest)
+            install(Realtime)
             install(Auth) {
                 scheme = "paiddue"
                 host = "invite"
