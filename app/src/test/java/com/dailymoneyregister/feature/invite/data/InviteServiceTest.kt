@@ -121,7 +121,7 @@ class InviteServiceTest {
         clock: Clock = baseClock
     ) = InviteService(store = store, linkCreator = creator, clock = clock)
 
-    private class FakeLinkCreator : StaffInviteLinkCreator {
+    private inner class FakeLinkCreator : StaffInviteLinkCreator {
         var createCount = 0
         var lastBusinessId: String? = null
         var lastBranchId: String? = null
