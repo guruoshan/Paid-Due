@@ -41,7 +41,7 @@ class NotificationsViewModel @Inject constructor(
 
     fun refresh() {
         if (_uiState.value.isLoading) return
-        startRealtimeWatch()
+        startNotificationUpdates()
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null, statusMessage = null)
             runCatching {
@@ -65,13 +65,22 @@ class NotificationsViewModel @Inject constructor(
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    private fun startRealtimeWatch() {
-        if (!_uiState.value.isAdmin || notificationWatchJob != null) return
+    private fun startNotificationUpdates() {
+        if (notificationWatchJob != null) return
         notificationWatchJob = viewModelScope.launch {
-            runCatching {
-                repository.observeAdminNotificationInserts().collect {
-                    while (_uiState.value.isLoading) delay(150)
-                    refresh()
+            if (_uiState.value.isAdmin) {
+                runCatching {
+                    repository.observeAdminNotificationInserts().collect {
+                        while (_uiState.value.isLoading) delay(150)
+                        refresh()
+                    }
+                }
+            } else {
+                // Custom PIN cashiers do not have a Supabase Auth JWT for Realtime.
+                // Poll the durable inbox only while this screen's ViewModel is alive.
+                while (true) {
+                    delay(20_000)
+                    if (!_uiState.value.isLoading) refresh()
                 }
             }
         }
