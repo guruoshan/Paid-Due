@@ -313,24 +313,10 @@ const PERMISSION_KEYS = new Set([
   "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY",
 ]);
 
-async function verifyNotificationToken(request: Request): Promise<any> {
-  const auth = request.headers.get("Authorization") || "";
-  const match = /^Bearer\s+([0-9a-f]{64})$/i.exec(auth);
-  if (!match) throw new Error("UNAUTHORIZED");
-  const tokenHash = await sha256Hex(match[1]);
-  try {
-    const rows = await rpc("verify_cashier_notification_session", { p_token_hash: tokenHash });
-    if (!Array.isArray(rows) || rows.length !== 1) throw new Error("UNAUTHORIZED");
-    return rows[0];
-  } catch {
-    throw new Error("UNAUTHORIZED");
-  }
-}
-
 export async function listCashierNotifications(request: Request) {
   if (request.method !== "GET") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "GET" });
   let session;
-  try { session = await verifyNotificationToken(request); }
+  try { session = await verifyToken(request); }
   catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
   try {
     const rows = await rpc("list_cashier_notifications", { p_membership_id: session.membership_id });
@@ -343,7 +329,7 @@ export async function listCashierNotifications(request: Request) {
 export async function markCashierNotificationRead(request: Request) {
   if (request.method !== "POST") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "POST" });
   let session;
-  try { session = await verifyNotificationToken(request); }
+  try { session = await verifyToken(request); }
   catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
   let body: any;
   try { body = await request.json(); } catch { return json({ outcome: "INVALID_REQUEST" }, 400); }
