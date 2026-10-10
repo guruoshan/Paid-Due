@@ -1,4 +1,3 @@
--- Keep existing 100k verifiers readable while allowing the app's current 600k work factor.
 DO $block$
 DECLARE
   v_definition text;
