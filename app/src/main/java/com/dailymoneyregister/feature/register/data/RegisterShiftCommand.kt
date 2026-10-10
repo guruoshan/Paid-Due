@@ -19,8 +19,7 @@ data class OpenRegisterShiftCommand(
     val shiftId: CashShiftId,
     override val actorUserId: String,
     override val deviceId: String,
-    override val occurredAt: Long = System.currentTimeMillis(),
-    val reportSnapshot: RegisterShiftCloseReportSnapshot? = null
+    override val occurredAt: Long = System.currentTimeMillis()
 ) : OperationCommand {
 
     init {
@@ -105,7 +104,8 @@ data class CloseRegisterShiftCommand(
     val shiftId: CashShiftId,
     override val actorUserId: String,
     override val deviceId: String,
-    override val occurredAt: Long = System.currentTimeMillis()
+    override val occurredAt: Long = System.currentTimeMillis(),
+    val reportSnapshot: RegisterShiftCloseReportSnapshot? = null
 ) : OperationCommand {
 
     init {
