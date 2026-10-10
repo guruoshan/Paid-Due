@@ -321,6 +321,36 @@ object CashierCloudSession {
         }
     }
 
+    /**
+     * Ask the server to validate the persisted token and current membership.
+     * A locally unexpired token alone is never treated as active authority.
+     */
+    suspend fun validateSession(membershipId: String): Boolean = withContext(Dispatchers.IO) {
+        val token = tokenFor(membershipId) ?: return@withContext false
+        val baseUrl = BuildConfig.PAID_DUE_BACKEND_BASE_URL.trimEnd('/')
+        if (!baseUrl.startsWith("https://")) return@withContext false
+        val connection = (URL("$baseUrl/api/staff/metadata").openConnection() as HttpURLConnection)
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 5000
+            connection.readTimeout = 10000
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            val status = connection.responseCode
+            if (status == 401 || status == 403) {
+                clear()
+                return@withContext false
+            }
+            if (status !in 200..299) return@withContext false
+            val body = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+            val serverMembershipId = body.optString("membership_id")
+            serverMembershipId == membershipId
+        } catch (_: Exception) {
+            false
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     suspend fun authenticateForRestoration(
         canonicalPhone: String,
         pin: String
