@@ -1,5 +1,5 @@
 import {
-  health, activateStaff, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, json,
+  health, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, json,
 } from "./handlers.ts";
 
 // Supabase Function gateway normally forwards /api/<route> after /functions/v1/api.
@@ -14,7 +14,6 @@ export async function handleRequest(request: Request): Promise<Response> {
       if (request.method !== "GET") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { Allow: "GET" });
       return health();
     }
-    if (path === "/api/staff/activate") return await activateStaff(request);
     if (path === "/api/staff/login") return await loginStaff(request);
     if (path === "/api/financial/upload") return await uploadFinancial(request);
     if (path === "/api/staff/metadata") return await staffMetadata(request);
@@ -27,6 +26,5 @@ export async function handleRequest(request: Request): Promise<Response> {
   }
 }
 
-// Deno's supported entrypoint. The previous Cloudflare-style default export
-// was not a Supabase Edge Function HTTP listener.
+// Supabase Edge Function entrypoint.
 if (import.meta.main) Deno.serve(handleRequest);
