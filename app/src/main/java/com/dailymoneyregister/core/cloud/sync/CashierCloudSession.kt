@@ -325,7 +325,13 @@ object CashierCloudSession {
      * Ask the server to validate the persisted token and current membership.
      * A locally unexpired token alone is never treated as active authority.
      */
-    suspend fun validateSession(membershipId: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun validateSession(
+        membershipId: String,
+        businessId: String,
+        branchId: String,
+        canonicalPhone: String?,
+        localPermissions: Map<String, Boolean>
+    ): Boolean = withContext(Dispatchers.IO) {
         val token = tokenFor(membershipId) ?: return@withContext false
         val baseUrl = BuildConfig.PAID_DUE_BACKEND_BASE_URL.trimEnd('/')
         if (!baseUrl.startsWith("https://")) return@withContext false
@@ -342,8 +348,34 @@ object CashierCloudSession {
             }
             if (status !in 200..299) return@withContext false
             val body = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-            val serverMembershipId = body.optString("membership_id")
-            serverMembershipId == membershipId
+            if (body.optString("membership_id") != membershipId ||
+                body.optString("business_id") != businessId ||
+                body.optString("branch_id") != branchId ||
+                body.optString("canonical_phone") != canonicalPhone) {
+                return@withContext false
+            }
+            val remotePermissions = body.optJSONObject("permissions") ?: return@withContext false
+            val remoteKeys = mapOf(
+                "CREATE_SALE" to "can_create_sale",
+                "ACCEPT_CASH" to "can_accept_cash",
+                "ACCEPT_ONLINE" to "can_accept_online",
+                "CREATE_CREDIT_SALE" to "can_create_credit_sale",
+                "USE_COUPON" to "can_use_coupon",
+                "ISSUE_INVOICE" to "can_issue_invoice",
+                "ISSUE_RECEIPT" to "can_issue_receipt",
+                "REFUND" to "can_refund",
+                "VOID" to "can_void",
+                "CORRECT_AMOUNT" to "can_correct_amount",
+                "CHANGE_PAYMENT_METHOD" to "can_change_payment_method",
+                "VIEW_BROAD_HISTORY" to "can_view_broad_history",
+                "MANAGE_PRODUCTS" to "can_manage_products",
+                "VIEW_REPORTS" to "can_view_reports"
+            )
+            remoteKeys.all { (localKey, remoteKey) ->
+                remotePermissions.has(remoteKey) &&
+                    !remotePermissions.isNull(remoteKey) &&
+                    localPermissions[localKey] == remotePermissions.getBoolean(remoteKey)
+            }
         } catch (_: Exception) {
             false
         } finally {
