@@ -79,8 +79,6 @@ AS $function$
   ON CONFLICT (event_key) DO NOTHING;
 $function$;
 REVOKE ALL ON FUNCTION private.enqueue_business_notification(text,text,text,text,text,text,text,jsonb) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION private.notify_admins_of_confirmed_day_close() FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION private.notify_cashier_of_permission_change() FROM PUBLIC, anon, authenticated;
 
 -- Produce the Admin notification only after a close operation is accepted into
 -- the authoritative envelope store. The details are a read-only report snapshot
@@ -145,7 +143,11 @@ BEGIN
         'report', COALESCE(v_report, '{}'::jsonb)
       )
     );
-    IF COALESCE(v_report ->> 'difference_minor', '0') ~ '^-?[0-9]+
+    IF CASE
+      WHEN COALESCE(v_report ->> 'difference_minor', '0') ~ '^-?[0-9]+$'
+      THEN COALESCE(v_report ->> 'difference_minor', '0')::numeric <> 0
+      ELSE false
+    END THEN
       PERFORM private.enqueue_business_notification(
         'CASH_DIFFERENCE:' || NEW.business_id || ':' || NEW.operation_id || ':' || v_admin.membership_id,
         NEW.business_id,
@@ -166,6 +168,7 @@ BEGIN
 END;
 $function$;
 
+REVOKE ALL ON FUNCTION private.notify_admins_of_confirmed_day_close() FROM PUBLIC, anon, authenticated;
 DROP TRIGGER IF EXISTS trg_notify_admins_of_confirmed_day_close ON private.financial_operation_envelopes;
 CREATE TRIGGER trg_notify_admins_of_confirmed_day_close
 AFTER INSERT ON private.financial_operation_envelopes
@@ -221,6 +224,7 @@ BEGIN
 END;
 $function$;
 
+REVOKE ALL ON FUNCTION private.notify_cashier_of_permission_change() FROM PUBLIC, anon, authenticated;
 DROP TRIGGER IF EXISTS trg_notify_cashier_of_permission_change ON public.business_memberships;
 CREATE TRIGGER trg_notify_cashier_of_permission_change
 AFTER UPDATE OF can_create_sale, can_accept_cash, can_accept_online, can_create_credit_sale,
@@ -688,26 +692,6 @@ END;
 $function$;
 REVOKE ALL ON FUNCTION public.update_admin_cashier_permissions(text,jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.update_admin_cashier_permissions(text,jsonb) TO authenticated;
- AND (v_report ->> 'difference_minor')::bigint <> 0 THEN
-      PERFORM private.enqueue_business_notification(
-        'CASH_DIFFERENCE:' || NEW.business_id || ':' || NEW.operation_id || ':' || v_admin.membership_id,
-        NEW.business_id,
-        NEW.branch_id,
-        v_admin.membership_id,
-        'CASH_DISCREPANCY',
-        'Cash difference needs review',
-        COALESCE(v_actor_name, 'Cashier') || ' closed a shift with a cash difference. Review the closing report.',
-        jsonb_build_object(
-          'operation_id', NEW.operation_id,
-          'cashier_name', COALESCE(v_actor_name, 'Cashier'),
-          'report', COALESCE(v_report, '{}'::jsonb)
-        )
-      );
-    END IF;
-  END LOOP;
-  RETURN NEW;
-END;
-$function$;
 
 
 
