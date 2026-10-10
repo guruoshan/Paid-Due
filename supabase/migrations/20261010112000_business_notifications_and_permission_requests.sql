@@ -716,12 +716,7 @@ GRANT EXECUTE ON FUNCTION public.update_admin_cashier_permissions(text,jsonb) TO
 END;
 $function$;
 
-DROP TRIGGER IF EXISTS trg_notify_admins_of_confirmed_day_close ON private.financial_operation_envelopes;
-CREATE TRIGGER trg_notify_admins_of_confirmed_day_close
-AFTER INSERT ON private.financial_operation_envelopes
-FOR EACH ROW
-WHEN (NEW.operation_type = 'CLOSE_CASH_SHIFT')
-EXECUTE FUNCTION private.notify_admins_of_confirmed_day_close();
+
 
 
 -- Add the customer permission to the three server projections consumed by the
@@ -821,3 +816,33 @@ BEGIN
     AND m.role='CASHIER' AND m.is_active=true AND m.removed_at IS NULL;
 END;
 $function$;
+
+
+-- Admin realtime is delivered only to rows the authenticated Admin may read.
+-- Cashiers use the custom PIN session and continue using the authenticated API.
+GRANT USAGE ON SCHEMA private TO authenticated;
+GRANT SELECT ON TABLE private.business_notifications TO authenticated;
+DROP POLICY IF EXISTS admin_read_own_business_notifications ON private.business_notifications;
+CREATE POLICY admin_read_own_business_notifications
+ON private.business_notifications FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.business_memberships m
+    JOIN public.profiles p ON p.auth_user_id = m.auth_user_id AND p.is_active = true
+    WHERE m.id = business_notifications.recipient_membership_id
+      AND m.auth_user_id = auth.uid()
+      AND m.role = 'ADMIN' AND m.is_active = true AND m.removed_at IS NULL
+  )
+);
+DO $publication$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_publication WHERE pubname = 'supabase_realtime')
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_catalog.pg_publication_tables
+       WHERE pubname = 'supabase_realtime'
+         AND schemaname = 'private' AND tablename = 'business_notifications'
+     ) THEN
+    EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE private.business_notifications';
+  END IF;
+END;
+$publication$;
