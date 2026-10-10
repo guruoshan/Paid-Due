@@ -86,7 +86,7 @@ sealed interface RemoteStaffActivationResult {
 @Singleton
 class RemoteInviteStore @Inject constructor(
     private val supabase: SupabaseClient
-) : InviteStore, StaffInviteEmailSender {
+) : InviteStore, StaffInviteLinkCreator {
 
     private val activationHttpClient =
         HttpClient(Android) {
