@@ -143,7 +143,46 @@ class RemoteBusinessRestorer @Inject constructor(
                 "Phone already belongs to another local identity"
             }
             val existingUser = userDao.getUserById(remoteUserId)
-            require(existingUser == null) { "Cashier user already exists; refusing credential overwrite" }
+            if (existingUser != null) {
+                // Online login path: successful server PIN authentication is
+                // mandatory; local IDs must match the server-authorized tenant.
+                // Never replace existing local credentials or financial data.
+                require(existingUser.businessId == remoteBusinessId &&
+                    existingUser.role == UserRole.CASHIER &&
+                    existingUser.authType == AuthType.PIN &&
+                    existingUser.isActive) {
+                    "Local cashier is inactive or does not match server authority"
+                }
+                require(existingUser.identityId == remoteUserId) {
+                    "Local cashier identity does not match server authority"
+                }
+                val localMembership = userDao.getMembership(remoteUserId, remoteBranchId)
+                    ?: throw IllegalStateException("Local cashier membership is missing")
+                require(localMembership.id == membershipId) {
+                    "Local membership does not match server authority"
+                }
+                require(localMembership.canCreateSale == permissions["CREATE_SALE"] &&
+                    localMembership.canAcceptCash == permissions["ACCEPT_CASH"] &&
+                    localMembership.canAcceptOnline == permissions["ACCEPT_ONLINE"] &&
+                    localMembership.canCreateCreditSale == permissions["CREATE_CREDIT_SALE"] &&
+                    localMembership.canUseCoupon == permissions["USE_COUPON"] &&
+                    localMembership.canIssueInvoice == permissions["ISSUE_INVOICE"] &&
+                    localMembership.canIssueReceipt == permissions["ISSUE_RECEIPT"] &&
+                    localMembership.canRefund == permissions["REFUND"] &&
+                    localMembership.canVoid == permissions["VOID"] &&
+                    localMembership.canCorrectAmount == permissions["CORRECT_AMOUNT"] &&
+                    localMembership.canChangePaymentMethod == permissions["CHANGE_PAYMENT_METHOD"] &&
+                    localMembership.canViewBroadHistory == permissions["VIEW_BROAD_HISTORY"] &&
+                    localMembership.canManageProducts == permissions["MANAGE_PRODUCTS"] &&
+                    localMembership.canViewReports == permissions["VIEW_REPORTS"]) {
+                    "Local permissions differ from server authority; restore is required"
+                }
+                return RemoteBusinessRestorationResult.Success(
+                    businessId = remoteBusinessId,
+                    branchId = remoteBranchId,
+                    userId = remoteUserId
+                )
+            }
             val existingIdentity = userDao.getHumanIdentityById(remoteUserId)
             require(existingIdentity == null || existingIdentity.canonicalPhone == phone) {
                 "Cashier identity conflict"
@@ -195,16 +234,6 @@ class RemoteBusinessRestorer @Inject constructor(
         usernameOrEmail: String,
         passwordPlain: String
     ): RemoteBusinessRestorationResult {
-        val existingFirst = businessBranchDao.getFirstBusiness()
-        if (existingFirst != null) {
-            val branch = businessBranchDao.getFirstBranch(existingFirst.id)
-            return RemoteBusinessRestorationResult.Success(
-                businessId = existingFirst.id,
-                branchId = branch?.id ?: "",
-                userId = ""
-            )
-        }
-
         // BOARDLOCK: phone login requires a real authenticated
         // server session. Never trust an anonymous restoration RPC.
         val isPhone = Regex(
@@ -234,6 +263,30 @@ class RemoteBusinessRestorer @Inject constructor(
 
             val row = rpcRows?.singleOrNull()
                 ?: return RemoteBusinessRestorationResult.Failed("No cloud business found for Admin")
+
+            // An authenticated Supabase identity must be authorized for this
+            // exact local tenant. Existing local data is never overwritten.
+            val existingBusiness = businessBranchDao.getFirstBusiness()
+            if (existingBusiness != null) {
+                val existingBranch = businessBranchDao.getFirstBranch(existingBusiness.id)
+                val localUser = userDao.getUserById(row.localUserId)
+                val localMembership = userDao.getMembership(row.localUserId, row.branchId)
+                if (existingBusiness.id != row.businessId ||
+                    existingBranch?.id != row.branchId ||
+                    localUser?.id != row.localUserId ||
+                    localUser.businessId != row.businessId ||
+                    localUser.role != UserRole.ADMIN ||
+                    localUser.authType != AuthType.PASSWORD ||
+                    !localUser.isActive ||
+                    localMembership?.id != row.membershipId) {
+                    return RemoteBusinessRestorationResult.Failed(
+                        "This Supabase account is not authorized for the business stored on this device"
+                    )
+                }
+                return RemoteBusinessRestorationResult.Success(
+                    row.businessId, row.branchId, row.localUserId
+                )
+            }
 
             val salt = row.credentialSalt ?: PasswordHasher.generateSalt()
             val hash = row.credentialHash ?: PasswordHasher.hashPassword(passwordPlain, salt)
