@@ -255,7 +255,7 @@ class RemoteInviteStore @Inject constructor(
             ?: error("Supabase did not return an invitation link.")
         val expiresAt = responseJson["expires_at"]?.jsonPrimitive?.content
             ?: error("Supabase did not return the invitation expiry.")
-        check(inviteUrl.startsWith("$supabaseUrl/functions/v1/staff-open?t=")) {
+        check(inviteUrl.startsWith("$supabaseUrl/functions/v1/staff-open#")) {
             "Supabase returned an unexpected invitation URL."
         }
 
