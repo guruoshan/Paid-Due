@@ -47,6 +47,10 @@
 
     <!-- Cashier Management -->
     <string name="manage_cashiers">Manage Cashiers</string>
+    <string name="invite_by_email">Invite by email</string>
+    <string name="invite_sent_title">Invitation email sent</string>
+    <string name="invite_sent_message">Supabase sent a staff invitation to %1$s.</string>
+    <string name="invite_expiry_note">The invitation expires in 48 hours. The employee must open the email and finish activation in Paid&amp;Due.</string>
     <string name="create_cashier">Create New Cashier</string>
     <string name="cashier_name">Cashier Name</string>
     <string name="cashier_pin">6-Digit PIN</string>
