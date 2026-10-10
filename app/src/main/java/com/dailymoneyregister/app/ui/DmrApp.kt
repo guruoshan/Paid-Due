@@ -189,17 +189,12 @@ fun DmrApp(
 
                 if (isComplete) {
 
-                    val debugSessionReady =
-                        debugSessionBootstrapper.bootstrapIfDebug()
-
-                    if (debugSessionReady) {
-                        Routes.REGISTER
+                    // Debug builds must not create a financial session
+                    // without an explicit authentication flow.
+                    if (languageManager.hasChosenLanguage()) {
+                        Routes.WELCOME
                     } else {
-                        if (languageManager.hasChosenLanguage()) {
-                            Routes.WELCOME
-                        } else {
-                            Routes.LANGUAGE
-                        }
+                        Routes.LANGUAGE
                     }
 
                 } else {
