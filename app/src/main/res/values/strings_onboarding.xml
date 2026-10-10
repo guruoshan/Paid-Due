@@ -25,11 +25,5 @@
     <string name="invite_sent_message">Supabase sent a staff invitation to %1$s.</string>
     <string name="invite_branch">Branch</string>
     <string name="create_invite">Create Invite</string>
-    <string name="invite_ready_for">Invite ready for %1$s</string>
     <string name="invite_expiry_note">The invitation expires in 48 hours. The employee must open the email and finish activation in Paid&amp;Due.</string>
-    <string name="send_on_whatsapp">Send on WhatsApp</string>
-    <string name="copy_link">Copy link</string>
-    <string name="link_copied">Link copied</string>
-    <string name="invite_link_clip_label">Paid&amp;Due invite link</string>
-    <string name="staff_invite_whatsapp_message">%1$s\n\nYou have been invited to join as a cashier. Open this link to set up your PIN:\n%2$s\n\nThis link works once and expires in 48 hours.</string>
 </resources>
