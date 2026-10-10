@@ -19,7 +19,8 @@ data class OpenRegisterShiftCommand(
     val shiftId: CashShiftId,
     override val actorUserId: String,
     override val deviceId: String,
-    override val occurredAt: Long = System.currentTimeMillis()
+    override val occurredAt: Long = System.currentTimeMillis(),
+    val reportSnapshot: RegisterShiftCloseReportSnapshot? = null
 ) : OperationCommand {
 
     init {
@@ -257,6 +258,9 @@ object RegisterShiftLifecyclePayloadCodec {
         appendLine("actorUserId=${DurableEnvelopeCodec.escape(command.actorUserId)}")
         appendLine("deviceId=${DurableEnvelopeCodec.escape(command.deviceId)}")
         appendLine("occurredAt=${command.occurredAt}")
+        command.reportSnapshot?.let {
+            appendLine("reportSnapshotJson=${DurableEnvelopeCodec.escape(it.toJsonString())}")
+        }
     }
 
     fun decodeCount(operation: OperationEntity): CountRegisterShiftCommand {
@@ -319,7 +323,8 @@ object RegisterShiftLifecyclePayloadCodec {
             deviceId = RegisterShiftCodecSupport.required(values, "deviceId"),
             occurredAt =
                 RegisterShiftCodecSupport.required(values, "occurredAt").toLongOrNull()
-                    ?: error("Register Shift close occurredAt is invalid")
+                    ?: error("Register Shift close occurredAt is invalid"),
+            reportSnapshot = values["reportSnapshotJson"]?.let(RegisterShiftCloseReportSnapshot::fromJsonString)
         )
 
         validateLifecycleOperation(
