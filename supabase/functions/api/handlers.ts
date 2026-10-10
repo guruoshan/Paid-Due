@@ -253,7 +253,7 @@ const PERMISSION_KEYS = new Set([
 
 async function verifyNotificationToken(request: Request): Promise<any> {
   const auth = request.headers.get("Authorization") || "";
-  const match = /^Bearer\\s+([0-9a-f]{64})$/i.exec(auth);
+  const match = /^Bearer\s+([0-9a-f]{64})$/i.exec(auth);
   if (!match) throw new Error("UNAUTHORIZED");
   const tokenHash = await sha256Hex(match[1]);
   try {
