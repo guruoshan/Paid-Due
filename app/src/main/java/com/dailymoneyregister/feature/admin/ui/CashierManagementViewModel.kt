@@ -170,7 +170,7 @@ class CashierManagementViewModel @Inject constructor(
             state.phone.normalizedNumber()
         }.getOrElse { error ->
             _inviteState.value = state.copy(
-                errorMessage = UiText.Dynamic(error.message ?: "Invalid WhatsApp / Mobile Number")
+                errorMessage = UiText.Dynamic(error.message ?: "Invalid mobile number")
             )
             return
         }
