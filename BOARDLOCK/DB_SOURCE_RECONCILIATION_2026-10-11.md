@@ -1,91 +1,49 @@
-# Paid&Due Database / Source Reconciliation
+# Paid&Due Source-of-Truth Reconciliation
 
-**Audit date:** 2026-10-11  
-**Supabase project:** `ttvdpgxqvvtjnxxfkoui`  
-**Repository base reviewed:** `main` at `6a95bc8f297504c5b6f55d72857bbe37d244da5d`  
-**Working branch:** `fix/db-source-reconciliation-20261011`
+**Project:** `ttvdpgxqvvtjnxxfkoui`  
+**PR:** [#8](https://github.com/guruoshan/Paid-Due/pull/8)  
+**Reconciliation branch:** `fix/db-source-reconciliation-20261011`  
+**Current source head when this record was prepared:** `cc2c855687998f7ef17957340f45d5117eb7cd3c`
 
-## Scope and safety
+## Implemented changes
 
-Compared live migration history, table inventory, function signatures and execution grants with repository SQL and API handlers. No production schema changes, migration-history edits, record writes, resets, or deployments were performed. The repaired notification migration was executed inside a transaction and rolled back.
+1. **CI assertion fix — commit `1597d54cc365f12913afc847fc2f1be68f4641d9`.** In `supabase/functions/api/api_test.ts`, changed the health-contract and derived-credential assertions from 100,000 to 600,000 iterations. The PR implementation in `handlers.ts` and `crypto.ts` uses 600,000. The previous CI logs showed exactly these two assertions failing against 600,000. The backend validation workflow passed after this patch on commit `873dadb643a7364607c6df2918e5c3be9f6b192d`; final validation on the current head must still pass.
+2. **Auth gap documented — commit `873dadb643a7364607c6df2918e5c3be9f6b192d`.** Added `docs/production/SUPABASE_AUTH_CONFIGURATION.md`. It records what is actually verified in `supabase/config.toml` and marks hosted provider, signup/confirmation, redirect, password/OTP/session, rate-limit, and email settings as unverified rather than inventing values.
+3. **Production grant restriction applied and represented in Git — commits `bff202ba0e8dc7d748af7036092562e2cca27ba3` and `cc2c855687998f7ef17957340f45d5117eb7cd3c`.** Applied the SQL revoking PUBLIC, anon, and authenticated execution on `public.preview_staff_invite(text)`, granting execution to `service_role`, then recorded the exact applied migration as `supabase/migrations/20261010221423_restrict_preview_staff_invite_rpc.sql` and removed the later duplicate pending migration file. Production verification confirms `anon=false`, `authenticated=false`, `service_role=true`, `postgres=true`. Production migration history now contains 14 rows, including version `20261010221423`.
 
-## Migration reconciliation
+## Database and migration state
 
-- Live Supabase history contains **13 applied migrations**.
-- Seven applied migration SQL files were missing from `supabase/migrations`. Their exact statements were recovered from `supabase_migrations.schema_migrations.statements`, not recreated from memory:
-  - `20261008184418_admin_financial_envelope_fetch_authenticated.sql`
-  - `20261008200017_boardlock_cashier_authenticated_business_restoration.sql`
-  - `20261009061446_add_admin_ingest_financial_envelope.sql`
-  - `20261009064450_add_admin_update_cashier_permissions_and_branch_details.sql`
-  - `20261009154450_boardlock_cashier_financial_envelope_download.sql`
-  - `20261009160938_cashier_restoration_payload.sql`
-  - `20261009215007_add_digest_bearing_financial_envelope_download_rpcs.sql`
-- Two existing applied files had drifted from the exact SQL stored in live migration history. They were aligned to the database records:
-  - `20261010100412_phone_link_staff_invites_and_cashier_admin.sql`
-  - `20261010102029_allow_stronger_staff_pin_verifier.sql`
-- After restoration, all 13 applied migration files compare exactly (trimmed text equality) with the corresponding stored SQL statements.
-- `20261010112000_business_notifications_and_permission_requests.sql` is **not applied** and has no live migration-history row. It remains a pending migration source; it must not be treated as already deployed.
+- The 13 previously applied migration files were restored or aligned against their stored production SQL statements in the PR branch.
+- Production now records 14 applied migrations. The new grant-restriction migration has an exact matching source file and history version.
+- The repository also contains a separate migration dated `20261010112000` that is not recorded as applied in production. It is intentionally not applied by this reconciliation pass. It must be treated as a pending schema change, not as current production state; because its timestamp precedes the applied `20261010221423` migration, release tooling must explicitly resolve the migration-order gap before claiming that a plain migration replay safely recreates production.
+- The live inventory includes the application tables, functions, and triggers reported by the Supabase catalog. This pass did not alter application data or rebuild the database.
 
-## Notification migration repairs
+## Edge Function reconciliation
 
-The pending migration had three concrete defects:
+Production inventory at the last retrieval: `api` v12, `staff-invite` v9, `staff-activate` v7, `staff-open` v8, `staff-preview` v4.
 
-1. A truncated cash-difference `IF` expression caused a SQL syntax error.
-2. A stray duplicated tail of the notification trigger function appeared after the cashier-permission update function.
-3. The migration revoked execute privileges from two trigger functions before those functions were created, which could fail on a clean database.
+- **`api`: KEEP GITHUB as the intended implementation, deployment BLOCKED.** Production v12's retrieved source uses 100,000 PBKDF2 iterations and does not contain the newer API entrypoint routes. The PR implementation uses 600,000 for new credentials; login reads the iteration count from the stored credential hash, which is designed to allow existing hashes to be verified with their recorded count. Do not deploy until current-head CI passes and the API release has been explicitly validated.
+- **`staff-invite`: KEEP GITHUB as the proposed canonical implementation; production replacement BLOCKED.** Production v9 returns an Android `intent://` URL with an HTTPS fallback, while repository source returns a normal HTTPS link. This difference must remain classified as a deployment blocker until the full invitation link flow is validated.
+- **`staff-open`: KEEP GITHUB as the proposed canonical implementation; production replacement BLOCKED.** Production v8 HTML differs from repository source. Do not replace it until the browser and app handoff is validated.
+- **`staff-activate` and `staff-preview`:** their entrypoint contents matched repository source at the last comparison; no replacement was indicated by this comparison.
+- No Edge Function deployment was performed in this pass.
 
-The source repair:
-- Uses a complete, guarded numeric predicate for cash discrepancies.
-- Removes the orphan duplicate fragment.
-- Moves the two revocations after their respective function definitions.
-- Preserves the existing cashier notification/session RPC definitions and their service-role-only grants.
+## Hosted Auth configuration
 
-**Verification:** the complete repaired migration ran successfully inside `BEGIN … ROLLBACK` against the live database. The rollback check confirmed `private.business_notifications` and `private.cashier_permission_requests` remained absent and the live migration history remained at 13 rows. This proves the SQL can execute against the current schema; it does not mean the migration has been deployed.
+**BLOCKED.** The connected project metadata and repository config do not expose the full hosted Supabase Auth configuration. See `docs/production/SUPABASE_AUTH_CONFIGURATION.md`. No hosted Auth values were guessed, and no Auth dashboard settings were changed. Main cannot be certified as a complete representation of hosted Auth until production values are retrieved and reconciled.
 
-## API source repair
+## CI state and merge gate
 
-`supabase/functions/api/index.ts` routed to `listCashierNotifications`, `markCashierNotificationRead`, and `requestCashierPermission` without importing them from `handlers.ts`. The missing imports were added.
+The two previously failing API assertions have been patched. The backend validation workflow passed on the intermediate commit above. Workflow runs were then triggered again by the subsequent source changes; the latest runs must finish green on the final PR head before merge. A prior passing run on an earlier SHA is not final-head verification.
 
-The handler's dedicated `verify_cashier_notification_session` call was preserved. It intentionally allows read-only notification access to survive the revocation of a financial sync session; replacing it with the ordinary financial-session verifier would change the security contract.
+## Certification
 
-A pull-request CI workflow was added to run Deno API tests and type-check the API entrypoint and handlers. Its result must be green before merge.
+**NOT CERTIFIED.** Remaining blockers:
 
-## Deployment drift
+1. Hosted Auth settings are not yet captured from authoritative production evidence.
+2. Final CI has not yet been confirmed green on the current PR head.
+3. Production Edge Function drift remains undeployed pending release validation.
+4. The unapplied migration dated `20261010112000` must be intentionally separated, applied, or otherwise reconciled with the migration-order policy before a clean replay can be certified.
+5. The full PR must be reviewed for scope: do not merge a pending schema change as if it were already live.
 
-The deployed Supabase Edge Function inventory at audit time was: `api` v12, `staff-invite` v9, `staff-activate` v7, `staff-open` v8, and `staff-preview` v4. The deployed `api` v12 source is older than repository `main`: its entrypoint does not include the current staff-activation, public invite landing, cashier notification, or permission-request routes. The branch fixes the source import error but does not deploy it. Numeric function versions are independent; the important mismatch is the missing route/contract behavior.
-
-## Live inventory snapshot
-
-The live database inventory returned these tables:
-
-- `public.businesses` (1 row)
-- `public.branches` (1 row)
-- `public.profiles` (1 row)
-- `public.business_memberships` (1 row)
-- `private.staff_invites` (13 rows)
-- `private.staff_identities` (0 rows)
-- `private.staff_invite_activations` (0 rows)
-- `private.cashier_sync_sessions` (0 rows)
-- `private.financial_operation_envelopes` (5 rows)
-- `private.auth_rate_limits` (2 rows)
-- `private.staff_admin_audit_events` (0 rows)
-
-The notification tables are absent because the pending migration has not been applied. The inventory does not by itself prove cross-device financial reporting works; there are five stored financial envelopes, but no cashier sync sessions and no end-to-end cashier sale was performed during this read-only audit.
-
-## Permissions and security findings requiring separate decisions
-
-1. **Critical advisor finding — RLS disabled:** `private.staff_admin_audit_events` has RLS disabled. Supabase recommends reviewing/enabling RLS, but enabling it without an intended policy can block access. No automatic RLS change was made. Candidate SQL to discuss is:
-   `ALTER TABLE private.staff_admin_audit_events ENABLE ROW LEVEL SECURITY;`
-   Define and test the intended policy/privileged-function access before running it.
-2. **Anonymous SECURITY DEFINER RPC:** `public.preview_staff_invite(text)` is executable by `anon`. Review whether anonymous execution is required; if the Edge Function uses service-role access, consider revoking anonymous execution in a separate reviewed migration.
-3. **Fourteen authenticated SECURITY DEFINER functions** are flagged by the Supabase security advisor. Several are intentional authenticated RPCs with in-function business/branch checks; review each function body and grant individually rather than blanket-revoking them.
-4. Six private tables have RLS enabled without policies. They should remain inaccessible directly unless a reviewed access policy is required; server-side RPCs are the current intended access path.
-
-## Remaining release gates
-
-- CI must pass for Android and the new Deno backend workflow.
-- Review the security findings above and decide whether to create a separate forward-only security migration.
-- Review the pending notification migration as a proposed production change. Only after approval should it be applied once and verified with the expected migration-history row, tables, policies, functions, triggers, and RPC grants.
-- Then run authenticated API tests for cashier notifications and permission requests, followed by a multi-device test: cashier request/permission update → admin notification → cashier refresh → durable financial sale → admin sees the same transaction exactly once.
-
-**No live database changes or deployments were made by this reconciliation branch.**
+Do not mark `main` as the complete verified source of truth until all five blockers are closed with evidence.
