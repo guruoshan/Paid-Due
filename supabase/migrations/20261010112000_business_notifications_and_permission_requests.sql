@@ -710,6 +710,7 @@ DECLARE
   v_note text := NULLIF(btrim(p_note), '');
 BEGIN
   IF p_membership_id IS NULL OR btrim(p_membership_id) = ''
+     OR p_permission_key IS NULL
      OR p_permission_key NOT IN (
        'CREATE_SALE','ACCEPT_CASH','ACCEPT_ONLINE','CREATE_CREDIT_SALE',
        'USE_COUPON','ISSUE_INVOICE','REFUND','VOID',
@@ -750,14 +751,14 @@ BEGIN
     RAISE EXCEPTION 'Permission is already granted' USING ERRCODE = '22023';
   END IF;
 
-  INSERT INTO private.cashier_permission_requests(
+  INSERT INTO private.cashier_permission_requests AS inserted(
     business_id, branch_id, requester_membership_id, permission_key, note
   ) VALUES (
     v_member.business_id, v_member.branch_id, v_member.id, p_permission_key, v_note
   )
   ON CONFLICT (requester_membership_id, permission_key) WHERE status = 'PENDING'
   DO NOTHING
-  RETURNING id, private.cashier_permission_requests.created_at
+  RETURNING inserted.id, inserted.created_at
   INTO v_request_id, v_created_at;
 
   IF v_request_id IS NULL THEN
