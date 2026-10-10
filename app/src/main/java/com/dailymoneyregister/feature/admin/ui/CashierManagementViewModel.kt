@@ -91,9 +91,20 @@ data class CashierInviteUiState(
 )
 
 private fun invitePermissionDefaults(): Map<String, Boolean> = mapOf(
+    CashierPermissionKey.CREATE_SALE.name to true,
+    CashierPermissionKey.ACCEPT_CASH.name to true,
+    CashierPermissionKey.ACCEPT_ONLINE.name to true,
     CashierPermissionKey.CREATE_CREDIT_SALE.name to false,
+    CashierPermissionKey.USE_COUPON.name to false,
+    CashierPermissionKey.ISSUE_INVOICE.name to true,
+    CashierPermissionKey.ISSUE_RECEIPT.name to true,
     CashierPermissionKey.REFUND.name to false,
-    CashierPermissionKey.VOID.name to false
+    CashierPermissionKey.VOID.name to false,
+    CashierPermissionKey.CORRECT_AMOUNT.name to false,
+    CashierPermissionKey.CHANGE_PAYMENT_METHOD.name to false,
+    CashierPermissionKey.VIEW_BROAD_HISTORY.name to false,
+    CashierPermissionKey.MANAGE_PRODUCTS.name to false,
+    CashierPermissionKey.VIEW_REPORTS.name to false
 )
 
 @HiltViewModel
