@@ -6,7 +6,7 @@ No financial synchronization, cloud intake or Admin cross-device reporting is ac
 ## Current verified problem
 Cashiers on different phones commit transactions to their separate local Room
 databases. Admin reporting uses the Admin phone's Room data and therefore cannot
-see other devices' transactions. Supabase identity and Cloudflare activation do
+see other devices' transactions. Supabase Auth identity and email activation do
 not provide financial synchronization.
 
 ## Authority and vocabulary
@@ -87,7 +87,7 @@ different canonical digest is an integrity conflict, never an automatic retry.
   deliberately not in `supabase/migrations/`.
 - Do not execute the staged SQL; its constraints and cryptographic derivation
   require independent migration/security review in a disposable test database.
-- No live Supabase/Cloudflare operations, Room changes, financial writer changes
+- No live backend operations, Room changes, financial writer changes
   or production configuration changes are allowed in foundation-only work.
 - No test result is claimed without the actual Gradle output.
 - Do not merge or release based on these foundation commits.
