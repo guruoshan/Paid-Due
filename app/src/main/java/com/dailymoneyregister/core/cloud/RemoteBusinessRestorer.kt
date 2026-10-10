@@ -73,7 +73,13 @@ interface BusinessRestorer {
 
     /** Fresh online check; false means the cached session must not be restored. */
     suspend fun validateAdminSession(businessId: String, branchId: String, userId: String): Boolean = false
-    suspend fun validateCashierSession(membershipId: String): Boolean = false
+    suspend fun validateCashierSession(
+        membershipId: String,
+        businessId: String,
+        branchId: String,
+        canonicalPhone: String?,
+        permissions: Map<String, Boolean>
+    ): Boolean = false
 }
 
 @Singleton
@@ -250,9 +256,15 @@ class RemoteBusinessRestorer @Inject constructor(
         }.getOrDefault(false)
     }
 
-    override suspend fun validateCashierSession(membershipId: String): Boolean {
+    override suspend fun validateCashierSession(
+        membershipId: String,
+        businessId: String,
+        branchId: String,
+        canonicalPhone: String?,
+        permissions: Map<String, Boolean>
+    ): Boolean {
         return com.dailymoneyregister.core.cloud.sync.CashierCloudSession
-            .validateSession(membershipId)
+            .validateSession(membershipId, businessId, branchId, canonicalPhone, permissions)
     }
 
     override suspend fun restoreAdminIfEmpty(
@@ -299,7 +311,7 @@ class RemoteBusinessRestorer @Inject constructor(
                 if (existingBusiness.id != row.businessId ||
                     existingBranch?.id != row.branchId ||
                     localUser?.id != row.localUserId ||
-                    localUser.businessId != row.businessId ||
+                    localUser?.businessId != row.businessId ||
                     localUser.role != UserRole.ADMIN ||
                     localUser.authType != AuthType.PASSWORD ||
                     !localUser.isActive ||
