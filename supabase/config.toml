@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.staff-open]
 verify_jwt = false
+
+[functions.staff-preview]
+verify_jwt = false
