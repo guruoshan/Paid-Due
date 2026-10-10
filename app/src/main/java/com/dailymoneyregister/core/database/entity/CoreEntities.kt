@@ -245,7 +245,7 @@ data class UserBranchMembershipEntity(
     @ColumnInfo(name = "created_at")
     val createdAt: Long,
 
-    @ColumnInfo(name = "can_view_customers")
+    @ColumnInfo(name = "can_view_customers", defaultValue = "1")
     val canViewCustomers: Boolean = true
 )
 
