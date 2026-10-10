@@ -216,8 +216,7 @@ object CashierCloudSession {
             return@withContext false
         }
 
-        val baseUrl = BuildConfig.PAID_DUE_BACKEND_BASE_URL
-            .trimEnd('/')
+        val baseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trimEnd('/') + "/functions/v1/api"
 
         if (!baseUrl.startsWith("https://")) {
             lastAuthStage = "BACKEND_URL_INVALID"
@@ -238,6 +237,10 @@ object CashierCloudSession {
             connection.setRequestProperty(
                 "Content-Type",
                 "application/json"
+            )
+            connection.setRequestProperty(
+                "apikey",
+                BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY
             )
 
             val request = JSONObject()
@@ -344,8 +347,7 @@ object CashierCloudSession {
                 "CASHIER_CLOUD_SESSION_REQUIRED"
             )
 
-        val baseUrl = BuildConfig.PAID_DUE_BACKEND_BASE_URL
-            .trimEnd('/')
+        val baseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trimEnd('/') + "/functions/v1/api"
 
         require(baseUrl.startsWith("https://"))
 
@@ -363,6 +365,10 @@ object CashierCloudSession {
             connection.setRequestProperty(
                 "Content-Type",
                 "application/json"
+            )
+            connection.setRequestProperty(
+                "apikey",
+                BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY
             )
 
             connection.setRequestProperty(
@@ -422,7 +428,7 @@ object CashierCloudSession {
         limit: Int
     ): JSONArray = withContext(Dispatchers.IO) {
         val token = tokenFor(membershipId) ?: throw SecurityException("CASHIER_CLOUD_SESSION_REQUIRED")
-        val baseUrl = BuildConfig.PAID_DUE_BACKEND_BASE_URL.trimEnd('/')
+        val baseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trimEnd('/') + "/functions/v1/api"
         require(baseUrl.startsWith("https://"))
         val query = buildString {
             append("?limit=").append(limit)
@@ -434,6 +440,7 @@ object CashierCloudSession {
             connection.requestMethod = "GET"
             connection.connectTimeout = 5000
             connection.readTimeout = 15000
+            connection.setRequestProperty("apikey", BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY)
             connection.setRequestProperty("Authorization", "Bearer $token")
             val status = connection.responseCode
             if (status == 401 || status == 403) { clear(); throw SecurityException("CASHIER_CLOUD_SESSION_REJECTED") }
