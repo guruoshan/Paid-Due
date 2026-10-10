@@ -100,7 +100,7 @@ Deno.serve(async (request: Request) => {
       throw new Error("INVITE_CREATE_RESULT_INVALID");
     }
     const baseUrl = supabaseUrl.endsWith("/") ? supabaseUrl.slice(0, -1) : supabaseUrl;
-    const inviteUrl = baseUrl + "/functions/v1/staff-open?t=" + encodeURIComponent(token);
+    const inviteUrl = baseUrl + "/functions/v1/staff-open#" + encodeURIComponent(token);
     return json({ outcome: "INVITATION_CREATED", invite_url: inviteUrl, expires_at: created[0].expires_at });
   } catch (error) {
     console.error("STAFF_INVITE_FAILURE", error instanceof Error ? error.name : "UNKNOWN");
