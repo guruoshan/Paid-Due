@@ -11,6 +11,7 @@ import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
@@ -90,7 +91,10 @@ class NotificationsRepository @Inject constructor(
             channel.subscribe(blockUntilSubscribed = true)
             awaitClose { watcher.cancel() }
         } finally {
-            launch { runCatching { supabase.realtime.removeChannel(channel) } }
+            watcher.cancel()
+            withContext(NonCancellable) {
+                runCatching { supabase.realtime.removeChannel(channel) }
+            }
         }
     }
 
