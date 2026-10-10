@@ -35,7 +35,8 @@ data class CashierPermissionsConfig(
     val canChangePaymentMethod: Boolean = false,
     val canViewBroadHistory: Boolean = false,
     val canManageProducts: Boolean = false,
-    val canViewReports: Boolean = false
+    val canViewReports: Boolean = false,
+    val canViewCustomers: Boolean = true
 )
 
 data class CreateCashierParams(
@@ -360,6 +361,7 @@ class CashierManagementRepository @Inject constructor(
                 canViewBroadHistory = permissions.canViewBroadHistory,
                 canManageProducts = permissions.canManageProducts,
                 canViewReports = permissions.canViewReports,
+            canViewCustomers = permissions.canViewCustomers,
                 createdAt = now
             )
             userDao.insertMembership(membership)
@@ -386,7 +388,8 @@ private fun Map<String, Boolean>.toCashierPermissionsConfig() = CashierPermissio
     canChangePaymentMethod = this["CHANGE_PAYMENT_METHOD"] ?: false,
     canViewBroadHistory = this["VIEW_BROAD_HISTORY"] ?: false,
     canManageProducts = this["MANAGE_PRODUCTS"] ?: false,
-    canViewReports = this["VIEW_REPORTS"] ?: false
+    canViewReports = this["VIEW_REPORTS"] ?: false,
+    canViewCustomers = this["VIEW_CUSTOMERS"] ?: true
 )
 
 private fun CashierPermissionsConfig.toRemotePermissionMap(): Map<String, Boolean> = mapOf(
@@ -403,5 +406,6 @@ private fun CashierPermissionsConfig.toRemotePermissionMap(): Map<String, Boolea
     "CHANGE_PAYMENT_METHOD" to canChangePaymentMethod,
     "VIEW_BROAD_HISTORY" to canViewBroadHistory,
     "MANAGE_PRODUCTS" to canManageProducts,
-    "VIEW_REPORTS" to canViewReports
+    "VIEW_REPORTS" to canViewReports,
+    "VIEW_CUSTOMERS" to canViewCustomers
 )
