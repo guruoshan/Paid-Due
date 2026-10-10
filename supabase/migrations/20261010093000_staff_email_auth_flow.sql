@@ -100,7 +100,7 @@ BEGIN
             )
         END;
 END;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.create_staff_invite_for_email(p_token_hash text, p_business_id text, p_branch_id text, p_display_name text, p_canonical_phone text, p_invited_email text, p_permissions jsonb, p_created_by_auth_user_id uuid)
@@ -189,7 +189,7 @@ BEGIN
 
   RETURN QUERY SELECT v_invite_id, v_expires_at;
 END;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.revoke_staff_invite_for_email(p_token_hash text, p_created_by_auth_user_id uuid)
@@ -209,7 +209,7 @@ BEGIN
      AND used_at IS NULL;
   RETURN FOUND;
 END;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.activate_staff_invite_for_auth(p_token_hash text, p_auth_user_id uuid, p_credential_hash text, p_credential_salt text, p_canonical_phone text)
@@ -369,7 +369,7 @@ BEGIN
     'activated_at',v_activation.activated_at
   );
 END;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.preview_staff_invite(p_token_hash text)
@@ -432,7 +432,7 @@ GRANT EXECUTE ON FUNCTION public.check_auth_rate_limit(text,text) TO service_rol
     AND i.expires_at > now()
   LIMIT 1;
 END;
-$function$
+$function$;
 
 
 -- The app creates invitations only through the authenticated staff-invite
