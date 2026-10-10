@@ -7,6 +7,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dailymoneyregister.core.command.CommandExecutor
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.cloud.BusinessRestorer
+import com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult
+import com.dailymoneyregister.core.identity.PhoneNumberNormalizer
 import com.dailymoneyregister.core.device.DeviceIdentityProvider
 import com.dailymoneyregister.core.i18n.LanguageManager
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
@@ -43,6 +46,7 @@ class TrustedSessionIntegrationTest {
     private lateinit var authRepository: AuthRepository
     private lateinit var cashierRepository: CashierManagementRepository
     private lateinit var restorer: TrustedSessionRestorer
+    private lateinit var testBusinessRestorer: BusinessRestorer
 
     @Before
     fun setUp() {
@@ -67,6 +71,70 @@ class TrustedSessionIntegrationTest {
         val commandExecutor = CommandExecutor(database)
         Log.i("BOARDLOCK", "setUp: created CommandExecutor")
 
+        // Test-only trusted authority adapter. Production uses Supabase;
+        // these integration tests exercise Room/session behavior without
+        // making real network requests.
+        testBusinessRestorer = object : BusinessRestorer {
+            override suspend fun restoreAdminIfEmpty(
+                usernameOrEmail: String,
+                passwordPlain: String
+            ): RemoteBusinessRestorationResult {
+                val business = database.businessBranchDao().getFirstBusiness()
+                    ?: return RemoteBusinessRestorationResult.Failed("No test business")
+                val branch = database.businessBranchDao().getFirstBranch(business.id)
+                    ?: return RemoteBusinessRestorationResult.Failed("No test branch")
+                val user = database.userDao().getUserByUsername(business.id, usernameOrEmail)
+                    ?: return RemoteBusinessRestorationResult.Failed("No test Admin")
+                return RemoteBusinessRestorationResult.Success(business.id, branch.id, user.id)
+            }
+
+            override suspend fun restoreCashierIfEmpty(
+                usernameOrPhone: String,
+                pin: String,
+                countryCode: String
+            ): RemoteBusinessRestorationResult {
+                val business = database.businessBranchDao().getFirstBusiness()
+                    ?: return RemoteBusinessRestorationResult.Failed("No test business")
+                val branch = database.businessBranchDao().getFirstBranch(business.id)
+                    ?: return RemoteBusinessRestorationResult.Failed("No test branch")
+                val phone = runCatching {
+                    PhoneNumberNormalizer.normalize(usernameOrPhone, countryCode)
+                }.getOrNull()
+                val user = phone?.let { database.userDao().getUserByCanonicalPhone(business.id, it) }
+                    ?: return RemoteBusinessRestorationResult.Failed("No test cashier")
+                return RemoteBusinessRestorationResult.Success(business.id, branch.id, user.id)
+            }
+
+            override suspend fun validateAdminSession(
+                businessId: String,
+                branchId: String,
+                userId: String
+            ): Boolean {
+                val business = database.businessBranchDao().getBusinessById(businessId)
+                val branch = database.businessBranchDao().getBranchById(branchId)
+                val user = database.userDao().getUserById(userId)
+                return business != null && branch?.businessId == businessId &&
+                    user?.businessId == businessId && user.role.name == "ADMIN" && user.isActive
+            }
+
+            override suspend fun validateCashierSession(
+                membershipId: String,
+                businessId: String,
+                branchId: String,
+                canonicalPhone: String?,
+                permissions: Map<String, Boolean>
+            ): Boolean {
+                val business = database.businessBranchDao().getBusinessById(businessId)
+                val branch = database.businessBranchDao().getBranchById(branchId)
+                val membership = database.userDao().getMembership(
+                    database.userDao().getHumanIdentityByPhone(canonicalPhone ?: "")?.id ?: "",
+                    branchId
+                )
+                return business != null && branch?.businessId == businessId &&
+                    membership?.id == membershipId
+            }
+        }
+
         setupRepository = SetupRepository(
             database,
             commandExecutor,
@@ -79,7 +147,8 @@ class TrustedSessionIntegrationTest {
             database,
             PinThrottler(context = context),
             LanguageManager(context),
-            trustedSessionStore
+            trustedSessionStore,
+            testBusinessRestorer
         )
         Log.i("BOARDLOCK", "setUp: created AuthRepository")
 
@@ -93,7 +162,8 @@ class TrustedSessionIntegrationTest {
         restorer = TrustedSessionRestorer(
             database,
             trustedSessionStore,
-            LanguageManager(context)
+            LanguageManager(context),
+            testBusinessRestorer
         )
         Log.i("BOARDLOCK", "setUp: done")
     }
@@ -211,7 +281,7 @@ class TrustedSessionIntegrationTest {
         val setup = createSetup()
         val testLanguageManager = LanguageManager(context)
         val originalLanguage = testLanguageManager.currentLanguage.value.code
-        restorer = TrustedSessionRestorer(database, trustedSessionStore, testLanguageManager)
+        restorer = TrustedSessionRestorer(database, trustedSessionStore, testLanguageManager, testBusinessRestorer)
         val beforeBusiness = database.businessBranchDao().getBusinessById(setup.businessId.value)!!
         val beforeBranch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
         val settingsRepository = SettingsRepository(database.userDao(), database.businessBranchDao())
