@@ -3,6 +3,7 @@ package com.dailymoneyregister.feature.invite.data
 import com.dailymoneyregister.BuildConfig
 import com.dailymoneyregister.core.model.enums.UserRole
 import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
@@ -21,6 +22,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 data class RemoteInvitePreview(
     val invite: StaffInvite,
@@ -209,57 +212,56 @@ class RemoteInviteStore @Inject constructor(
     override suspend fun create(
         invite: StaffInvite
     ) {
-        require(invite.role == UserRole.CASHIER) {
-            "Remote staff invitations may only create CASHIER invitations"
+        error("Staff invitations must be created through Supabase Auth email.")
+    }
+
+    suspend fun sendEmailInvite(
+        email: String,
+        businessId: String,
+        branchId: String,
+        displayName: String,
+        canonicalPhone: String,
+        permissions: Map<String, Boolean>
+    ) {
+        val accessToken = supabase.auth.currentSessionOrNull()?.accessToken
+            ?: error("Sign in to your Supabase Admin account before inviting staff.")
+
+        val supabaseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trim().trimEnd('/')
+        check(supabaseUrl.startsWith("https://")) {
+            "Paid&Due Supabase is not configured."
         }
 
-        require(TOKEN_HASH_REGEX.matches(invite.tokenHash)) {
-            "Invalid invitation token hash"
+        val requestBody = buildJsonObject {
+            put("email", JsonPrimitive(email.trim().lowercase()))
+            put("business_id", JsonPrimitive(businessId))
+            put("branch_id", JsonPrimitive(branchId))
+            put("display_name", JsonPrimitive(displayName.trim()))
+            put("canonical_phone", JsonPrimitive(canonicalPhone))
+            put("permissions", permissionsJson(permissions))
+        }.toString()
+
+        val response = activationHttpClient.post("$supabaseUrl/functions/v1/staff-invite") {
+            header(HttpHeaders.ContentType, "application/json")
+            header("apikey", BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY)
+            header(HttpHeaders.Authorization, "Bearer $accessToken")
+            setBody(requestBody)
         }
 
-        val parameters =
-            buildJsonObject {
-                put(
-                    "p_token_hash",
-                    JsonPrimitive(invite.tokenHash)
-                )
-                put(
-                    "p_business_id",
-                    JsonPrimitive(invite.businessId)
-                )
-                put(
-                    "p_branch_id",
-                    JsonPrimitive(invite.branchId)
-                )
-                put(
-                    "p_display_name",
-                    JsonPrimitive(invite.displayName)
-                )
-                put(
-                    "p_canonical_phone",
-                    JsonPrimitive(invite.canonicalPhone)
-                )
-                put(
-                    "p_permissions",
-                    permissionsJson(invite.permissions)
-                )
+        val body = response.bodyAsText()
+        val outcome = runCatching {
+            activationJson.parseToJsonElement(body).jsonObject["outcome"]?.jsonPrimitive?.content
+        }.getOrNull()
+
+        if (response.status.value !in 200..299 || outcome != "INVITATION_SENT") {
+            val message = when (outcome) {
+                "RATE_LIMITED" -> "Too many invitations were sent. Try again later."
+                "UNAUTHORIZED" -> "Your Supabase session expired. Sign in again."
+                "INVITATION_EMAIL_FAILED" -> "Supabase could not send the invitation email. Check Auth email and redirect settings."
+                "BACKEND_NOT_CONFIGURED" -> "Supabase invitation settings are incomplete."
+                else -> "Unable to send staff invitation through Supabase."
             }
-
-        val rows =
-            supabase.postgrest
-                .rpc(
-                    function = "create_staff_invite",
-                    parameters = parameters
-                )
-                .decodeList<CreateInviteRpcRow>()
-
-        check(rows.size == 1) {
-            "Remote invitation creation returned an unexpected result"
+            error(message)
         }
-
-        OffsetDateTime.parse(
-            rows.single().expiresAt
-        )
     }
 
     suspend fun previewByTokenHash(
@@ -354,19 +356,15 @@ class RemoteInviteStore @Inject constructor(
             "Invalid Cashier phone"
         }
 
-        val backendBaseUrl =
-            BuildConfig
-                .PAID_DUE_BACKEND_BASE_URL
-                .trim()
-                .trimEnd('/')
+        val supabaseUrl =
+            BuildConfig.PAID_DUE_SUPABASE_URL.trim().trimEnd('/')
 
-        check(
-            backendBaseUrl.startsWith(
-                "https://"
-            )
-        ) {
-            "Paid&Due backend is not configured"
+        check(supabaseUrl.startsWith("https://")) {
+            "Paid&Due Supabase is not configured"
         }
+
+        val accessToken = supabase.auth.currentSessionOrNull()?.accessToken
+            ?: error("Open the verified invitation email again to continue activation")
 
         val requestBody =
             buildJsonObject {
@@ -391,13 +389,12 @@ class RemoteInviteStore @Inject constructor(
 
         val response =
             activationHttpClient.post(
-                "$backendBaseUrl/api/staff/activate"
+                "$supabaseUrl/functions/v1/staff-activate"
             ) {
 
-                header(
-                    HttpHeaders.ContentType,
-                    "application/json"
-                )
+                header(HttpHeaders.ContentType, "application/json")
+                header("apikey", BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY)
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
 
                 setBody(
                     requestBody
