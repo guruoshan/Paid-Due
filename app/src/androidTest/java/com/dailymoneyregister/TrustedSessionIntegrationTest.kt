@@ -176,6 +176,39 @@ class TrustedSessionIntegrationTest {
     }
 
     @Test
+    fun localCredentialsCannotCreateSessionWhenRemoteAuthorityRejects() = runBlocking {
+        val setup = createSetup()
+        val cashierId = (cashierRepository.createCashier(
+            CreateCashierParams(
+                businessId = setup.businessId.value,
+                branchId = setup.branchId.value,
+                adminUserId = setup.adminUserId.value,
+                displayName = "Offline Only Cashier",
+                username = "offline@example",
+                phone = "92345679",
+                pin = "135790"
+            )
+        ) as CommandResult.Success).data
+
+        SessionManager.clearSession()
+        val localOnlyRepository = AuthRepository(
+            database,
+            PinThrottler(context = context),
+            LanguageManager(context),
+            trustedSessionStore
+        )
+
+        val adminResult = localOnlyRepository.loginAdmin("admin@example", "AdminPass123")
+        assertTrue("Local Admin credentials must not bypass server authority", adminResult is AuthResult.Error)
+        assertNull(SessionManager.currentSession.value)
+
+        val cashierResult = localOnlyRepository.loginCashier("92345679", "135790")
+        assertTrue("Local cashier PIN must not bypass server authority", cashierResult is AuthResult.Error)
+        assertNull(SessionManager.currentSession.value)
+        assertEquals(cashierId.value, database.userDao().getUserById(cashierId.value)?.id)
+    }
+
+    @Test
     fun authenticationPersistsAdminAndCashierIdsWithoutCredentials() = runBlocking {
         Log.i("BOARDLOCK", "TEST: authenticationPersistsAdminAndCashierIdsWithoutCredentials - start")
         Log.i("BOARDLOCK", "test: before createSetup")
