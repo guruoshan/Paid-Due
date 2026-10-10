@@ -11,6 +11,10 @@ CREATE INDEX IF NOT EXISTS idx_staff_invites_invited_email
 ALTER TABLE private.staff_invites
   ALTER COLUMN invited_email SET NOT NULL;
 
+-- Remove superseded Auth activation overloads before defining the current contract.
+DROP FUNCTION IF EXISTS public.activate_staff_invite_for_auth(text,uuid);
+DROP FUNCTION IF EXISTS public.activate_staff_invite_for_auth(text,uuid,text,text);
+
 CREATE OR REPLACE FUNCTION public.check_auth_rate_limit(p_scope text, p_bucket_key text)
  RETURNS TABLE(allowed boolean, retry_after_seconds integer)
  LANGUAGE plpgsql
