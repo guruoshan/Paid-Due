@@ -196,7 +196,7 @@ class NotificationsRepository @Inject constructor(
         val ALLOWED_PERMISSION_KEYS = setOf(
             "CREATE_SALE", "ACCEPT_CASH", "ACCEPT_ONLINE", "CREATE_CREDIT_SALE", "USE_COUPON",
             "ISSUE_INVOICE", "REFUND", "VOID", "CORRECT_AMOUNT",
-            "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY", "VIEW_CUSTOMERS"
+            "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY"
         )
     }
 }
