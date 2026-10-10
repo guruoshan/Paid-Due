@@ -3188,6 +3188,7 @@ if (
                     submitRegisterShiftCount(countCommand)
             ) {
                 is CommandResult.Success -> {
+                    val closeOccurredAt = System.currentTimeMillis()
                     val closeCommand =
                         CloseRegisterShiftCommand(
                             operationId = OperationId.generate(),
@@ -3196,7 +3197,7 @@ if (
                             shiftId = report.shift.shiftId,
                             actorUserId = session.user.id,
                             deviceId = deviceId(),
-                            occurredAt = System.currentTimeMillis(),
+                            occurredAt = closeOccurredAt,
                             reportSnapshot = RegisterShiftCloseReportSnapshot(
                                 shiftId = report.shift.shiftId.value,
                                 currencyCode = session.branch.currencyCode,
@@ -3230,9 +3231,9 @@ if (
                                 expectedCashMinor = report.expectedCashMinor,
                                 countedCashMinor = countedMinor,
                                 differenceMinor = Math.subtractExact(countedMinor, report.expectedCashMinor),
-                                cashierUserId = session.user.id,
+                                cashierUserId = report.shift.actorUserId,
                                 closedByUserId = session.user.id,
-                                closedAt = System.currentTimeMillis()
+                                closedAt = closeOccurredAt
                             )
                         )
 
