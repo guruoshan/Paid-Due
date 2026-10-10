@@ -75,6 +75,7 @@ import javax.inject.Inject
 
 import com.dailymoneyregister.core.model.tax.TaxRateParser
 import com.dailymoneyregister.feature.register.data.RegisterShiftReport
+import com.dailymoneyregister.feature.register.data.RegisterShiftCloseReportSnapshot
 import com.dailymoneyregister.feature.register.data.RegisterShiftResult
 import com.dailymoneyregister.feature.register.data.CountRegisterShiftCommand
 import com.dailymoneyregister.feature.register.data.CloseRegisterShiftCommand
@@ -3187,6 +3188,7 @@ if (
                     submitRegisterShiftCount(countCommand)
             ) {
                 is CommandResult.Success -> {
+                    val closeOccurredAt = System.currentTimeMillis()
                     val closeCommand =
                         CloseRegisterShiftCommand(
                             operationId = OperationId.generate(),
@@ -3195,7 +3197,44 @@ if (
                             shiftId = report.shift.shiftId,
                             actorUserId = session.user.id,
                             deviceId = deviceId(),
-                            occurredAt = System.currentTimeMillis()
+                            occurredAt = closeOccurredAt,
+                            reportSnapshot = RegisterShiftCloseReportSnapshot(
+                                shiftId = report.shift.shiftId.value,
+                                currencyCode = session.branch.currencyCode,
+                                currencyDecimalPlaces = session.branch.currencyDecimalPlaces,
+                                currencySymbol = session.branch.currencySymbol,
+                                operationCount = report.operationCount,
+                                salesCount = report.salesCount,
+                                grossSalesMinor = report.grossSalesMinor,
+                                cashSalesMinor = report.cashSalesMinor,
+                                onlineSalesMinor = report.onlineSalesMinor,
+                                creditGivenMinor = report.creditGivenMinor,
+                                couponUsedMinor = report.couponUsedMinor,
+                                cashCreditRepaymentsMinor = report.cashCreditRepaymentsMinor,
+                                onlineCreditRepaymentsMinor = report.onlineCreditRepaymentsMinor,
+                                couponCreditRepaymentsMinor = report.couponCreditRepaymentsMinor,
+                                couponIssuedMinor = report.couponIssuedMinor,
+                                couponTopUpMinor = report.couponTopUpMinor,
+                                couponRefundCreditsMinor = report.couponRefundCreditsMinor,
+                                cashRefundsMinor = report.cashRefundsMinor,
+                                onlineRefundsMinor = report.onlineRefundsMinor,
+                                cashExpensesMinor = report.cashExpensesMinor,
+                                onlineExpensesMinor = report.onlineExpensesMinor,
+                                cashCouponFundingMinor = report.cashCouponFundingMinor,
+                                onlineCouponFundingMinor = report.onlineCouponFundingMinor,
+                                cashLifecycleAdjustmentMinor = report.cashLifecycleAdjustmentMinor,
+                                onlineLifecycleAdjustmentMinor = report.onlineLifecycleAdjustmentMinor,
+                                refundCount = report.refundCount,
+                                voidCount = report.voidCount,
+                                correctionCount = report.correctionCount,
+                                paymentMethodChangeCount = report.paymentMethodChangeCount,
+                                expectedCashMinor = report.expectedCashMinor,
+                                countedCashMinor = countedMinor,
+                                differenceMinor = Math.subtractExact(countedMinor, report.expectedCashMinor),
+                                cashierUserId = report.shift.actorUserId,
+                                closedByUserId = session.user.id,
+                                closedAt = closeOccurredAt
+                            )
                         )
 
                     _uiState.value =

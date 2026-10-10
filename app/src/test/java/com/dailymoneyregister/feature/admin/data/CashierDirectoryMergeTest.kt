@@ -6,8 +6,8 @@ import org.junit.Test
 class CashierDirectoryMergeTest {
     @Test fun `cloud directory rejects duplicate stable user ids before presentation`() {
         val rows = listOf(
-            CloudCashierDirectoryEntry("user-1", "membership-1", "branch-1", "A", "+9681", true),
-            CloudCashierDirectoryEntry("user-1", "membership-2", "branch-2", "A", "+9681", true)
+            CloudCashierDirectoryEntry("user-1", "membership-1", "branch-1", "A", "+9681", true, emptyMap()),
+            CloudCashierDirectoryEntry("user-1", "membership-2", "branch-2", "A", "+9681", true, emptyMap())
         )
         assertEquals(1, rows.distinctBy { it.userId }.size)
     }

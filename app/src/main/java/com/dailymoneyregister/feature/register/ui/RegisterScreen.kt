@@ -20,6 +20,7 @@ fun RegisterScreen(
     viewModel: RegisterViewModel,
     onNavigateToSettings: () -> Unit,
     onNavigateToCustomers: () -> Unit,
+    onNavigateToNotifications: () -> Unit = {},
     invoiceViewModel: InvoiceViewModel = hiltViewModel(),
     historyViewModel: HistoryViewModel = hiltViewModel()
 ) {
@@ -84,7 +85,8 @@ fun RegisterScreen(
         historyState = historyState,
         historyViewModel = historyViewModel,
         onNavigateToSettings = onNavigateToSettings,
-        onNavigateToCustomers = onNavigateToCustomers
+        onNavigateToCustomers = onNavigateToCustomers,
+        onNavigateToNotifications = onNavigateToNotifications
     )
 }
 
