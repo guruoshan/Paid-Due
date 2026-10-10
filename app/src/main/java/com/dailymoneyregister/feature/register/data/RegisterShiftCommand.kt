@@ -40,7 +40,8 @@ data class OpenRegisterShiftCommand(
             "OPEN_REGISTER_SHIFT|v=$commandSchemaVersion|" +
                 "op=${operationId.value}|business=$businessId|branch=$branchId|" +
                 "shift=${shiftId.value}|actor=$actorUserId|device=$deviceId|" +
-                "occurredAt=$occurredAt"
+                "occurredAt=$occurredAt" +
+                (reportSnapshot?.let { "|report=${CommandFingerprint.sha256(it.toJsonString())}" } ?: "")
         )
 
     override val intentPayload: String
