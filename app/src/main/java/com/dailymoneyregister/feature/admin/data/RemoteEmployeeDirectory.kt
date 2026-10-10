@@ -20,7 +20,8 @@ data class CloudCashierDirectoryEntry(
     @SerialName("display_name") val displayName: String,
     @SerialName("canonical_phone") val canonicalPhone: String,
     @SerialName("is_active") val isActive: Boolean,
-    @SerialName("permissions") val permissions: Map<String, Boolean>
+    @SerialName("permissions") val permissions: Map<String, Boolean>,
+    @SerialName("is_removed") val isRemoved: Boolean = false
 )
 
 interface EmployeeDirectoryCloudSource {
