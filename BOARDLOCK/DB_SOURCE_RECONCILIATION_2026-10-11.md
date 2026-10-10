@@ -50,6 +50,10 @@ The handler's dedicated `verify_cashier_notification_session` call was preserved
 
 A pull-request CI workflow was added to run Deno API tests and type-check the API entrypoint and handlers. Its result must be green before merge.
 
+## Deployment drift
+
+The deployed Supabase Edge Function inventory at audit time was: `api` v12, `staff-invite` v9, `staff-activate` v7, `staff-open` v8, and `staff-preview` v4. The deployed `api` v12 source is older than repository `main`: its entrypoint does not include the current staff-activation, public invite landing, cashier notification, or permission-request routes. The branch fixes the source import error but does not deploy it. Numeric function versions are independent; the important mismatch is the missing route/contract behavior.
+
 ## Live inventory snapshot
 
 The live database inventory returned these tables:
