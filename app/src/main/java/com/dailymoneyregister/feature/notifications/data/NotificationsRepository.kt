@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -70,7 +71,7 @@ class NotificationsRepository @Inject constructor(
         }
         val response = cashierCall("staff/notifications", "GET", null)
         val array = response.optJSONArray("notifications") ?: org.json.JSONArray()
-        return json.decodeFromString(array.toString())
+        return json.decodeFromString<List<BusinessNotification>>(array.toString())
     }
 
     suspend fun listPermissionRequests(): List<PermissionRequestRecord> {
@@ -162,9 +163,8 @@ class NotificationsRepository @Inject constructor(
     companion object {
         val ALLOWED_PERMISSION_KEYS = setOf(
             "CREATE_SALE", "ACCEPT_CASH", "ACCEPT_ONLINE", "CREATE_CREDIT_SALE", "USE_COUPON",
-            "ISSUE_INVOICE", "ISSUE_RECEIPT", "REFUND", "VOID", "CORRECT_AMOUNT",
-            "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY", "MANAGE_PRODUCTS", "VIEW_REPORTS",
-            "VIEW_CUSTOMERS"
+            "ISSUE_INVOICE", "REFUND", "VOID", "CORRECT_AMOUNT",
+            "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY", "VIEW_CUSTOMERS"
         )
     }
 }
