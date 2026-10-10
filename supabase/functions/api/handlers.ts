@@ -1,4 +1,4 @@
-import { sha256Hex, deriveCredential, hexToBytes } from "./crypto.ts";
+import { sha256Hex, hexToBytes } from "./crypto.ts";
 import { rpc } from "./supabase.ts";
 import { checkAuthRateLimit } from "./rateLimit.ts";
 
@@ -44,7 +44,6 @@ export function json(body: any, status = 200, extraHeaders = {}) {
   });
 }
 
-const TOKEN_REGEX = /^[A-Za-z0-9_-]{32,128}$/;
 const PIN_REGEX = /^[0-9]{6}$/;
 const PHONE_REGEX = /^\+[1-9][0-9]{7,14}$/;
 
@@ -56,67 +55,6 @@ export function health() {
     credential_format: "pbkdf2-sha256",
     pbkdf2_iterations: 100000,
   }, 200);
-}
-
-export async function activateStaff(
-  request: Request,
-  rateGate: RateGate = checkAuthRateLimit,
-) {
-  if (request.method !== "POST") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "POST" });
-  
-  const contentType = request.headers.get("content-type") || "";
-  if (!contentType.toLowerCase().startsWith("application/json")) return json({ outcome: "INVALID_REQUEST" }, 400);
-
-  let body;
-  try { body = await request.json(); } catch { return json({ outcome: "INVALID_REQUEST" }, 400); }
-
-  const token = body.token || "";
-  const pin = body.pin || "";
-  const canonicalPhone = body.canonical_phone || "";
-
-  if (!TOKEN_REGEX.test(token) || !PIN_REGEX.test(pin) || !PHONE_REGEX.test(canonicalPhone)) {
-    return json({ outcome: "INVALID_REQUEST" }, 400);
-  }
-
-  const tokenHash = await sha256Hex(token);
-
-  const blocked = await enforceAuthLimit(
-    "ACTIVATE",
-    tokenHash,
-    rateGate,
-  );
-  if (blocked) return blocked;
-  // Rate limiting omitted for local testing, would be here.
-  const pepper = Deno.env.get("CASHIER_PIN_PEPPER");
-
-  if (!pepper || pepper.length < 32) {
-    throw new Error("PIN_PEPPER_NOT_CONFIGURED");
-  }
-
-  const credential = await deriveCredential(pin, tokenHash, pepper);
-  
-  try {
-    const result = await rpc("activate_staff_invite", {
-      p_token_hash: tokenHash,
-      p_credential_hash: credential.credentialHash,
-      p_credential_salt: credential.credentialSalt,
-    });
-    
-    if (!Array.isArray(result) || result.length !== 1) throw new Error("ACTIVATION_RESULT_INVALID");
-    const row = result[0];
-    
-    if (row.outcome === "ACTIVATED" || row.outcome === "ALREADY_ACTIVATED") {
-      return json(row, 200);
-    } else if (row.outcome === "PHONE_ALREADY_REGISTERED") {
-      return json({ outcome: "PHONE_ALREADY_REGISTERED" }, 409);
-    } else if (row.outcome === "INVALID_INVITE") {
-      return json({ outcome: "INVALID_INVITE" }, 400);
-    }
-    return json({ outcome: "UNKNOWN_ACTIVATION_RESULT" }, 400);
-  } catch (error: any) {
-    if (error.status === 400 || error.status === 409) return json({ outcome: error.outcome }, error.status);
-    throw error;
-  }
 }
 
 export async function loginStaff(
