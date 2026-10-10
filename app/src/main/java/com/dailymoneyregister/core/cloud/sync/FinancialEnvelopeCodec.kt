@@ -1,6 +1,8 @@
 package com.dailymoneyregister.core.cloud.sync
 
 import com.dailymoneyregister.core.command.CommandFingerprint
+import com.dailymoneyregister.core.model.enums.OperationType
+import com.dailymoneyregister.feature.register.data.RegisterShiftLifecyclePayloadCodec
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
@@ -140,6 +142,14 @@ object FinancialEnvelopeCodec {
             eJson.put("occurred_at", expense.occurredAt)
             eJson.put("created_at", expense.createdAt)
             root.put("expense", eJson)
+        }
+
+        if (operation.operationType == OperationType.CLOSE_CASH_SHIFT) {
+            runCatching {
+                RegisterShiftLifecyclePayloadCodec.decodeClose(operation).reportSnapshot
+            }.getOrNull()?.let { snapshot ->
+                root.put("day_closing_report", JSONObject(snapshot.toJsonString()))
+            }
         }
 
         val canonicalText = root.toString()
