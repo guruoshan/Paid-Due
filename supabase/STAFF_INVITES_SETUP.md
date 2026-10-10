@@ -11,10 +11,11 @@ Under **Edge Functions → Secrets**, configure AUTH_RATE_LIMIT_SECRET and CASHI
 1. An authenticated Admin enters the cashier's name, phone number, branch, and permissions in Manage Cashiers.
 2. The staff-invite Edge Function validates the Admin session, creates a 32-byte random token, stores only its SHA-256 hash, and returns a link which expires in 48 hours.
 3. Android opens WhatsApp using the normal wa.me click-to-chat URL with the message and invitation link prefilled. The Admin taps Send manually. There is no WhatsApp Business API integration.
+4. The token is placed after `#` in the web invitation URL. Browsers do not send URL fragments in HTTP requests; the landing page reads the fragment locally and passes the token into the `paiddue://invite?t=...` app deep link.
 4. The link opens a small landing page served by the staff-open Edge Function, which offers a direct app deep link paiddue://invite?t=....
-5. The cashier reviews business/branch information, enters and confirms a six-digit PIN, and taps Activate. No email, phone, OTP, or Supabase Auth verification is required for the employee; possession of the unique invitation link is the authorization credential.
+6. The cashier reviews business/branch information, enters and confirms a six-digit PIN, and taps Activate. No email, phone, OTP, or Supabase Auth verification is required for the employee; possession of the unique invitation link is the authorization credential.
 6. The staff-activate Edge Function rate-limits attempts, derives a salted PBKDF2-SHA256 PIN verifier on the server, and calls activate_staff_invite. PostgreSQL atomically consumes the valid invitation and creates the staff identity and membership.
-7. Supabase remains the online source of truth. Room stores the activated projection needed for offline operation; it is not the primary account store.
+8. Supabase remains the online source of truth. Room stores the activated projection needed for offline operation; it is not the primary account store.
 
 ## Security / cashier administration
 
