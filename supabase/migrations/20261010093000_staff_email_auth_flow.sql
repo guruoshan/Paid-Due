@@ -1,6 +1,7 @@
 -- Paid&Due Supabase Auth-backed staff invitations and activation.
 -- Applied to the live project before this source was recorded.
--- All invitations now require an email address; Supabase Auth sends the email.
+-- Every new staff invitation requires an email address and Supabase Auth email.
+
 ALTER TABLE private.staff_invites
   ADD COLUMN IF NOT EXISTS invited_email text;
 
@@ -102,7 +103,6 @@ BEGIN
 END;
 $function$;
 
-
 CREATE OR REPLACE FUNCTION public.create_staff_invite_for_email(p_token_hash text, p_business_id text, p_branch_id text, p_display_name text, p_canonical_phone text, p_invited_email text, p_permissions jsonb, p_created_by_auth_user_id uuid)
  RETURNS TABLE(invite_id uuid, expires_at timestamp with time zone)
  LANGUAGE plpgsql
@@ -191,7 +191,6 @@ BEGIN
 END;
 $function$;
 
-
 CREATE OR REPLACE FUNCTION public.revoke_staff_invite_for_email(p_token_hash text, p_created_by_auth_user_id uuid)
  RETURNS boolean
  LANGUAGE plpgsql
@@ -210,7 +209,6 @@ BEGIN
   RETURN FOUND;
 END;
 $function$;
-
 
 CREATE OR REPLACE FUNCTION public.activate_staff_invite_for_auth(p_token_hash text, p_auth_user_id uuid, p_credential_hash text, p_credential_salt text, p_canonical_phone text)
  RETURNS jsonb
@@ -371,7 +369,6 @@ BEGIN
 END;
 $function$;
 
-
 CREATE OR REPLACE FUNCTION public.preview_staff_invite(p_token_hash text)
  RETURNS TABLE(business_id text, business_name text, branch_id text, branch_name text, display_name text, canonical_phone text, role text, permissions jsonb, expires_at timestamp with time zone)
  LANGUAGE plpgsql
@@ -381,23 +378,7 @@ AS $function$
 DECLARE
   v_auth_email text;
 BEGIN
-  IF p_token_hash IS NULL OR p_token_hash !~ '^[0-9a-f]{64}-- Edge Function, which sends the Supabase Auth email and stores the email.
-DROP FUNCTION IF EXISTS public.create_staff_invite(text,text,text,text,text,jsonb);
-REVOKE ALL ON FUNCTION public.preview_staff_invite(text) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.preview_staff_invite(text) TO authenticated, service_role;
-REVOKE ALL ON FUNCTION public.activate_staff_invite(text,text,text) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.activate_staff_invite(text,text,text) TO service_role;
-
-REVOKE ALL ON FUNCTION public.create_staff_invite_for_email(text,text,text,text,text,text,jsonb,uuid) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.create_staff_invite_for_email(text,text,text,text,text,text,jsonb,uuid) TO service_role;
-REVOKE ALL ON FUNCTION public.revoke_staff_invite_for_email(text,uuid) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.revoke_staff_invite_for_email(text,uuid) TO service_role;
-REVOKE ALL ON FUNCTION public.activate_staff_invite_for_auth(text,uuid,text,text,text) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.activate_staff_invite_for_auth(text,uuid,text,text,text) TO service_role;
-
-REVOKE ALL ON FUNCTION public.check_auth_rate_limit(text,text) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.check_auth_rate_limit(text,text) TO service_role;
- THEN
+  IF p_token_hash IS NULL OR p_token_hash !~ '^[0-9a-f]{64}$' THEN
     RETURN;
   END IF;
 
@@ -434,10 +415,10 @@ GRANT EXECUTE ON FUNCTION public.check_auth_rate_limit(text,text) TO service_rol
 END;
 $function$;
 
-
 -- The app creates invitations only through the authenticated staff-invite
 -- Edge Function, which sends the Supabase Auth email and stores the email.
 DROP FUNCTION IF EXISTS public.create_staff_invite(text,text,text,text,text,jsonb);
+
 REVOKE ALL ON FUNCTION public.preview_staff_invite(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.preview_staff_invite(text) TO authenticated, service_role;
 REVOKE ALL ON FUNCTION public.activate_staff_invite(text,text,text) FROM PUBLIC, anon, authenticated;
