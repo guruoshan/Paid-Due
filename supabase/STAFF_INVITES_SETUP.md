@@ -7,7 +7,8 @@ Paid&Due staff invitations are sent by Supabase Auth. No separate invite webpage
 1. In Supabase Dashboard, open **Authentication → URL Configuration**.
 2. Add the exact mobile redirect URL `paiddue://invite` to **Redirect URLs**.
 3. Configure a production SMTP provider under **Authentication → SMTP Settings** and verify the sender domain. The default test email service is not suitable for production delivery.
-4. Keep the invitation and confirmation email templates using Supabase's confirmation URL so the Auth token is verified before the app receives the deep link.
+4. Under **Edge Functions → Secrets**, ensure `AUTH_RATE_LIMIT_SECRET` and `CASHIER_PIN_PEPPER` are set to strong values of at least 32 characters. Keep them stable; do not put them in Android BuildConfig or commit their values.
+5. Keep the invitation and confirmation email templates using Supabase's confirmation URL so the Auth token is verified before the app receives the deep link.
 
 The repository config records the mobile redirect allowlist for local/CLI configuration. The hosted Dashboard settings must still be checked; a repository file alone does not prove that remote Auth settings have been applied.
 
