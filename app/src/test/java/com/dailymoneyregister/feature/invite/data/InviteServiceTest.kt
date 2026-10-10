@@ -1,360 +1,178 @@
-﻿package com.dailymoneyregister.feature.invite.data
+package com.dailymoneyregister.feature.invite.data
 
+import com.dailymoneyregister.core.model.enums.UserRole
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class InviteServiceTest {
-
-    private val baseInstant =
-        Instant.parse("2026-10-07T00:00:00Z")
-
-    private val baseClock =
-        Clock.fixed(
-            baseInstant,
-            ZoneOffset.UTC
-        )
+    private val baseInstant = Instant.parse("2026-10-07T00:00:00Z")
+    private val baseClock = Clock.fixed(baseInstant, ZoneOffset.UTC)
 
     @Test
-    fun freshInviteValidatesAsValid() = runTest {
+    fun createsOneTimeLinkThroughSupabaseWithoutLocalInviteCopy() = runTest {
         val store = FakeInviteStore()
-        val service = service(store)
+        val creator = FakeLinkCreator()
+        val service = service(store, creator)
 
-        val created =
-            service.createInvite(
-                businessId = "business-1",
-                branchId = "branch-1",
-                displayName = "Cashier",
-                canonicalPhone = "+919812345678",
-                permissions = emptyMap()
-            )
-
-        val result =
-            service.validate(created.token)
-
-        assertTrue(
-            result is InviteResult.Valid
-        )
-    }
-
-    @Test
-    fun inviteExpiresAfter48Hours() = runTest {
-        val store = FakeInviteStore()
-
-        val creator =
-            InviteService(
-                store = store,
-                clock = baseClock,
-                linkConfig = FakeInviteLinkConfig()
-            )
-
-        val created =
-            creator.createInvite(
-                businessId = "business-1",
-                branchId = "branch-1",
-                displayName = "Cashier",
-                canonicalPhone = "+919812345678",
-                permissions = emptyMap()
-            )
-
-        val expiredClock =
-            Clock.fixed(
-                baseInstant.plusSeconds(
-                    (48L * 60L * 60L) + 1L
-                ),
-                ZoneOffset.UTC
-            )
-
-        val validator =
-            InviteService(
-                store = store,
-                clock = expiredClock,
-                linkConfig = FakeInviteLinkConfig()
-            )
-
-        assertEquals(
-            InviteResult.Expired,
-            validator.validate(created.token)
-        )
-    }
-
-    @Test
-    fun consumedInviteBecomesUsedAndCannotConsumeAgain() = runTest {
-        val store = FakeInviteStore()
-        val service = service(store)
-
-        val created =
-            createInvite(service)
-
-        assertTrue(
-            service.consume(created.token)
-        )
-
-        assertFalse(
-            service.consume(created.token)
-        )
-
-        assertEquals(
-            InviteResult.Used,
-            service.validate(created.token)
-        )
-    }
-
-    @Test
-    fun revokedInviteIsRejected() = runTest {
-        val store = FakeInviteStore()
-        val service = service(store)
-
-        val created =
-            createInvite(service)
-
-        store.revoke(
-            service.hashToken(created.token),
-            baseClock.millis()
-        )
-
-        assertEquals(
-            InviteResult.Revoked,
-            service.validate(created.token)
-        )
-    }
-
-    @Test
-    fun unknownTokenIsNotFound() = runTest {
-        val service =
-            service(FakeInviteStore())
-
-        val unknownToken =
-            "abcdefghijklmnopqrstuvwxyzABCDEFG1234567890_-"
-
-        assertEquals(
-            InviteResult.NotFound,
-            service.validate(unknownToken)
-        )
-    }
-
-    @Test
-    fun storeContainsHashNeverRawToken() = runTest {
-        val store = FakeInviteStore()
-        val service = service(store)
-
-        val created =
-            createInvite(service)
-
-        assertFalse(
-            store.invites.containsKey(
-                created.token
-            )
-        )
-
-        assertTrue(
-            store.invites.containsKey(
-                service.hashToken(created.token)
-            )
-        )
-
-        assertEquals(
-            created.invite.tokenHash,
-            service.hashToken(created.token)
-        )
-    }
-
-    @Test
-    fun twoInvitesHaveDifferentTokens() = runTest {
-        val store = FakeInviteStore()
-        val service = service(store)
-
-        val first =
-            service.createInvite(
-                businessId = "business-1",
-                branchId = "branch-1",
-                displayName = "Cashier One",
-                canonicalPhone = "+919812345671",
-                permissions = emptyMap()
-            )
-
-        val second =
-            service.createInvite(
-                businessId = "business-1",
-                branchId = "branch-1",
-                displayName = "Cashier Two",
-                canonicalPhone = "+919812345672",
-                permissions = emptyMap()
-            )
-
-        assertNotEquals(
-            first.token,
-            second.token
-        )
-    }
-
-    @Test
-    fun tamperedTokenIsNotFound() = runTest {
-        val store = FakeInviteStore()
-        val service = service(store)
-
-        val created =
-            createInvite(service)
-
-        val replacement =
-            if (created.token.last() == 'A') {
-                'B'
-            } else {
-                'A'
-            }
-
-        val tampered =
-            created.token.dropLast(1) +
-                replacement
-
-        assertEquals(
-            InviteResult.NotFound,
-            service.validate(tampered)
-        )
-    }
-
-    @Test
-    fun generatedLinkUsesConfiguredPaidDueEndpoint() = runTest {
-        val service =
-            service(FakeInviteStore())
-
-        val created =
-            createInvite(service)
-
-        assertTrue(
-            created.link.startsWith(
-                "https://paid-due.test/open/invite#"
-            )
-        )
-
-        assertFalse(
-            created.link.contains(
-                "muscatera.com",
-                ignoreCase = true
-            )
-        )
-
-        assertTrue(
-            created.link.endsWith(
-                created.token
-            )
-        )
-    }
-
-    @Test
-    fun malformedTokenIsRejectedWithoutStoreLookup() = runTest {
-        val store = FakeInviteStore()
-        val service = service(store)
-
-        assertEquals(
-            InviteResult.NotFound,
-            service.validate("not valid !!!")
-        )
-
-        assertEquals(
-            0,
-            store.findCount
-        )
-    }
-
-    private suspend fun createInvite(
-        service: InviteService
-    ): CreatedInvite =
-        service.createInvite(
+        val created = service.createInvite(
             businessId = "business-1",
             branchId = "branch-1",
             displayName = "Cashier",
             canonicalPhone = "+919812345678",
-            permissions = emptyMap()
+            permissions = mapOf("REFUND" to false)
         )
+
+        assertEquals("business-1", creator.lastBusinessId)
+        assertEquals("branch-1", creator.lastBranchId)
+        assertEquals("Cashier", creator.lastDisplayName)
+        assertEquals("+919812345678", creator.lastPhone)
+        assertEquals(mapOf("REFUND" to false), creator.lastPermissions)
+        assertEquals("https://example.test/functions/v1/staff-open#secure-token", created.inviteUrl)
+        assertEquals("Cashier", created.displayName)
+        assertEquals(baseClock.millis() + 48L * 60L * 60L * 1000L, created.expiresAt)
+        assertTrue(store.invites.isEmpty())
+    }
+
+    @Test
+    fun invalidPhoneIsRejectedBeforeCallingSupabase() = runTest {
+        val creator = FakeLinkCreator()
+        val service = service(FakeInviteStore(), creator)
+
+        val failure = runCatching {
+            service.createInvite(
+                businessId = "business-1",
+                branchId = "branch-1",
+                displayName = "Cashier",
+                canonicalPhone = "not-a-phone",
+                permissions = emptyMap()
+            )
+        }
+
+        assertTrue(failure.isFailure)
+        assertEquals(0, creator.createCount)
+    }
+
+    @Test
+    fun tokenHashIsSha256HexAndDoesNotExposeRawToken() {
+        val service = service(FakeInviteStore(), FakeLinkCreator())
+        val token = "abcdefghijklmnopqrstuvwxyzABCDEFG1234567890_-"
+        val hash = service.hashToken(token)
+        assertEquals(64, hash.length)
+        assertFalse(hash.contains(token))
+    }
+
+    @Test
+    fun remoteInviteValidationHonorsExpiryAndSingleUse() = runTest {
+        val store = FakeInviteStore()
+        val service = service(store, FakeLinkCreator())
+        val token = "abcdefghijklmnopqrstuvwxyzABCDEFG1234567890_-"
+        val hash = service.hashToken(token)
+        val now = baseClock.millis()
+        store.create(
+            StaffInvite(
+                tokenHash = hash,
+                businessId = "business-1",
+                branchId = "branch-1",
+                displayName = "Cashier",
+                canonicalPhone = "+919812345678",
+                role = UserRole.CASHIER,
+                permissions = emptyMap(),
+                createdAt = now,
+                expiresAt = now + 48L * 60L * 60L * 1000L
+            )
+        )
+
+        assertTrue(service.consume(token))
+        assertFalse(service.consume(token))
+        assertTrue(service.validate(token) is InviteResult.Used)
+    }
+
+    @Test
+    fun expiredInviteIsRejected() = runTest {
+        val store = FakeInviteStore()
+        val service = service(store, FakeLinkCreator())
+        val token = "abcdefghijklmnopqrstuvwxyzABCDEFG1234567890_-"
+        val now = baseClock.millis()
+        store.create(
+            StaffInvite(
+                tokenHash = service.hashToken(token),
+                businessId = "business-1",
+                branchId = "branch-1",
+                displayName = "Cashier",
+                canonicalPhone = "+919812345678",
+                role = UserRole.CASHIER,
+                permissions = emptyMap(),
+                createdAt = now - 49L * 60L * 60L * 1000L,
+                expiresAt = now - 1
+            )
+        )
+        assertEquals(InviteResult.Expired, service.validate(token))
+    }
 
     private fun service(
-        store: FakeInviteStore
-    ): InviteService =
-        InviteService(
-            store = store,
-            clock = baseClock,
-            linkConfig = FakeInviteLinkConfig()
-        )
+        store: FakeInviteStore,
+        creator: FakeLinkCreator,
+        clock: Clock = baseClock
+    ) = InviteService(store = store, linkCreator = creator, clock = clock)
 
-    private class FakeInviteLinkConfig :
-        InviteLinkConfig() {
+    private class FakeLinkCreator : StaffInviteLinkCreator {
+        var createCount = 0
+        var lastBusinessId: String? = null
+        var lastBranchId: String? = null
+        var lastDisplayName: String? = null
+        var lastPhone: String? = null
+        var lastPermissions: Map<String, Boolean>? = null
 
-        override fun configuredBaseUrl(): String =
-            "https://paid-due.test/open/invite"
+        override suspend fun createInviteLink(
+            businessId: String,
+            branchId: String,
+            displayName: String,
+            canonicalPhone: String,
+            permissions: Map<String, Boolean>
+        ): CreatedInvite {
+            createCount++
+            lastBusinessId = businessId
+            lastBranchId = branchId
+            lastDisplayName = displayName
+            lastPhone = canonicalPhone
+            lastPermissions = permissions
+            return CreatedInvite(
+                displayName = displayName,
+                canonicalPhone = canonicalPhone,
+                inviteUrl = "https://example.test/functions/v1/staff-open#secure-token",
+                expiresAt = baseClock.millis() + 48L * 60L * 60L * 1000L
+            )
+        }
     }
 
     private class FakeInviteStore : InviteStore {
+        val invites = linkedMapOf<String, StaffInvite>()
 
-        val invites =
-            linkedMapOf<String, StaffInvite>()
-
-        var findCount: Int = 0
-            private set
-
-        override suspend fun create(
-            invite: StaffInvite
-        ) {
-            invites[invite.tokenHash] =
-                invite
+        override suspend fun create(invite: StaffInvite) {
+            invites[invite.tokenHash] = invite
         }
 
-        override suspend fun findByTokenHash(
-            hash: String
-        ): StaffInvite? {
-            findCount += 1
-            return invites[hash]
-        }
+        override suspend fun findByTokenHash(hash: String): StaffInvite? = invites[hash]
 
-        override suspend fun markUsedIfUnused(
-            hash: String,
-            now: Long
-        ): Boolean {
-
-            val current =
-                invites[hash]
-                    ?: return false
-
-            if (
-                current.usedAt != null ||
-                current.revokedAt != null
-            ) {
-                return false
-            }
-
-            invites[hash] =
-                current.copy(
-                    usedAt = now
-                )
-
+        override suspend fun markUsedIfUnused(hash: String, now: Long): Boolean {
+            val invite = invites[hash] ?: return false
+            if (invite.usedAt != null || invite.revokedAt != null || invite.expiresAt <= now) return false
+            invites[hash] = invite.copy(usedAt = now)
             return true
         }
 
-        override suspend fun revoke(
-            hash: String,
-            now: Long
-        ) {
-            val current =
-                invites[hash]
-                    ?: return
-
-            invites[hash] =
-                current.copy(
-                    revokedAt = now
-                )
+        override suspend fun revoke(hash: String, now: Long) {
+            val invite = invites[hash] ?: return
+            invites[hash] = invite.copy(revokedAt = now)
         }
 
-        override suspend fun listForBusiness(
-            businessId: String
-        ): List<StaffInvite> =
-            invites.values.filter {
-                it.businessId == businessId
-            }
+        override suspend fun listForBusiness(businessId: String): List<StaffInvite> =
+            invites.values.filter { it.businessId == businessId }
     }
 }

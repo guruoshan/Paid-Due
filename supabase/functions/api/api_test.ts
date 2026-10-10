@@ -1,5 +1,5 @@
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.200.0/assert/mod.ts";
-import { health, activateStaff, loginStaff, uploadFinancial, staffMetadata, downloadFinancial } from "./handlers.ts";
+import { health, loginStaff, uploadFinancial, staffMetadata, downloadFinancial } from "./handlers.ts";
 import { sha256Hex, deriveCredential, hexToBytes, bytesToHex } from "./crypto.ts";
 
 Deno.test("GET /api/health returns 200 OK and expected version contract", async () => {
@@ -11,39 +11,6 @@ Deno.test("GET /api/health returns 200 OK and expected version contract", async 
   assertEquals(data.backend_version, "3");
   assertEquals(data.credential_format, "pbkdf2-sha256");
   assertEquals(data.pbkdf2_iterations, 100000);
-});
-
-Deno.test("POST /api/staff/activate method enforcement", async () => {
-  const req = new Request("http://localhost/api/staff/activate", { method: "GET" });
-  const res = await activateStaff(req);
-  assertEquals(res.status, 405);
-  assertEquals(res.headers.get("Allow"), "POST");
-});
-
-Deno.test("POST /api/staff/activate payload validation", async () => {
-  const req1 = new Request("http://localhost/api/staff/activate", {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: "test"
-  });
-  const res1 = await activateStaff(req1);
-  assertEquals(res1.status, 400);
-
-  const req2 = new Request("http://localhost/api/staff/activate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: "{"
-  });
-  const res2 = await activateStaff(req2);
-  assertEquals(res2.status, 400);
-
-  const req3 = new Request("http://localhost/api/staff/activate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token: "invalid_short", pin: "123", canonical_phone: "123" })
-  });
-  const res3 = await activateStaff(req3);
-  assertEquals(res3.status, 400);
 });
 
 Deno.test("POST /api/staff/login method enforcement", async () => {
