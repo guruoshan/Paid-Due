@@ -70,6 +70,10 @@ interface BusinessRestorer {
         usernameOrEmail: String,
         passwordPlain: String
     ): RemoteBusinessRestorationResult
+
+    /** Fresh online check; false means the cached session must not be restored. */
+    suspend fun validateAdminSession(businessId: String, branchId: String, userId: String): Boolean = false
+    suspend fun validateCashierSession(membershipId: String): Boolean = false
 }
 
 @Singleton
@@ -230,6 +234,27 @@ class RemoteBusinessRestorer @Inject constructor(
             )
         }
     }
+    override suspend fun validateAdminSession(
+        businessId: String,
+        branchId: String,
+        userId: String
+    ): Boolean {
+        if (!remoteAdminAuthRepository.hasAuthenticatedSession()) return false
+        return runCatching {
+            val rows = supabase.postgrest.rpc("restore_admin_by_auth_id")
+                .decodeList<RemoteStaffRestorationRpcRow>()
+            val row = rows.singleOrNull() ?: return@runCatching false
+            row.businessId == businessId &&
+                row.branchId == branchId &&
+                row.localUserId == userId
+        }.getOrDefault(false)
+    }
+
+    override suspend fun validateCashierSession(membershipId: String): Boolean {
+        return com.dailymoneyregister.core.cloud.sync.CashierCloudSession
+            .validateSession(membershipId)
+    }
+
     override suspend fun restoreAdminIfEmpty(
         usernameOrEmail: String,
         passwordPlain: String
