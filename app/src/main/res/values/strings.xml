@@ -407,6 +407,5 @@
     <string name="staff_perm_broad_history">View full history</string>
     <string name="staff_perm_manage_products">Manage products</string>
     <string name="staff_perm_view_reports">View reports</string>
-    <string name="staff_perm_view_customers">Access customers</string>
     <string name="admin_email">Admin email</string>
 </resources>
