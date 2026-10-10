@@ -251,9 +251,9 @@ class RemoteInviteStore @Inject constructor(
             error(message)
         }
 
-        val inviteUrl = responseJson["invite_url"]?.jsonPrimitive?.content
+        val inviteUrl = responseJson["invite_url"]?.jsonPrimitive?.contentOrNull ?: ""
             ?: error("Supabase did not return an invitation link.")
-        val expiresAt = responseJson["expires_at"]?.jsonPrimitive?.content
+        val expiresAt = responseJson["expires_at"]?.jsonPrimitive?.contentOrNull ?: ""
             ?: error("Supabase did not return the invitation expiry.")
         val expectedLandingPrefix = "$supabaseUrl/functions/v1/staff-open#"
         val inviteToken = inviteUrl.substringAfter(expectedLandingPrefix, missingDelimiterValue = "")
