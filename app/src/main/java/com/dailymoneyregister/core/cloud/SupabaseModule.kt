@@ -13,7 +13,8 @@ import javax.inject.Singleton
 
 /**
  * Shared Supabase client for Auth and PostgREST.
- * Supabase is the online source of truth; Room supports local/offline work.
+ * Supabase owns cloud identity and shared records; Room is retained for the
+ * device-side offline projection and synchronization outbox.
  */
 @Module
 @InstallIn(SingletonComponent::class)
