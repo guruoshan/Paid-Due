@@ -75,6 +75,7 @@ import javax.inject.Inject
 
 import com.dailymoneyregister.core.model.tax.TaxRateParser
 import com.dailymoneyregister.feature.register.data.RegisterShiftReport
+import com.dailymoneyregister.feature.register.data.RegisterShiftCloseReportSnapshot
 import com.dailymoneyregister.feature.register.data.RegisterShiftResult
 import com.dailymoneyregister.feature.register.data.CountRegisterShiftCommand
 import com.dailymoneyregister.feature.register.data.CloseRegisterShiftCommand
@@ -3229,7 +3230,7 @@ if (
                                 expectedCashMinor = report.expectedCashMinor,
                                 countedCashMinor = countedMinor,
                                 differenceMinor = Math.subtractExact(countedMinor, report.expectedCashMinor),
-                                cashierUserId = report.shift.userId,
+                                cashierUserId = session.user.id,
                                 closedByUserId = session.user.id,
                                 closedAt = System.currentTimeMillis()
                             )
