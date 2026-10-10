@@ -370,7 +370,7 @@ $function$
 
 -- The app creates invitations only through the authenticated staff-invite
 -- Edge Function, which sends the Supabase Auth email and stores the email.
-REVOKE ALL ON FUNCTION public.create_staff_invite(text,text,text,text,text,jsonb) FROM PUBLIC, anon, authenticated;
+DROP FUNCTION IF EXISTS public.create_staff_invite(text,text,text,text,text,jsonb);
 REVOKE ALL ON FUNCTION public.preview_staff_invite(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.preview_staff_invite(text) TO authenticated, service_role;
 REVOKE ALL ON FUNCTION public.activate_staff_invite(text,text,text) FROM PUBLIC, anon, authenticated;
