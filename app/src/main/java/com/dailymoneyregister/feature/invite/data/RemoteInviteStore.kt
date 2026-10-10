@@ -204,19 +204,18 @@ class RemoteInviteStore @Inject constructor(
     override suspend fun create(
         invite: StaffInvite
     ) {
-        error("Staff invitations must be created through Supabase Auth email.")
+        error("Staff invitations must be created through the authenticated Supabase invitation service.")
     }
 
-    override suspend fun sendEmailInvite(
-        email: String,
+    override suspend fun createInviteLink(
         businessId: String,
         branchId: String,
         displayName: String,
         canonicalPhone: String,
         permissions: Map<String, Boolean>
-    ) {
+    ): CreatedInvite {
         val accessToken = supabase.auth.currentSessionOrNull()?.accessToken
-            ?: error("Sign in to your Supabase Admin account before inviting staff.")
+            ?: error("Sign in as Admin before inviting staff.")
 
         val supabaseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trim().trimEnd('/')
         check(supabaseUrl.startsWith("https://")) {
@@ -224,7 +223,6 @@ class RemoteInviteStore @Inject constructor(
         }
 
         val requestBody = buildJsonObject {
-            put("email", JsonPrimitive(email.trim().lowercase()))
             put("business_id", JsonPrimitive(businessId))
             put("branch_id", JsonPrimitive(branchId))
             put("display_name", JsonPrimitive(displayName.trim()))
@@ -240,20 +238,34 @@ class RemoteInviteStore @Inject constructor(
         }
 
         val body = response.bodyAsText()
-        val outcome = runCatching {
-            activationJson.parseToJsonElement(body).jsonObject["outcome"]?.jsonPrimitive?.content
+        val responseJson = runCatching {
+            activationJson.parseToJsonElement(body).jsonObject
         }.getOrNull()
-
-        if (response.status.value !in 200..299 || outcome != "INVITATION_SENT") {
+        val outcome = responseJson?.get("outcome")?.jsonPrimitive?.content
+        if (response.status.value !in 200..299 || outcome != "INVITATION_CREATED") {
             val message = when (outcome) {
-                "RATE_LIMITED" -> "Too many invitations were sent. Try again later."
-                "UNAUTHORIZED" -> "Your Supabase session expired. Sign in again."
-                "INVITATION_EMAIL_FAILED" -> "Supabase could not send the invitation email. Check Auth email and redirect settings."
-                "BACKEND_NOT_CONFIGURED" -> "Supabase invitation settings are incomplete."
-                else -> "Unable to send staff invitation through Supabase."
+                "RATE_LIMITED" -> "Too many invitations were created. Try again later."
+                "UNAUTHORIZED" -> "Your Admin session expired. Sign in again."
+                "BACKEND_NOT_CONFIGURED" -> "Supabase staff invitation settings are incomplete."
+                else -> "Unable to create a staff invitation link."
             }
             error(message)
         }
+
+        val inviteUrl = responseJson["invite_url"]?.jsonPrimitive?.content
+            ?: error("Supabase did not return an invitation link.")
+        val expiresAt = responseJson["expires_at"]?.jsonPrimitive?.content
+            ?: error("Supabase did not return the invitation expiry.")
+        check(inviteUrl.startsWith("$supabaseUrl/functions/v1/staff-open?t=")) {
+            "Supabase returned an unexpected invitation URL."
+        }
+
+        return CreatedInvite(
+            displayName = displayName.trim(),
+            canonicalPhone = canonicalPhone,
+            inviteUrl = inviteUrl,
+            expiresAt = OffsetDateTime.parse(expiresAt).toInstant().toEpochMilli()
+        )
     }
 
     suspend fun previewByTokenHash(
@@ -324,140 +336,49 @@ class RemoteInviteStore @Inject constructor(
 
     suspend fun activate(
         token: String,
-        pin: String,
-        canonicalPhone: String
+        pin: String
     ): RemoteStaffActivationResult {
+        require(TOKEN_REGEX.matches(token)) { "Invalid invitation token" }
+        require(PIN_REGEX.matches(pin)) { "Invalid Cashier PIN" }
 
-        require(
-            TOKEN_REGEX.matches(token)
-        ) {
-            "Invalid invitation token"
+        val supabaseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trim().trimEnd('/')
+        check(supabaseUrl.startsWith("https://")) { "Paid&Due Supabase is not configured" }
+
+        val requestBody = buildJsonObject {
+            put("token", JsonPrimitive(token))
+            put("pin", JsonPrimitive(pin))
+        }.toString()
+
+        val response = activationHttpClient.post("$supabaseUrl/functions/v1/staff-activate") {
+            header(HttpHeaders.ContentType, "application/json")
+            header("apikey", BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY)
+            setBody(requestBody)
         }
 
-        require(
-            PIN_REGEX.matches(pin)
-        ) {
-            "Invalid Cashier PIN"
+        val body = response.bodyAsText()
+        val row = runCatching {
+            activationJson.decodeFromString(ActivateStaffInviteRpcRow.serializer(), body)
+        }.getOrElse {
+            error("Paid&Due activation service returned an invalid response")
         }
 
-        require(
-            CANONICAL_PHONE_REGEX.matches(
-                canonicalPhone
-            )
-        ) {
-            "Invalid Cashier phone"
-        }
-
-        val supabaseUrl =
-            BuildConfig.PAID_DUE_SUPABASE_URL.trim().trimEnd('/')
-
-        check(supabaseUrl.startsWith("https://")) {
-            "Paid&Due Supabase is not configured"
-        }
-
-        val accessToken = supabase.auth.currentSessionOrNull()?.accessToken
-            ?: error("Open the verified invitation email again to continue activation")
-
-        val requestBody =
-            buildJsonObject {
-
-                put(
-                    "token",
-                    JsonPrimitive(token)
-                )
-
-                put(
-                    "pin",
-                    JsonPrimitive(pin)
-                )
-
-                put(
-                    "canonical_phone",
-                    JsonPrimitive(
-                        canonicalPhone
-                    )
-                )
-            }.toString()
-
-        val response =
-            activationHttpClient.post(
-                "$supabaseUrl/functions/v1/staff-activate"
-            ) {
-
-                header(HttpHeaders.ContentType, "application/json")
-                header("apikey", BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY)
-                header(HttpHeaders.Authorization, "Bearer $accessToken")
-
-                setBody(
-                    requestBody
-                )
-            }
-
-        val body =
-            response.bodyAsText()
-
-        val row =
-            runCatching {
-
-                activationJson.decodeFromString(
-                    ActivateStaffInviteRpcRow.serializer(),
-                    body
-                )
-
-            }.getOrElse {
-
-                error(
-                    "Paid&Due activation service returned an invalid response"
-                )
-            }
-
-        return when (
-            row.outcome
-        ) {
-
-            "INVALID_INVITE" ->
-
-                RemoteStaffActivationResult
-                    .InvalidInvite
-
-            "PHONE_ALREADY_REGISTERED" ->
-
-                RemoteStaffActivationResult
-                    .PhoneAlreadyRegistered
-
-            "ACTIVATED",
-            "ALREADY_ACTIVATED" -> {
-
-                check(
-                    response.status.value ==
-                        200
-                ) {
+        return when (row.outcome) {
+            "INVALID_INVITE" -> RemoteStaffActivationResult.InvalidInvite
+            "PHONE_ALREADY_REGISTERED" -> RemoteStaffActivationResult.PhoneAlreadyRegistered
+            "ACTIVATED", "ALREADY_ACTIVATED" -> {
+                check(response.status.value == 200) {
                     "Paid&Due activation service returned an unexpected HTTP status"
                 }
-
-                val activation =
-                    requireActivation(
-                        row
-                    )
-
-                RemoteStaffActivationResult
-                    .Activated(
-                        activation =
-                            activation,
-
-                        wasAlreadyActivated =
-                            row.outcome ==
-                                "ALREADY_ACTIVATED"
-                    )
-            }
-
-            else ->
-
-                error(
-                    "Paid&Due activation service is unavailable"
+                RemoteStaffActivationResult.Activated(
+                    activation = requireActivation(row),
+                    wasAlreadyActivated = row.outcome == "ALREADY_ACTIVATED"
                 )
+            }
+            "RATE_LIMITED" -> error("Too many activation attempts. Try again later.")
+            else -> error("Paid&Due activation service is unavailable")
         }
     }
+
     override suspend fun findByTokenHash(
         hash: String
     ): StaffInvite? =
