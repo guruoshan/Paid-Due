@@ -2,6 +2,7 @@ package com.dailymoneyregister.feature.invite.di
 
 import com.dailymoneyregister.feature.invite.data.InviteStore
 import com.dailymoneyregister.feature.invite.data.RemoteInviteStore
+import com.dailymoneyregister.feature.invite.data.StaffInviteLinkCreator
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -20,7 +21,7 @@ abstract class InviteModule {
 
     @Binds
     @Singleton
-    abstract fun bindStaffInviteEmailSender(store: RemoteInviteStore): com.dailymoneyregister.feature.invite.data.StaffInviteEmailSender
+    abstract fun bindStaffInviteLinkCreator(store: RemoteInviteStore): StaffInviteLinkCreator
 
     companion object {
         @Provides
