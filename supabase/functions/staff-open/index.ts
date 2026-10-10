@@ -1,4 +1,3 @@
-const TOKEN_REGEX = /^[A-Za-z0-9_-]{32,128}$/;
 const headers = {
   "Content-Type": "text/html; charset=utf-8",
   "Cache-Control": "no-store, max-age=0",
