@@ -18,8 +18,7 @@ enum class PermissionAction {
     CHANGE_PAYMENT_METHOD,
     VIEW_BROAD_HISTORY,
     MANAGE_PRODUCTS,
-    VIEW_REPORTS,
-    VIEW_CUSTOMERS
+    VIEW_REPORTS
 }
 
 object PermissionChecker {
@@ -66,7 +65,6 @@ object PermissionChecker {
             PermissionAction.VIEW_BROAD_HISTORY -> membership.canViewBroadHistory
             PermissionAction.MANAGE_PRODUCTS -> membership.canManageProducts
             PermissionAction.VIEW_REPORTS -> false
-            PermissionAction.VIEW_CUSTOMERS -> membership.canViewCustomers
         }
     }
 
