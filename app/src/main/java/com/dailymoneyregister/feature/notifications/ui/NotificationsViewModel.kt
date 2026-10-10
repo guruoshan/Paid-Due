@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import javax.inject.Inject
 
 data class NotificationsUiState(
@@ -63,12 +64,13 @@ class NotificationsViewModel @Inject constructor(
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun startRealtimeWatch() {
         if (!_uiState.value.isAdmin || notificationWatchJob != null) return
         notificationWatchJob = viewModelScope.launch {
             runCatching {
                 repository.observeAdminNotificationInserts().collect {
-                    delay(250)
+                    while (_uiState.value.isLoading) delay(150)
                     refresh()
                 }
             }
