@@ -7,6 +7,12 @@ import com.dailymoneyregister.core.model.enums.UserRole
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.realtime.PostgresAction
+import io.github.jan.supabase.realtime.postgresChangeFlow
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -61,6 +67,31 @@ class NotificationsRepository @Inject constructor(
 
     private fun isAdmin(): Boolean =
         SessionManager.currentSession.value?.user?.role == UserRole.ADMIN
+
+    /**
+     * Admin-only realtime invalidation flow. The private-schema RLS policy is the
+     * authorization boundary; callers reload the bounded server inbox after each insert.
+     */
+    fun observeAdminNotificationInserts(): Flow<Unit> = callbackFlow {
+        if (!isAdmin() || supabase.auth.currentSessionOrNull() == null) {
+            close()
+            return@callbackFlow
+        }
+        val userId = SessionManager.currentSession.value?.user?.id ?: "admin"
+        val channel = supabase.channel("paid-due-notifications-$userId")
+        val changes = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "private") {
+            table = "business_notifications"
+        }
+        val watcher = launch {
+            changes.collect { trySend(Unit) }
+        }
+        try {
+            channel.subscribe(blockUntilSubscribed = true)
+            awaitClose { watcher.cancel() }
+        } finally {
+            launch { runCatching { supabase.removeChannel(channel) } }
+        }
+    }
 
     suspend fun listNotifications(): List<BusinessNotification> {
         if (isAdmin()) {
