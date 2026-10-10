@@ -15,6 +15,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -74,6 +75,7 @@ class NotificationsRepository @Inject constructor(
      * Admin-only realtime invalidation flow. The private-schema RLS policy is the
      * authorization boundary; callers reload the bounded server inbox after each insert.
      */
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun observeAdminNotificationInserts(): Flow<Unit> = callbackFlow {
         if (!isAdmin() || supabase.auth.currentSessionOrNull() == null) {
             close()
