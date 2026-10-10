@@ -57,7 +57,7 @@ sealed interface StaffDialogState {
 
     data class ConfirmDisable(val userId: String, val name: String) : StaffDialogState
 
-    data class ConfirmEnable(val userId: String, val name: String) : StaffDialogState
+    data class ConfirmEnable(val userId: String, val name: String) : StaffDialogState : StaffDialogState
 
     data class ConfirmRemove(val userId: String, val name: String, val membershipId: String) : StaffDialogState
 }
