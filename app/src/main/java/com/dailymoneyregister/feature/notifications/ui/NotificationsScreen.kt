@@ -367,6 +367,7 @@ private fun ReportAmount(
 private fun formatMinor(minor: Long, decimals: Int): String =
     BigDecimal.valueOf(minor, decimals).setScale(decimals).toPlainString()
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PermissionAccessBlockedScreen(
     featureLabel: String,
