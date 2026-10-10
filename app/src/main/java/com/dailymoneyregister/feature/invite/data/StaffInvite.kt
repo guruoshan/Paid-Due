@@ -17,9 +17,9 @@ data class StaffInvite(
 )
 
 data class CreatedInvite(
-    val email: String,
     val displayName: String,
     val canonicalPhone: String,
+    val inviteUrl: String,
     val expiresAt: Long
 )
 
