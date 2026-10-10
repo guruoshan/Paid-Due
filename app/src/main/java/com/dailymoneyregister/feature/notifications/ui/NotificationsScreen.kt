@@ -53,7 +53,6 @@ import kotlinx.serialization.json.longOrNull
 import java.math.BigDecimal
 
 private val permissionLabels = linkedMapOf(
-    "VIEW_CUSTOMERS" to "Access customers",
     "CREATE_SALE" to "Create sales",
     "ACCEPT_CASH" to "Accept cash",
     "ACCEPT_ONLINE" to "Accept online payments",
@@ -76,7 +75,7 @@ fun NotificationsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedPermission by remember(requestPermission) {
-        mutableStateOf(requestPermission?.takeIf { it in permissionLabels } ?: "VIEW_CUSTOMERS")
+        mutableStateOf(requestPermission?.takeIf { it in permissionLabels } ?: "REFUND")
     }
     var permissionsMenuOpen by remember { mutableStateOf(false) }
     var permissionNote by remember { mutableStateOf("") }
@@ -367,35 +366,3 @@ private fun ReportAmount(
 private fun formatMinor(minor: Long, decimals: Int): String =
     BigDecimal.valueOf(minor, decimals).setScale(decimals).toPlainString()
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun PermissionAccessBlockedScreen(
-    featureLabel: String,
-    onNavigateBack: () -> Unit,
-    onAskPermission: () -> Unit
-) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Access required") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("$featureLabel access is not enabled for your cashier account.")
-            Text("Send an access request to your Admin. You will be notified when they make a decision.")
-            Button(onClick = onAskPermission, modifier = Modifier.fillMaxWidth()) {
-                Text("Ask Admin for permission")
-            }
-        }
-    }
-}
