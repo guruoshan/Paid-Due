@@ -58,7 +58,6 @@ object CreateCashierPayloadCodec {
         appendLine("canViewBroadHistory=${payload.permissions.canViewBroadHistory}")
         appendLine("canManageProducts=${payload.permissions.canManageProducts}")
         appendLine("canViewReports=${payload.permissions.canViewReports}")
-        appendLine("canViewCustomers=${payload.permissions.canViewCustomers}")
     }
 
     fun decode(intentPayload: String): CreateCashierRecoveryPayload {
@@ -102,8 +101,7 @@ object CreateCashierPayloadCodec {
                 canChangePaymentMethod = required(map, "canChangePaymentMethod").toBooleanStrict(),
                 canViewBroadHistory = required(map, "canViewBroadHistory").toBooleanStrict(),
                 canManageProducts = required(map, "canManageProducts").toBooleanStrict(),
-                canViewReports = required(map, "canViewReports").toBooleanStrict(),
-                canViewCustomers = map["canViewCustomers"]?.toBooleanStrict() ?: true
+                canViewReports = required(map, "canViewReports").toBooleanStrict()
             )
         )
     }
@@ -133,8 +131,7 @@ object CreateCashierPayloadCodec {
             p.canChangePaymentMethod.toString(),
             p.canViewBroadHistory.toString(),
             p.canManageProducts.toString(),
-            p.canViewReports.toString(),
-            p.canViewCustomers.toString()
+            p.canViewReports.toString()
         )
 
         val canonical = values.joinToString("|") { value ->
