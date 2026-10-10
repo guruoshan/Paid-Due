@@ -12,6 +12,11 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dailymoneyregister.feature.notifications.ui.NotificationsViewModel
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,6 +40,9 @@ fun AdminHubScreen(
     onNavigateToNotifications: () -> Unit = {}
 ) {
     val session by SessionManager.currentSession.collectAsState()
+    val notificationsViewModel: NotificationsViewModel = hiltViewModel()
+    val notificationsState by notificationsViewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { notificationsViewModel.refresh() }
 
     Scaffold(
         topBar = {
@@ -45,8 +53,17 @@ fun AdminHubScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ),
                 actions = {
-                    IconButton(onClick = onNavigateToNotifications) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                    BadgedBox(
+                        badge = {
+                            val unreadCount = notificationsState.notifications.count { it.readAt == null }
+                            if (unreadCount > 0) Badge {
+                                Text(if (unreadCount > 9) "9+" else unreadCount.toString())
+                            }
+                        }
+                    ) {
+                        IconButton(onClick = onNavigateToNotifications) {
+                            Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                        }
                     }
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
