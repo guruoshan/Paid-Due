@@ -32,9 +32,6 @@ import com.dailymoneyregister.core.startup.StartupRecoveryCoordinator
 import com.dailymoneyregister.feature.admin.ui.CashierManagementScreen
 import com.dailymoneyregister.feature.admin.ui.CashierManagementViewModel
 import com.dailymoneyregister.feature.notifications.ui.NotificationsScreen
-import com.dailymoneyregister.feature.notifications.ui.PermissionAccessBlockedScreen
-import com.dailymoneyregister.core.security.PermissionChecker
-import com.dailymoneyregister.core.security.PermissionAction
 import com.dailymoneyregister.feature.auth.ui.LoginScreen
 import com.dailymoneyregister.feature.auth.ui.LoginViewModel
 import com.dailymoneyregister.feature.auth.ui.ChangePinScreen
@@ -436,6 +433,75 @@ fun DmrApp(
                 },
                 onNavigateToCustomers = { navController.navigate(Routes.CUSTOMERS) },
                 onNavigateToNotifications = { navController.navigate(Routes.NOTIFICATIONS) }
+            )
+        }
+
+        composable(Routes.NOTIFICATIONS) {
+            NotificationsScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(
+            route = Routes.NOTIFICATION_PERMISSION_REQUEST,
+            arguments = listOf(navArgument("permissionKey") { type = NavType.StringType })
+        ) { entry ->
+            NotificationsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                requestPermission = entry.arguments?.getString("permissionKey")
+            )
+        }
+
+        composable(Routes.MANAGE_CASHIERS) {
+
+            val cashierViewModel: CashierManagementViewModel =
+                hiltViewModel()
+
+            CashierManagementScreen(
+                viewModel = cashierViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(Routes.REPORTS) {
+
+            val reportingViewModel: ReportingViewModel =
+                hiltViewModel()
+
+            ReportingScreen(
+                viewModel = reportingViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onOpenCustomer = { customerId ->
+                    navController.navigate("customers/$customerId")
+                }
+            )
+        }
+
+        composable(Routes.SETTINGS) {
+
+            val settingsViewModel:
+                com.dailymoneyregister.feature.settings.ui.SettingsViewModel =
+                hiltViewModel()
+
+            SettingsScreen(
+                viewModel = settingsViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToCustomers = {
+                    navController.navigate(Routes.CUSTOMERS)
+                },
+                onLogout = {
+                    trustedSessionStore.clear()
+                    SessionManager.clearSession()
+                    navController.navigate(Routes.WELCOME) {
+                        popUpTo(0) {
+                            inclusive = true
+                        }
+                    }
+                }
             )
         }
 
