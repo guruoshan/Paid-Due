@@ -1,9 +1,8 @@
-import {
-  health, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, json,
-} from "./handlers.ts";
+import { health, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, json } from "./handlers.ts";
 
 // Supabase Function gateway normally forwards /api/<route> after /functions/v1/api.
 // Both forms are accepted to preserve Android compatibility and local testing.
+
 export async function handleRequest(request: Request): Promise<Response> {
   const rawPath = new URL(request.url).pathname;
   const path = rawPath.startsWith("/functions/v1/api/")
