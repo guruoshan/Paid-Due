@@ -1233,3 +1233,102 @@ END;
 $function$;
 REVOKE ALL ON FUNCTION public.update_admin_cashier_permissions(text,jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.update_admin_cashier_permissions(text,jsonb) TO authenticated;
+
+
+-- Add the customer permission to the three server projections consumed by the
+-- Admin roster, custom-PIN login restoration, and cashier metadata endpoint.
+CREATE OR REPLACE FUNCTION public.list_admin_cashiers_with_permissions()
+RETURNS TABLE(local_user_id text, membership_id text, branch_id text, display_name text,
+  canonical_phone text, is_active boolean, permissions jsonb, is_removed boolean)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $function$
+DECLARE v_auth_user_id uuid := (SELECT auth.uid());
+BEGIN
+  IF v_auth_user_id IS NULL THEN RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501'; END IF;
+  RETURN QUERY
+  SELECT cashier.local_user_id, cashier.id, cashier.branch_id, staff.display_name, staff.canonical_phone,
+    (cashier.is_active AND staff.is_active AND cashier.removed_at IS NULL),
+    jsonb_build_object(
+      'CREATE_SALE',cashier.can_create_sale,'ACCEPT_CASH',cashier.can_accept_cash,
+      'ACCEPT_ONLINE',cashier.can_accept_online,'CREATE_CREDIT_SALE',cashier.can_create_credit_sale,
+      'USE_COUPON',cashier.can_use_coupon,'ISSUE_INVOICE',cashier.can_issue_invoice,
+      'ISSUE_RECEIPT',cashier.can_issue_receipt,'REFUND',cashier.can_refund,'VOID',cashier.can_void,
+      'CORRECT_AMOUNT',cashier.can_correct_amount,'CHANGE_PAYMENT_METHOD',cashier.can_change_payment_method,
+      'VIEW_BROAD_HISTORY',cashier.can_view_broad_history,'MANAGE_PRODUCTS',cashier.can_manage_products,
+      'VIEW_REPORTS',cashier.can_view_reports,'VIEW_CUSTOMERS',cashier.can_view_customers
+    ),
+    (cashier.removed_at IS NOT NULL)
+  FROM public.business_memberships admin_membership
+  JOIN public.profiles admin_profile ON admin_profile.auth_user_id=admin_membership.auth_user_id AND admin_profile.is_active=true
+  JOIN public.businesses business ON business.id=admin_membership.business_id AND business.is_active=true
+  JOIN public.branches branch ON branch.id=admin_membership.branch_id AND branch.business_id=admin_membership.business_id AND branch.is_active=true
+  JOIN public.business_memberships cashier ON cashier.business_id=admin_membership.business_id AND cashier.branch_id=admin_membership.branch_id AND cashier.role='CASHIER'
+  JOIN private.staff_identities staff ON staff.id=cashier.staff_identity_id
+  WHERE admin_membership.auth_user_id=v_auth_user_id AND admin_membership.role='ADMIN'
+    AND admin_membership.is_active=true AND admin_membership.removed_at IS NULL
+    AND admin_membership.staff_identity_id IS NULL AND cashier.staff_identity_id IS NOT NULL
+    AND cashier.local_user_id IS NOT NULL AND btrim(cashier.local_user_id)<>''
+  ORDER BY staff.display_name,cashier.local_user_id;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.fetch_cashier_restoration(p_membership_id text)
+RETURNS TABLE(membership_id text, local_user_id text, staff_identity_id uuid, business_id text,
+  branch_id text, business_name text, branch_name text, branch_code text, country_code text,
+  currency_code text, currency_decimal_places integer, currency_symbol text, timezone_id text,
+  tax_rounding_mode text, default_tax_rate_bps integer, branch_address text, branch_phone text,
+  tax_registration_number text, display_name text, canonical_phone text, permissions jsonb)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
+AS $function$
+  SELECT m.id,COALESCE(m.local_user_id,activation.local_user_id),si.id,b.id,br.id,b.name,br.name,
+    br.code,br.country_code,br.currency_code,br.currency_decimal_places,br.currency_symbol,
+    br.timezone_id,br.tax_rounding_mode,br.default_tax_rate_bps,br.address,br.phone,
+    br.tax_registration_number,si.display_name,si.canonical_phone,
+    jsonb_build_object(
+      'CREATE_SALE',m.can_create_sale,'ACCEPT_CASH',m.can_accept_cash,'ACCEPT_ONLINE',m.can_accept_online,
+      'CREATE_CREDIT_SALE',m.can_create_credit_sale,'USE_COUPON',m.can_use_coupon,'ISSUE_INVOICE',m.can_issue_invoice,
+      'ISSUE_RECEIPT',m.can_issue_receipt,'REFUND',m.can_refund,'VOID',m.can_void,
+      'CORRECT_AMOUNT',m.can_correct_amount,'CHANGE_PAYMENT_METHOD',m.can_change_payment_method,
+      'VIEW_BROAD_HISTORY',m.can_view_broad_history,'MANAGE_PRODUCTS',m.can_manage_products,
+      'VIEW_REPORTS',m.can_view_reports,'VIEW_CUSTOMERS',m.can_view_customers
+    )
+  FROM public.business_memberships m
+  JOIN public.businesses b ON b.id=m.business_id AND b.is_active=true
+  JOIN public.branches br ON br.id=m.branch_id AND br.business_id=m.business_id AND br.is_active=true
+  JOIN private.staff_identities si ON si.id=m.staff_identity_id AND si.is_active=true
+  LEFT JOIN private.staff_invite_activations activation ON activation.membership_id=m.id AND activation.staff_identity_id=si.id
+  WHERE m.id=p_membership_id AND m.role='CASHIER' AND m.is_active=true AND m.removed_at IS NULL
+    AND COALESCE(m.local_user_id,activation.local_user_id) IS NOT NULL
+    AND si.credential_hash IS NOT NULL AND si.credential_salt IS NOT NULL
+  LIMIT 1;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.fetch_cashier_metadata(p_business_id text,p_branch_id text,p_membership_id text)
+RETURNS TABLE(membership_id text,business_id text,business_name text,branch_id text,branch_name text,
+  branch_code text,branch_address text,branch_phone text,tax_registration_number text,country_code text,
+  currency_code text,currency_decimal_places integer,currency_symbol text,timezone_id text,
+  tax_rounding_mode text,default_tax_rate_bps integer,role text,permissions jsonb,
+  display_name text,canonical_phone text)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $function$
+BEGIN
+  RETURN QUERY SELECT m.id,b.id,b.name,br.id,br.name,br.code,br.address,br.phone,br.tax_registration_number,
+    br.country_code,br.currency_code,br.currency_decimal_places,br.currency_symbol,br.timezone_id,
+    br.tax_rounding_mode,br.default_tax_rate_bps,m.role,
+    jsonb_build_object(
+      'can_create_sale',m.can_create_sale,'can_accept_cash',m.can_accept_cash,'can_accept_online',m.can_accept_online,
+      'can_create_credit_sale',m.can_create_credit_sale,'can_use_coupon',m.can_use_coupon,'can_issue_invoice',m.can_issue_invoice,
+      'can_issue_receipt',m.can_issue_receipt,'can_refund',m.can_refund,'can_void',m.can_void,
+      'can_correct_amount',m.can_correct_amount,'can_change_payment_method',m.can_change_payment_method,
+      'can_view_broad_history',m.can_view_broad_history,'can_manage_products',m.can_manage_products,
+      'can_view_reports',m.can_view_reports,'can_view_customers',m.can_view_customers
+    ),
+    si.display_name,si.canonical_phone
+  FROM public.business_memberships m
+  JOIN public.businesses b ON b.id=m.business_id AND b.is_active=true
+  JOIN public.branches br ON br.id=m.branch_id AND br.business_id=m.business_id AND br.is_active=true
+  JOIN private.staff_identities si ON si.id=m.staff_identity_id AND si.is_active=true
+  WHERE m.id=p_membership_id AND m.business_id=p_business_id AND m.branch_id=p_branch_id
+    AND m.role='CASHIER' AND m.is_active=true AND m.removed_at IS NULL;
+END;
+$function$;
