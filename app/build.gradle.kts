@@ -107,18 +107,16 @@ android {
          *
          * This is public configuration, not a secret.
          */
+        /*
+         * The cashier login/financial API routes live in the Supabase Edge
+         * Function `api`, not the Cloudflare invite/activation Worker.
+         * Explicit local/CI overrides remain supported, but the safe default
+         * is derived from the already-required Supabase project URL.
+         */
         val paidDueBackendBaseUrl =
-            providers.gradleProperty(
-                "PAID_DUE_BACKEND_BASE_URL"
-            )
-                .orElse(
-                    providers.environmentVariable(
-                        "PAID_DUE_BACKEND_BASE_URL"
-                    )
-                )
-                .orElse(
-                    "https://paidanddue.guruoshan2208.workers.dev"
-                )
+            providers.gradleProperty("PAID_DUE_BACKEND_BASE_URL")
+                .orElse(providers.environmentVariable("PAID_DUE_BACKEND_BASE_URL"))
+                .orElse("$paidDueSupabaseUrl/functions/v1/api")
                 .get()
                 .trim()
                 .trimEnd('/')
