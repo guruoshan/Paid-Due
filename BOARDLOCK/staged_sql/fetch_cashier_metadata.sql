@@ -6,7 +6,6 @@ create or replace function public.fetch_cashier_metadata(
 )
 returns table (
     membership_id text,
-    local_user_id text,
     business_id text,
     business_name text,
     branch_id text,
@@ -52,7 +51,6 @@ begin
     return query
     select
         m.id as membership_id,
-        m.local_user_id as local_user_id,
         b.id as business_id,
         b.name as business_name,
         br.id as branch_id,
