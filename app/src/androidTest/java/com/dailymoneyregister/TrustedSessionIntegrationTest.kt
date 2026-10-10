@@ -114,7 +114,7 @@ class TrustedSessionIntegrationTest {
                 val branch = database.businessBranchDao().getBranchById(branchId)
                 val user = database.userDao().getUserById(userId)
                 return business != null && branch?.businessId == businessId &&
-                    user?.businessId == businessId && user.role.name == "ADMIN" && user.isActive
+                    user?.businessId == businessId && user?.role?.name == "ADMIN" && user?.isActive == true
             }
 
             override suspend fun validateCashierSession(
