@@ -312,9 +312,9 @@ class RemoteBusinessRestorer @Inject constructor(
                     existingBranch?.id != row.branchId ||
                     localUser?.id != row.localUserId ||
                     localUser?.businessId != row.businessId ||
-                    localUser.role != UserRole.ADMIN ||
-                    localUser.authType != AuthType.PASSWORD ||
-                    !localUser.isActive ||
+                    localUser?.role != UserRole.ADMIN ||
+                    localUser?.authType != AuthType.PASSWORD ||
+                    localUser?.isActive != true ||
                     localMembership?.id != row.membershipId) {
                     return RemoteBusinessRestorationResult.Failed(
                         "This Supabase account is not authorized for the business stored on this device"
