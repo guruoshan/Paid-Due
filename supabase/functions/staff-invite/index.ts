@@ -60,10 +60,10 @@ Deno.serve(async (request: Request) => {
   if (rateSecret.length < 32) return json({ outcome: "BACKEND_NOT_CONFIGURED" }, 503);
   const rateKey = await crypto.subtle.importKey("raw", new TextEncoder().encode(rateSecret),
     { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const rateMaterial = new TextEncoder().encode("paiddue-auth-v1:ACTIVATE:INVITE:" + user.id);
+  const rateMaterial = new TextEncoder().encode("paiddue-auth-v1:INVITE:" + user.id);
   const bucketKey = hex(new Uint8Array(await crypto.subtle.sign("HMAC", rateKey, rateMaterial)));
   const rateRows = await rpc(supabaseUrl, serviceKey, "check_auth_rate_limit", {
-    p_scope: "ACTIVATE", p_bucket_key: bucketKey,
+    p_scope: "INVITE", p_bucket_key: bucketKey,
   });
   if (!Array.isArray(rateRows) || rateRows.length !== 1 || typeof rateRows[0]?.allowed !== "boolean") {
     return json({ outcome: "AUTH_TEMPORARILY_UNAVAILABLE" }, 503);
