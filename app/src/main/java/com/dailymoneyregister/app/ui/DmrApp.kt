@@ -31,6 +31,10 @@ import com.dailymoneyregister.core.security.TrustedSessionRestorer
 import com.dailymoneyregister.core.startup.StartupRecoveryCoordinator
 import com.dailymoneyregister.feature.admin.ui.CashierManagementScreen
 import com.dailymoneyregister.feature.admin.ui.CashierManagementViewModel
+import com.dailymoneyregister.feature.notifications.ui.NotificationsScreen
+import com.dailymoneyregister.feature.notifications.ui.PermissionAccessBlockedScreen
+import com.dailymoneyregister.core.security.PermissionChecker
+import com.dailymoneyregister.core.security.PermissionAction
 import com.dailymoneyregister.feature.auth.ui.LoginScreen
 import com.dailymoneyregister.feature.auth.ui.LoginViewModel
 import com.dailymoneyregister.feature.auth.ui.ChangePinScreen
@@ -74,6 +78,8 @@ object Routes {
     const val CUSTOMERS = "customers"
     const val CUSTOMER_DETAIL = "customers/{customerId}"
     const val INVITE_ACTIVATE = "invite_activate/{token}"
+    const val NOTIFICATIONS = "notifications"
+    const val NOTIFICATION_PERMISSION_REQUEST = "notifications/request/{permissionKey}"
 }
 
 @Composable
@@ -98,7 +104,7 @@ fun DmrApp(
             Toast.makeText(context, problem.message, Toast.LENGTH_LONG).show()
         }
     }
-
+
 
     val remoteTenantRecoveryViewModel: RemoteTenantBootstrapRecoveryViewModel =
         hiltViewModel()
@@ -405,6 +411,9 @@ fun DmrApp(
                 onNavigateToSettings = {
                     navController.navigate(Routes.SETTINGS)
                 },
+                onNavigateToNotifications = {
+                    navController.navigate(Routes.NOTIFICATIONS)
+                },
                 onLogout = {
                     trustedSessionStore.clear()
                     SessionManager.clearSession()
@@ -425,7 +434,22 @@ fun DmrApp(
                 onNavigateToSettings = {
                     navController.navigate(Routes.SETTINGS)
                 },
-                onNavigateToCustomers = { navController.navigate(Routes.CUSTOMERS) }
+                onNavigateToCustomers = { navController.navigate(Routes.CUSTOMERS) },
+                onNavigateToNotifications = { navController.navigate(Routes.NOTIFICATIONS) }
+            )
+        }
+
+        composable(Routes.NOTIFICATIONS) {
+            NotificationsScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(
+            route = Routes.NOTIFICATION_PERMISSION_REQUEST,
+            arguments = listOf(navArgument("permissionKey") { type = NavType.StringType })
+        ) { entry ->
+            NotificationsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                requestPermission = entry.arguments?.getString("permissionKey")
             )
         }
 
@@ -485,7 +509,17 @@ fun DmrApp(
         }
 
         composable(Routes.CUSTOMERS) {
-
+            if (!PermissionChecker.isPermitted(
+                    SessionManager.currentSession.value,
+                    PermissionAction.VIEW_CUSTOMERS
+                )
+            ) {
+                PermissionAccessBlockedScreen(
+                    featureLabel = "Customer",
+                    onNavigateBack = { navController.popBackStack() },
+                    onAskPermission = { navController.navigate("notifications/request/VIEW_CUSTOMERS") }
+                )
+            } else {
             val customersViewModel: CustomersViewModel =
                 hiltViewModel()
 
@@ -507,6 +541,7 @@ fun DmrApp(
                     onDismissLinkConfirm = customersViewModel::dismissLinkConfirm
                 )
             )
+            }
         }
 
         composable(
@@ -515,7 +550,17 @@ fun DmrApp(
                 navArgument("customerId") { type = NavType.StringType }
             )
         ) {
-
+            if (!PermissionChecker.isPermitted(
+                    SessionManager.currentSession.value,
+                    PermissionAction.VIEW_CUSTOMERS
+                )
+            ) {
+                PermissionAccessBlockedScreen(
+                    featureLabel = "Customer",
+                    onNavigateBack = { navController.popBackStack() },
+                    onAskPermission = { navController.navigate("notifications/request/VIEW_CUSTOMERS") }
+                )
+            } else {
             val customerDetailViewModel: CustomerDetailViewModel =
                 hiltViewModel()
 
@@ -538,6 +583,7 @@ fun DmrApp(
                     onShareWhatsApp = customerDetailViewModel::shareWhatsApp
                 )
             )
+            }
         }
     }
 
