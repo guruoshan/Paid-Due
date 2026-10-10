@@ -185,155 +185,36 @@ class AuthRepository @Inject constructor(
         username: String,
         passwordPlain: String
     ): AuthResult {
+        // Server authentication is mandatory even when this device already
+        // has a local business/account. Local hashes are not online authority.
+        val remote = remoteBusinessRestorer.restoreAdminIfEmpty(username, passwordPlain)
+        if (remote is RemoteBusinessRestorationResult.Failed) {
+            return AuthResult.Error(remote.message)
+        }
+        val authority = remote as? RemoteBusinessRestorationResult.Success
+            ?: return AuthResult.Error("Server did not authorize this Admin")
 
-        // Always authenticate with Supabase and validate the server membership,
-        // including on devices that already contain a local business.
-        val remoteResult = remoteBusinessRestorer.restoreAdminIfEmpty(username, passwordPlain)
-        if (remoteResult is RemoteBusinessRestorationResult.Failed) {
-            return AuthResult.Error(remoteResult.message)
+        val business = businessBranchDao.getBusinessById(authority.businessId)
+            ?: return AuthResult.Error("Authorized business is not restored on this device")
+        val branch = businessBranchDao.getBranchById(authority.branchId)
+            ?: return AuthResult.Error("Authorized branch is not restored on this device")
+        val user = userDao.getUserById(authority.userId)
+            ?: return AuthResult.Error("Authorized Admin is not restored on this device")
+        if (branch.businessId != business.id || user.businessId != business.id ||
+            user.role != UserRole.ADMIN || user.authType != AuthType.PASSWORD || !user.isActive) {
+            return AuthResult.Error("Local Admin identity does not match server authority")
         }
 
-        var business = businessBranchDao.getFirstBusiness()
-
-        if (business == null) {
-            return AuthResult.Error(
-                "No business configured. Run setup first."
-            )
-        }
-
-        val branch = businessBranchDao.getFirstBranch(business.id)
-            ?: return AuthResult.Error("No branch found for business")
-        val identifier = normalizeLoginIdentifier("ADMIN", username, business.id, branch)
-        var remainingLockout = pinThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
-        val user = resolveLoginLookup(identifier, business.id)
-        val accountKey = user?.let { accountThrottleKey(business.id, it.id) }
-        val accountRemaining = accountKey?.let {
-            pinThrottler.getRemainingLockoutSeconds(it)
-        } ?: 0L
-        remainingLockout = maxOf(remainingLockout, accountRemaining)
-        if (remainingLockout > 0L) return AuthResult.LockedOut(remainingLockout)
-
-        val failureKey = resolvedFailureKey(business.id, identifier, user)
-
-        if (user == null) {
-            PasswordHasher.verifyPassword(
-                passwordPlain,
-                DUMMY_PASSWORD_SALT,
-                DUMMY_PASSWORD_HASH
-            )
-
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                    failureKey
-                )
-
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or password"
-                )
-            }
-        }
-
-        if (
-            !user.isActive ||
-            user.role != UserRole.ADMIN ||
-            user.authType != AuthType.PASSWORD
-        ) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                    failureKey
-                )
-
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or password"
-                )
-            }
-        }
-
-        val isValid =
-            PasswordHasher.verifyPassword(
-                passwordPlain,
-                user.credentialSalt ?: "",
-                user.credentialHash
-            )
-
-        if (!isValid) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                    failureKey
-                )
-
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or password"
-                )
-            }
-        }
-
-        val authenticatedUser =
-            upgradeAdminCredentialIfNeeded(
-                user = user,
-                passwordPlain = passwordPlain
-            )
-
-        if (authenticatedUser == null) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                    failureKey
-                )
-
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or password"
-                )
-            }
-        }
-
-        clearSuccessfulLoginThrottle(business.id, identifier, user)
-
-        val membership =
-            userDao.getMembership(
-                authenticatedUser.id,
-                branch.id
-            )
-
-        val session =
-            ActiveSession(
-                business,
-                branch,
-                authenticatedUser,
-                membership
-            )
-
+        val session = ActiveSession(
+            business = business,
+            branch = branch,
+            user = user,
+            membership = userDao.getMembership(user.id, branch.id),
+            requiresPinChange = false
+        )
         SessionManager.setSession(session)
-
-        trustedSessionStore.save(
-            businessId = session.business.id,
-            branchId = session.branch.id,
-            userId = session.user.id
-        )
-
-        languageManager.setLanguage(
-            authenticatedUser.languageCode
-        )
-
+        trustedSessionStore.save(session.business.id, session.branch.id, session.user.id)
+        languageManager.setLanguage(user.languageCode)
         return AuthResult.Success(session)
     }
 
@@ -341,154 +222,44 @@ class AuthRepository @Inject constructor(
         username: String,
         pin: String
     ): AuthResult {
-
-        // Local PIN hashes are not online authority. Authenticate against the
-        // server first and require its business/branch/user/membership to match.
-        val initialBranch = businessBranchDao.getFirstBusiness()?.let {
-            businessBranchDao.getFirstBranch(it.id)
-        }
-        val remoteResult = remoteBusinessRestorer.restoreCashierIfEmpty(
-            username, pin, initialBranch?.countryCode ?: "OM"
+        // Server PIN authentication and live membership validation happen
+        // before any local account can establish an app session.
+        val localBusiness = businessBranchDao.getFirstBusiness()
+        val localBranch = localBusiness?.let { businessBranchDao.getFirstBranch(it.id) }
+        val remote = remoteBusinessRestorer.restoreCashierIfEmpty(
+            username,
+            pin,
+            localBranch?.countryCode ?: "OM"
         )
-        if (remoteResult is RemoteBusinessRestorationResult.Failed) {
-            return AuthResult.Error(remoteResult.message)
+        if (remote is RemoteBusinessRestorationResult.Failed) {
+            return AuthResult.Error(remote.message)
         }
+        val authority = remote as? RemoteBusinessRestorationResult.Success
+            ?: return AuthResult.Error("Server did not authorize this cashier")
 
-        var business = businessBranchDao.getFirstBusiness()
-
-        if (business == null) {
-            return AuthResult.Error(
-                "No business configured. Run setup first."
-            )
+        val business = businessBranchDao.getBusinessById(authority.businessId)
+            ?: return AuthResult.Error("Authorized business is not restored on this device")
+        val branch = businessBranchDao.getBranchById(authority.branchId)
+            ?: return AuthResult.Error("Authorized branch is not restored on this device")
+        val user = userDao.getUserById(authority.userId)
+            ?: return AuthResult.Error("Authorized cashier is not restored on this device")
+        if (branch.businessId != business.id || user.businessId != business.id ||
+            user.role != UserRole.CASHIER || user.authType != AuthType.PIN || !user.isActive) {
+            return AuthResult.Error("Local cashier identity does not match server authority")
         }
+        val membership = userDao.getMembership(user.id, branch.id)
+            ?: return AuthResult.Error("Cashier is not authorized for this branch")
 
-        val branch = businessBranchDao.getFirstBranch(business.id)
-            ?: return AuthResult.Error("No branch found for business")
-        val identifier = normalizeLoginIdentifier("CASHIER", username, business.id, branch)
-        var remainingLockout = pinThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
-        // BOARDLOCK_CASHIER_MISSING_ACCOUNT_RECONCILIATION
-        // Preserve account lockout before any remote recovery attempt.
-        val preRemaining = pinThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
-        if (preRemaining > 0L) return AuthResult.LockedOut(preRemaining)
-        var user = resolveLoginLookup(identifier, business.id)
-        if (user == null) {
-            return AuthResult.Error("Server-authorized cashier identity is not present locally; restore this device before signing in")
-        }
-        val accountKey = user?.let { accountThrottleKey(business.id, it.id) }
-        val accountRemaining = accountKey?.let {
-            pinThrottler.getRemainingLockoutSeconds(it)
-        } ?: 0L
-        remainingLockout = maxOf(remainingLockout, accountRemaining)
-        if (remainingLockout > 0L) return AuthResult.LockedOut(remainingLockout)
-
-        val failureKey = resolvedFailureKey(business.id, identifier, user)
-
-        if (
-            user == null ||
-            user.role != UserRole.CASHIER ||
-            user.authType != AuthType.PIN
-        ) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                    failureKey
-                )
-
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or PIN"
-                )
-            }
-        }
-
-        if (!user.isActive) {
-            return AuthResult.InvalidCredentials(
-                "Invalid username or PIN"
-            )
-        }
-
-        val isValid =
-            PinHasher.verifyPin(
-                pin,
-                user.credentialSalt ?: "",
-                user.credentialHash
-            )
-
-        if (!isValid) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                failureKey
-                )
-
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or PIN"
-                )
-            }
-        }
-
-        val authenticatedUser =
-            upgradeCashierCredentialIfNeeded(
-                user = user,
-                pin = pin
-            )
-
-        if (authenticatedUser == null) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                    failureKey
-                )
-
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or PIN"
-                )
-            }
-        }
-
-        val membership =
-            userDao.getMembership(
-                authenticatedUser.id,
-                branch.id
-            )
-                ?: return AuthResult.InvalidCredentials(
-                    "Cashier is not authorized for this branch"
-                )
-
-        clearSuccessfulLoginThrottle(business.id, identifier, user)
-
-        val session =
-            ActiveSession(
-                business,
-                branch,
-                authenticatedUser,
-                membership,
-                requiresPinChange = authenticatedUser.mustChangePin
-            )
-
+        val session = ActiveSession(
+            business = business,
+            branch = branch,
+            user = user,
+            membership = membership,
+            requiresPinChange = user.mustChangePin
+        )
         SessionManager.setSession(session)
-
-        trustedSessionStore.save(
-            businessId = session.business.id,
-            branchId = session.branch.id,
-            userId = session.user.id
-        )
-
-        languageManager.setLanguage(
-            authenticatedUser.languageCode
-        )
-
+        trustedSessionStore.save(session.business.id, session.branch.id, session.user.id)
+        languageManager.setLanguage(user.languageCode)
         return AuthResult.Success(session)
     }
 
