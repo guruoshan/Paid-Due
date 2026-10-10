@@ -538,7 +538,13 @@ class CashierManagementViewModel @Inject constructor(
         if (_uiState.value.isExecuting) return
         _uiState.value = _uiState.value.copy(isExecuting = true, errorMessage = null)
         viewModelScope.launch {
-            val result = runCatching { block() }
+            val result = try {
+                Result.success(block())
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure(error)
+            }
             val current = _uiState.value
             _uiState.value = if (result.isSuccess) {
                 current.copy(
