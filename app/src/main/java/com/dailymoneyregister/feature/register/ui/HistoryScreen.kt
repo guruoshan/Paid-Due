@@ -21,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.dailymoneyregister.R
+import com.dailymoneyregister.core.cloud.sync.InboundIncompleteBanner
 import com.dailymoneyregister.core.model.currency.CurrencyConfig
 import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.financial.FinancialLifecycleState
@@ -62,6 +63,8 @@ fun HistoryScreen(
         verticalArrangement =
             Arrangement.spacedBy(12.dp)
     ) {
+
+        InboundIncompleteBanner()
 
         Row(
             modifier =

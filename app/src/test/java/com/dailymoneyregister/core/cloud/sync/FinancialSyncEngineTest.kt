@@ -1,0 +1,255 @@
+package com.dailymoneyregister.core.cloud.sync
+
+import androidx.room.withTransaction
+import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.dao.ExpenseDao
+import com.dailymoneyregister.core.database.dao.FinancialSyncOutboxDao
+import com.dailymoneyregister.core.database.dao.OperationDao
+import com.dailymoneyregister.core.database.dao.TransactionDao
+import com.dailymoneyregister.core.database.entity.FinancialSyncOutboxEntity
+import com.dailymoneyregister.core.database.entity.OperationEntity
+import com.dailymoneyregister.core.database.entity.TransactionEntity
+import com.dailymoneyregister.core.model.enums.OperationStatus
+import com.dailymoneyregister.core.model.enums.OperationType
+import com.dailymoneyregister.core.model.enums.SubjectType
+import com.dailymoneyregister.core.model.enums.TransactionType
+import io.mockk.*
+import kotlinx.coroutines.test.runTest
+import org.json.JSONObject
+import org.junit.Assert.assertEquals
+import org.junit.Before
+import org.junit.After
+import org.junit.Test
+
+class FinancialSyncEngineTest {
+    @Before fun enableInboundForTests() { InboundApplicationGate.testOverride = true }
+    @After fun resetInboundForTests() { InboundApplicationGate.testOverride = null }
+
+    private val db = mockk<DmrDatabase>()
+    private val outboxDao = mockk<FinancialSyncOutboxDao>()
+    private val operationDao = mockk<OperationDao>()
+    private val transactionDao = mockk<TransactionDao>()
+    private val expenseDao = mockk<ExpenseDao>()
+    private val businessBranchDao = mockk<com.dailymoneyregister.core.database.dao.BusinessBranchDao>()
+    private val userDao = mockk<com.dailymoneyregister.core.database.dao.UserDao>()
+    private val remoteRepo = mockk<RemoteFinancialSyncRepository>()
+    private val inboundApplier = FakeInboundEnvelopeApplier()
+
+    private val engine = FinancialSyncEngine(db, remoteRepo, inboundApplier)
+
+    private val opId = "0199c001-1234-7abc-8def-0123456789ab"
+    private val txId = "tx-0199c001-1234-7abc-8def-0123456789ab"
+
+    private val outboxItem = FinancialSyncOutboxEntity(
+        operationId = opId,
+        businessId = "biz-1",
+        branchId = "branch-1",
+        transactionId = txId,
+        actorUserId = "user-1",
+        deviceId = "device-1",
+        requestFingerprint = "fingerprint-1",
+        commandSchemaVersion = 1,
+        occurredAt = 1000L,
+        status = "QUEUED",
+        attemptCount = 0
+    )
+
+    private val operation = OperationEntity(
+        id = opId,
+        businessId = "biz-1",
+        branchId = "branch-1",
+        operationType = OperationType.RECORD_SALE,
+        subjectType = SubjectType.TRANSACTION,
+        subjectId = txId,
+        transactionId = txId,
+        actorUserId = "user-1",
+        deviceId = "device-1",
+        occurredAt = 1000L,
+        requestFingerprint = "fingerprint-1",
+        commandSchemaVersion = 1,
+        intentPayload = "{}",
+        status = OperationStatus.SUCCEEDED
+    )
+
+    private val transaction = TransactionEntity(
+        id = txId,
+        branchId = "branch-1",
+        type = TransactionType.SALE,
+        subtotalMinor = 1000L,
+        taxRateBps = 0,
+        taxableBaseMinor = 1000L,
+        taxAmountMinor = 0L,
+        grandTotalMinor = 1000L,
+        currencyCode = "OMR",
+        currencyDecimalPlaces = 3,
+        createdByUserId = "user-1",
+        deviceId = "device-1",
+        createdAt = 1000L,
+        displayRef = "REF-1"
+    )
+
+    @Before
+    fun setUp() {
+        mockkStatic(android.util.Log::class)
+        every { android.util.Log.i(any(), any()) } returns 0
+        every { android.util.Log.w(any(), any<String>()) } returns 0
+        every { android.util.Log.e(any(), any()) } returns 0
+        every { android.util.Log.e(any(), any(), any()) } returns 0
+
+        mockkStatic("androidx.room.RoomDatabaseKt")
+        coEvery { db.withTransaction(any<suspend () -> Any>()) } coAnswers {
+            firstArg<suspend () -> Any>().invoke()
+        }
+    }
+
+    @Test
+    fun syncOutboundUploadsQueuedItemAndDeletesOnAck() = runTest {
+        coEvery { db.financialSyncOutboxDao() } returns outboxDao
+        coEvery { db.operationDao() } returns operationDao
+        coEvery { db.transactionDao() } returns transactionDao
+        coEvery { db.expenseDao() } returns expenseDao
+        coEvery { db.businessBranchDao() } returns businessBranchDao
+
+        coEvery { outboxDao.classifyExistingRows() } returns 0
+        coEvery { outboxDao.resetStaleInFlight() } returns 0
+        coEvery { outboxDao.getPendingUpload(any()) } returns listOf(outboxItem)
+        coEvery { outboxDao.getStatusCounts() } returns emptyList()
+        coEvery { outboxDao.updateStatus(any(), any(), any()) } returns 1
+        coEvery { outboxDao.deleteAcknowledged(any()) } returns 1
+        coEvery { operationDao.getOperationById(opId) } returns operation
+        coEvery { transactionDao.getTransactionById(txId) } returns transaction
+        coEvery { transactionDao.getItemsForTransaction(txId) } returns emptyList()
+        coEvery { transactionDao.getSettlementsForOperation(opId) } returns emptyList()
+        coEvery { expenseDao.getExpenseByOperationId(opId) } returns null
+        coEvery { businessBranchDao.getBranchById("branch-1") } returns
+            com.dailymoneyregister.core.database.entity.BranchEntity(
+                id = "branch-1",
+                businessId = "biz-1",
+                name = "Main",
+                code = "MAIN",
+                countryCode = "AE",
+                currencyCode = "AED",
+                currencyDecimalPlaces = 2,
+                currencySymbol = "AED",
+                timezoneId = "Asia/Dubai",
+                taxRoundingMode = com.dailymoneyregister.core.model.tax.TaxRoundingMode.HALF_UP,
+                defaultTaxRateBps = 0,
+                createdAt = 1L,
+                updatedAt = 1L
+            )
+
+        coEvery { remoteRepo.uploadEnvelope(any(), any(), any(), any()) } answers {
+            val env = firstArg<FinancialEnvelopeCodec.EncodedEnvelope>()
+            FinancialSyncReceipt.Acknowledged(env.operationId, env.canonicalSha256)
+        }
+
+        val count = engine.syncOutbound("membership-1")
+
+        assertEquals(1, count)
+        coVerify { outboxDao.updateStatus(opId, "IN_FLIGHT") }
+        coVerify { remoteRepo.uploadEnvelope(any(), "membership-1", "Asia/Dubai", any()) }
+        coVerify { outboxDao.deleteAcknowledged(opId) }
+    }
+
+    @Test
+    fun syncInboundFetchesAndProcessesRemoteEnvelopes() = runTest {
+        coEvery { db.businessBranchDao() } returns businessBranchDao
+        coEvery { db.userDao() } returns userDao
+        coEvery { businessBranchDao.getBusinessById("biz-1") } returns mockk()
+        coEvery { userDao.getUserByIdInBusiness("test-admin", "biz-1") } returns mockk()
+        val sampleJson = JSONObject().apply {
+            put("operation_id", opId)
+            put("business_id", "biz-1")
+            put("branch_id", "branch-1")
+            put("actor_user_id", "user-1")
+            put("device_id", "device-1")
+            put("operation_type", "RECORD_SALE")
+            put("occurred_at", 1000L)
+            put("command_schema_version", 1)
+            put("request_fingerprint", "fingerprint-1")
+            put("intent_payload", "{}")
+            put("transaction", JSONObject().apply {
+                put("id", txId)
+                put("branch_id", "branch-1")
+                put("type", "SALE")
+                put("subtotal_minor", 1000L)
+                put("tax_rate_bps", 0)
+                put("taxable_base_minor", 1000L)
+                put("tax_amount_minor", 0L)
+                put("grand_total_minor", 1000L)
+                put("currency_code", "OMR")
+                put("currency_decimal_places", 3)
+                put("created_by_user_id", "user-1")
+                put("device_id", "device-1")
+                put("created_at", 1000L)
+                put("display_ref", "REF-1")
+            })
+            put("settlements", org.json.JSONArray().apply {
+                put(JSONObject().apply {
+                    put("id", "s-1")
+                    put("operation_id", opId)
+                    put("subject_type", "TRANSACTION")
+                    put("subject_id", txId)
+                    put("entry_purpose", "SALE_FUNDING")
+                    put("category", "CASH")
+                    put("channel", "CASH_TENDER")
+                    put("amount_signed_minor", 1000L)
+                    put("currency_code", "OMR")
+                    put("confirmation_type", "CASHIER_CONFIRMED")
+                })
+            })
+        }
+
+        val remoteEnvelope = RemoteEnvelopeV2(
+            operationId = opId,
+            businessId = "biz-1",
+            branchId = "branch-1",
+            operationType = "RECORD_SALE",
+            occurredAtIso = "2026-10-09T10:00:00Z",
+            receivedAtIso = "2026-10-09T10:00:01Z",
+            canonicalText = sampleJson.toString(),
+            payloadJson = sampleJson
+        )
+
+        coEvery { remoteRepo.fetchRemoteEnvelopesV2("biz-1", null, null, any()) } returns listOf(remoteEnvelope)
+        inboundApplier.result = InboundProcessResult.Applied
+
+        val count = engine.syncInbound("biz-1")
+
+        assertEquals(1, count)
+        coVerify { remoteRepo.fetchRemoteEnvelopesV2("biz-1", null, null, any()) }
+        assertEquals(listOf(opId), inboundApplier.appliedOperationIds)
+        coEvery {
+            remoteRepo.fetchRemoteEnvelopesV2(
+                "biz-1",
+                "2026-10-09T09:59:56Z",
+                opId,
+                any()
+            )
+        } returns emptyList()
+        assertEquals(0, engine.syncInbound("biz-1"))
+        coVerify(exactly = 0) { db.financialSyncOutboxDao() }
+    }
+
+    @Test
+    fun retryBackoffIsExponentialAndCapped() {
+        assertEquals(15_000L, engine.retryDelayMillis(1))
+        assertEquals(30_000L, engine.retryDelayMillis(2))
+        assertEquals(900_000L, engine.retryDelayMillis(99))
+    }
+
+    private class FakeInboundEnvelopeApplier : InboundEnvelopeApplier {
+        var result: InboundProcessResult = InboundProcessResult.Skipped
+        val appliedOperationIds = mutableListOf<String>()
+
+        override suspend fun apply(
+            database: DmrDatabase,
+            envelope: RemoteEnvelopeV2,
+            sessionBusinessId: String,
+            sessionBranchId: String?
+        ): InboundProcessResult {
+            appliedOperationIds += envelope.operationId
+            return result
+        }
+    }
+}

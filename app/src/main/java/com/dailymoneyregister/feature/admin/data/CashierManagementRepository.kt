@@ -17,6 +17,8 @@ import com.dailymoneyregister.core.device.DeviceIdentityProvider
 import com.dailymoneyregister.core.security.PinHasher
 import com.dailymoneyregister.core.identity.PhoneNumberNormalizer
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import javax.inject.Inject
 
 data class CashierPermissionsConfig(
@@ -51,12 +53,56 @@ data class CreateCashierParams(
 class CashierManagementRepository @Inject constructor(
     private val database: DmrDatabase,
     private val commandExecutor: CommandExecutor,
-    private val deviceIdentityProvider: DeviceIdentityProvider
+    private val deviceIdentityProvider: DeviceIdentityProvider,
+    private val cloudSource: EmployeeDirectoryCloudSource
 ) {
+    constructor(
+        database: DmrDatabase,
+        commandExecutor: CommandExecutor,
+        deviceIdentityProvider: DeviceIdentityProvider
+    ) : this(
+        database,
+        commandExecutor,
+        deviceIdentityProvider,
+        object : EmployeeDirectoryCloudSource {
+            override suspend fun listCashiers(): List<CloudCashierDirectoryEntry> = emptyList()
+        }
+    )
     private val userDao = database.userDao()
 
-    fun observeCashiers(businessId: String): Flow<List<UserAccountEntity>> {
-        return userDao.observeCashiers(businessId)
+    private val cloudCashiers = MutableStateFlow<List<CloudCashierDirectoryEntry>>(emptyList())
+
+    data class DirectoryEntry(
+        val id: String,
+        val displayName: String,
+        val username: String,
+        val languageCode: String,
+        val isActive: Boolean,
+        val localAccount: UserAccountEntity?
+    )
+
+    fun observeCashiers(businessId: String): Flow<List<DirectoryEntry>> =
+        combine(userDao.observeCashiers(businessId), cloudCashiers) { local, cloud ->
+            val localById = local.associateBy { it.id }
+            val cloudRows = cloud.map { remote ->
+                val localAccount = localById[remote.userId]
+                DirectoryEntry(
+                    id = remote.userId,
+                    displayName = localAccount?.displayName ?: remote.displayName,
+                    username = localAccount?.username ?: remote.canonicalPhone,
+                    languageCode = localAccount?.languageCode ?: "en",
+                    isActive = remote.isActive,
+                    localAccount = localAccount
+                )
+            }
+            val cloudIds = cloud.asSequence().map { it.userId }.toSet()
+            (cloudRows + local.filterNot { it.id in cloudIds }.map {
+                DirectoryEntry(it.id, it.displayName, it.username, it.languageCode, it.isActive, it)
+            }).sortedBy { it.displayName.lowercase() }
+        }
+
+    suspend fun refreshCloudDirectory(): Result<Unit> = runCatching {
+        cloudCashiers.value = cloudSource.listCashiers().distinctBy { it.userId }
     }
 
     suspend fun createCashier(

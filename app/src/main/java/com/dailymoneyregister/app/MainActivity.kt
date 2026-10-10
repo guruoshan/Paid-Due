@@ -1,4 +1,4 @@
-package com.dailymoneyregister.app
+﻿package com.dailymoneyregister.app
 
 import android.content.Intent
 import android.os.Bundle
@@ -32,6 +32,9 @@ class MainActivity : AppCompatActivity() {
     private var pendingInviteToken by mutableStateOf<String?>(null)
 
     @Inject
+    lateinit var financialSyncScheduler: com.dailymoneyregister.core.cloud.sync.FinancialSyncScheduler
+
+    @Inject
     lateinit var setupRepository: SetupRepository
 
     @Inject
@@ -51,7 +54,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.dailymoneyregister.core.cloud.sync.CashierCloudSession.initialize(applicationContext)
         if (savedInstanceState == null) captureInviteToken(intent)
+        financialSyncScheduler.startAutoSync()
 
         setContent {
             val currentLanguage by languageManager.currentLanguage.collectAsState()
@@ -102,3 +107,4 @@ class MainActivity : AppCompatActivity() {
         }
     }
 }
+

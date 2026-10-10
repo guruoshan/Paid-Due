@@ -10,6 +10,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material3.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,7 +86,18 @@ fun LoginScreen(
             OutlinedTextField(
                 value = state.username,
                 onValueChange = { viewModel.onUsernameChanged(it) },
-                label = { Text(stringResource(R.string.whatsapp_mobile_number)) },
+                label = {
+    Text(
+        if (state.mode == LoginMode.ADMIN)
+            stringResource(R.string.email_address)
+        else
+            stringResource(R.string.whatsapp_mobile_number)
+    )
+},
+keyboardOptions = KeyboardOptions(
+    keyboardType = if (state.mode == LoginMode.ADMIN)
+        KeyboardType.Email else KeyboardType.Phone
+),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
             )

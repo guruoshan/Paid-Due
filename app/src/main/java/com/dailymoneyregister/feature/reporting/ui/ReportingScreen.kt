@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dailymoneyregister.R
+import com.dailymoneyregister.core.cloud.sync.InboundIncompleteBanner
 import com.dailymoneyregister.feature.reporting.domain.ReportActivityFilter
 import com.dailymoneyregister.feature.reporting.domain.ReportActivityType
 import com.dailymoneyregister.feature.reporting.domain.ReportPaymentFilter
@@ -102,6 +103,8 @@ fun ReportingScreen(
             verticalArrangement =
                 Arrangement.spacedBy(12.dp)
         ) {
+
+            InboundIncompleteBanner()
 
             ReportingPeriodSelector(
                 selected =

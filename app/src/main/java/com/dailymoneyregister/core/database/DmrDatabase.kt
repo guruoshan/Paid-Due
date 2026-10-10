@@ -14,6 +14,7 @@ import com.dailymoneyregister.core.database.dao.CustomerDao
 import com.dailymoneyregister.core.database.dao.DocumentMediaDao
 import com.dailymoneyregister.core.database.dao.LedgerDao
 import com.dailymoneyregister.core.database.dao.OperationDao
+import com.dailymoneyregister.core.database.dao.FinancialSyncOutboxDao
 import com.dailymoneyregister.core.database.dao.ProductDao
 import com.dailymoneyregister.core.database.dao.ReportingReadDao
 import com.dailymoneyregister.core.database.dao.TransactionDao
@@ -36,6 +37,7 @@ import com.dailymoneyregister.core.database.entity.DocumentMediaLinkEntity
 import com.dailymoneyregister.core.database.entity.MediaAssetEntity
 import com.dailymoneyregister.core.database.entity.MerchantQrConfigEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
+import com.dailymoneyregister.core.database.entity.FinancialSyncOutboxEntity
 import com.dailymoneyregister.core.database.entity.PaymentMethodChangeEventEntity
 import com.dailymoneyregister.core.database.entity.ProductEntity
 import com.dailymoneyregister.core.database.entity.RefundEventEntity
@@ -45,7 +47,8 @@ import com.dailymoneyregister.core.database.entity.TransactionItemEntity
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.entity.HumanIdentityEntity
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
-import com.dailymoneyregister.core.database.entity.VoidEventEntity
+import com.dailymoneyregister.core.database.entity.VoidEventEntity
+
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
 import com.dailymoneyregister.core.database.entity.ExpenseEventEntity
 import com.dailymoneyregister.core.database.entity.ExpensePayeeEntity
@@ -74,6 +77,7 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
         DocumentMediaLinkEntity::class,
         MerchantQrConfigEntity::class,
         OperationEntity::class,
+        FinancialSyncOutboxEntity::class,
         TransactionEntity::class,
         TransactionItemEntity::class,
         SettlementEntryEntity::class,
@@ -87,7 +91,7 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
         CreditRepaymentEntity::class,
         CreditRepaymentAllocationEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -96,6 +100,7 @@ abstract class DmrDatabase : RoomDatabase() {
     abstract fun businessBranchDao(): BusinessBranchDao
     abstract fun userDao(): UserDao
     abstract fun operationDao(): OperationDao
+    abstract fun financialSyncOutboxDao(): FinancialSyncOutboxDao
     abstract fun transactionDao(): TransactionDao
     abstract fun ledgerDao(): LedgerDao
     abstract fun customerDao(): CustomerDao
@@ -599,6 +604,41 @@ abstract class DmrDatabase : RoomDatabase() {
                 )
             }
         }
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `financial_sync_outbox` (
+                        `operation_id` TEXT NOT NULL,
+                        `business_id` TEXT NOT NULL,
+                        `branch_id` TEXT NOT NULL,
+                        `transaction_id` TEXT NOT NULL,
+                        `actor_user_id` TEXT NOT NULL,
+                        `device_id` TEXT NOT NULL,
+                        `request_fingerprint` TEXT NOT NULL,
+                        `command_schema_version` INTEGER NOT NULL,
+                        `occurred_at` INTEGER NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `attempt_count` INTEGER NOT NULL,
+                        PRIMARY KEY(`operation_id`),
+                        FOREIGN KEY(`operation_id`)
+                            REFERENCES `operations`(`id`)
+                            ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_financial_sync_outbox_status` " +
+                        "ON `financial_sync_outbox` (`status`)"
+                )
+
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_financial_sync_outbox_occurred_at` " +
+                        "ON `financial_sync_outbox` (`occurred_at`)"
+                )
+            }
+        }
         @Volatile
 
         private var INSTANCE: DmrDatabase? = null
@@ -637,7 +677,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                             .addCallback(FinancialImmutabilityCallback)
                             .build()
                     } catch (e: Exception) {
@@ -663,7 +703,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()

@@ -25,6 +25,7 @@
     <!-- Auth / Login -->
     <string name="login_title">डेली मनी रजिस्टर</string>
     <string name="admin_login">व्यवस्थापक लॉगिन</string>
+    <string name="email_address">ईमेल पता</string>
     <string name="cashier_login">कैशियर पिन लॉगिन</string>
     <string name="password">पासवर्ड</string>
     <string name="enter_6_digit_pin">6-अंकों का कैशियर पिन दर्ज करें</string>

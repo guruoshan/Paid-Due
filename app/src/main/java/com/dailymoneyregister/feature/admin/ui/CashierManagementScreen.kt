@@ -28,7 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dailymoneyregister.R
-import com.dailymoneyregister.core.database.entity.UserAccountEntity
+import com.dailymoneyregister.feature.admin.data.CashierManagementRepository.DirectoryEntry
 import com.dailymoneyregister.core.i18n.LanguageRegistry
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.ui.PhoneNumberInput
@@ -359,7 +359,7 @@ private fun InviteReadyDialog(
 
 @Composable
 private fun CashierRow(
-    cashier: UserAccountEntity,
+    cashier: DirectoryEntry,
     onEditDetails: () -> Unit,
     onEditPermissions: () -> Unit,
     onResetPin: () -> Unit,
@@ -403,7 +403,7 @@ private fun CashierRow(
                 }
             }
 
-            Box {
+            if (cashier.localAccount != null) Box {
                 IconButton(onClick = { menuOpen = true }) {
                     Icon(
                         Icons.Default.MoreVert,

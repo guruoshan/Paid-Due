@@ -6,6 +6,9 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Matches E.164 (+XXXXXXX) or common local phone patterns (all-digit, starts with 0). */
+private val PHONE_PATTERN = Regex("""^\+?\d[\d\s\-().]{6,19}$""")
+
 sealed interface RemoteAdminAuthResult {
 
     data class Authenticated(
@@ -72,6 +75,15 @@ class RemoteAdminAuthRepository @Inject constructor(
     ): RemoteAdminAuthResult {
 
         val normalizedEmail = normalizeEmail(email)
+
+        // Guard: admin accounts use email, not phone number.
+        // Return a human-readable error rather than sending a phone
+        // number to signInWith(Email) and getting an opaque 400.
+        if (PHONE_PATTERN.matches(normalizedEmail)) {
+            return RemoteAdminAuthResult.Failed(
+                "Admin login requires your email address, not a phone number"
+            )
+        }
 
         if (normalizedEmail.isBlank()) {
             return RemoteAdminAuthResult.Failed(

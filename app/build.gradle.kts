@@ -26,6 +26,11 @@ fun buildConfigString(value: String): String =
         .replace("\\", "\\\\")
         .replace("\"", "\\\"") + "\""
 android {
+    val inboundApplyDefault = providers.gradleProperty("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES")
+        .orElse(providers.environmentVariable("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES"))
+        .orElse("false")
+        .get()
+        .toBooleanStrictOrNull() ?: false
     namespace = "com.dailymoneyregister"
     compileSdk {
         version = release(37)
@@ -41,9 +46,13 @@ android {
         testInstrumentationRunner = "com.dailymoneyregister.HiltTestRunner"
         val paidDueSupabaseUrl =
             paidDueConfig("PAID_DUE_SUPABASE_URL").trim()
+                .ifBlank { "https://ttvdpgxqvvtjnxxfkoui.supabase.co" }
 
+        // Publishable/anon keys are public client configuration, not secrets.
+        // Keep overrides available for local/staging builds.
         val paidDueSupabasePublishableKey =
             paidDueConfig("PAID_DUE_SUPABASE_PUBLISHABLE_KEY").trim()
+                .ifBlank { "sb_publishable_6IHSTMfMOmK2ecB58U7tjA_CWJwDyZt" }
 
         check(paidDueSupabaseUrl.startsWith("https://")) {
             "PAID_DUE_SUPABASE_URL must be configured as HTTPS."
@@ -86,7 +95,9 @@ android {
                         "PAID_DUE_PUBLIC_INVITE_BASE_URL"
                     )
                 )
-                .orElse("")
+                .orElse(
+                    "https://ttvdpgxqvvtjnxxfkoui.supabase.co/functions/v1/api/open/invite"
+                )
                 .get()
                 .trim()
                 .trimEnd('/')
@@ -112,7 +123,7 @@ android {
                     )
                 )
                 .orElse(
-                    "https://paidanddue.guruoshan2208.workers.dev"
+                    "https://ttvdpgxqvvtjnxxfkoui.supabase.co/functions/v1/api"
                 )
                 .get()
                 .trim()
@@ -136,7 +147,15 @@ android {
     }
 
     buildTypes {
+        getByName("debug") {
+            buildConfigField(
+                "boolean",
+                "APPLY_INBOUND_FINANCIAL_ENVELOPES",
+                inboundApplyDefault.toString()
+            )
+        }
         release {
+            buildConfigField("boolean", "APPLY_INBOUND_FINANCIAL_ENVELOPES", inboundApplyDefault.toString())
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -217,6 +236,7 @@ dependencies {
     testImplementation(libs.json)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.mockk)
 
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

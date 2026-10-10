@@ -36,7 +36,8 @@ data class HistoryUiState(
 
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
-    private val repository: HistoryRepository
+    private val repository: HistoryRepository,
+    private val syncScheduler: com.dailymoneyregister.core.cloud.sync.FinancialSyncScheduler
 ) : ViewModel() {
 
     private val _uiState =
@@ -51,6 +52,7 @@ class HistoryViewModel @Inject constructor(
     private var historyJob: Job? = null
 
     fun loadHistory() {
+        syncScheduler.triggerSync()
 
         val session =
             SessionManager.currentSession.value

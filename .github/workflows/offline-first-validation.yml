@@ -1,0 +1,73 @@
+name: Paid & Due migration validation (API 36 compatibility runner)
+
+on:
+  pull_request:
+    branches:
+      - migration/supabase-edge-only
+      - main
+  push:
+    branches:
+      - migration/offline-first-supabase-v1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paid-due-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android best-effort compile (API 36; SQLCipher metadata gate skipped)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Install available Android SDK platform
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Best-effort Android verification on runner-available SDK
+
+        run: |
+          # API 37 is configured by the project but is not yet published in this runner's SDK repository.
+          # This ephemeral substitution validates source/test compilation without changing tracked files.
+          sed -i 's/version = release(37)/version = release(36)/; s/targetSdk = 37/targetSdk = 36/' app/build.gradle.kts
+          chmod +x ./gradlew
+          # SQLCipher 4.19.0 declares compileSdk 37; the hosted runner only offers API 36.
+          # Skip only the AAR metadata gate to discover whether compilation/tests can proceed.
+          # This is diagnostic only, not proof that API 36 is a supported production build.
+          ./gradlew --no-daemon :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin :app:assembleDebug -x :app:checkDebugAarMetadata
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: paid-due-debug-apk-api36-validation-only
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  edge-function-tests:
+    name: Supabase Edge Function tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Run API contract tests
+        working-directory: supabase/functions/api
+        run: deno task test api_test.ts

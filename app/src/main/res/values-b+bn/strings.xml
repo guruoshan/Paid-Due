@@ -25,6 +25,7 @@
     <!-- Auth / Login -->
     <string name="login_title">ডেইলি মানি রেজিস্টার</string>
     <string name="admin_login">অ্যাডমিন লগইন</string>
+    <string name="email_address">ইমেইল ঠিকানা</string>
     <string name="cashier_login">ক্যাশিয়ার পিন লগইন</string>
     <string name="password">পাসওয়ার্ড</string>
     <string name="enter_6_digit_pin">৬-সংখ্যার ক্যাশিয়ার পিন লিখুন</string>

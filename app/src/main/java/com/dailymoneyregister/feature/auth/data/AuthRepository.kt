@@ -12,6 +12,8 @@ import com.dailymoneyregister.core.security.PinThrottler
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.core.identity.PhoneNumberNormalizer
+import com.dailymoneyregister.core.cloud.BusinessRestorer
+import com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult
 import javax.inject.Inject
 
 sealed class AuthResult {
@@ -36,8 +38,33 @@ class AuthRepository @Inject constructor(
     private val database: DmrDatabase,
     private val pinThrottler: PinThrottler,
     private val languageManager: LanguageManager,
-    private val trustedSessionStore: TrustedSessionStore
+    private val trustedSessionStore: TrustedSessionStore,
+    private val remoteBusinessRestorer: BusinessRestorer
 ) {
+
+    constructor(
+        database: DmrDatabase,
+        pinThrottler: PinThrottler,
+        languageManager: LanguageManager,
+        trustedSessionStore: TrustedSessionStore
+    ) : this(
+        database,
+        pinThrottler,
+        languageManager,
+        trustedSessionStore,
+        object : BusinessRestorer {
+            override suspend fun restoreCashierIfEmpty(
+                usernameOrPhone: String,
+                pin: String,
+                countryCode: String
+            ) = RemoteBusinessRestorationResult.Failed("Cloud restoration unavailable in this test fixture")
+
+            override suspend fun restoreAdminIfEmpty(
+                usernameOrEmail: String,
+                passwordPlain: String
+            ) = RemoteBusinessRestorationResult.Failed("Cloud restoration unavailable in this test fixture")
+        }
+    )
 
     private companion object {
         const val DUMMY_PASSWORD_SALT = "00112233445566778899aabbccddeeff"
@@ -112,7 +139,17 @@ class AuthRepository @Inject constructor(
         mode: String,
         username: String
     ): Long {
-        val business = businessBranchDao.getFirstBusiness() ?: return 0L
+        val business = businessBranchDao.getFirstBusiness()
+        if (business == null) {
+            val canonicalPhone = runCatching {
+                PhoneNumberNormalizer.normalize(username, "OM")
+            }.getOrNull()
+            val cleanUsername = username.trim()
+            val preRemaining = pinThrottler.getRemainingLockoutSeconds(
+                preResolutionThrottleKey(mode, "UNCONFIGURED", "UNCONFIGURED", canonicalPhone, cleanUsername)
+            )
+            return preRemaining
+        }
         val branch = businessBranchDao.getFirstBranch(business.id) ?: return 0L
         val identifier = normalizeLoginIdentifier(mode, username, business.id, branch)
         val preRemaining = pinThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
@@ -149,11 +186,20 @@ class AuthRepository @Inject constructor(
         passwordPlain: String
     ): AuthResult {
 
-        val business =
-            businessBranchDao.getFirstBusiness()
-                ?: return AuthResult.Error(
-                    "No business configured. Run setup first."
-                )
+        var business = businessBranchDao.getFirstBusiness()
+        if (business == null) {
+            val restoreResult = remoteBusinessRestorer.restoreAdminIfEmpty(username, passwordPlain)
+            if (restoreResult is com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult.Failed) {
+                return AuthResult.Error(restoreResult.message)
+            }
+            business = businessBranchDao.getFirstBusiness()
+        }
+
+        if (business == null) {
+            return AuthResult.Error(
+                "No business configured. Run setup first."
+            )
+        }
 
         val branch = businessBranchDao.getFirstBranch(business.id)
             ?: return AuthResult.Error("No branch found for business")
@@ -296,17 +342,48 @@ class AuthRepository @Inject constructor(
         pin: String
     ): AuthResult {
 
-        val business =
-            businessBranchDao.getFirstBusiness()
-                ?: return AuthResult.Error(
-                    "No business configured. Run setup first."
-                )
+        var business = businessBranchDao.getFirstBusiness()
+        if (business == null) {
+            val restoreResult = remoteBusinessRestorer.restoreCashierIfEmpty(username, pin)
+            if (restoreResult is com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult.Failed) {
+                return AuthResult.Error(restoreResult.message)
+            }
+            business = businessBranchDao.getFirstBusiness()
+        }
+
+        if (business == null) {
+            return AuthResult.Error(
+                "No business configured. Run setup first."
+            )
+        }
 
         val branch = businessBranchDao.getFirstBranch(business.id)
             ?: return AuthResult.Error("No branch found for business")
         val identifier = normalizeLoginIdentifier("CASHIER", username, business.id, branch)
         var remainingLockout = pinThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
-        val user = resolveLoginLookup(identifier, business.id)
+        // BOARDLOCK_CASHIER_MISSING_ACCOUNT_RECONCILIATION
+        // Preserve account lockout before any remote recovery attempt.
+        val preRemaining = pinThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
+        if (preRemaining > 0L) return AuthResult.LockedOut(preRemaining)
+        var user = resolveLoginLookup(identifier, business.id)
+        if (user == null && identifier.canonicalPhone != null) {
+            val recovery = remoteBusinessRestorer.restoreCashierIfEmpty(username, pin, branch.countryCode)
+            when (recovery) {
+                is RemoteBusinessRestorationResult.Success -> {
+                    if (recovery.businessId != business.id || recovery.branchId != branch.id) {
+                        return AuthResult.Error("Cashier belongs to a different business or branch")
+                    }
+                    user = resolveLoginLookup(identifier, business.id)
+                    if (user == null) {
+                        return AuthResult.Error("Cashier recovery did not restore the local account")
+                    }
+                }
+                is RemoteBusinessRestorationResult.Failed -> {
+                    // Keep detailed remote error out of the wrong-account response.
+                    return AuthResult.Error(recovery.message)
+                }
+            }
+        }
         val accountKey = user?.let { accountThrottleKey(business.id, it.id) }
         val accountRemaining = accountKey?.let {
             pinThrottler.getRemainingLockoutSeconds(it)
@@ -409,6 +486,23 @@ class AuthRepository @Inject constructor(
                 membership,
                 requiresPinChange = authenticatedUser.mustChangePin
             )
+
+        // Cashier cloud authentication is required for remote sync.
+        // Local/offline PIN authentication remains unchanged.
+        if (
+            com.dailymoneyregister.core.cloud.sync.CashierCloudSession
+                .tokenFor(membership.id) == null && identifier.canonicalPhone != null
+        ) {
+            runCatching {
+                com.dailymoneyregister.core.cloud.sync.CashierCloudSession.authenticate(
+                    canonicalPhone = identifier.canonicalPhone,
+                    pin = pin,
+                    expectedMembershipId = membership.id
+                )
+            }.onFailure {
+                android.util.Log.w("PaidDueFinancialSync", "CASHIER_CLOUD_AUTH_RETRY_FAILED")
+            }
+        }
 
         SessionManager.setSession(session)
 
@@ -579,3 +673,4 @@ class AuthRepository @Inject constructor(
     fun getThrottler(): PinThrottler =
         pinThrottler
 }
+

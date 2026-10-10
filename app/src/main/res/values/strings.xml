@@ -25,6 +25,7 @@
     <!-- Auth / Login -->
     <string name="login_title">Paid&amp;Due</string>
     <string name="admin_login">Admin Login</string>
+    <string name="email_address">Email Address</string>
     <string name="cashier_login">Cashier PIN Login</string>
     <string name="whatsapp_mobile_number">WhatsApp / Mobile Number</string>
     <string name="password">Password</string>

@@ -25,6 +25,7 @@
     <!-- Auth / Login -->
     <string name="login_title">سجل الأموال اليومي</string>
     <string name="admin_login">دخول المشرف</string>
+    <string name="email_address">عنوان البريد الإلكتروني</string>
     <string name="cashier_login">دخول أمين الصندوق برمز PIN</string>
     <string name="password">كلمة المرور</string>
     <string name="enter_6_digit_pin">أدخل رمز PIN المكون من 6 أرقام</string>
