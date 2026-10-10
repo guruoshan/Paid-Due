@@ -6,40 +6,32 @@ import javax.inject.Inject
 
 class InviteService @Inject constructor(
     private val store: InviteStore,
-    private val emailSender: StaffInviteEmailSender,
+    private val linkCreator: StaffInviteLinkCreator,
     private val clock: Clock
 ) {
     suspend fun createInvite(
-        email: String,
         businessId: String,
         branchId: String,
         displayName: String,
         canonicalPhone: String,
         permissions: Map<String, Boolean>
     ): CreatedInvite {
-        val normalizedEmail = email.trim().lowercase()
-        require(EMAIL_REGEX.matches(normalizedEmail)) {
-            "Enter a valid staff email address."
+        require(businessId.isNotBlank() && branchId.isNotBlank()) {
+            "Choose a valid business branch."
         }
         require(displayName.trim().isNotEmpty()) {
             "Cashier name is required."
         }
+        require(CANONICAL_PHONE_REGEX.matches(canonicalPhone)) {
+            "Enter a valid mobile number."
+        }
 
-        emailSender.sendEmailInvite(
-            email = normalizedEmail,
+        return linkCreator.createInviteLink(
             businessId = businessId,
             branchId = branchId,
             displayName = displayName.trim(),
             canonicalPhone = canonicalPhone,
             permissions = permissions.toMap()
-        )
-
-        val now = clock.millis()
-        return CreatedInvite(
-            email = normalizedEmail,
-            displayName = displayName.trim(),
-            canonicalPhone = canonicalPhone,
-            expiresAt = now + INVITE_LIFETIME_MILLIS
         )
     }
 
@@ -72,8 +64,7 @@ class InviteService @Inject constructor(
     }
 
     private companion object {
-        val EMAIL_REGEX = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
-        const val INVITE_LIFETIME_MILLIS = 48L * 60L * 60L * 1000L
+        val CANONICAL_PHONE_REGEX = Regex("""^\+[1-9][0-9]{7,14}$""")
         const val MIN_TOKEN_LENGTH = 32
         const val MAX_TOKEN_LENGTH = 128
     }
