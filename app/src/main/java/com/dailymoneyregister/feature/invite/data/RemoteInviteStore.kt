@@ -85,7 +85,7 @@ sealed interface RemoteStaffActivationResult {
 @Singleton
 class RemoteInviteStore @Inject constructor(
     private val supabase: SupabaseClient
-) : InviteStore {
+) : InviteStore, StaffInviteEmailSender {
 
     private val activationHttpClient =
         HttpClient(Android) {
@@ -97,15 +97,6 @@ class RemoteInviteStore @Inject constructor(
             ignoreUnknownKeys = true
             explicitNulls = false
         }
-
-    @Serializable
-    private data class CreateInviteRpcRow(
-        @SerialName("invite_id")
-        val inviteId: String,
-
-        @SerialName("expires_at")
-        val expiresAt: String
-    )
 
     @Serializable
     private data class PreviewInviteRpcRow(
@@ -215,7 +206,7 @@ class RemoteInviteStore @Inject constructor(
         error("Staff invitations must be created through Supabase Auth email.")
     }
 
-    suspend fun sendEmailInvite(
+    override suspend fun sendEmailInvite(
         email: String,
         businessId: String,
         branchId: String,
