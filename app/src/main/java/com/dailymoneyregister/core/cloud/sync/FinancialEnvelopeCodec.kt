@@ -38,7 +38,8 @@ object FinancialEnvelopeCodec {
         transaction: TransactionEntity? = null,
         items: List<TransactionItemEntity> = emptyList(),
         settlements: List<SettlementEntryEntity> = emptyList(),
-        expense: ExpenseEntity? = null
+        expense: ExpenseEntity? = null,
+        financialEvidence: JSONObject = JSONObject()
     ): EncodedEnvelope {
         val root = JSONObject()
         root.put("operation_id", operation.id)
@@ -51,6 +52,13 @@ object FinancialEnvelopeCodec {
         root.put("command_schema_version", operation.commandSchemaVersion)
         root.put("request_fingerprint", operation.requestFingerprint)
         root.put("intent_payload", operation.intentPayload)
+        root.put("subject_type", operation.subjectType.name)
+        root.put("subject_id", operation.subjectId)
+        root.put("transaction_id", operation.transactionId.orEmpty())
+        root.put("cash_shift_id", operation.cashShiftId.orEmpty())
+        if (financialEvidence.length() > 0) {
+            root.put("financial_evidence", financialEvidence)
+        }
 
         if (transaction != null) {
             val txJson = JSONObject()
