@@ -219,7 +219,7 @@ private fun CreateInviteDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.invite_by_whatsapp)) },
+        title = { Text(stringResource(R.string.invite_by_email)) },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
