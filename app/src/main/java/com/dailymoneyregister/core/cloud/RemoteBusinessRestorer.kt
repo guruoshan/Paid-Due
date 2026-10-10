@@ -109,7 +109,7 @@ class RemoteBusinessRestorer @Inject constructor(
                 "CREATE_SALE", "ACCEPT_CASH", "ACCEPT_ONLINE", "CREATE_CREDIT_SALE",
                 "USE_COUPON", "ISSUE_INVOICE", "ISSUE_RECEIPT", "REFUND", "VOID",
                 "CORRECT_AMOUNT", "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY",
-                "MANAGE_PRODUCTS", "VIEW_REPORTS", "VIEW_CUSTOMERS"
+                "MANAGE_PRODUCTS", "VIEW_REPORTS"
             )
             val permissions = permissionNames.associateWith { key ->
                 require(permissionsJson.has(key) && !permissionsJson.isNull(key)) {
@@ -419,8 +419,7 @@ class RemoteBusinessRestorer @Inject constructor(
                         canViewBroadHistory = permissions["VIEW_BROAD_HISTORY"] ?: false,
                         canManageProducts = permissions["MANAGE_PRODUCTS"] ?: false,
                         canViewReports = permissions["VIEW_REPORTS"] ?: false,
-                        createdAt = activatedAtMillis,
-                        canViewCustomers = permissions["VIEW_CUSTOMERS"] ?: true
+                        createdAt = activatedAtMillis
                     )
                 )
             }
