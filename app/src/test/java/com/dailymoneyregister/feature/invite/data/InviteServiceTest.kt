@@ -33,7 +33,7 @@ class InviteServiceTest {
         assertEquals("Cashier", creator.lastDisplayName)
         assertEquals("+919812345678", creator.lastPhone)
         assertEquals(mapOf("REFUND" to false), creator.lastPermissions)
-        assertEquals("https://example.test/functions/v1/staff-open#secure-token", created.inviteUrl)
+        assertEquals("intent://invite?t=secure-token#Intent;scheme=paiddue;end", created.inviteUrl)
         assertEquals("Cashier", created.displayName)
         assertEquals(baseClock.millis() + 48L * 60L * 60L * 1000L, created.expiresAt)
         assertTrue(store.invites.isEmpty())
@@ -145,7 +145,7 @@ class InviteServiceTest {
             return CreatedInvite(
                 displayName = displayName,
                 canonicalPhone = canonicalPhone,
-                inviteUrl = "https://example.test/functions/v1/staff-open#secure-token",
+                inviteUrl = "intent://invite?t=secure-token#Intent;scheme=paiddue;end",
                 expiresAt = baseClock.millis() + 48L * 60L * 60L * 1000L
             )
         }
