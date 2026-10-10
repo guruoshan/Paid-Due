@@ -11,6 +11,10 @@ import com.dailymoneyregister.core.security.PinHasher
 import com.dailymoneyregister.core.security.PinThrottler
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
+import com.dailymoneyregister.core.security.AuthorityConnectivity
+import com.dailymoneyregister.core.security.AuthorityDecision
+import com.dailymoneyregister.core.security.RemoteAuthorityResult
+import com.dailymoneyregister.core.security.OnlineOfflineAuthorityPolicy
 import com.dailymoneyregister.core.identity.PhoneNumberNormalizer
 import com.dailymoneyregister.core.cloud.BusinessRestorer
 import com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult
@@ -191,6 +195,15 @@ class AuthRepository @Inject constructor(
         if (remote is RemoteBusinessRestorationResult.Failed) {
             return AuthResult.Error(remote.message)
         }
+        if (OnlineOfflineAuthorityPolicy.evaluate(
+                connectivity = AuthorityConnectivity.ONLINE,
+                remoteResult = RemoteAuthorityResult.AUTHORIZED,
+                lastServerValidatedAtMillis = System.currentTimeMillis(),
+                nowMillis = System.currentTimeMillis(),
+                offlineGraceMillis = 0L
+            ) != AuthorityDecision.ALLOW_ONLINE) {
+            return AuthResult.Error("Server authorization is required to sign in")
+        }
         val authority = remote as? RemoteBusinessRestorationResult.Success
             ?: return AuthResult.Error("Server did not authorize this Admin")
 
@@ -233,6 +246,15 @@ class AuthRepository @Inject constructor(
         )
         if (remote is RemoteBusinessRestorationResult.Failed) {
             return AuthResult.Error(remote.message)
+        }
+        if (OnlineOfflineAuthorityPolicy.evaluate(
+                connectivity = AuthorityConnectivity.ONLINE,
+                remoteResult = RemoteAuthorityResult.AUTHORIZED,
+                lastServerValidatedAtMillis = System.currentTimeMillis(),
+                nowMillis = System.currentTimeMillis(),
+                offlineGraceMillis = 0L
+            ) != AuthorityDecision.ALLOW_ONLINE) {
+            return AuthResult.Error("Server authorization is required to sign in")
         }
         val authority = remote as? RemoteBusinessRestorationResult.Success
             ?: return AuthResult.Error("Server did not authorize this cashier")
