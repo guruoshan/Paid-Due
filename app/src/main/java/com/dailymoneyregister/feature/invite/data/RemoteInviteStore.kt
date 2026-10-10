@@ -4,7 +4,6 @@ import com.dailymoneyregister.BuildConfig
 import com.dailymoneyregister.core.model.enums.UserRole
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.postgrest.postgrest
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.request.header
@@ -271,61 +270,46 @@ class RemoteInviteStore @Inject constructor(
     suspend fun previewByTokenHash(
         hash: String
     ): RemoteInvitePreview? {
+        if (!TOKEN_HASH_REGEX.matches(hash)) return null
 
-        if (!TOKEN_HASH_REGEX.matches(hash)) {
-            return null
+        val supabaseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trim().trimEnd('/')
+        if (!supabaseUrl.startsWith("https://")) return null
+        val requestBody = buildJsonObject {
+            put("token_hash", JsonPrimitive(hash.lowercase()))
+        }.toString()
+
+        val response = activationHttpClient.post("$supabaseUrl/functions/v1/staff-preview") {
+            header(HttpHeaders.ContentType, "application/json")
+            header("apikey", BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY)
+            setBody(requestBody)
         }
+        if (response.status.value != 200) return null
 
-        val parameters =
-            buildJsonObject {
-                put(
-                    "p_token_hash",
-                    JsonPrimitive(hash)
-                )
-            }
-
-        val rows =
-            supabase.postgrest
-                .rpc(
-                    function = "preview_staff_invite",
-                    parameters = parameters
-                )
-                .decodeList<PreviewInviteRpcRow>()
-
-        val row =
-            rows.singleOrNull()
-                ?: return null
-
-        if (row.role != UserRole.CASHIER.name) {
-            return null
-        }
-
-        val expiresAtMillis =
-            runCatching {
-                OffsetDateTime
-                    .parse(row.expiresAt)
-                    .toInstant()
-                    .toEpochMilli()
-            }.getOrElse {
-                return null
-            }
-
-        val invite =
-            StaffInvite(
-                tokenHash = hash,
-                businessId = row.businessId,
-                branchId = row.branchId,
-                displayName = row.displayName,
-                canonicalPhone = row.canonicalPhone,
-                role = UserRole.CASHIER,
-                permissions = row.permissions,
-                createdAt =
-                    expiresAtMillis -
-                        INVITE_LIFETIME_MILLIS,
-                expiresAt = expiresAtMillis,
-                usedAt = null,
-                revokedAt = null
+        val row = runCatching {
+            activationJson.decodeFromString(
+                PreviewInviteRpcRow.serializer(),
+                response.bodyAsText()
             )
+        }.getOrNull() ?: return null
+        if (row.role != UserRole.CASHIER.name) return null
+
+        val expiresAtMillis = runCatching {
+            OffsetDateTime.parse(row.expiresAt).toInstant().toEpochMilli()
+        }.getOrElse { return null }
+
+        val invite = StaffInvite(
+            tokenHash = hash.lowercase(),
+            businessId = row.businessId,
+            branchId = row.branchId,
+            displayName = row.displayName,
+            canonicalPhone = row.canonicalPhone,
+            role = UserRole.CASHIER,
+            permissions = row.permissions,
+            createdAt = expiresAtMillis - INVITE_LIFETIME_MILLIS,
+            expiresAt = expiresAtMillis,
+            usedAt = null,
+            revokedAt = null
+        )
 
         return RemoteInvitePreview(
             invite = invite,
