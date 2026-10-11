@@ -528,9 +528,7 @@ class AuthRepository @Inject constructor(
             canManageProducts = cloudPermissions.getBoolean("can_manage_products"),
             canViewReports = cloudPermissions.getBoolean("can_view_reports")
         )
-        if (userDao.updateMembership(authorizedMembership) != 1) {
-            return AuthResult.Error("Unable to persist the server-authorized cashier permissions.")
-        }
+        userDao.updateMembership(authorizedMembership)
 
         clearSuccessfulLoginThrottle(business.id, identifier, user)
         val session = ActiveSession(
