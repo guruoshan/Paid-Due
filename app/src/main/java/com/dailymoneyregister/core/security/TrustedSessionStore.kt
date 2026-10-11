@@ -78,6 +78,22 @@ class TrustedSessionStore @Inject constructor(
         }
     }
 
+    fun recordAppBackgrounded(nowMillis: Long = System.currentTimeMillis()) {
+        check(prefs.edit().putLong(KEY_APP_BACKGROUND_AT, nowMillis).commit()) {
+            "Could not persist app background timestamp"
+        }
+    }
+
+    /** Consumes the timestamp and requires reauthentication after 15 minutes away. */
+    fun consumeShouldLockAfterBackground(nowMillis: Long = System.currentTimeMillis()): Boolean {
+        val backgroundAt = prefs.getLong(KEY_APP_BACKGROUND_AT, 0L)
+        if (backgroundAt <= 0L) return false
+        check(prefs.edit().remove(KEY_APP_BACKGROUND_AT).commit()) {
+            "Could not clear app background timestamp"
+        }
+        return nowMillis < backgroundAt || nowMillis - backgroundAt >= BACKGROUND_LOCK_THRESHOLD_MILLIS
+    }
+
     fun isOfflineLeaseValid(
         nowMillis: Long = System.currentTimeMillis(),
         nowElapsedMillis: Long = SystemClock.elapsedRealtime()
@@ -109,6 +125,8 @@ class TrustedSessionStore @Inject constructor(
         private const val KEY_LAST_SERVER_VERIFIED_AT = "last_server_verified_at"
         private const val KEY_LAST_SERVER_VERIFIED_ELAPSED = "last_server_verified_elapsed"
         private const val KEY_LAST_SERVER_VERIFIED_BOOT_COUNT = "last_server_verified_boot_count"
+        private const val KEY_APP_BACKGROUND_AT = "app_background_at"
+        private const val BACKGROUND_LOCK_THRESHOLD_MILLIS = 15 * 60 * 1000L
     }
 }
 
