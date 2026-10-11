@@ -182,6 +182,17 @@ class AuthRepository @Inject constructor(
         pinThrottler.recordSuccess(identifier.preResolutionKey)
     }
 
+    private fun isClearlyCloudUnavailable(message: String): Boolean {
+        val normalized = message.lowercase()
+        if (listOf("invalid login", "invalid credentials", "invalid password", "unauthorized",
+                "forbidden", "membership is missing", "does not match", "different business",
+                "different branch", "not authorized", "disabled", "inactive").any(normalized::contains)
+        ) return false
+        return listOf("timeout", "timed out", "unavailable", "network", "connection",
+            "resolve host", "unknown host", "socket", "offline", "could not connect",
+            "failed to connect", "connection reset", "connection refused", "dns").any(normalized::contains)
+    }
+
     suspend fun loginAdmin(
         username: String,
         passwordPlain: String
@@ -328,6 +339,21 @@ class AuthRepository @Inject constructor(
             )
         }
         if (cloudAuth !is RemoteBusinessRestorationResult.Success) {
+            val unavailable = cloudAuth == null ||
+                (cloudAuth is RemoteBusinessRestorationResult.Failed &&
+                    isClearlyCloudUnavailable(cloudAuth.message))
+            if (
+                unavailable &&
+                trustedSessionStore.isOfflineLeaseValidFor(business.id, branch.id, authenticatedUser.id)
+            ) {
+                val offlineSession = ActiveSession(
+                    business, branch, authenticatedUser, membership, isOfflineLease = true
+                )
+                SessionManager.setSession(offlineSession)
+                languageManager.setLanguage(authenticatedUser.languageCode)
+                android.util.Log.w("PaidDueFinancialSync", "ADMIN_OFFLINE_LEASE_ACCEPTED")
+                return AuthResult.Success(offlineSession)
+            }
             android.util.Log.w(
                 "PaidDueFinancialSync",
                 if (cloudAuth == null) "ADMIN_SUPABASE_AUTH_TIMEOUT"
@@ -544,8 +570,17 @@ class AuthRepository @Inject constructor(
                 return AuthResult.InvalidCredentials("Invalid phone number or PIN.")
             }
             com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome.UNAVAILABLE -> {
+                if (
+                    trustedSessionStore.isOfflineLeaseValidFor(business.id, branch.id, authenticatedUser.id)
+                ) {
+                    val offlineSession = session.copy(isOfflineLease = true)
+                    SessionManager.setSession(offlineSession)
+                    languageManager.setLanguage(authenticatedUser.languageCode)
+                    android.util.Log.w("PaidDueFinancialSync", "CASHIER_OFFLINE_LEASE_ACCEPTED")
+                    return AuthResult.Success(offlineSession)
+                }
                 return AuthResult.Error(
-                    "Supabase could not be reached or did not confirm cashier access. Check your connection and retry; the credentials have not been classified as invalid."
+                    "Supabase is unavailable and no valid 24-hour offline lease exists. Retry when connected; the credentials have not been classified as invalid."
                 )
             }
         }
