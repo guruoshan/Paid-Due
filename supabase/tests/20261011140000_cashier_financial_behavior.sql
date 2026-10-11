@@ -93,7 +93,31 @@ BEGIN
   IF NOT v_seen_denial THEN RAISE EXCEPTION 'FAIL malformed settlement: accepted'; END IF;
   RAISE NOTICE 'PASS malformed settlement | expected=OPERATION_NOT_PERMITTED | actual=OPERATION_NOT_PERMITTED';
 
-  -- 6: unknown tender category must fail closed.
+  -- 6: a settlement object with a missing category must fail closed (SQL NULL edge case).
+  v_payload := jsonb_build_object(
+    'operation_id', 'test-missing-category',
+    'business_id', 'biz-test',
+    'settlements', jsonb_build_array(jsonb_build_object())
+  );
+  v_text := v_payload::text;
+  v_hash := encode(extensions.digest(convert_to(v_text, 'UTF8'), 'sha256'), 'hex');
+  v_seen_denial := false;
+  BEGIN
+    PERFORM * FROM public.ingest_cashier_financial_envelope(
+      'biz-test', 'test-missing-category', 'branch-test', 'membership-test',
+      'device-test', 'RECORD_SALE', 1, now(), 'UTC', current_date,
+      v_text, v_hash, v_payload
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    IF SQLERRM <> 'OPERATION_NOT_PERMITTED' THEN
+      RAISE EXCEPTION 'FAIL missing settlement category: unexpected error %', SQLERRM;
+    END IF;
+    v_seen_denial := true;
+  END;
+  IF NOT v_seen_denial THEN RAISE EXCEPTION 'FAIL missing settlement category: accepted'; END IF;
+  RAISE NOTICE 'PASS missing settlement category | expected=OPERATION_NOT_PERMITTED | actual=OPERATION_NOT_PERMITTED';
+
+  -- 7: unknown tender category must fail closed.
   v_payload := jsonb_build_object(
     'operation_id', 'test-unknown-category',
     'business_id', 'biz-test',
@@ -117,7 +141,7 @@ BEGIN
   IF NOT v_seen_denial THEN RAISE EXCEPTION 'FAIL unknown category: accepted'; END IF;
   RAISE NOTICE 'PASS unknown settlement category | expected=OPERATION_NOT_PERMITTED | actual=OPERATION_NOT_PERMITTED';
 
-  -- 7: first operation is new; exact replay is acknowledged as duplicate.
+  -- 8: first operation is new; exact replay is acknowledged as duplicate.
   v_payload := jsonb_build_object(
     'operation_id', 'test-duplicate-operation',
     'business_id', 'biz-test',
