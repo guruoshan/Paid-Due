@@ -72,7 +72,10 @@ BEGIN
 
   UPDATE public.business_memberships SET can_accept_cash=false,updated_at=now() WHERE id='notification-test-cashier-membership';
   SELECT count(*) INTO v_count FROM private.business_notifications WHERE recipient_membership_id='notification-test-cashier-membership' AND notification_type='PERMISSIONS_CHANGED';
-  IF v_count <> 1 THEN RAISE EXCEPTION 'FAIL: permission-change notification count %',v_count; END IF;
+  IF v_count <> 1 THEN RAISE EXCEPTION 'FAIL: cashier permission-change notification count %',v_count; END IF;
+  SELECT count(*) INTO v_count FROM private.business_notifications WHERE recipient_membership_id='notification-test-admin-membership'
+    AND notification_type='CASHIER_PERMISSIONS_CHANGED' AND payload->>'cashier_membership_id'='notification-test-cashier-membership';
+  IF v_count <> 1 THEN RAISE EXCEPTION 'FAIL: Admin permission-change notification count %',v_count; END IF;
 
   SELECT request_id INTO v_request_id FROM public.create_cashier_permission_request('notification-test-cashier-membership','REFUND','Test request');
   IF v_request_id IS NULL THEN RAISE EXCEPTION 'FAIL: permission request not created'; END IF;
