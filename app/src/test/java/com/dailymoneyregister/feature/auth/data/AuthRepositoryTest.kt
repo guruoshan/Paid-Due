@@ -27,6 +27,7 @@ class AuthRepositoryTest {
         assertEquals(SessionAuthorizationResult.REJECTED, classifyAdminSessionRpcFailure(401))
         assertEquals(SessionAuthorizationResult.REJECTED, classifyAdminSessionRpcFailure(403))
         assertEquals(SessionAuthorizationResult.REJECTED, classifyAdminSessionRpcFailure(400, "42501"))
+        assertEquals(SessionAuthorizationResult.REJECTED, classifyAdminSessionRpcFailure(400, "28000"))
         assertEquals(SessionAuthorizationResult.UNAVAILABLE, classifyAdminSessionRpcFailure(500))
         assertEquals(SessionAuthorizationResult.UNAVAILABLE, classifyAdminSessionRpcFailure(503))
     }

@@ -63,7 +63,7 @@ enum class SessionAuthorizationResult {
 }
 
 internal fun classifyAdminSessionRpcFailure(statusCode: Int, code: String? = null): SessionAuthorizationResult =
-    if (statusCode == 401 || statusCode == 403 || code == "42501") {
+    if (statusCode == 401 || statusCode == 403 || code == "28000" || code == "42501") {
         SessionAuthorizationResult.REJECTED
     } else {
         SessionAuthorizationResult.UNAVAILABLE
