@@ -142,7 +142,11 @@ class SessionLockViewModel @Inject constructor(
                     }
                     SessionAuthorizationResult.UNAVAILABLE -> {
                         if (!trustedSessionStore.isOfflineLeaseValid()) {
-                            fail("Supabase is unavailable and the offline access lease has expired.")
+                            // Do not leave the user trapped behind a lock screen that can
+                            // never be satisfied by an expired offline lease.
+                            trustedSessionStore.clear()
+                            SessionManager.clearSession()
+                            fail("Offline access has expired. Sign in again when the service is available.")
                         } else {
                             if (!biometricAuthorized) {
                                 runCatching { com.dailymoneyregister.core.security.SessionBiometricKey.recoverAfterCredentialUnlock() }
@@ -176,6 +180,11 @@ class SessionLockViewModel @Inject constructor(
         session: com.dailymoneyregister.core.security.ActiveSession
     ): UnlockValidation {
         val membership = session.membership ?: return UnlockValidation(SessionAuthorizationResult.REJECTED, session)
+        // An absent/expired device token is not evidence that the server revoked
+        // the membership. A valid identity-bound offline lease may still unlock.
+        if (CashierCloudSession.tokenFor(membership.id) == null) {
+            return UnlockValidation(SessionAuthorizationResult.UNAVAILABLE, session)
+        }
         return try {
             val metadata = CashierCloudSession.fetchMetadata(membership.id)
             if (
