@@ -1,9 +1,12 @@
 package com.dailymoneyregister.core.security
 
+import androidx.room.withTransaction
+
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.cloud.sync.CashierCloudSession
 import com.dailymoneyregister.core.cloud.sync.RemoteFinancialSyncRepository
 import com.dailymoneyregister.core.cloud.sync.SessionAuthorizationResult
+import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import com.dailymoneyregister.core.i18n.LanguageManager
 import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.UserRole
@@ -137,8 +140,52 @@ class TrustedSessionRestorer @Inject constructor(
                                 canManageProducts = permissions.getBoolean("can_manage_products"),
                                 canViewReports = permissions.getBoolean("can_view_reports")
                             )
-                            userDao.updateMembership(refreshed)
-                            session = session.copy(membership = refreshed)
+                            // Refresh non-financial business/branch configuration only
+                            // after the server confirms the exact tenant and membership.
+                            val businessName = metadata.optString("business_name")
+                                .takeIf { it.isNotBlank() && it != "null" }
+                                ?: throw java.io.IOException("CASHIER_METADATA_BUSINESS_NAME_MISSING")
+                            val branchName = metadata.optString("branch_name")
+                                .takeIf { it.isNotBlank() && it != "null" }
+                                ?: throw java.io.IOException("CASHIER_METADATA_BRANCH_NAME_MISSING")
+                            val branchCode = metadata.optString("branch_code")
+                                .takeIf { it.isNotBlank() && it != "null" }
+                                ?: throw java.io.IOException("CASHIER_METADATA_BRANCH_CODE_MISSING")
+                            val taxMode = runCatching {
+                                TaxRoundingMode.valueOf(metadata.getString("tax_rounding_mode"))
+                            }.getOrElse { throw java.io.IOException("CASHIER_METADATA_TAX_MODE_INVALID") }
+                            val now = System.currentTimeMillis()
+                            val updatedBusiness = session.business.copy(
+                                name = businessName,
+                                updatedAt = now
+                            )
+                            val updatedBranch = session.branch.copy(
+                                name = branchName,
+                                code = branchCode,
+                                address = metadata.optString("branch_address").takeUnless { it.isBlank() || it == "null" },
+                                phone = metadata.optString("branch_phone").takeUnless { it.isBlank() || it == "null" },
+                                taxRegistrationNumber = metadata.optString("tax_registration_number").takeUnless { it.isBlank() || it == "null" },
+                                countryCode = metadata.getString("country_code"),
+                                currencyCode = metadata.getString("currency_code"),
+                                currencyDecimalPlaces = metadata.getInt("currency_decimal_places"),
+                                currencySymbol = metadata.getString("currency_symbol"),
+                                timezoneId = metadata.getString("timezone_id"),
+                                taxRoundingMode = taxMode,
+                                defaultTaxRateBps = metadata.getInt("default_tax_rate_bps"),
+                                updatedAt = now
+                            )
+                            database.withTransaction {
+                                userDao.updateMembership(refreshed)
+                                database.businessBranchDao().updateBusinessDetailsAtomically(
+                                    updatedBusiness,
+                                    updatedBranch
+                                )
+                            }
+                            session = session.copy(
+                                business = updatedBusiness,
+                                branch = updatedBranch,
+                                membership = refreshed
+                            )
                             SessionAuthorizationResult.AUTHORIZED
                         }
                     } catch (cancelled: kotlinx.coroutines.CancellationException) {
