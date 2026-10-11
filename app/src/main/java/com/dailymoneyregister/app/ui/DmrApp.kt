@@ -103,12 +103,28 @@ fun DmrApp(
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP && SessionManager.currentSession.value != null) {
-                SessionManager.lockSession()
+            when (event) {
+                Lifecycle.Event.ON_STOP -> trustedSessionStore.recordAppBackgrounded()
+                Lifecycle.Event.ON_START -> {
+                    if (SessionManager.currentSession.value != null &&
+                        trustedSessionStore.consumeShouldLockAfterBackground()
+                    ) {
+                        SessionManager.lockSession()
+                    }
+                }
+                else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Also evaluate the persisted background marker after cold-start restoration,
+    // where ON_START can occur before the saved session has been restored.
+    LaunchedEffect(activeSession?.user?.id) {
+        if (activeSession != null && trustedSessionStore.consumeShouldLockAfterBackground()) {
+            SessionManager.lockSession()
+        }
     }
 
     LaunchedEffect(syncProblem, activeSession?.user?.role) {
