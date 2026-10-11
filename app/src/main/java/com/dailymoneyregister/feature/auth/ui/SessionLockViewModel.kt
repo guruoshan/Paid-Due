@@ -156,6 +156,21 @@ class SessionLockViewModel @Inject constructor(
         }
     }
 
+    fun recordBiometricFailure() {
+        val session = SessionManager.currentSession.value ?: return
+        val key = "unlock:${session.business.id}:${session.user.id}"
+        val failures = unlockPrefs.getInt(key, 0) + 1
+        unlockPrefs.edit().putInt(key, failures).commit()
+        if (failures >= 5) {
+            trustedSessionStore.clear()
+            SessionManager.clearSession()
+            unlockPrefs.edit().remove(key).commit()
+            fail("Five failed unlock attempts. Sign in again.")
+        } else {
+            fail("Biometric not recognized. ${5 - failures} attempt(s) remain.")
+        }
+    }
+
     private suspend fun validateCashier(
         session: com.dailymoneyregister.core.security.ActiveSession
     ): UnlockValidation {
