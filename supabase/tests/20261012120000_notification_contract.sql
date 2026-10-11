@@ -20,9 +20,6 @@ BEGIN
        'public.ingest_cashier_financial_envelope(text,text,text,text,text,text,integer,timestamp with time zone,text,date,text,text,jsonb)'::regprocedure
      )) = 0 THEN RAISE EXCEPTION 'FAIL: financial tender guards overwritten'; END IF;
 
-  INSERT INTO auth.users (id, aud, role, email, encrypted_password, email_confirmed_at)
-  VALUES (v_admin_id, 'authenticated', 'authenticated', 'notification-admin@example.invalid', '', now())
-  ON CONFLICT (id) DO NOTHING;
   INSERT INTO public.profiles (auth_user_id, display_name, is_active)
   VALUES (v_admin_id, 'Notification Test Admin', true) ON CONFLICT (auth_user_id) DO NOTHING;
   INSERT INTO public.businesses (id, name, is_active)
