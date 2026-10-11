@@ -13,8 +13,6 @@
 --   ALTER TABLE private.cashier_sync_sessions DROP CONSTRAINT IF EXISTS cashier_sync_sessions_device_id_format;
 --   ALTER TABLE private.cashier_sync_sessions DROP COLUMN IF EXISTS device_id;
 
-BEGIN;
-
 ALTER TABLE private.cashier_sync_sessions
   ADD COLUMN IF NOT EXISTS device_id text;
 
@@ -103,4 +101,3 @@ REVOKE ALL ON FUNCTION public.verify_cashier_sync_session_v2(text,text)
 GRANT EXECUTE ON FUNCTION public.verify_cashier_sync_session_v2(text,text)
   TO service_role;
 
-COMMIT;

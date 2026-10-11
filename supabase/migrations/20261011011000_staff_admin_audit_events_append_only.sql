@@ -9,8 +9,6 @@
 -- No existing audit rows are changed. If an emergency requires editing/deleting audit data,
 -- use a separately approved, audited break-glass procedure rather than silently disabling this guard.
 
-BEGIN;
-
 CREATE OR REPLACE FUNCTION private.reject_staff_admin_audit_mutation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -37,4 +35,3 @@ BEFORE TRUNCATE ON private.staff_admin_audit_events
 FOR EACH STATEMENT
 EXECUTE FUNCTION private.reject_staff_admin_audit_mutation();
 
-COMMIT;

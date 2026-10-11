@@ -9,8 +9,6 @@
 --   REVOKE EXECUTE ON FUNCTION public.fetch_financial_envelopes_v2(text,timestamptz,text,integer) FROM service_role;
 -- This restores the currently observed authenticated grants; do not grant to PUBLIC or anon.
 
-BEGIN;
-
 REVOKE ALL ON FUNCTION public.fetch_financial_envelopes(text, timestamptz, integer)
   FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.fetch_financial_envelopes_v2(text, timestamptz, text, integer)
@@ -21,4 +19,3 @@ GRANT EXECUTE ON FUNCTION public.fetch_financial_envelopes(text, timestamptz, in
 GRANT EXECUTE ON FUNCTION public.fetch_financial_envelopes_v2(text, timestamptz, text, integer)
   TO service_role;
 
-COMMIT;

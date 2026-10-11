@@ -9,8 +9,6 @@
 -- Calling the cleanup function permanently removes only expired or already-revoked auth tokens.
 -- It does not delete financial envelopes or membership history. Rollback cannot restore deleted token rows.
 
-BEGIN;
-
 CREATE INDEX IF NOT EXISTS idx_cashier_sync_sessions_active_expiry
   ON private.cashier_sync_sessions (expires_at)
   WHERE revoked_at IS NULL;
@@ -41,4 +39,3 @@ REVOKE ALL ON FUNCTION public.prune_expired_cashier_sync_sessions()
 GRANT EXECUTE ON FUNCTION public.prune_expired_cashier_sync_sessions()
   TO service_role;
 
-COMMIT;
