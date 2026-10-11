@@ -1,0 +1,81 @@
+name: SQL Behavioral Gate
+
+on:
+  push:
+    branches:
+      - auth-authority
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sql-behavioral-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sql-behavioral-gate:
+    name: SQL Behavioral Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Prepare isolated Supabase CLI project without app migrations
+        run: |
+          mkdir -p /tmp/supabase-sql-gate/supabase/migrations
+          cat > /tmp/supabase-sql-gate/supabase/config.toml <<'EOF'
+          project_id = "paid-due-sql-gate"
+
+          [db.seed]
+          enabled = false
+          EOF
+
+      - name: Start disposable local Supabase stack
+        run: supabase start --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor --workdir /tmp/supabase-sql-gate
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Create isolated test schema and install baseline function
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/fixtures/cashier_financial_contract_schema.sql
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/rollback/20261011140000_align_cashier_financial_contract.sql
+          psql "$TEST_DATABASE_URL" -X -A -t -v ON_ERROR_STOP=1 -c "SELECT pg_get_functiondef('public.ingest_cashier_financial_envelope(text,text,text,text,text,text,integer,timestamp with time zone,text,date,text,text,jsonb)'::regprocedure)" > /tmp/cashier-baseline.sql
+
+      - name: Apply migration under test
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261011140000_align_cashier_financial_contract.sql
+
+      - name: Execute eight behavioral cases
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/20261011140000_cashier_financial_behavior.sql
+
+      - name: Apply rollback and compare exact function definition
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/rollback/20261011140000_align_cashier_financial_contract.sql
+          psql "$TEST_DATABASE_URL" -X -A -t -v ON_ERROR_STOP=1 -c "SELECT pg_get_functiondef('public.ingest_cashier_financial_envelope(text,text,text,text,text,text,integer,timestamp with time zone,text,date,text,text,jsonb)'::regprocedure)" > /tmp/cashier-after-rollback.sql
+          diff -u /tmp/cashier-baseline.sql /tmp/cashier-after-rollback.sql
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/20261011140000_rollback_contract_test.sql
+          echo "PASS: migration rollback exactly matches pre-migration function definition"
+
+      - name: Stop disposable local Supabase stack
+        if: always()
+        run: supabase stop --no-backup --workdir /tmp/supabase-sql-gate
