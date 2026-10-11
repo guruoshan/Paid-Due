@@ -62,6 +62,13 @@ enum class SessionAuthorizationResult {
     UNAVAILABLE
 }
 
+internal fun classifyAdminSessionRpcFailure(statusCode: Int, code: String? = null): SessionAuthorizationResult =
+    if (statusCode == 401 || statusCode == 403 || code == "42501") {
+        SessionAuthorizationResult.REJECTED
+    } else {
+        SessionAuthorizationResult.UNAVAILABLE
+    }
+
 @Singleton
 class RemoteFinancialSyncRepository @Inject constructor(
     private val supabase: SupabaseClient
@@ -273,6 +280,8 @@ class RemoteFinancialSyncRepository @Inject constructor(
             else SessionAuthorizationResult.REJECTED
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
+        } catch (error: io.github.jan.supabase.postgrest.exception.PostgrestRestException) {
+            classifyAdminSessionRpcFailure(error.statusCode, error.code)
         } catch (_: Exception) {
             // Transport/unknown failures are not proof that authorization was rejected.
             SessionAuthorizationResult.UNAVAILABLE

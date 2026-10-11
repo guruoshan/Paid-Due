@@ -161,6 +161,28 @@ class PermissionCheckerTest {
         }
     }
 
+    @Test
+    fun offlineLeaseStillHonorsCashierSaleAndCashPermissions() {
+        val denied = emptyMembership.copy(canCreateSale = false, canAcceptCash = false)
+        SessionManager.setSession(activeSession(denied).copy(isOfflineLease = true))
+        try {
+            assertFalse(PermissionChecker.isPermitted(cashier, denied, PermissionAction.CREATE_SALE))
+            assertFalse(PermissionChecker.isPermitted(cashier, denied, PermissionAction.ACCEPT_CASH))
+
+            val saleOnly = denied.copy(canCreateSale = true)
+            SessionManager.setSession(activeSession(saleOnly).copy(isOfflineLease = true))
+            assertTrue(PermissionChecker.isPermitted(cashier, saleOnly, PermissionAction.CREATE_SALE))
+            assertFalse(PermissionChecker.isPermitted(cashier, saleOnly, PermissionAction.ACCEPT_CASH))
+
+            val cashOnly = denied.copy(canAcceptCash = true)
+            SessionManager.setSession(activeSession(cashOnly).copy(isOfflineLease = true))
+            assertFalse(PermissionChecker.isPermitted(cashier, cashOnly, PermissionAction.CREATE_SALE))
+            assertTrue(PermissionChecker.isPermitted(cashier, cashOnly, PermissionAction.ACCEPT_CASH))
+        } finally {
+            SessionManager.clearSession()
+        }
+    }
+
     private fun activeSession(membership: UserBranchMembershipEntity?): ActiveSession = ActiveSession(
         business = BusinessEntity(
             id = "business",

@@ -22,6 +22,14 @@ class CashierSessionRejectionPolicyTest {
     }
 
     @Test
+    fun metadataAuthorizationDenialIsRejectedButServerFailureIsUnavailable() {
+        assertTrue(isCashierMetadataAuthorizationRejected(401))
+        assertTrue(isCashierMetadataAuthorizationRejected(403))
+        assertFalse(isCashierMetadataAuthorizationRejected(500))
+        assertFalse(isCashierMetadataAuthorizationRejected(503))
+    }
+
+    @Test
     fun serverFailuresDoNotClearSession() {
         assertFalse(shouldClearCashierSession(500, "INTERNAL_SERVER_ERROR"))
     }

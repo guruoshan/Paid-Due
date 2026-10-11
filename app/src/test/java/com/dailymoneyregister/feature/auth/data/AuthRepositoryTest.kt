@@ -3,6 +3,8 @@ package com.dailymoneyregister.feature.auth.data
 import com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult
 import com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome
 import com.dailymoneyregister.core.cloud.sync.classifyCashierCloudHttpFailure
+import com.dailymoneyregister.core.cloud.sync.classifyAdminSessionRpcFailure
+import com.dailymoneyregister.core.cloud.sync.SessionAuthorizationResult
 import com.dailymoneyregister.core.security.PinHasher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -18,6 +20,15 @@ class AuthRepositoryTest {
         assertEquals(CashierCloudAuthOutcome.REJECTED, classifyCashierCloudHttpFailure(403))
         assertEquals(CashierCloudAuthOutcome.UNAVAILABLE, classifyCashierCloudHttpFailure(429))
         assertEquals(CashierCloudAuthOutcome.UNAVAILABLE, classifyCashierCloudHttpFailure(503))
+    }
+
+    @Test
+    fun adminSessionHttpAuthorizationFailuresAreRejectionsNotOutages() {
+        assertEquals(SessionAuthorizationResult.REJECTED, classifyAdminSessionRpcFailure(401))
+        assertEquals(SessionAuthorizationResult.REJECTED, classifyAdminSessionRpcFailure(403))
+        assertEquals(SessionAuthorizationResult.REJECTED, classifyAdminSessionRpcFailure(400, "42501"))
+        assertEquals(SessionAuthorizationResult.UNAVAILABLE, classifyAdminSessionRpcFailure(500))
+        assertEquals(SessionAuthorizationResult.UNAVAILABLE, classifyAdminSessionRpcFailure(503))
     }
 
     @Test

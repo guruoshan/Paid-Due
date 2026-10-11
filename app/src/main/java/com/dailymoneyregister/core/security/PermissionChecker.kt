@@ -49,8 +49,11 @@ object PermissionChecker {
         // supplying only a user and membership instead of an ActiveSession.
         val activeSession = SessionManager.currentSession.value
         if (activeSession?.isOfflineLease == true && activeSession.user.id == user.id) {
-            return action == PermissionAction.CREATE_SALE ||
-                action == PermissionAction.ACCEPT_CASH
+            return when (action) {
+                PermissionAction.CREATE_SALE -> user.role == UserRole.ADMIN || membership?.canCreateSale == true
+                PermissionAction.ACCEPT_CASH -> user.role == UserRole.ADMIN || membership?.canAcceptCash == true
+                else -> false
+            }
         }
 
         // Admin has full permissions while online and server-authorized.

@@ -100,11 +100,6 @@ class SessionLockViewModel @Inject constructor(
                         trustedSessionStore.clear()
                         SessionManager.clearSession()
                         unlockPrefs.edit().remove(failureKey).commit()
-                if (!biometricAuthorized) {
-                    // A valid password/PIN can recover a biometric key invalidated by
-                    // biometric enrollment changes; biometric failure cannot do so.
-                    runCatching { com.dailymoneyregister.core.security.SessionBiometricKey.recoverAfterCredentialUnlock() }
-                }
                         fail("Five failed unlock attempts. Sign in again.")
                     } else {
                         fail("Incorrect password or PIN. ${5 - failures} attempt(s) remain.")
@@ -134,6 +129,9 @@ class SessionLockViewModel @Inject constructor(
 
                 when (validation.result) {
                     SessionAuthorizationResult.AUTHORIZED -> {
+                        if (!biometricAuthorized) {
+                            runCatching { com.dailymoneyregister.core.security.SessionBiometricKey.recoverAfterCredentialUnlock() }
+                        }
                         trustedSessionStore.markServerVerified()
                         SessionManager.setSession(validation.session.copy(isOfflineLease = false))
                     }
@@ -146,6 +144,9 @@ class SessionLockViewModel @Inject constructor(
                         if (!trustedSessionStore.isOfflineLeaseValid()) {
                             fail("Supabase is unavailable and the offline access lease has expired.")
                         } else {
+                            if (!biometricAuthorized) {
+                                runCatching { com.dailymoneyregister.core.security.SessionBiometricKey.recoverAfterCredentialUnlock() }
+                            }
                             SessionManager.setSession(validation.session.copy(isOfflineLease = true))
                         }
                     }

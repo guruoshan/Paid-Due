@@ -32,7 +32,12 @@ object SessionBiometricKey {
     /** Call only after successful password/PIN verification, never after biometric failure. */
     fun recoverAfterCredentialUnlock() {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val existing = runCatching { keyStore.getKey(ALIAS, null) as? SecretKey }.getOrNull()
+        val existing = try {
+            keyStore.getKey(ALIAS, null) as? SecretKey
+        } catch (invalidated: KeyPermanentlyInvalidatedException) {
+            keyStore.deleteEntry(ALIAS)
+            null
+        }
         if (existing == null) generateKey()
     }
 

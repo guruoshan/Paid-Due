@@ -287,11 +287,16 @@ object CashierCloudSession {
             }
 
             lastAuthStage = "READING_RESPONSE"
-            val response = JSONObject(
-                connection.inputStream
-                    .bufferedReader()
-                    .use { it.readText() }
-            )
+            val response = try {
+                JSONObject(
+                    connection.inputStream
+                        .bufferedReader()
+                        .use { it.readText() }
+                )
+            } catch (_: Exception) {
+                lastAuthStage = "RESPONSE_INVALID"
+                return@withContext CashierCloudAuthOutcome.REJECTED
+            }
 
             val membershipId =
                 response.optString("membership_id")
@@ -304,7 +309,7 @@ object CashierCloudSession {
                 Instant.parse(
                     response.optString("expires_at")
                 )
-            }.getOrNull() ?: return@withContext CashierCloudAuthOutcome.UNAVAILABLE
+            }.getOrNull() ?: return@withContext CashierCloudAuthOutcome.REJECTED
 
             if (
                 response.optString("outcome") != "AUTHENTICATED" ||
@@ -316,7 +321,7 @@ object CashierCloudSession {
                     TAG,
                     "CASHIER_CLOUD_AUTH_RESPONSE_REJECTED"
                 )
-                return@withContext if (response.optString("outcome") in setOf("INVALID_CREDENTIALS", "UNAUTHORIZED", "FORBIDDEN", "MEMBERSHIP_INACTIVE", "ACCOUNT_DISABLED") || (expectedMembershipId.isNotBlank() && membershipId != expectedMembershipId)) CashierCloudAuthOutcome.REJECTED else CashierCloudAuthOutcome.UNAVAILABLE
+                return@withContext CashierCloudAuthOutcome.REJECTED
             }
 
             val authenticated = Credential(
@@ -340,6 +345,14 @@ object CashierCloudSession {
             Log.i(TAG, "CASHIER_CLOUD_AUTHENTICATED")
             CashierCloudAuthOutcome.AUTHENTICATED
 
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: IOException) {
+            lastAuthStage = "NETWORK_UNAVAILABLE"
+            CashierCloudAuthOutcome.UNAVAILABLE
+        } catch (_: Exception) {
+            lastAuthStage = "AUTH_RESPONSE_INVALID"
+            CashierCloudAuthOutcome.REJECTED
         } finally {
             connection.disconnect()
         }
@@ -458,12 +471,16 @@ object CashierCloudSession {
             connection.setRequestProperty("apikey", BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY)
             connection.setRequestProperty("Authorization", "Bearer $token")
             val status = connection.responseCode
-            if (status == 401) {
+            if (isCashierMetadataAuthorizationRejected(status)) {
                 clear()
                 throw SecurityException("CASHIER_CLOUD_SESSION_REJECTED")
             }
             if (status !in 200..299) throw IOException("CASHIER_METADATA_HTTP_$status")
-            JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+            try {
+                JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+            } catch (invalidResponse: Exception) {
+                throw SecurityException("CASHIER_METADATA_RESPONSE_INVALID", invalidResponse)
+            }
         } finally {
             connection.disconnect()
         }
@@ -510,3 +527,6 @@ class FinancialUploadHttpException(
  */
 internal fun shouldClearCashierSession(statusCode: Int, outcome: String? = null): Boolean =
     statusCode == 401 || (statusCode == 403 && outcome == "INVALID_CASHIER_MEMBERSHIP")
+
+internal fun isCashierMetadataAuthorizationRejected(statusCode: Int): Boolean =
+    statusCode == 401 || statusCode == 403
