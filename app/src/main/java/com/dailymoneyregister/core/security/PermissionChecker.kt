@@ -44,7 +44,16 @@ object PermissionChecker {
         membership: UserBranchMembershipEntity?,
         action: PermissionAction
     ): Boolean {
-        // Admin has full permissions
+        // Offline leases are deliberately narrower than server-authorized access.
+        // Enforce this in the central overload too, so callers cannot bypass it by
+        // supplying only a user and membership instead of an ActiveSession.
+        val activeSession = SessionManager.currentSession.value
+        if (activeSession?.isOfflineLease == true && activeSession.user.id == user.id) {
+            return action == PermissionAction.CREATE_SALE ||
+                action == PermissionAction.ACCEPT_CASH
+        }
+
+        // Admin has full permissions while online and server-authorized.
         if (user.role == UserRole.ADMIN) return true
 
         // Cashier requires an active branch membership
