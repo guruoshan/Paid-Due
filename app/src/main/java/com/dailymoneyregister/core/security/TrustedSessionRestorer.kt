@@ -58,6 +58,12 @@ class TrustedSessionRestorer @Inject constructor(
                 branch.id
             )
 
+        // Offline leases must not resurrect a session whose local branch membership
+        // is missing or belongs to a different user/branch/role.
+        if (!trustedMembershipMatches(user.id, branch.id, user.role, membership)) {
+            return invalidate()
+        }
+
         var session =
             when {
                 user.role == UserRole.ADMIN &&
@@ -227,3 +233,14 @@ class TrustedSessionRestorer @Inject constructor(
         return null
     }
 }
+
+internal fun trustedMembershipMatches(
+    userId: String,
+    branchId: String,
+    role: UserRole,
+    membership: com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity?
+): Boolean =
+    membership != null &&
+        membership.userId == userId &&
+        membership.branchId == branchId &&
+        membership.role == role
