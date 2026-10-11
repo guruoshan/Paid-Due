@@ -1,5 +1,6 @@
 import {
   health, activateStaff, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, json,
+  listCashierNotifications, markCashierNotificationRead, requestCashierPermission,
 } from "./handlers.ts";
 
 // Supabase Function gateway normally forwards /api/<route> after /functions/v1/api.
