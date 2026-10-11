@@ -476,12 +476,68 @@ class AuthRepository @Inject constructor(
             }
         }
 
+        // Refresh authorization from Supabase before constructing the local session.
+        // A stale Room permission snapshot must never grant a permission removed online.
+        val metadata = try {
+            withTimeoutOrNull(3_500L) {
+                com.dailymoneyregister.core.cloud.sync.CashierCloudSession.fetchMetadata(membership.id)
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        } ?: return AuthResult.Error(
+            "Supabase authenticated the cashier but current permissions could not be confirmed. Retry when connected."
+        )
+
+        if (
+            metadata.optString("membership_id") != membership.id ||
+            metadata.optString("business_id") != business.id ||
+            metadata.optString("branch_id") != branch.id ||
+            metadata.optString("role") != "CASHIER"
+        ) {
+            com.dailymoneyregister.core.cloud.sync.CashierCloudSession.clear()
+            return AuthResult.InvalidCredentials("Supabase rejected cashier membership authorization.")
+        }
+
+        val cloudPermissions = metadata.optJSONObject("permissions")
+            ?: return AuthResult.Error("Supabase returned no cashier permissions.")
+        val requiredPermissionKeys = listOf(
+            "can_create_sale", "can_accept_cash", "can_accept_online",
+            "can_create_credit_sale", "can_use_coupon", "can_issue_invoice",
+            "can_issue_receipt", "can_refund", "can_void", "can_correct_amount",
+            "can_change_payment_method", "can_view_broad_history",
+            "can_manage_products", "can_view_reports"
+        )
+        if (requiredPermissionKeys.any { !cloudPermissions.has(it) || cloudPermissions.isNull(it) }) {
+            return AuthResult.Error("Supabase returned an incomplete cashier permission set.")
+        }
+        val authorizedMembership = membership.copy(
+            canCreateSale = cloudPermissions.getBoolean("can_create_sale"),
+            canAcceptCash = cloudPermissions.getBoolean("can_accept_cash"),
+            canAcceptOnline = cloudPermissions.getBoolean("can_accept_online"),
+            canCreateCreditSale = cloudPermissions.getBoolean("can_create_credit_sale"),
+            canUseCoupon = cloudPermissions.getBoolean("can_use_coupon"),
+            canIssueInvoice = cloudPermissions.getBoolean("can_issue_invoice"),
+            canIssueReceipt = cloudPermissions.getBoolean("can_issue_receipt"),
+            canRefund = cloudPermissions.getBoolean("can_refund"),
+            canVoid = cloudPermissions.getBoolean("can_void"),
+            canCorrectAmount = cloudPermissions.getBoolean("can_correct_amount"),
+            canChangePaymentMethod = cloudPermissions.getBoolean("can_change_payment_method"),
+            canViewBroadHistory = cloudPermissions.getBoolean("can_view_broad_history"),
+            canManageProducts = cloudPermissions.getBoolean("can_manage_products"),
+            canViewReports = cloudPermissions.getBoolean("can_view_reports")
+        )
+        if (userDao.updateMembership(authorizedMembership) != 1) {
+            return AuthResult.Error("Unable to persist the server-authorized cashier permissions.")
+        }
+
         clearSuccessfulLoginThrottle(business.id, identifier, user)
         val session = ActiveSession(
             business,
             branch,
             authenticatedUser,
-            membership,
+            authorizedMembership,
             requiresPinChange = authenticatedUser.mustChangePin
         )
 
