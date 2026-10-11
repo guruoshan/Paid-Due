@@ -207,8 +207,7 @@ class TrustedSessionRestorer @Inject constructor(
             SessionAuthorizationResult.REJECTED -> return invalidate()
             SessionAuthorizationResult.UNAVAILABLE -> {
                 if (!trustedSessionStore.isOfflineLeaseValid()) {
-                    SessionManager.clearSession()
-                    return null
+                    return invalidate()
                 }
                 val offlineSession = session.copy(isOfflineLease = true)
                 SessionManager.setSession(offlineSession)
