@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS private.cashier_sync_sessions (
   token_hash text,
   expires_at timestamptz NOT NULL DEFAULT now() + interval '1 day',
   revoked_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now()
+  occurred_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS private.staff_admin_audit_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
