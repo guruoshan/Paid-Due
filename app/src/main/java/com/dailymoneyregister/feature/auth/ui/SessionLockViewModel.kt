@@ -1,6 +1,8 @@
 package com.dailymoneyregister.feature.auth.ui
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.lifecycle.viewModelScope
 import com.dailymoneyregister.core.cloud.sync.CashierCloudSession
 import com.dailymoneyregister.core.cloud.sync.RemoteFinancialSyncRepository
@@ -23,8 +25,10 @@ import javax.inject.Inject
 class SessionLockViewModel @Inject constructor(
     private val database: DmrDatabase,
     private val trustedSessionStore: TrustedSessionStore,
-    private val remoteFinancialSyncRepository: RemoteFinancialSyncRepository
+    private val remoteFinancialSyncRepository: RemoteFinancialSyncRepository,
+    @ApplicationContext context: Context
 ) : ViewModel() {
+    private val unlockPrefs = context.getSharedPreferences("session_unlock_policy", Context.MODE_PRIVATE)
     private val _busy = MutableStateFlow(false)
     val busy = _busy.asStateFlow()
     private val _error = MutableStateFlow<String?>(null)
@@ -35,7 +39,11 @@ class SessionLockViewModel @Inject constructor(
         val session: com.dailymoneyregister.core.security.ActiveSession
     )
 
-    fun unlock(secret: String) {
+    fun unlock(secret: String) = unlockInternal(secret, biometricAuthorized = false)
+
+    fun unlockWithBiometric() = unlockInternal(secret = null, biometricAuthorized = true)
+
+    private fun unlockInternal(secret: String?, biometricAuthorized: Boolean) {
         if (_busy.value) return
         viewModelScope.launch {
             _busy.value = true
@@ -65,23 +73,40 @@ class SessionLockViewModel @Inject constructor(
                     return@launch
                 }
 
-                val valid = try {
-                    withContext(Dispatchers.Default) {
-                        val salt = user.credentialSalt.orEmpty()
-                        when (user.role) {
-                            UserRole.ADMIN -> PasswordHasher.verifyPassword(secret, salt, user.credentialHash)
-                            UserRole.CASHIER -> PinHasher.verifyPin(secret, salt, user.credentialHash)
+                val valid = if (biometricAuthorized) {
+                    true
+                } else {
+                    try {
+                        withContext(Dispatchers.Default) {
+                            val suppliedSecret = secret ?: ""
+                            val salt = user.credentialSalt.orEmpty()
+                            when (user.role) {
+                                UserRole.ADMIN -> PasswordHasher.verifyPassword(suppliedSecret, salt, user.credentialHash)
+                                UserRole.CASHIER -> PinHasher.verifyPin(suppliedSecret, salt, user.credentialHash)
+                            }
                         }
+                    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        false
                     }
-                } catch (cancelled: kotlinx.coroutines.CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    false
                 }
+                val failureKey = "unlock:${session.business.id}:${session.user.id}"
                 if (!valid) {
-                    fail("Incorrect password or PIN.")
+                    val failures = unlockPrefs.getInt(failureKey, 0) + 1
+                    unlockPrefs.edit().putInt(failureKey, failures).commit()
+                    if (failures >= 5) {
+                        // Five consecutive failed unlocks require full sign-in again.
+                        trustedSessionStore.clear()
+                        SessionManager.clearSession()
+                        unlockPrefs.edit().remove(failureKey).commit()
+                        fail("Five failed unlock attempts. Sign in again.")
+                    } else {
+                        fail("Incorrect password or PIN. ${5 - failures} attempt(s) remain.")
+                    }
                     return@launch
                 }
+                unlockPrefs.edit().remove(failureKey).commit()
 
                 // Only server-validation failures may enter the bounded offline path.
                 val validation = try {
