@@ -1,5 +1,6 @@
 -- Minimal synthetic dependencies for exercising notification migration against the financial contract.
 CREATE SCHEMA IF NOT EXISTS auth;
+GRANT USAGE, CREATE ON SCHEMA auth TO postgres;
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF;
