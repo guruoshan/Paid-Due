@@ -49,8 +49,8 @@ BEGIN
                         WHERE
                             -- Reject malformed rows and unknown categories instead of
                             -- letting an unrecognized tender bypass permission checks.
-                            jsonb_typeof(settlement.value) <> 'object'
-                            OR jsonb_typeof(settlement.value -> 'category') <> 'string'
+                            jsonb_typeof(settlement.value) IS DISTINCT FROM 'object'
+                            OR jsonb_typeof(settlement.value -> 'category') IS DISTINCT FROM 'string'
                             OR settlement.value ->> 'category' NOT IN ('CASH', 'ONLINE', 'CREDIT', 'COUPON')
                             OR (
                                 settlement.value ->> 'category' = 'CASH'
