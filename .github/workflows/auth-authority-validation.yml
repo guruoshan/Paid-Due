@@ -48,6 +48,8 @@ jobs:
         run: ./gradlew --no-daemon :app:testDebugUnitTest -x :app:checkDebugAarMetadata
       - name: Assemble Debug APK
         run: ./gradlew --no-daemon :app:assembleDebug -x :app:checkDebugAarMetadata
+      - name: Compile Debug Android instrumentation tests
+        run: ./gradlew --no-daemon :app:compileDebugAndroidTestKotlin -x :app:checkDebugAarMetadata
 
   deno:
     runs-on: ubuntu-latest
