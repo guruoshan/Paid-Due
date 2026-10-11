@@ -57,6 +57,12 @@ data class RemoteEnvelopeDto(
 )
 
 @Singleton
+enum class SessionAuthorizationResult {
+    AUTHORIZED,
+    REJECTED,
+    UNAVAILABLE
+}
+
 class RemoteFinancialSyncRepository @Inject constructor(
     private val supabase: SupabaseClient
 ) {
@@ -244,22 +250,40 @@ class RemoteFinancialSyncRepository @Inject constructor(
         }
     }
 
+    suspend fun validateAdminSession(
+        expectedMembershipId: String,
+        expectedBusinessId: String,
+        expectedBranchId: String
+    ): SessionAuthorizationResult {
+        if (supabase.auth.currentSessionOrNull() == null) {
+            return SessionAuthorizationResult.REJECTED
+        }
+        return try {
+            val rows = supabase.postgrest.rpc("restore_admin_by_auth_id")
+                .decodeList<AdminSessionScopeDto>()
+            val scope = rows.singleOrNull()
+            if (
+                scope != null &&
+                scope.membershipId == expectedMembershipId &&
+                scope.businessId == expectedBusinessId &&
+                scope.branchId == expectedBranchId
+            ) SessionAuthorizationResult.AUTHORIZED
+            else SessionAuthorizationResult.REJECTED
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Transport/unknown failures are not proof that authorization was rejected.
+            SessionAuthorizationResult.UNAVAILABLE
+        }
+    }
+
     suspend fun isAdminSessionAuthorized(
         expectedMembershipId: String,
         expectedBusinessId: String,
         expectedBranchId: String
-    ): Boolean {
-        if (supabase.auth.currentSessionOrNull() == null) return false
-
-        return runCatching {
-            val rows = supabase.postgrest.rpc("restore_admin_by_auth_id")
-                .decodeList<AdminSessionScopeDto>()
-            val scope = rows.singleOrNull() ?: return@runCatching false
-            scope.membershipId == expectedMembershipId &&
-                scope.businessId == expectedBusinessId &&
-                scope.branchId == expectedBranchId
-        }.getOrDefault(false)
-    }
+    ): Boolean =
+        validateAdminSession(expectedMembershipId, expectedBusinessId, expectedBranchId) ==
+            SessionAuthorizationResult.AUTHORIZED
 
     suspend fun fetchRemoteEnvelopesV2(
         businessId: String,
