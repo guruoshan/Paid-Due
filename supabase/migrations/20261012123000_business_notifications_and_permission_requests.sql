@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS private.business_notifications (
   branch_id text NOT NULL REFERENCES public.branches(id) ON DELETE RESTRICT,
   recipient_membership_id text NOT NULL REFERENCES public.business_memberships(id) ON DELETE RESTRICT,
   notification_type text NOT NULL CHECK (notification_type IN (
-    'DAY_CLOSED', 'PERMISSIONS_CHANGED', 'PERMISSION_REQUEST',
-    'PERMISSION_REQUEST_RESULT', 'CASH_DISCREPANCY'
+    'DAY_CLOSED', 'PERMISSIONS_CHANGED', 'CASHIER_PERMISSIONS_CHANGED',
+    'PERMISSION_REQUEST', 'PERMISSION_REQUEST_RESULT', 'CASH_DISCREPANCY'
   )),
   title text NOT NULL CHECK (length(btrim(title)) BETWEEN 1 AND 200),
   body text NOT NULL CHECK (length(btrim(body)) BETWEEN 1 AND 1000),
