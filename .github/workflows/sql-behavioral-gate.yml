@@ -30,8 +30,18 @@ jobs:
         with:
           version: latest
 
+      - name: Prepare isolated Supabase CLI project without app migrations
+        run: |
+          mkdir -p /tmp/supabase-sql-gate/supabase/migrations
+          cat > /tmp/supabase-sql-gate/supabase/config.toml <<'EOF'
+          project_id = "paid-due-sql-gate"
+
+          [db.seed]
+          enabled = false
+          EOF
+
       - name: Start disposable local Supabase stack
-        run: supabase start
+        run: supabase start --workdir /tmp/supabase-sql-gate
 
       - name: Install PostgreSQL client
         run: |
@@ -68,4 +78,4 @@ jobs:
 
       - name: Stop disposable local Supabase stack
         if: always()
-        run: supabase stop --no-backup
+        run: supabase stop --no-backup --workdir /tmp/supabase-sql-gate
