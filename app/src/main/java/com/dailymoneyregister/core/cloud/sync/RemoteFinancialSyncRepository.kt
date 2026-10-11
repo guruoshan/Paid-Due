@@ -56,6 +56,35 @@ data class RemoteEnvelopeDto(
     @SerialName("canonical_text") val canonicalText: String
 )
 
+enum class SessionAuthorizationResult {
+    AUTHORIZED,
+    REJECTED,
+    UNAVAILABLE
+}
+
+internal fun classifyAdminSessionRpcFailure(statusCode: Int, code: String? = null): SessionAuthorizationResult =
+    if (statusCode == 401 || statusCode == 403 || code == "28000" || code == "42501") {
+        SessionAuthorizationResult.REJECTED
+    } else {
+        SessionAuthorizationResult.UNAVAILABLE
+    }
+
+internal fun adminSessionScopeMatches(
+    actualMembershipId: String,
+    actualLocalUserId: String,
+    actualBusinessId: String,
+    actualBranchId: String,
+    expectedMembershipId: String,
+    expectedLocalUserId: String,
+    expectedBusinessId: String,
+    expectedBranchId: String
+): Boolean =
+    expectedLocalUserId.isNotBlank() &&
+        actualMembershipId == expectedMembershipId &&
+        actualLocalUserId == expectedLocalUserId &&
+        actualBusinessId == expectedBusinessId &&
+        actualBranchId == expectedBranchId
+
 @Singleton
 class RemoteFinancialSyncRepository @Inject constructor(
     private val supabase: SupabaseClient
@@ -244,22 +273,53 @@ class RemoteFinancialSyncRepository @Inject constructor(
         }
     }
 
+    suspend fun validateAdminSession(
+        expectedMembershipId: String,
+        expectedBusinessId: String,
+        expectedBranchId: String,
+        expectedLocalUserId: String = ""
+    ): SessionAuthorizationResult {
+        if (supabase.auth.currentSessionOrNull() == null) {
+            // Missing locally cached auth state is not a server rejection; offline
+            // lease policy decides whether a previously verified session may continue.
+            return SessionAuthorizationResult.UNAVAILABLE
+        }
+        return try {
+            val rows = supabase.postgrest.rpc("restore_admin_by_auth_id")
+                .decodeList<AdminSessionScopeDto>()
+            val scope = rows.singleOrNull()
+            if (
+                scope != null &&
+                adminSessionScopeMatches(
+                    actualMembershipId = scope.membershipId,
+                    actualLocalUserId = scope.localUserId,
+                    actualBusinessId = scope.businessId,
+                    actualBranchId = scope.branchId,
+                    expectedMembershipId = expectedMembershipId,
+                    expectedLocalUserId = expectedLocalUserId,
+                    expectedBusinessId = expectedBusinessId,
+                    expectedBranchId = expectedBranchId
+                )
+            ) SessionAuthorizationResult.AUTHORIZED
+            else SessionAuthorizationResult.REJECTED
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: io.github.jan.supabase.postgrest.exception.PostgrestRestException) {
+            classifyAdminSessionRpcFailure(error.statusCode, error.code)
+        } catch (_: Exception) {
+            // Transport/unknown failures are not proof that authorization was rejected.
+            SessionAuthorizationResult.UNAVAILABLE
+        }
+    }
+
     suspend fun isAdminSessionAuthorized(
         expectedMembershipId: String,
         expectedBusinessId: String,
-        expectedBranchId: String
-    ): Boolean {
-        if (supabase.auth.currentSessionOrNull() == null) return false
-
-        return runCatching {
-            val rows = supabase.postgrest.rpc("restore_admin_by_auth_id")
-                .decodeList<AdminSessionScopeDto>()
-            val scope = rows.singleOrNull() ?: return@runCatching false
-            scope.membershipId == expectedMembershipId &&
-                scope.businessId == expectedBusinessId &&
-                scope.branchId == expectedBranchId
-        }.getOrDefault(false)
-    }
+        expectedBranchId: String,
+        expectedLocalUserId: String = ""
+    ): Boolean =
+        validateAdminSession(expectedMembershipId, expectedBusinessId, expectedBranchId, expectedLocalUserId) ==
+            SessionAuthorizationResult.AUTHORIZED
 
     suspend fun fetchRemoteEnvelopesV2(
         businessId: String,
@@ -407,6 +467,7 @@ internal fun businessLocalDateFor(occurredAtMillis: Long, timezoneId: String): S
 @Serializable
 private data class AdminSessionScopeDto(
     @SerialName("membership_id") val membershipId: String,
+    @SerialName("local_user_id") val localUserId: String,
     @SerialName("business_id") val businessId: String,
     @SerialName("branch_id") val branchId: String
 )

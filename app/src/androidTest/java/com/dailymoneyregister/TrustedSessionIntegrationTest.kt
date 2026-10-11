@@ -4,6 +4,11 @@ import android.content.Context
 import android.util.Log
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dailymoneyregister.BuildConfig
+import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.postgrest.Postgrest
+import com.dailymoneyregister.core.cloud.sync.RemoteFinancialSyncRepository
 import com.dailymoneyregister.core.command.CommandExecutor
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.database.DmrDatabase
@@ -43,6 +48,7 @@ class TrustedSessionIntegrationTest {
     private lateinit var authRepository: AuthRepository
     private lateinit var cashierRepository: CashierManagementRepository
     private lateinit var restorer: TrustedSessionRestorer
+    private lateinit var remoteFinancialSyncRepository: RemoteFinancialSyncRepository
 
     @Before
     fun setUp() {
@@ -52,6 +58,14 @@ class TrustedSessionIntegrationTest {
         Log.i("BOARDLOCK", "setUp: got context")
 
         trustedSessionStore = TrustedSessionStore(context)
+        val supabase = createSupabaseClient(
+            supabaseUrl = BuildConfig.PAID_DUE_SUPABASE_URL,
+            supabaseKey = BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY
+        ) {
+            install(Auth)
+            install(Postgrest)
+        }
+        remoteFinancialSyncRepository = RemoteFinancialSyncRepository(supabase)
         Log.i("BOARDLOCK", "setUp: created TrustedSessionStore")
 
         trustedSessionStore.clear()
@@ -93,7 +107,8 @@ class TrustedSessionIntegrationTest {
         restorer = TrustedSessionRestorer(
             database,
             trustedSessionStore,
-            LanguageManager(context)
+            LanguageManager(context),
+            remoteFinancialSyncRepository
         )
         Log.i("BOARDLOCK", "setUp: done")
     }
@@ -211,7 +226,7 @@ class TrustedSessionIntegrationTest {
         val setup = createSetup()
         val testLanguageManager = LanguageManager(context)
         val originalLanguage = testLanguageManager.currentLanguage.value.code
-        restorer = TrustedSessionRestorer(database, trustedSessionStore, testLanguageManager)
+        restorer = TrustedSessionRestorer(database, trustedSessionStore, testLanguageManager, remoteFinancialSyncRepository)
         val beforeBusiness = database.businessBranchDao().getBusinessById(setup.businessId.value)!!
         val beforeBranch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
         val settingsRepository = SettingsRepository(database.userDao(), database.businessBranchDao())
