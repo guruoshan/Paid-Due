@@ -31,25 +31,25 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
-      - name: Install available Android SDK platform and build tools
+      - name: Install production Android SDK platform and build tools
         run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "build-tools;37.0.0" "platform-tools"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Configure runner-compatible SDK for verification only
+      - name: Verify production SDK configuration
         run: |
-          # The hosted SDK repository currently offers API 36, while this app and
-          # SQLCipher metadata declare API 37. This is diagnostic source validation;
-          # it does not edit tracked files or certify a production API 37 build.
-          sed -i 's/version = release(37)/version = release(36)/; s/targetSdk = 37/targetSdk = 36/' app/build.gradle.kts
           chmod +x ./gradlew
+          grep -q 'version = release(37)' app/build.gradle.kts
+          grep -q 'targetSdk = 37' app/build.gradle.kts
+      - name: Validate Android AAR metadata
+        run: ./gradlew --no-daemon :app:checkDebugAarMetadata
       - name: Compile Debug Kotlin
-        run: ./gradlew --no-daemon :app:compileDebugKotlin -x :app:checkDebugAarMetadata
+        run: ./gradlew --no-daemon :app:compileDebugKotlin
       - name: Run Debug unit tests
-        run: ./gradlew --no-daemon :app:testDebugUnitTest -x :app:checkDebugAarMetadata
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
       - name: Assemble Debug APK
-        run: ./gradlew --no-daemon :app:assembleDebug -x :app:checkDebugAarMetadata
+        run: ./gradlew --no-daemon :app:assembleDebug
       - name: Compile Debug Android instrumentation tests
-        run: ./gradlew --no-daemon :app:compileDebugAndroidTestKotlin -x :app:checkDebugAarMetadata
+        run: ./gradlew --no-daemon :app:compileDebugAndroidTestKotlin
 
   deno:
     runs-on: ubuntu-latest
