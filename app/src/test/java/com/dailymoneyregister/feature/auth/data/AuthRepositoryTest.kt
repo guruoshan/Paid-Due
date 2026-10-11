@@ -30,6 +30,10 @@ class AuthRepositoryTest {
         val salt = PinHasher.generateSalt()
         val hash = PinHasher.hashPin(pin, salt)
 
+        // Local Android PIN hashes are self-describing and currently use 600,000
+        // iterations; the live Edge API's current 100,000 cost is not identical.
+        assertTrue(hash.startsWith("pbkdf2-sha256:600000:"))
+        assertFalse(PinHasher.needsUpgrade(hash))
         assertTrue(PinHasher.verifyPin(pin, salt, hash))
         assertFalse(PinHasher.verifyPin("654321", salt, hash))
     }

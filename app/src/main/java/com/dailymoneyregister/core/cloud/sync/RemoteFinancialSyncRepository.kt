@@ -56,13 +56,13 @@ data class RemoteEnvelopeDto(
     @SerialName("canonical_text") val canonicalText: String
 )
 
-@Singleton
 enum class SessionAuthorizationResult {
     AUTHORIZED,
     REJECTED,
     UNAVAILABLE
 }
 
+@Singleton
 class RemoteFinancialSyncRepository @Inject constructor(
     private val supabase: SupabaseClient
 ) {

@@ -110,6 +110,50 @@ class PermissionCheckerTest {
         )
     }
 
+
+    @Test
+    fun offlineLeaseRestrictsCashierToLocalCashOperations() {
+        val offlineMembership = emptyMembership.copy(
+            canCreateSale = true,
+            canAcceptCash = true,
+            canAcceptOnline = true,
+            canCreateCreditSale = true,
+            canUseCoupon = true,
+            canRefund = true,
+            canVoid = true
+        )
+        SessionManager.setSession(activeSession(offlineMembership).copy(isOfflineLease = true))
+        try {
+            assertTrue(PermissionChecker.isPermitted(cashier, offlineMembership, PermissionAction.CREATE_SALE))
+            assertTrue(PermissionChecker.isPermitted(cashier, offlineMembership, PermissionAction.ACCEPT_CASH))
+            assertFalse(PermissionChecker.isPermitted(cashier, offlineMembership, PermissionAction.ACCEPT_ONLINE))
+            assertFalse(PermissionChecker.isPermitted(cashier, offlineMembership, PermissionAction.CREATE_CREDIT_SALE))
+            assertFalse(PermissionChecker.isPermitted(cashier, offlineMembership, PermissionAction.USE_COUPON))
+            assertFalse(PermissionChecker.isPermitted(cashier, offlineMembership, PermissionAction.REFUND))
+            assertFalse(PermissionChecker.isPermitted(cashier, offlineMembership, PermissionAction.VOID))
+        } finally {
+            SessionManager.clearSession()
+        }
+    }
+
+    @Test
+    fun sessionLockDoesNotDestroySessionAndCanBeCleared() {
+        SessionManager.setSession(activeSession(emptyMembership))
+        try {
+            SessionManager.lockSession()
+            assertTrue(SessionManager.isLocked.value)
+            assertTrue(SessionManager.currentSession.value != null)
+            SessionManager.unlockSession()
+            assertFalse(SessionManager.isLocked.value)
+            SessionManager.lockSession()
+            SessionManager.clearSession()
+            assertFalse(SessionManager.isLocked.value)
+            assertTrue(SessionManager.currentSession.value == null)
+        } finally {
+            SessionManager.clearSession()
+        }
+    }
+
     private fun activeSession(membership: UserBranchMembershipEntity?): ActiveSession = ActiveSession(
         business = BusinessEntity(
             id = "business",

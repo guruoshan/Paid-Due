@@ -2,6 +2,7 @@
 
 import android.content.Context
 import android.os.SystemClock
+import android.provider.Settings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -11,15 +12,17 @@ data class TrustedSessionIds(
     val branchId: String,
     val userId: String,
     val lastServerVerifiedAtMillis: Long,
-    val lastServerVerifiedElapsedMillis: Long
+    val lastServerVerifiedElapsedMillis: Long,
+    val lastServerVerifiedBootCount: Int
 )
 
 @Singleton
 class TrustedSessionStore @Inject constructor(
     @ApplicationContext context: Context
 ) {
+    private val appContext = context.applicationContext
     private val prefs =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun save(
         businessId: String,
@@ -33,6 +36,7 @@ class TrustedSessionStore @Inject constructor(
                 .putString(KEY_USER_ID, userId)
                 .putLong(KEY_LAST_SERVER_VERIFIED_AT, System.currentTimeMillis())
                 .putLong(KEY_LAST_SERVER_VERIFIED_ELAPSED, SystemClock.elapsedRealtime())
+                .putInt(KEY_LAST_SERVER_VERIFIED_BOOT_COUNT, currentBootCount())
                 .commit()
         ) {
             "Could not persist trusted session"
@@ -57,7 +61,8 @@ class TrustedSessionStore @Inject constructor(
             branchId = branchId,
             userId = userId,
             lastServerVerifiedAtMillis = prefs.getLong(KEY_LAST_SERVER_VERIFIED_AT, 0L),
-            lastServerVerifiedElapsedMillis = prefs.getLong(KEY_LAST_SERVER_VERIFIED_ELAPSED, 0L)
+            lastServerVerifiedElapsedMillis = prefs.getLong(KEY_LAST_SERVER_VERIFIED_ELAPSED, 0L),
+            lastServerVerifiedBootCount = prefs.getInt(KEY_LAST_SERVER_VERIFIED_BOOT_COUNT, -1)
         )
     }
 
@@ -66,6 +71,7 @@ class TrustedSessionStore @Inject constructor(
             prefs.edit()
                 .putLong(KEY_LAST_SERVER_VERIFIED_AT, nowMillis)
                 .putLong(KEY_LAST_SERVER_VERIFIED_ELAPSED, SystemClock.elapsedRealtime())
+                .putInt(KEY_LAST_SERVER_VERIFIED_BOOT_COUNT, currentBootCount())
                 .commit()
         ) {
             "Could not update trusted session verification time"
@@ -79,8 +85,14 @@ class TrustedSessionStore @Inject constructor(
         lastVerifiedAtMillis = prefs.getLong(KEY_LAST_SERVER_VERIFIED_AT, 0L),
         nowMillis = nowMillis,
         lastVerifiedElapsedMillis = prefs.getLong(KEY_LAST_SERVER_VERIFIED_ELAPSED, 0L),
-        nowElapsedMillis = nowElapsedMillis
+        nowElapsedMillis = nowElapsedMillis,
+        lastVerifiedBootCount = prefs.getInt(KEY_LAST_SERVER_VERIFIED_BOOT_COUNT, -1),
+        currentBootCount = currentBootCount()
     )
+
+    private fun currentBootCount(): Int = runCatching {
+        Settings.Global.getInt(appContext.contentResolver, Settings.Global.BOOT_COUNT)
+    }.getOrDefault(-1)
 
     fun clear() {
         check(prefs.edit().clear().commit()) {
@@ -96,6 +108,7 @@ class TrustedSessionStore @Inject constructor(
         private const val KEY_USER_ID = "user_id"
         private const val KEY_LAST_SERVER_VERIFIED_AT = "last_server_verified_at"
         private const val KEY_LAST_SERVER_VERIFIED_ELAPSED = "last_server_verified_elapsed"
+        private const val KEY_LAST_SERVER_VERIFIED_BOOT_COUNT = "last_server_verified_boot_count"
     }
 }
 
@@ -107,14 +120,18 @@ internal object OfflineSessionLeasePolicy {
         lastVerifiedAtMillis: Long,
         nowMillis: Long,
         lastVerifiedElapsedMillis: Long,
-        nowElapsedMillis: Long
+        nowElapsedMillis: Long,
+        lastVerifiedBootCount: Int,
+        currentBootCount: Int
     ): Boolean {
-        // Wall-clock and monotonic elapsed time must both agree. This prevents a
-        // user-adjusted clock from extending the lease; a reboot resets elapsed time
-        // and invalidates the lease until the next server-verified login.
+        // Wall clock, monotonic elapsed time, and boot count must all agree. This
+        // prevents clock rollback and invalidates offline leases after device reboot.
         if (
             lastVerifiedAtMillis <= 0L ||
             lastVerifiedElapsedMillis <= 0L ||
+            lastVerifiedBootCount < 0 ||
+            currentBootCount < 0 ||
+            currentBootCount != lastVerifiedBootCount ||
             nowMillis < lastVerifiedAtMillis ||
             nowElapsedMillis < lastVerifiedElapsedMillis
         ) return false

@@ -7,16 +7,20 @@ import org.junit.Test
 class OfflineSessionLeaseTest {
     private val wallNow = 1_800_000_000_000L
     private val elapsedNow = 400_000_000L
+    private val bootCount = 42
 
-    private fun valid(wallAge: Long, elapsedAge: Long) = OfflineSessionLeasePolicy.isValid(
-        lastVerifiedAtMillis = wallNow - wallAge,
-        nowMillis = wallNow,
-        lastVerifiedElapsedMillis = elapsedNow - elapsedAge,
-        nowElapsedMillis = elapsedNow
-    )
+    private fun valid(wallAge: Long, elapsedAge: Long, currentBoot: Int = bootCount) =
+        OfflineSessionLeasePolicy.isValid(
+            lastVerifiedAtMillis = wallNow - wallAge,
+            nowMillis = wallNow,
+            lastVerifiedElapsedMillis = elapsedNow - elapsedAge,
+            nowElapsedMillis = elapsedNow,
+            lastVerifiedBootCount = bootCount,
+            currentBootCount = currentBoot
+        )
 
     @Test
-    fun allowsPreviouslyVerifiedSessionWithinEightHourLease() {
+    fun allowsPreviouslyVerifiedSessionWithinEightHourLeaseOnSameBoot() {
         assertTrue(valid(7 * 60 * 60 * 1000L, 7 * 60 * 60 * 1000L))
     }
 
@@ -29,28 +33,25 @@ class OfflineSessionLeaseTest {
                 lastVerifiedAtMillis = 0L,
                 nowMillis = wallNow,
                 lastVerifiedElapsedMillis = 0L,
-                nowElapsedMillis = elapsedNow
+                nowElapsedMillis = elapsedNow,
+                lastVerifiedBootCount = bootCount,
+                currentBootCount = bootCount
             )
         )
     }
 
     @Test
-    fun rejectsClockRollbackAndRebootElapsedReset() {
+    fun rejectsClockRollbackAndDeviceReboot() {
         assertFalse(
             OfflineSessionLeasePolicy.isValid(
                 lastVerifiedAtMillis = wallNow,
                 nowMillis = wallNow - 1L,
                 lastVerifiedElapsedMillis = elapsedNow,
-                nowElapsedMillis = elapsedNow + 1L
+                nowElapsedMillis = elapsedNow + 1L,
+                lastVerifiedBootCount = bootCount,
+                currentBootCount = bootCount
             )
         )
-        assertFalse(
-            OfflineSessionLeasePolicy.isValid(
-                lastVerifiedAtMillis = wallNow,
-                nowMillis = wallNow + 1L,
-                lastVerifiedElapsedMillis = elapsedNow,
-                nowElapsedMillis = 1L
-            )
-        )
+        assertFalse(valid(1L, 1L, currentBoot = bootCount + 1))
     }
 }
