@@ -65,8 +65,8 @@ object PermissionChecker {
             PermissionAction.ACCEPT_ONLINE -> membership.canAcceptOnline
             PermissionAction.CREATE_CREDIT_SALE -> membership.canCreateCreditSale
             PermissionAction.USE_COUPON -> membership.canUseCoupon
-            PermissionAction.ISSUE_INVOICE,
-            PermissionAction.ISSUE_RECEIPT -> true
+            PermissionAction.ISSUE_INVOICE -> membership.canIssueInvoice
+            PermissionAction.ISSUE_RECEIPT -> membership.canIssueReceipt
             PermissionAction.REFUND -> membership.canRefund
             PermissionAction.VOID -> membership.canVoid
             PermissionAction.CORRECT_AMOUNT -> membership.canCorrectAmount

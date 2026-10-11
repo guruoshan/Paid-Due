@@ -406,11 +406,9 @@ object CashierCloudSession {
 
             val status = connection.responseCode
 
-            if (status == 401 || status == 403) {
+            if (status == 401) {
                 clear()
-                throw SecurityException(
-                    "CASHIER_CLOUD_SESSION_REJECTED"
-                )
+                throw SecurityException("CASHIER_CLOUD_SESSION_REJECTED")
             }
 
             if (status !in 200..299) {
@@ -423,6 +421,11 @@ object CashierCloudSession {
                     JSONObject(responseBody)
                         .optString("outcome", "UNKNOWN")
                 }.getOrDefault("UNKNOWN")
+
+                if (shouldClearCashierSession(status, outcome)) {
+                    clear()
+                    throw SecurityException("CASHIER_CLOUD_SESSION_REJECTED")
+                }
 
                 throw FinancialUploadHttpException(
                     statusCode = status,
@@ -455,7 +458,7 @@ object CashierCloudSession {
             connection.setRequestProperty("apikey", BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY)
             connection.setRequestProperty("Authorization", "Bearer $token")
             val status = connection.responseCode
-            if (status == 401 || status == 403) {
+            if (status == 401) {
                 clear()
                 throw SecurityException("CASHIER_CLOUD_SESSION_REJECTED")
             }
@@ -488,7 +491,7 @@ object CashierCloudSession {
             connection.setRequestProperty("apikey", BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY)
             connection.setRequestProperty("Authorization", "Bearer $token")
             val status = connection.responseCode
-            if (status == 401 || status == 403) { clear(); throw SecurityException("CASHIER_CLOUD_SESSION_REJECTED") }
+            if (status == 401) { clear(); throw SecurityException("CASHIER_CLOUD_SESSION_REJECTED") }
             if (status !in 200..299) throw IOException("CASHIER_DOWNLOAD_HTTP_$status")
             val body = connection.inputStream.bufferedReader().use { it.readText() }
             JSONObject(body).optJSONArray("envelopes") ?: JSONArray()
@@ -501,3 +504,9 @@ class FinancialUploadHttpException(
     val outcome: String,
     val serverMessage: String
 ) : Exception("Financial upload rejected with HTTP $statusCode ($outcome)")
+/**
+ * A 403 may mean the requested operation is forbidden while the session remains valid.
+ * Only clear on authentication failure or an explicit server-side membership rejection.
+ */
+internal fun shouldClearCashierSession(statusCode: Int, outcome: String? = null): Boolean =
+    statusCode == 401 || (statusCode == 403 && outcome == "INVALID_CASHIER_MEMBERSHIP")

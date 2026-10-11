@@ -51,9 +51,13 @@ class PermissionCheckerTest {
     }
 
     @Test
-    fun documentPermissionsIgnoreLegacyFlagsForCashierWithMembership() {
-        assertTrue(PermissionChecker.isPermitted(cashier, emptyMembership, PermissionAction.ISSUE_INVOICE))
-        assertTrue(PermissionChecker.isPermitted(cashier, emptyMembership, PermissionAction.ISSUE_RECEIPT))
+    fun documentPermissionsRespectMembershipFlags() {
+        assertFalse(PermissionChecker.isPermitted(cashier, emptyMembership, PermissionAction.ISSUE_INVOICE))
+        assertFalse(PermissionChecker.isPermitted(cashier, emptyMembership, PermissionAction.ISSUE_RECEIPT))
+
+        val enabled = emptyMembership.copy(canIssueInvoice = true, canIssueReceipt = true)
+        assertTrue(PermissionChecker.isPermitted(cashier, enabled, PermissionAction.ISSUE_INVOICE))
+        assertTrue(PermissionChecker.isPermitted(cashier, enabled, PermissionAction.ISSUE_RECEIPT))
     }
 
     @Test
@@ -89,8 +93,11 @@ class PermissionCheckerTest {
     @Test
     fun sessionGateRejectsMissingStaleAndInactiveCashierMemberships() {
         val valid = activeSession(emptyMembership)
-        assertTrue(PermissionChecker.isPermitted(valid, PermissionAction.ISSUE_INVOICE))
-        assertTrue(PermissionChecker.isPermitted(valid, PermissionAction.ISSUE_RECEIPT))
+        assertFalse(PermissionChecker.isPermitted(valid, PermissionAction.ISSUE_INVOICE))
+        assertFalse(PermissionChecker.isPermitted(valid, PermissionAction.ISSUE_RECEIPT))
+        val documentEnabled = valid.copy(membership = emptyMembership.copy(canIssueInvoice = true, canIssueReceipt = true))
+        assertTrue(PermissionChecker.isPermitted(documentEnabled, PermissionAction.ISSUE_INVOICE))
+        assertTrue(PermissionChecker.isPermitted(documentEnabled, PermissionAction.ISSUE_RECEIPT))
         assertFalse(PermissionChecker.isPermitted(valid, PermissionAction.VIEW_REPORTS))
 
         assertFalse(PermissionChecker.isPermitted(valid.copy(membership = null), PermissionAction.ISSUE_INVOICE))
