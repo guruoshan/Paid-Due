@@ -69,6 +69,22 @@ internal fun classifyAdminSessionRpcFailure(statusCode: Int, code: String? = nul
         SessionAuthorizationResult.UNAVAILABLE
     }
 
+internal fun adminSessionScopeMatches(
+    actualMembershipId: String,
+    actualLocalUserId: String,
+    actualBusinessId: String,
+    actualBranchId: String,
+    expectedMembershipId: String,
+    expectedLocalUserId: String,
+    expectedBusinessId: String,
+    expectedBranchId: String
+): Boolean =
+    expectedLocalUserId.isNotBlank() &&
+        actualMembershipId == expectedMembershipId &&
+        actualLocalUserId == expectedLocalUserId &&
+        actualBusinessId == expectedBusinessId &&
+        actualBranchId == expectedBranchId
+
 @Singleton
 class RemoteFinancialSyncRepository @Inject constructor(
     private val supabase: SupabaseClient
@@ -260,7 +276,8 @@ class RemoteFinancialSyncRepository @Inject constructor(
     suspend fun validateAdminSession(
         expectedMembershipId: String,
         expectedBusinessId: String,
-        expectedBranchId: String
+        expectedBranchId: String,
+        expectedLocalUserId: String = ""
     ): SessionAuthorizationResult {
         if (supabase.auth.currentSessionOrNull() == null) {
             // Missing locally cached auth state is not a server rejection; offline
@@ -273,9 +290,16 @@ class RemoteFinancialSyncRepository @Inject constructor(
             val scope = rows.singleOrNull()
             if (
                 scope != null &&
-                scope.membershipId == expectedMembershipId &&
-                scope.businessId == expectedBusinessId &&
-                scope.branchId == expectedBranchId
+                adminSessionScopeMatches(
+                    actualMembershipId = scope.membershipId,
+                    actualLocalUserId = scope.localUserId,
+                    actualBusinessId = scope.businessId,
+                    actualBranchId = scope.branchId,
+                    expectedMembershipId = expectedMembershipId,
+                    expectedLocalUserId = expectedLocalUserId,
+                    expectedBusinessId = expectedBusinessId,
+                    expectedBranchId = expectedBranchId
+                )
             ) SessionAuthorizationResult.AUTHORIZED
             else SessionAuthorizationResult.REJECTED
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
@@ -291,9 +315,10 @@ class RemoteFinancialSyncRepository @Inject constructor(
     suspend fun isAdminSessionAuthorized(
         expectedMembershipId: String,
         expectedBusinessId: String,
-        expectedBranchId: String
+        expectedBranchId: String,
+        expectedLocalUserId: String = ""
     ): Boolean =
-        validateAdminSession(expectedMembershipId, expectedBusinessId, expectedBranchId) ==
+        validateAdminSession(expectedMembershipId, expectedBusinessId, expectedBranchId, expectedLocalUserId) ==
             SessionAuthorizationResult.AUTHORIZED
 
     suspend fun fetchRemoteEnvelopesV2(
@@ -442,6 +467,7 @@ internal fun businessLocalDateFor(occurredAtMillis: Long, timezoneId: String): S
 @Serializable
 private data class AdminSessionScopeDto(
     @SerialName("membership_id") val membershipId: String,
+    @SerialName("local_user_id") val localUserId: String,
     @SerialName("business_id") val businessId: String,
     @SerialName("branch_id") val branchId: String
 )
