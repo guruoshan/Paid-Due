@@ -391,8 +391,15 @@ export async function markCashierNotificationRead(request: Request) {
 export async function requestCashierPermission(request: Request) {
   if (request.method !== "POST") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "POST" });
   let session;
-  try { session = await verifyToken(request); }
-  catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
+  try {
+    session = await verifyToken(request);
+  } catch (error) {
+    if (error instanceof InvalidCashierSessionError) {
+      return json({ outcome: "UNAUTHORIZED" }, 401);
+    }
+    // An RPC/network failure is not proof that the cashier session was revoked.
+    return json({ outcome: "PERMISSION_REQUEST_UNAVAILABLE" }, 503);
+  }
   let body: any;
   try { body = await request.json(); } catch { return json({ outcome: "INVALID_REQUEST" }, 400); }
   const permissionKey = body.permission_key;
