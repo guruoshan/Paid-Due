@@ -94,6 +94,18 @@ class TrustedSessionStore @Inject constructor(
         return nowMillis < backgroundAt || nowMillis - backgroundAt >= BACKGROUND_LOCK_THRESHOLD_MILLIS
     }
 
+    fun isOfflineLeaseValidFor(
+        businessId: String,
+        branchId: String,
+        userId: String
+    ): Boolean {
+        val trusted = load() ?: return false
+        return trusted.businessId == businessId &&
+            trusted.branchId == branchId &&
+            trusted.userId == userId &&
+            isOfflineLeaseValid()
+    }
+
     fun isOfflineLeaseValid(
         nowMillis: Long = System.currentTimeMillis(),
         nowElapsedMillis: Long = SystemClock.elapsedRealtime()
