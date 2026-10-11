@@ -100,6 +100,11 @@ class SessionLockViewModel @Inject constructor(
                         trustedSessionStore.clear()
                         SessionManager.clearSession()
                         unlockPrefs.edit().remove(failureKey).commit()
+                if (!biometricAuthorized) {
+                    // A valid password/PIN can recover a biometric key invalidated by
+                    // biometric enrollment changes; biometric failure cannot do so.
+                    runCatching { com.dailymoneyregister.core.security.SessionBiometricKey.recoverAfterCredentialUnlock() }
+                }
                         fail("Five failed unlock attempts. Sign in again.")
                     } else {
                         fail("Incorrect password or PIN. ${5 - failures} attempt(s) remain.")
