@@ -92,6 +92,7 @@ AS $function$
 DECLARE
   v_actor_name text;
   v_report jsonb;
+  v_difference_minor text;
   v_body text;
   v_admin record;
 BEGIN
@@ -100,6 +101,7 @@ BEGIN
   END IF;
 
   v_report := NEW.canonical_payload -> 'day_closing_report';
+  v_difference_minor := COALESCE(v_report ->> 'difference_minor', '0');
   SELECT COALESCE(si.display_name, p.display_name, NEW.canonical_payload #>> '{operation,actor_user_id}', 'Cashier')
     INTO v_actor_name
   FROM public.business_memberships bm
@@ -145,22 +147,27 @@ BEGIN
         'report', COALESCE(v_report, '{}'::jsonb)
       )
     );
-    IF (CASE
-      WHEN COALESCE(v_report ->> 'difference_minor', '0') ~ '^-?[0-9]{1,18}
-      PERFORM private.enqueue_business_notification(
-        'CASH_DIFFERENCE:' || NEW.business_id || ':' || NEW.operation_id || ':' || v_admin.membership_id,
-        NEW.business_id,
-        NEW.branch_id,
-        v_admin.membership_id,
-        'CASH_DISCREPANCY',
-        'Cash difference needs review',
-        COALESCE(v_actor_name, 'Cashier') || ' closed a shift with a cash difference. Review the closing report.',
-        jsonb_build_object(
-          'operation_id', NEW.operation_id,
-          'cashier_name', COALESCE(v_actor_name, 'Cashier'),
-          'report', COALESCE(v_report, '{}'::jsonb)
-        )
-      );
+    IF length(v_difference_minor) BETWEEN 1 AND 19
+       AND v_difference_minor ~ '^-?[0-9]+'
+       AND v_difference_minor !~ '[^0-9-]'
+       AND position('-' in substring(v_difference_minor from 2)) = 0
+       AND v_difference_minor <> '-' THEN
+      IF v_difference_minor::numeric <> 0 THEN
+        PERFORM private.enqueue_business_notification(
+          'CASH_DIFFERENCE:' || NEW.business_id || ':' || NEW.operation_id || ':' || v_admin.membership_id,
+          NEW.business_id,
+          NEW.branch_id,
+          v_admin.membership_id,
+          'CASH_DISCREPANCY',
+          'Cash difference needs review',
+          COALESCE(v_actor_name, 'Cashier') || ' closed a shift with a cash difference. Review the closing report.',
+          jsonb_build_object(
+            'operation_id', NEW.operation_id,
+            'cashier_name', COALESCE(v_actor_name, 'Cashier'),
+            'report', COALESCE(v_report, '{}'::jsonb)
+          )
+        );
+      END IF;
     END IF;
   END LOOP;
   RETURN NEW;
