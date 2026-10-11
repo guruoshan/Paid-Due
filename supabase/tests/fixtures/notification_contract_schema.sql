@@ -1,30 +1,7 @@
 -- Minimal synthetic dependencies for exercising notification migration against the financial contract.
 CREATE SCHEMA IF NOT EXISTS auth;
--- Disposable test database only: allow fixture objects in the pre-created auth schema.
-GRANT USAGE, CREATE ON SCHEMA auth TO PUBLIC;
--- The local Supabase image owns auth objects with supabase_auth_admin; create
--- the fixture under that role instead of weakening schema ownership/privileges.
-DO $roles$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN; END IF;
-END
-$roles$;
-
-CREATE TABLE IF NOT EXISTS auth.users (
-  id uuid PRIMARY KEY,
-  aud text,
-  role text,
-  email text,
-  encrypted_password text,
-  email_confirmed_at timestamptz
-);
-CREATE OR REPLACE FUNCTION auth.uid()
-RETURNS uuid LANGUAGE sql STABLE
-AS $ SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid $;
-GRANT SELECT, INSERT, UPDATE ON auth.users TO PUBLIC;
-
+-- Supabase's disposable PostgreSQL image supplies auth.uid(); the fixture does
+-- not create or modify managed auth objects.
 CREATE TABLE IF NOT EXISTS public.profiles (
   auth_user_id uuid UNIQUE,
   display_name text,
