@@ -88,6 +88,10 @@ fun SessionLockScreen(viewModel: SessionLockViewModel = hiltViewModel()) {
                                     viewModel.unlockWithBiometric()
                                 }
 
+                                override fun onAuthenticationFailed() {
+                                    viewModel.recordBiometricFailure()
+                                }
+
                                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                                     if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
                                         errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON &&
