@@ -144,6 +144,19 @@ class PermissionCheckerTest {
     }
 
     @Test
+    fun offlineLeaseRejectsPermissionChecksForADifferentCachedUser() {
+        val offlineMembership = emptyMembership.copy(canCreateSale = true, canAcceptCash = true)
+        SessionManager.setSession(activeSession(offlineMembership).copy(isOfflineLease = true))
+        try {
+            val otherAdmin = admin.copy(id = "different-admin")
+            assertFalse(PermissionChecker.isPermitted(otherAdmin, null, PermissionAction.CREATE_SALE))
+            assertFalse(PermissionChecker.isPermitted(otherAdmin, null, PermissionAction.ACCEPT_CASH))
+        } finally {
+            SessionManager.clearSession()
+        }
+    }
+
+    @Test
     fun sessionLockDoesNotDestroySessionAndCanBeCleared() {
         SessionManager.setSession(activeSession(emptyMembership))
         try {
