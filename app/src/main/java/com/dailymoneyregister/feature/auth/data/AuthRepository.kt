@@ -349,6 +349,7 @@ class AuthRepository @Inject constructor(
                 val offlineSession = ActiveSession(
                     business, branch, authenticatedUser, membership, isOfflineLease = true
                 )
+                trustedSessionStore.clearAppBackgroundMarker()
                 SessionManager.setSession(offlineSession)
                 languageManager.setLanguage(authenticatedUser.languageCode)
                 android.util.Log.w("PaidDueFinancialSync", "ADMIN_OFFLINE_LEASE_ACCEPTED")
@@ -574,6 +575,7 @@ class AuthRepository @Inject constructor(
                     trustedSessionStore.isOfflineLeaseValidFor(business.id, branch.id, authenticatedUser.id)
                 ) {
                     val offlineSession = session.copy(isOfflineLease = true)
+                    trustedSessionStore.clearAppBackgroundMarker()
                     SessionManager.setSession(offlineSession)
                     languageManager.setLanguage(authenticatedUser.languageCode)
                     android.util.Log.w("PaidDueFinancialSync", "CASHIER_OFFLINE_LEASE_ACCEPTED")
