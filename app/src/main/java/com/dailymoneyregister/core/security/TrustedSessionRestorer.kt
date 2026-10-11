@@ -92,7 +92,8 @@ class TrustedSessionRestorer @Inject constructor(
             UserRole.ADMIN -> remoteFinancialSyncRepository.validateAdminSession(
                 expectedMembershipId = session.membership?.id.orEmpty(),
                 expectedBusinessId = session.business.id,
-                expectedBranchId = session.branch.id
+                expectedBranchId = session.branch.id,
+                expectedLocalUserId = session.user.id
             )
             UserRole.CASHIER -> {
                 val membership = session.membership
