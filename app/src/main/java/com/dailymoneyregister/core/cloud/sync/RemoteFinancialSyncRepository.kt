@@ -256,7 +256,9 @@ class RemoteFinancialSyncRepository @Inject constructor(
         expectedBranchId: String
     ): SessionAuthorizationResult {
         if (supabase.auth.currentSessionOrNull() == null) {
-            return SessionAuthorizationResult.REJECTED
+            // Missing locally cached auth state is not a server rejection; offline
+            // lease policy decides whether a previously verified session may continue.
+            return SessionAuthorizationResult.UNAVAILABLE
         }
         return try {
             val rows = supabase.postgrest.rpc("restore_admin_by_auth_id")

@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -32,6 +35,7 @@ import com.dailymoneyregister.core.startup.StartupRecoveryCoordinator
 import com.dailymoneyregister.feature.admin.ui.CashierManagementScreen
 import com.dailymoneyregister.feature.admin.ui.CashierManagementViewModel
 import com.dailymoneyregister.feature.notifications.ui.NotificationsScreen
+import com.dailymoneyregister.feature.auth.ui.SessionLockScreen
 import com.dailymoneyregister.feature.auth.ui.LoginScreen
 import com.dailymoneyregister.feature.auth.ui.LoginViewModel
 import com.dailymoneyregister.feature.auth.ui.ChangePinScreen
@@ -94,6 +98,18 @@ fun DmrApp(
     val context = LocalContext.current
     val syncProblem by FinancialSyncStatus.adminVisibleProblem.collectAsStateWithLifecycle()
     val activeSession by SessionManager.currentSession.collectAsStateWithLifecycle()
+    val isSessionLocked by SessionManager.isLocked.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP && SessionManager.currentSession.value != null) {
+                SessionManager.lockSession()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(syncProblem, activeSession?.user?.role) {
         val problem = syncProblem ?: return@LaunchedEffect
@@ -109,6 +125,23 @@ fun DmrApp(
     var startupRecoveryError by remember { mutableStateOf<String?>(null) }
     var recoveryAttempt by remember { mutableIntStateOf(0) }
     val startupRecoveryFailedMessage = stringResource(R.string.startup_recovery_failed)
+
+    LaunchedEffect(activeSession?.user?.id, isCheckingStartup) {
+        if (isCheckingStartup || activeSession != null) return@LaunchedEffect
+        val route = navController.currentDestination?.route
+        val secureRoutes = setOf(
+            Routes.ADMIN_HUB, Routes.CASHIER_HUB, Routes.REGISTER,
+            Routes.MANAGE_CASHIERS, Routes.SETTINGS, Routes.REPORTS,
+            Routes.CUSTOMERS, Routes.CUSTOMER_DETAIL, Routes.NOTIFICATIONS,
+            Routes.CHANGE_PIN
+        )
+        if (route in secureRoutes) {
+            navController.navigate(Routes.LOGIN) {
+                popUpTo(navController.graph.id) { inclusive = true }
+            }
+        }
+    }
+
 
     var startDestination by remember {
         mutableStateOf(Routes.SETUP)
@@ -221,6 +254,13 @@ fun DmrApp(
      * Nothing financial is reachable while recovery is running.
      */
     if (isCheckingStartup) {
+        return
+    }
+
+    // The lock overlays the existing navigation stack; it does not destroy the
+    // active business context or bypass the server/offline-lease unlock policy.
+    if (isSessionLocked && activeSession != null) {
+        SessionLockScreen()
         return
     }
 
