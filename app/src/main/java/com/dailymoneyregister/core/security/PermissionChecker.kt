@@ -48,7 +48,12 @@ object PermissionChecker {
         // Enforce this in the central overload too, so callers cannot bypass it by
         // supplying only a user and membership instead of an ActiveSession.
         val activeSession = SessionManager.currentSession.value
-        if (activeSession?.isOfflineLease == true && activeSession.user.id == user.id) {
+        if (activeSession?.isOfflineLease == true) {
+            // Never let a caller supply a different cached user to escape the
+            // active offline session's narrow permission policy.
+            if (activeSession.user.id != user.id || activeSession.business.id != user.businessId) {
+                return false
+            }
             return when (action) {
                 PermissionAction.CREATE_SALE -> user.role == UserRole.ADMIN || membership?.canCreateSale == true
                 PermissionAction.ACCEPT_CASH -> user.role == UserRole.ADMIN || membership?.canAcceptCash == true
