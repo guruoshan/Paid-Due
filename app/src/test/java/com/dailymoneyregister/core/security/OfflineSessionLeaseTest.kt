@@ -20,14 +20,14 @@ class OfflineSessionLeaseTest {
         )
 
     @Test
-    fun allowsPreviouslyVerifiedSessionWithinEightHourLeaseOnSameBoot() {
-        assertTrue(valid(7 * 60 * 60 * 1000L, 7 * 60 * 60 * 1000L))
+    fun allowsPreviouslyVerifiedSessionWithinTwentyFourHourLeaseOnSameBoot() {
+        assertTrue(valid(23 * 60 * 60 * 1000L, 23 * 60 * 60 * 1000L))
     }
 
     @Test
     fun rejectsExpiredOrMissingVerificationTimestamp() {
-        assertFalse(valid(9 * 60 * 60 * 1000L, 7 * 60 * 60 * 1000L))
-        assertFalse(valid(7 * 60 * 60 * 1000L, 9 * 60 * 60 * 1000L))
+        assertFalse(valid(25 * 60 * 60 * 1000L, 7 * 60 * 60 * 1000L))
+        assertFalse(valid(7 * 60 * 60 * 1000L, 25 * 60 * 60 * 1000L))
         assertFalse(
             OfflineSessionLeasePolicy.isValid(
                 lastVerifiedAtMillis = 0L,
