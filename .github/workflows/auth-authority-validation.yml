@@ -33,7 +33,7 @@ jobs:
           cache: gradle
       - name: Install production Android SDK platform and build tools
         run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "build-tools;36.0.0" "platform-tools"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37" "build-tools;36.0.0" "platform-tools"
       - uses: gradle/actions/setup-gradle@v4
       - name: Verify production SDK configuration
         run: |
