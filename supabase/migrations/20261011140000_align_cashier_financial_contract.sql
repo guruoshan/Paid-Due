@@ -47,10 +47,27 @@ BEGIN
                         SELECT 1
                         FROM jsonb_array_elements(p_canonical_payload -> 'settlements') AS settlement(value)
                         WHERE
-                            (settlement.value ->> 'category' = 'CASH' AND NOT v_membership.can_accept_cash)
-                            OR (settlement.value ->> 'category' = 'ONLINE' AND NOT v_membership.can_accept_online)
-                            OR (settlement.value ->> 'category' = 'CREDIT' AND NOT v_membership.can_create_credit_sale)
-                            OR (settlement.value ->> 'category' = 'COUPON' AND NOT v_membership.can_use_coupon)
+                            -- Reject malformed rows and unknown categories instead of
+                            -- letting an unrecognized tender bypass permission checks.
+                            jsonb_typeof(settlement.value) <> 'object'
+                            OR jsonb_typeof(settlement.value -> 'category') <> 'string'
+                            OR settlement.value ->> 'category' NOT IN ('CASH', 'ONLINE', 'CREDIT', 'COUPON')
+                            OR (
+                                settlement.value ->> 'category' = 'CASH'
+                                AND NOT v_membership.can_accept_cash
+                            )
+                            OR (
+                                settlement.value ->> 'category' = 'ONLINE'
+                                AND NOT v_membership.can_accept_online
+                            )
+                            OR (
+                                settlement.value ->> 'category' = 'CREDIT'
+                                AND NOT v_membership.can_create_credit_sale
+                            )
+                            OR (
+                                settlement.value ->> 'category' = 'COUPON'
+                                AND NOT v_membership.can_use_coupon
+                            )
                     )
                 ELSE false
             END
