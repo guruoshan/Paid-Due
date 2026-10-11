@@ -7,11 +7,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - 'supabase/migrations/**'
-      - 'supabase/rollback/**'
-      - 'supabase/tests/**'
-      - '.github/workflows/sql-behavioral-gate.yml'
   workflow_dispatch:
 
 permissions:
