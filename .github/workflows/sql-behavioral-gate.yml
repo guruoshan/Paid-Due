@@ -41,7 +41,7 @@ jobs:
           EOF
 
       - name: Start disposable local Supabase stack
-        run: supabase start --workdir /tmp/supabase-sql-gate
+        run: supabase start --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor --workdir /tmp/supabase-sql-gate
 
       - name: Install PostgreSQL client
         run: |
