@@ -329,25 +329,31 @@ const PERMISSION_KEYS = new Set([
   "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY",
 ]);
 
+class InvalidCashierNotificationSessionError extends Error {}
+
 async function verifyNotificationToken(request: Request): Promise<any> {
   const auth = request.headers.get("Authorization") || "";
   const match = /^Bearer\s+([0-9a-f]{64})$/i.exec(auth);
-  if (!match) throw new Error("UNAUTHORIZED");
+  if (!match) throw new InvalidCashierNotificationSessionError("INVALID_CASHIER_NOTIFICATION_SESSION");
   const tokenHash = await sha256Hex(match[1]);
-  try {
-    const rows = await rpc("verify_cashier_notification_session", { p_token_hash: tokenHash });
-    if (!Array.isArray(rows) || rows.length !== 1) throw new Error("UNAUTHORIZED");
-    return rows[0];
-  } catch {
-    throw new Error("UNAUTHORIZED");
+  // Only a missing/expired session is an authorization rejection. RPC failures
+  // must remain service-unavailable rather than being misreported as bad credentials.
+  const rows = await rpc("verify_cashier_notification_session", { p_token_hash: tokenHash });
+  if (!Array.isArray(rows) || rows.length !== 1) {
+    throw new InvalidCashierNotificationSessionError("INVALID_CASHIER_NOTIFICATION_SESSION");
   }
+  return rows[0];
 }
 
 export async function listCashierNotifications(request: Request) {
   if (request.method !== "GET") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "GET" });
   let session;
-  try { session = await verifyNotificationToken(request); }
-  catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
+  try {
+    session = await verifyNotificationToken(request);
+  } catch (error) {
+    if (error instanceof InvalidCashierNotificationSessionError) return json({ outcome: "UNAUTHORIZED" }, 401);
+    return json({ outcome: "NOTIFICATION_SERVICE_UNAVAILABLE" }, 503);
+  }
   try {
     const rows = await rpc("list_cashier_notifications", { p_membership_id: session.membership_id });
     return json({ notifications: Array.isArray(rows) ? rows : [] }, 200);
@@ -359,8 +365,12 @@ export async function listCashierNotifications(request: Request) {
 export async function markCashierNotificationRead(request: Request) {
   if (request.method !== "POST") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "POST" });
   let session;
-  try { session = await verifyNotificationToken(request); }
-  catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
+  try {
+    session = await verifyNotificationToken(request);
+  } catch (error) {
+    if (error instanceof InvalidCashierNotificationSessionError) return json({ outcome: "UNAUTHORIZED" }, 401);
+    return json({ outcome: "NOTIFICATION_SERVICE_UNAVAILABLE" }, 503);
+  }
   let body: any;
   try { body = await request.json(); } catch { return json({ outcome: "INVALID_REQUEST" }, 400); }
   if (typeof body.notification_id !== "string" ||
