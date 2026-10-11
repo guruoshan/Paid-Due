@@ -34,6 +34,7 @@ class TrustedSessionStore @Inject constructor(
                 .putString(KEY_BUSINESS_ID, businessId)
                 .putString(KEY_BRANCH_ID, branchId)
                 .putString(KEY_USER_ID, userId)
+                .remove(KEY_APP_BACKGROUND_AT)
                 .putLong(KEY_LAST_SERVER_VERIFIED_AT, System.currentTimeMillis())
                 .putLong(KEY_LAST_SERVER_VERIFIED_ELAPSED, SystemClock.elapsedRealtime())
                 .putInt(KEY_LAST_SERVER_VERIFIED_BOOT_COUNT, currentBootCount())
@@ -75,6 +76,12 @@ class TrustedSessionStore @Inject constructor(
                 .commit()
         ) {
             "Could not update trusted session verification time"
+        }
+    }
+
+    fun clearAppBackgroundMarker() {
+        check(prefs.edit().remove(KEY_APP_BACKGROUND_AT).commit()) {
+            "Could not clear app background timestamp"
         }
     }
 
