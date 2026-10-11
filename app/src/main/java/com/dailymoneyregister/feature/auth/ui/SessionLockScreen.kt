@@ -34,7 +34,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.SessionBiometricKey
-import java.security.KeyPermanentlyInvalidatedException
+import android.security.keystore.KeyPermanentlyInvalidatedException
 
 @Composable
 fun SessionLockScreen(viewModel: SessionLockViewModel = hiltViewModel()) {
