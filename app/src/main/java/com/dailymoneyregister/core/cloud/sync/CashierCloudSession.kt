@@ -21,6 +21,20 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+enum class CashierCloudAuthOutcome {
+    AUTHENTICATED,
+    REJECTED,
+    UNAVAILABLE,
+    INVALID_INPUT
+}
+
+internal fun classifyCashierCloudHttpFailure(status: Int): CashierCloudAuthOutcome =
+    if (status == 401 || status == 403) {
+        CashierCloudAuthOutcome.REJECTED
+    } else {
+        CashierCloudAuthOutcome.UNAVAILABLE
+    }
+
 object CashierCloudSession {
 
     private const val TAG = "PaidDueFinancialSync"
@@ -207,7 +221,7 @@ object CashierCloudSession {
         canonicalPhone: String,
         pin: String,
         expectedMembershipId: String
-    ): Boolean = withContext(Dispatchers.IO) {
+    ): CashierCloudAuthOutcome = withContext(Dispatchers.IO) {
 
         lastAuthStage = "STARTED"
         clear()
@@ -220,7 +234,7 @@ object CashierCloudSession {
         ) {
             lastAuthStage = "INPUT_INVALID"
             Log.w(TAG, "CASHIER_CLOUD_AUTH_INPUT_INVALID")
-            return@withContext false
+            return@withContext CashierCloudAuthOutcome.INVALID_INPUT
         }
 
         val baseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trimEnd('/') + "/functions/v1/api"
@@ -228,7 +242,7 @@ object CashierCloudSession {
         if (!baseUrl.startsWith("https://")) {
             lastAuthStage = "BACKEND_URL_INVALID"
             Log.e(TAG, "CASHIER_BACKEND_URL_INVALID")
-            return@withContext false
+            return@withContext CashierCloudAuthOutcome.UNAVAILABLE
         }
 
         val connection = (
@@ -238,8 +252,8 @@ object CashierCloudSession {
 
         try {
             connection.requestMethod = "POST"
-            connection.connectTimeout = 5000
-            connection.readTimeout = 15000
+            connection.connectTimeout = 3500
+            connection.readTimeout = 5000
             connection.doOutput = true
             connection.setRequestProperty(
                 "Content-Type",
@@ -269,7 +283,7 @@ object CashierCloudSession {
                     TAG,
                     "CASHIER_CLOUD_AUTH_HTTP_$status"
                 )
-                return@withContext false
+                return@withContext classifyCashierCloudHttpFailure(status)
             }
 
             lastAuthStage = "READING_RESPONSE"
@@ -290,7 +304,7 @@ object CashierCloudSession {
                 Instant.parse(
                     response.optString("expires_at")
                 )
-            }.getOrNull() ?: return@withContext false
+            }.getOrNull() ?: return@withContext CashierCloudAuthOutcome.UNAVAILABLE
 
             if (
                 response.optString("outcome") != "AUTHENTICATED" ||
@@ -302,7 +316,7 @@ object CashierCloudSession {
                     TAG,
                     "CASHIER_CLOUD_AUTH_RESPONSE_REJECTED"
                 )
-                return@withContext false
+                return@withContext if (response.optString("outcome") in setOf("INVALID_CREDENTIALS", "UNAUTHORIZED", "FORBIDDEN", "MEMBERSHIP_INACTIVE", "ACCOUNT_DISABLED") || (expectedMembershipId.isNotBlank() && membershipId != expectedMembershipId)) CashierCloudAuthOutcome.REJECTED else CashierCloudAuthOutcome.UNAVAILABLE
             }
 
             val authenticated = Credential(
@@ -324,7 +338,7 @@ object CashierCloudSession {
             }
 
             Log.i(TAG, "CASHIER_CLOUD_AUTHENTICATED")
-            true
+            CashierCloudAuthOutcome.AUTHENTICATED
 
         } finally {
             connection.disconnect()
@@ -335,7 +349,7 @@ object CashierCloudSession {
         canonicalPhone: String,
         pin: String
     ): JSONObject? {
-        if (!authenticate(canonicalPhone, pin, expectedMembershipId = "")) {
+        if (authenticate(canonicalPhone, pin, expectedMembershipId = "") != CashierCloudAuthOutcome.AUTHENTICATED) {
             return null
         }
         val payload = pendingRestoration

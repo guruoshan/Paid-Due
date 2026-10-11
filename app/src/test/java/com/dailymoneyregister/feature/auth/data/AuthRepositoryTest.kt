@@ -1,6 +1,8 @@
 package com.dailymoneyregister.feature.auth.data
 
 import com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult
+import com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome
+import com.dailymoneyregister.core.cloud.sync.classifyCashierCloudHttpFailure
 import com.dailymoneyregister.core.security.PinHasher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -9,6 +11,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AuthRepositoryTest {
+
+    @Test
+    fun cashierCloudAuthOutcomesDistinguishServerRejectionFromUnavailableServer() {
+        assertEquals(CashierCloudAuthOutcome.REJECTED, classifyCashierCloudHttpFailure(401))
+        assertEquals(CashierCloudAuthOutcome.REJECTED, classifyCashierCloudHttpFailure(403))
+        assertEquals(CashierCloudAuthOutcome.UNAVAILABLE, classifyCashierCloudHttpFailure(429))
+        assertEquals(CashierCloudAuthOutcome.UNAVAILABLE, classifyCashierCloudHttpFailure(503))
+    }
 
     @Test
     fun pinHasherValidatesFormatAndHash() {

@@ -307,52 +307,42 @@ class AuthRepository @Inject constructor(
             }
         }
 
-        clearSuccessfulLoginThrottle(business.id, identifier, user)
-
         val membership =
             userDao.getMembership(
                 authenticatedUser.id,
                 branch.id
+            ) ?: return AuthResult.Error(
+                "Supabase could not confirm Admin authorization for this business branch."
             )
 
-        // Admin login remains offline-first: a cloud failure must not invalidate
-        // the already-verified local login. When online, establish/verify Supabase
-        // Auth before SessionManager starts the sync scheduler. The backend RPC
-        // checks that this exact user, membership, business, and branch match.
-        if (membership != null) {
-            val cloudAuth = withTimeoutOrNull(3_500L) {
-                remoteBusinessRestorer.authenticateAdminForSync(
-                    usernameOrEmail = username,
-                    passwordPlain = passwordPlain,
-                    expectedBusinessId = business.id,
-                    expectedBranchId = branch.id,
-                    expectedUserId = authenticatedUser.id,
-                    expectedMembershipId = membership.id
-                )
-            }
-            when {
-                cloudAuth is RemoteBusinessRestorationResult.Success -> {
-                    android.util.Log.i(
-                        "PaidDueFinancialSync",
-                        "ADMIN_SUPABASE_AUTHENTICATED membership=${membership.id}"
-                    )
-                }
-                else -> {
-                    // No secrets or credential details in logs. Local login remains
-                    // available, but the sync engine will fail closed without a
-                    // matching server-authenticated Admin session.
-                    android.util.Log.w(
-                        "PaidDueFinancialSync",
-                        "ADMIN_SUPABASE_AUTH_UNAVAILABLE"
-                    )
-                }
-            }
-        } else {
-            android.util.Log.w(
-                "PaidDueFinancialSync",
-                "ADMIN_SUPABASE_AUTH_SKIPPED_MEMBERSHIP_MISSING"
+        // A local password match is insufficient: Supabase must confirm this exact
+        // tenant membership before the app creates a normal Admin session.
+        val cloudAuth = withTimeoutOrNull(3_500L) {
+            remoteBusinessRestorer.authenticateAdminForSync(
+                usernameOrEmail = username,
+                passwordPlain = passwordPlain,
+                expectedBusinessId = business.id,
+                expectedBranchId = branch.id,
+                expectedUserId = authenticatedUser.id,
+                expectedMembershipId = membership.id
             )
         }
+        if (cloudAuth !is RemoteBusinessRestorationResult.Success) {
+            android.util.Log.w(
+                "PaidDueFinancialSync",
+                if (cloudAuth == null) "ADMIN_SUPABASE_AUTH_TIMEOUT"
+                else "ADMIN_SUPABASE_AUTH_NOT_CONFIRMED"
+            )
+            return AuthResult.Error(
+                "Supabase could not confirm Admin access. Check your connection or credentials and try again; no session was created."
+            )
+        }
+
+        clearSuccessfulLoginThrottle(business.id, identifier, user)
+        android.util.Log.i(
+            "PaidDueFinancialSync",
+            "ADMIN_SUPABASE_AUTHENTICATED membership=${membership.id}"
+        )
 
         val session =
             ActiveSession(
@@ -527,20 +517,36 @@ class AuthRepository @Inject constructor(
                 requiresPinChange = authenticatedUser.mustChangePin
             )
 
-        // Cashier cloud authentication is required for remote sync.
-        // Local/offline PIN authentication remains unchanged.
-        if (
-            com.dailymoneyregister.core.cloud.sync.CashierCloudSession
-                .tokenFor(membership.id) == null && identifier.canonicalPhone != null
-        ) {
-            runCatching {
+        // Supabase must confirm the exact active cashier membership before a
+        // normal session is created. Network failures are not classified as
+        // rejected credentials; both outcomes deny online authorization for now.
+        val canonicalPhone = identifier.canonicalPhone
+            ?: return AuthResult.Error("A valid phone number is required for cloud cashier authorization.")
+        val cloudAuth = try {
+            withTimeoutOrNull(3_500L) {
                 com.dailymoneyregister.core.cloud.sync.CashierCloudSession.authenticate(
-                    canonicalPhone = identifier.canonicalPhone,
+                    canonicalPhone = canonicalPhone,
                     pin = pin,
                     expectedMembershipId = membership.id
                 )
-            }.onFailure {
-                android.util.Log.w("PaidDueFinancialSync", "CASHIER_CLOUD_AUTH_RETRY_FAILED")
+            } ?: com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome.UNAVAILABLE
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome.UNAVAILABLE
+        }
+        when (cloudAuth) {
+            com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome.AUTHENTICATED -> Unit
+            com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome.REJECTED -> {
+                return AuthResult.InvalidCredentials("Supabase rejected cashier authorization.")
+            }
+            com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome.INVALID_INPUT -> {
+                return AuthResult.InvalidCredentials("Invalid phone number or PIN.")
+            }
+            com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome.UNAVAILABLE -> {
+                return AuthResult.Error(
+                    "Supabase could not be reached or did not confirm cashier access. Check your connection and retry; the credentials have not been classified as invalid."
+                )
             }
         }
 
