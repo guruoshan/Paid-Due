@@ -250,119 +250,72 @@ class AuthRepository @Inject constructor(
             }
         }
 
-        if (
-            !user.isActive ||
-            user.role != UserRole.ADMIN ||
-            user.authType != AuthType.PASSWORD
-        ) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                    failureKey
-                )
+        if (user.role != UserRole.ADMIN || user.authType != AuthType.PASSWORD) {
+            val lockoutSeconds = pinThrottler.recordFailure(failureKey)
+            return if (lockoutSeconds > 0L) AuthResult.LockedOut(lockoutSeconds)
+            else AuthResult.InvalidCredentials("Invalid username or password")
+        }
 
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or password"
+        // Supabase verifies the password and exact tenant scope first. The local
+        // password hash is consulted only when the server is unavailable and a
+        // previously verified offline lease may be used.
+        val membership = userDao.getMembership(user.id, branch.id)
+            ?: return AuthResult.Error("Supabase could not confirm Admin authorization for this business branch.")
+
+        val cloudAuth = try {
+            withTimeoutOrNull(3_500L) {
+                remoteBusinessRestorer.authenticateAdminForSync(
+                    usernameOrEmail = username,
+                    passwordPlain = passwordPlain,
+                    expectedBusinessId = business.id,
+                    expectedBranchId = branch.id,
+                    expectedUserId = user.id,
+                    expectedMembershipId = membership.id
                 )
             }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
         }
 
-        val isValid =
-            PasswordHasher.verifyPassword(
-                passwordPlain,
-                user.credentialSalt ?: "",
-                user.credentialHash
-            )
+        val authenticatedUser = when (cloudAuth) {
+            is RemoteBusinessRestorationResult.Success -> user
+            else -> {
+                val unavailable = cloudAuth == null ||
+                    (cloudAuth is RemoteBusinessRestorationResult.Failed &&
+                        isClearlyCloudUnavailable(cloudAuth.message))
+                if (!unavailable) {
+                    val lockoutSeconds = pinThrottler.recordFailure(failureKey)
+                    return if (lockoutSeconds > 0L) AuthResult.LockedOut(lockoutSeconds)
+                    else AuthResult.InvalidCredentials("Supabase rejected Admin authorization.")
+                }
 
-        if (!isValid) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                    failureKey
+                val localPasswordMatches = user.isActive && PasswordHasher.verifyPassword(
+                    passwordPlain, user.credentialSalt ?: "", user.credentialHash
                 )
+                if (!localPasswordMatches) {
+                    val lockoutSeconds = pinThrottler.recordFailure(failureKey)
+                    return if (lockoutSeconds > 0L) AuthResult.LockedOut(lockoutSeconds)
+                    else AuthResult.InvalidCredentials("Invalid username or password")
+                }
 
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or password"
-                )
-            }
-        }
-
-        val authenticatedUser =
-            upgradeAdminCredentialIfNeeded(
-                user = user,
-                passwordPlain = passwordPlain
-            )
-
-        if (authenticatedUser == null) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                    failureKey
-                )
-
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or password"
-                )
-            }
-        }
-
-        val membership =
-            userDao.getMembership(
-                authenticatedUser.id,
-                branch.id
-            ) ?: return AuthResult.Error(
-                "Supabase could not confirm Admin authorization for this business branch."
-            )
-
-        // A local password match is insufficient: Supabase must confirm this exact
-        // tenant membership before the app creates a normal Admin session.
-        val cloudAuth = withTimeoutOrNull(3_500L) {
-            remoteBusinessRestorer.authenticateAdminForSync(
-                usernameOrEmail = username,
-                passwordPlain = passwordPlain,
-                expectedBusinessId = business.id,
-                expectedBranchId = branch.id,
-                expectedUserId = authenticatedUser.id,
-                expectedMembershipId = membership.id
-            )
-        }
-        if (cloudAuth !is RemoteBusinessRestorationResult.Success) {
-            val unavailable = cloudAuth == null ||
-                (cloudAuth is RemoteBusinessRestorationResult.Failed &&
-                    isClearlyCloudUnavailable(cloudAuth.message))
-            if (
-                unavailable &&
-                trustedSessionStore.isOfflineLeaseValidFor(business.id, branch.id, authenticatedUser.id)
-            ) {
+                val offlineUser = upgradeAdminCredentialIfNeeded(user, passwordPlain)
+                    ?: return AuthResult.InvalidCredentials("Invalid username or password")
+                if (!trustedSessionStore.isOfflineLeaseValidFor(business.id, branch.id, offlineUser.id)) {
+                    return AuthResult.Error(
+                        "Supabase is unavailable and no valid 24-hour offline lease exists. Retry when connected; the credentials have not been classified as invalid."
+                    )
+                }
                 val offlineSession = ActiveSession(
-                    business, branch, authenticatedUser, membership, isOfflineLease = true
+                    business, branch, offlineUser, membership, isOfflineLease = true
                 )
                 trustedSessionStore.clearAppBackgroundMarker()
                 SessionManager.setSession(offlineSession)
-                languageManager.setLanguage(authenticatedUser.languageCode)
+                languageManager.setLanguage(offlineUser.languageCode)
                 android.util.Log.w("PaidDueFinancialSync", "ADMIN_OFFLINE_LEASE_ACCEPTED")
                 return AuthResult.Success(offlineSession)
             }
-            android.util.Log.w(
-                "PaidDueFinancialSync",
-                if (cloudAuth == null) "ADMIN_SUPABASE_AUTH_TIMEOUT"
-                else "ADMIN_SUPABASE_AUTH_NOT_CONFIRMED"
-            )
-            return AuthResult.Error(
-                "Supabase could not confirm Admin access. Check your connection or credentials and try again; no session was created."
-            )
         }
 
         clearSuccessfulLoginThrottle(business.id, identifier, user)
@@ -371,26 +324,14 @@ class AuthRepository @Inject constructor(
             "ADMIN_SUPABASE_AUTHENTICATED membership=${membership.id}"
         )
 
-        val session =
-            ActiveSession(
-                business,
-                branch,
-                authenticatedUser,
-                membership
-            )
-
+        val session = ActiveSession(business, branch, authenticatedUser, membership)
         SessionManager.setSession(session)
-
         trustedSessionStore.save(
             businessId = session.business.id,
             branchId = session.branch.id,
             userId = session.user.id
         )
-
-        languageManager.setLanguage(
-            authenticatedUser.languageCode
-        )
-
+        languageManager.setLanguage(authenticatedUser.languageCode)
         return AuthResult.Success(session)
     }
 
