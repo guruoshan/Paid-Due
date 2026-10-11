@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS private.business_notifications (
   branch_id text NOT NULL REFERENCES public.branches(id) ON DELETE RESTRICT,
   recipient_membership_id text NOT NULL REFERENCES public.business_memberships(id) ON DELETE RESTRICT,
   notification_type text NOT NULL CHECK (notification_type IN (
-    'DAY_CLOSED', 'PERMISSIONS_CHANGED', 'PERMISSION_REQUEST',
-    'PERMISSION_REQUEST_RESULT', 'CASH_DISCREPANCY'
+    'DAY_CLOSED', 'PERMISSIONS_CHANGED', 'CASHIER_PERMISSIONS_CHANGED',
+    'PERMISSION_REQUEST', 'PERMISSION_REQUEST_RESULT', 'CASH_DISCREPANCY'
   )),
   title text NOT NULL CHECK (length(btrim(title)) BETWEEN 1 AND 200),
   body text NOT NULL CHECK (length(btrim(body)) BETWEEN 1 AND 1000),
@@ -79,8 +79,6 @@ AS $function$
   ON CONFLICT (event_key) DO NOTHING;
 $function$;
 REVOKE ALL ON FUNCTION private.enqueue_business_notification(text,text,text,text,text,text,text,jsonb) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION private.notify_admins_of_confirmed_day_close() FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION private.notify_cashier_of_permission_change() FROM PUBLIC, anon, authenticated;
 
 -- Produce the Admin notification only after a close operation is accepted into
 -- the authoritative envelope store. The details are a read-only report snapshot
@@ -94,6 +92,7 @@ AS $function$
 DECLARE
   v_actor_name text;
   v_report jsonb;
+  v_difference_minor text;
   v_body text;
   v_admin record;
 BEGIN
@@ -102,6 +101,7 @@ BEGIN
   END IF;
 
   v_report := NEW.canonical_payload -> 'day_closing_report';
+  v_difference_minor := COALESCE(v_report ->> 'difference_minor', '0');
   SELECT COALESCE(si.display_name, p.display_name, NEW.canonical_payload #>> '{operation,actor_user_id}', 'Cashier')
     INTO v_actor_name
   FROM public.business_memberships bm
@@ -119,6 +119,8 @@ BEGIN
     SELECT admin.id AS membership_id
     FROM public.business_memberships admin
     JOIN public.profiles profile ON profile.auth_user_id = admin.auth_user_id AND profile.is_active = true
+    JOIN public.businesses business ON business.id = admin.business_id AND business.is_active = true
+    JOIN public.branches branch ON branch.id = admin.branch_id AND branch.business_id = admin.business_id AND branch.is_active = true
     WHERE admin.business_id = NEW.business_id
       AND admin.branch_id = NEW.branch_id
       AND admin.role = 'ADMIN'
@@ -145,23 +147,32 @@ BEGIN
         'report', COALESCE(v_report, '{}'::jsonb)
       )
     );
-    IF COALESCE(v_report ->> 'difference_minor', '0') ~ '^-?[0-9]+
-      PERFORM private.enqueue_business_notification(
-        'CASH_DIFFERENCE:' || NEW.business_id || ':' || NEW.operation_id || ':' || v_admin.membership_id,
-        NEW.business_id,
-        NEW.branch_id,
-        v_admin.membership_id,
-        'CASH_DISCREPANCY',
-        'Cash difference needs review',
-        COALESCE(v_actor_name, 'Cashier') || ' closed a shift with a cash difference. Review the closing report.',
-        jsonb_build_object(
-          'operation_id', NEW.operation_id,
-          'cashier_name', COALESCE(v_actor_name, 'Cashier'),
-          'report', COALESCE(v_report, '{}'::jsonb)
-        )
-      );
+    IF length(v_difference_minor) BETWEEN 1 AND 19
+       AND v_difference_minor ~ '^-?[0-9]+'
+       AND v_difference_minor !~ '[^0-9-]'
+       AND position('-' in substring(v_difference_minor from 2)) = 0
+       AND v_difference_minor <> '-' THEN
+      IF v_difference_minor::numeric <> 0 THEN
+        PERFORM private.enqueue_business_notification(
+          'CASH_DIFFERENCE:' || NEW.business_id || ':' || NEW.operation_id || ':' || v_admin.membership_id,
+          NEW.business_id,
+          NEW.branch_id,
+          v_admin.membership_id,
+          'CASH_DISCREPANCY',
+          'Cash difference needs review',
+          COALESCE(v_actor_name, 'Cashier') || ' closed a shift with a cash difference. Review the closing report.',
+          jsonb_build_object(
+            'operation_id', NEW.operation_id,
+            'cashier_name', COALESCE(v_actor_name, 'Cashier'),
+            'report', COALESCE(v_report, '{}'::jsonb)
+          )
+        );
+      END IF;
     END IF;
   END LOOP;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'DAY_CLOSED_NOTIFICATION_FAILED operation_id=% sqlstate=%', NEW.operation_id, SQLSTATE;
   RETURN NEW;
 END;
 $function$;
@@ -183,6 +194,8 @@ AS $function$
 DECLARE
   v_before jsonb;
   v_after jsonb;
+  v_admin record;
+  v_cashier_name text;
 BEGIN
   IF current_setting('app.skip_permissions_notification', true) = 'true' THEN
     RETURN NEW;
@@ -217,6 +230,47 @@ BEGIN
     'An administrator changed your access permissions. Review the updated permissions when you next open the app.',
     jsonb_build_object('before', v_before, 'after', v_after, 'updated_at', NEW.updated_at)
   );
+
+  SELECT COALESCE(si.display_name, profile.display_name, NEW.local_user_id, 'Cashier')
+    INTO v_cashier_name
+  FROM public.business_memberships bm
+  LEFT JOIN private.staff_identities si ON si.id = bm.staff_identity_id
+  LEFT JOIN public.profiles profile ON profile.auth_user_id = bm.auth_user_id
+  WHERE bm.id = NEW.id;
+
+  FOR v_admin IN
+    SELECT admin.id AS membership_id
+    FROM public.business_memberships admin
+    JOIN public.profiles profile ON profile.auth_user_id = admin.auth_user_id AND profile.is_active = true
+    JOIN public.businesses business ON business.id = admin.business_id AND business.is_active = true
+    JOIN public.branches branch ON branch.id = admin.branch_id AND branch.business_id = admin.business_id AND branch.is_active = true
+    WHERE admin.business_id = NEW.business_id
+      AND admin.branch_id = NEW.branch_id
+      AND admin.role = 'ADMIN'
+      AND admin.is_active = true
+      AND admin.removed_at IS NULL
+      AND admin.staff_identity_id IS NULL
+  LOOP
+    PERFORM private.enqueue_business_notification(
+      'CASHIER_PERMISSIONS_CHANGED:' || NEW.id || ':' || v_admin.membership_id || ':' || gen_random_uuid()::text,
+      NEW.business_id,
+      NEW.branch_id,
+      v_admin.membership_id,
+      'CASHIER_PERMISSIONS_CHANGED',
+      'Cashier permissions updated',
+      COALESCE(v_cashier_name, 'Cashier') || ' access permissions were changed.',
+      jsonb_build_object(
+        'cashier_membership_id', NEW.id,
+        'cashier_name', COALESCE(v_cashier_name, 'Cashier'),
+        'before', v_before,
+        'after', v_after,
+        'updated_at', NEW.updated_at
+      )
+    );
+  END LOOP;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'CASHIER_PERMISSION_NOTIFICATION_FAILED membership_id=% sqlstate=%', NEW.id, SQLSTATE;
   RETURN NEW;
 END;
 $function$;
@@ -251,7 +305,8 @@ BEGIN
   FROM private.business_notifications n
   JOIN public.business_memberships m ON m.id = n.recipient_membership_id
   JOIN public.profiles p ON p.auth_user_id = m.auth_user_id AND p.is_active = true
-  JOIN public.branches br ON br.id = n.branch_id AND br.business_id = n.business_id
+  JOIN public.businesses business ON business.id = n.business_id AND business.is_active = true
+  JOIN public.branches br ON br.id = n.branch_id AND br.business_id = n.business_id AND br.is_active = true
   WHERE m.auth_user_id = auth.uid() AND m.role = 'ADMIN' AND m.is_active = true AND m.removed_at IS NULL
   ORDER BY n.created_at DESC
   LIMIT 200;
@@ -296,10 +351,12 @@ BEGIN
   JOIN public.business_memberships admin ON admin.auth_user_id = auth.uid()
     AND admin.business_id = r.business_id AND admin.branch_id = r.branch_id
     AND admin.role = 'ADMIN' AND admin.is_active = true AND admin.removed_at IS NULL AND admin.staff_identity_id IS NULL
+  JOIN public.profiles admin_profile ON admin_profile.auth_user_id = admin.auth_user_id AND admin_profile.is_active = true
+  JOIN public.businesses active_business ON active_business.id = r.business_id AND active_business.is_active = true
   JOIN public.business_memberships requester ON requester.id = r.requester_membership_id
   LEFT JOIN private.staff_identities si ON si.id = requester.staff_identity_id
   LEFT JOIN public.profiles cp ON cp.auth_user_id = requester.auth_user_id
-  JOIN public.branches br ON br.id = r.branch_id AND br.business_id = r.business_id
+  JOIN public.branches br ON br.id = r.branch_id AND br.business_id = r.business_id AND br.is_active = true
   WHERE r.status = 'PENDING'
   ORDER BY r.created_at DESC
   LIMIT 100;
@@ -325,8 +382,9 @@ DECLARE
   v_key text;
 BEGIN
   IF v_actor IS NULL THEN RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501'; END IF;
-  IF p_decision NOT IN ('APPROVE','REJECT') OR p_additional_permissions IS NULL
-     OR jsonb_typeof(p_additional_permissions) <> 'object' THEN
+  p_additional_permissions := COALESCE(p_additional_permissions, '{}'::jsonb);
+  IF p_decision IS NULL OR p_decision NOT IN ('APPROVE','REJECT')
+     OR jsonb_typeof(p_additional_permissions) IS DISTINCT FROM 'object' THEN
     RAISE EXCEPTION 'Invalid permission request decision' USING ERRCODE = '22023';
   END IF;
   IF EXISTS (
@@ -339,12 +397,21 @@ BEGIN
 
   SELECT * INTO v_req FROM private.cashier_permission_requests WHERE id = p_request_id FOR UPDATE;
   IF NOT FOUND OR v_req.status <> 'PENDING' THEN RAISE EXCEPTION 'Permission request not pending' USING ERRCODE = 'P0002'; END IF;
-  SELECT * INTO v_admin FROM public.business_memberships m
+  SELECT m.* INTO v_admin FROM public.business_memberships m
+  JOIN public.profiles profile ON profile.auth_user_id = m.auth_user_id AND profile.is_active = true
+  JOIN public.businesses business ON business.id = m.business_id AND business.is_active = true
+  JOIN public.branches branch ON branch.id = m.branch_id AND branch.business_id = m.business_id AND branch.is_active = true
   WHERE m.auth_user_id = v_actor AND m.business_id = v_req.business_id AND m.branch_id = v_req.branch_id
     AND m.role = 'ADMIN' AND m.is_active = true AND m.removed_at IS NULL AND m.staff_identity_id IS NULL;
   IF NOT FOUND THEN RAISE EXCEPTION 'Admin authority required' USING ERRCODE = '42501'; END IF;
-  SELECT * INTO v_target FROM public.business_memberships WHERE id = v_req.requester_membership_id FOR UPDATE;
-  IF NOT FOUND OR v_target.role <> 'CASHIER' OR NOT v_target.is_active OR v_target.removed_at IS NOT NULL THEN
+  SELECT m.* INTO v_target
+  FROM public.business_memberships m
+  JOIN private.staff_identities si ON si.id = m.staff_identity_id AND si.is_active = true
+  WHERE m.id = v_req.requester_membership_id
+  FOR UPDATE OF m;
+  IF NOT FOUND OR v_target.role <> 'CASHIER' OR NOT v_target.is_active OR v_target.removed_at IS NOT NULL
+     OR v_target.business_id <> v_req.business_id OR v_target.branch_id <> v_req.branch_id
+     OR v_target.staff_identity_id IS NULL THEN
     RAISE EXCEPTION 'Cashier is no longer active' USING ERRCODE = 'P0002';
   END IF;
 
@@ -375,11 +442,9 @@ BEGIN
       can_view_broad_history = COALESCE((v_after->>'VIEW_BROAD_HISTORY')::boolean, can_view_broad_history),
       can_manage_products = COALESCE((v_after->>'MANAGE_PRODUCTS')::boolean, can_manage_products),
       can_view_reports = COALESCE((v_after->>'VIEW_REPORTS')::boolean, can_view_reports),
+
       updated_at = now()
     WHERE id = v_target.id;
-    UPDATE private.cashier_sync_sessions
-       SET revoked_at = COALESCE(revoked_at, now())
-     WHERE membership_id = v_target.id AND revoked_at IS NULL;
     INSERT INTO private.staff_admin_audit_events(
       actor_auth_user_id,business_id,branch_id,membership_id,event_type,before_state,after_state,occurred_at
     ) VALUES(v_actor,v_req.business_id,v_req.branch_id,v_target.id,'PERMISSIONS_UPDATED',v_before,v_after,now());
@@ -421,15 +486,19 @@ DECLARE
   v_id uuid;
   v_created timestamptz;
 BEGIN
-  IF p_membership_id IS NULL OR btrim(p_membership_id) = '' OR
+  IF p_membership_id IS NULL OR btrim(p_membership_id) = '' OR p_permission_key IS NULL OR
      p_permission_key NOT IN ('CREATE_SALE','ACCEPT_CASH','ACCEPT_ONLINE','CREATE_CREDIT_SALE',
        'USE_COUPON','ISSUE_INVOICE','REFUND','VOID','CORRECT_AMOUNT',
        'CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY') OR
      (p_note IS NOT NULL AND length(p_note) > 500) THEN
     RAISE EXCEPTION 'Invalid permission request' USING ERRCODE = '22023';
   END IF;
-  SELECT * INTO v_member FROM public.business_memberships WHERE id = p_membership_id
-    AND role = 'CASHIER' AND is_active = true AND removed_at IS NULL;
+  SELECT m.* INTO v_member
+  FROM public.business_memberships m
+  JOIN private.staff_identities si ON si.id = m.staff_identity_id AND si.is_active = true
+  JOIN public.businesses b ON b.id = m.business_id AND b.is_active = true
+  JOIN public.branches br ON br.id = m.branch_id AND br.business_id = m.business_id AND br.is_active = true
+  WHERE m.id = p_membership_id AND m.role = 'CASHIER' AND m.is_active = true AND m.removed_at IS NULL;
   IF NOT FOUND THEN RAISE EXCEPTION 'Active cashier membership required' USING ERRCODE = '42501'; END IF;
   v_allowed := CASE p_permission_key
     WHEN 'CREATE_SALE' THEN v_member.can_create_sale
@@ -446,6 +515,7 @@ BEGIN
     WHEN 'VIEW_BROAD_HISTORY' THEN v_member.can_view_broad_history
     WHEN 'MANAGE_PRODUCTS' THEN v_member.can_manage_products
     WHEN 'VIEW_REPORTS' THEN v_member.can_view_reports
+
     ELSE false END;
   IF COALESCE(v_allowed, false) THEN RAISE EXCEPTION 'Permission is already granted' USING ERRCODE = '22023'; END IF;
 
@@ -507,6 +577,9 @@ AS $function$
   SELECT s.membership_id,m.business_id,m.branch_id
   FROM private.cashier_sync_sessions s
   JOIN public.business_memberships m ON m.id = s.membership_id
+  JOIN private.staff_identities si ON si.id = m.staff_identity_id AND si.is_active = true
+  JOIN public.businesses b ON b.id = m.business_id AND b.is_active = true
+  JOIN public.branches br ON br.id = m.branch_id AND br.business_id = m.business_id AND br.is_active = true
   WHERE s.token_hash = p_token_hash AND s.expires_at > now()
     AND m.role = 'CASHIER' AND m.is_active = true AND m.removed_at IS NULL
   LIMIT 1;
@@ -536,185 +609,8 @@ $grants$;
 
 -- Extend the existing server-side cashier authorization gate for register shift
 -- lifecycle commands. Unknown operation types remain denied.
-CREATE OR REPLACE FUNCTION public.ingest_cashier_financial_envelope(
-  p_business_id text, p_operation_id text, p_branch_id text, p_actor_membership_id text,
-  p_device_id text, p_operation_type text, p_schema_version integer,
-  p_occurred_at timestamptz, p_branch_timezone_id text, p_business_local_date date,
-  p_canonical_text text, p_canonical_sha256 text, p_canonical_payload jsonb
-) RETURNS TABLE(status text, operation_id text, canonical_sha256 text, duplicate boolean)
-LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
-AS $function$
-DECLARE
-  v_membership public.business_memberships%ROWTYPE;
-  v_existing_hash text;
-  v_inserted_hash text;
-  v_allowed boolean := false;
-BEGIN
-  SELECT m.* INTO v_membership
-  FROM public.business_memberships m
-  JOIN private.staff_identities s ON s.id = m.staff_identity_id
-  JOIN public.businesses b ON b.id = m.business_id
-  JOIN public.branches br ON br.id = m.branch_id AND br.business_id = m.business_id
-  WHERE m.id = p_actor_membership_id AND m.business_id = p_business_id AND m.branch_id = p_branch_id
-    AND m.role = 'CASHIER' AND m.is_active = true AND m.removed_at IS NULL
-    AND s.is_active = true AND b.is_active = true AND br.is_active = true;
-  IF NOT FOUND THEN RAISE EXCEPTION 'INVALID_CASHIER_MEMBERSHIP' USING ERRCODE = '42501'; END IF;
-
-  v_allowed := CASE p_operation_type
-    WHEN 'RECORD_SALE' THEN v_membership.can_create_sale
-    WHEN 'RECORD_CREDIT_REPAYMENT' THEN v_membership.can_create_credit_sale
-    WHEN 'RECORD_COUPON_PURCHASE' THEN v_membership.can_use_coupon
-    WHEN 'RECORD_REFUND' THEN v_membership.can_refund
-    WHEN 'RECORD_VOID' THEN v_membership.can_void
-    WHEN 'RECORD_AMOUNT_CORRECTION' THEN v_membership.can_correct_amount
-    WHEN 'RECORD_PAYMENT_METHOD_CHANGE' THEN v_membership.can_change_payment_method
-    WHEN 'OPEN_CASH_SHIFT' THEN true
-    WHEN 'COUNT_CASH_SHIFT' THEN true
-    WHEN 'CLOSE_CASH_SHIFT' THEN true
-    ELSE false
-  END;
-  IF NOT COALESCE(v_allowed, false) THEN RAISE EXCEPTION 'OPERATION_NOT_PERMITTED' USING ERRCODE = '42501'; END IF;
-
-  IF p_schema_version IS NULL OR p_schema_version < 1 OR p_device_id IS NULL
-     OR length(btrim(p_device_id)) NOT BETWEEN 1 AND 128
-     OR p_canonical_text IS NULL OR octet_length(p_canonical_text) NOT BETWEEN 2 AND 262144
-     OR p_canonical_sha256 IS NULL OR p_canonical_sha256 !~ '^[0-9a-f]{64}$'
-     OR p_canonical_payload IS NULL OR jsonb_typeof(p_canonical_payload) <> 'object' THEN
-    RAISE EXCEPTION 'INVALID_ENVELOPE';
-  END IF;
-  IF p_canonical_sha256 <> encode(extensions.digest(convert_to(p_canonical_text,'UTF8'),'sha256'),'hex') THEN
-    RAISE EXCEPTION 'DIGEST_MISMATCH';
-  END IF;
-  IF p_canonical_payload <> p_canonical_text::jsonb
-     OR p_canonical_payload ->> 'operation_id' IS DISTINCT FROM p_operation_id
-     OR p_canonical_payload ->> 'business_id' IS DISTINCT FROM p_business_id THEN
-    RAISE EXCEPTION 'PAYLOAD_MISMATCH';
-  END IF;
-
-  INSERT INTO private.financial_operation_envelopes AS e (
-    business_id,operation_id,branch_id,actor_membership_id,device_id,operation_type,
-    schema_version,occurred_at,branch_timezone_id,business_local_date,canonical_text,canonical_sha256,canonical_payload
-  ) VALUES (
-    p_business_id,p_operation_id,p_branch_id,v_membership.id,p_device_id,p_operation_type,
-    p_schema_version,p_occurred_at,p_branch_timezone_id,p_business_local_date,p_canonical_text,p_canonical_sha256,p_canonical_payload
-  ) ON CONFLICT ON CONSTRAINT financial_operation_envelopes_pkey DO NOTHING
-  RETURNING e.canonical_sha256 INTO v_inserted_hash;
-
-  IF v_inserted_hash IS NOT NULL THEN
-    RETURN QUERY SELECT 'ACKNOWLEDGED'::text,p_operation_id,p_canonical_sha256,false;
-    RETURN;
-  END IF;
-
-  SELECT e.canonical_sha256 INTO v_existing_hash FROM private.financial_operation_envelopes e
-  WHERE e.business_id = p_business_id AND e.operation_id = p_operation_id;
-  IF v_existing_hash IS DISTINCT FROM p_canonical_sha256 THEN
-    RAISE EXCEPTION 'OPERATION_COLLISION';
-  END IF;
-  RETURN QUERY SELECT 'ACKNOWLEDGED'::text,p_operation_id,p_canonical_sha256,true;
-END;
-$function$;
-
-REVOKE ALL ON FUNCTION public.ingest_cashier_financial_envelope(text,text,text,text,text,text,integer,timestamptz,text,date,text,text,jsonb) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.ingest_cashier_financial_envelope(text,text,text,text,text,text,integer,timestamptz,text,date,text,text,jsonb) TO service_role;
-
--- Ensure the Admin editing RPC accepts the newly introduced customer permission.
-CREATE OR REPLACE FUNCTION public.update_admin_cashier_permissions(p_membership_id text, p_permissions jsonb)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
-AS $function$
-DECLARE
-  v_actor uuid := auth.uid();
-  v_target public.business_memberships%ROWTYPE;
-  v_before jsonb;
-  v_after jsonb;
-BEGIN
-  IF v_actor IS NULL THEN RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501'; END IF;
-  IF p_membership_id IS NULL OR btrim(p_membership_id) = '' OR p_permissions IS NULL OR jsonb_typeof(p_permissions) <> 'object' THEN
-    RAISE EXCEPTION 'Invalid permission update' USING ERRCODE = '22023';
-  END IF;
-  IF EXISTS (
-    SELECT 1 FROM jsonb_object_keys(p_permissions) AS k(key)
-    WHERE k.key NOT IN ('CREATE_SALE','ACCEPT_CASH','ACCEPT_ONLINE','CREATE_CREDIT_SALE','USE_COUPON',
-      'ISSUE_INVOICE','ISSUE_RECEIPT','REFUND','VOID','CORRECT_AMOUNT','CHANGE_PAYMENT_METHOD',
-      'VIEW_BROAD_HISTORY','MANAGE_PRODUCTS','VIEW_REPORTS')
-  ) OR EXISTS (SELECT 1 FROM jsonb_each(p_permissions) e WHERE jsonb_typeof(e.value) <> 'boolean')
-    OR (SELECT count(*) FROM jsonb_object_keys(p_permissions)) <> 14 THEN
-    RAISE EXCEPTION 'Invalid staff permissions' USING ERRCODE = '22023';
-  END IF;
-
-  SELECT c.* INTO v_target FROM public.business_memberships c
-  WHERE c.id = p_membership_id AND c.role = 'CASHIER' AND c.staff_identity_id IS NOT NULL AND c.removed_at IS NULL FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Cashier not found' USING ERRCODE = 'P0002'; END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM public.business_memberships a
-    JOIN public.profiles p ON p.auth_user_id = a.auth_user_id AND p.is_active = true
-    JOIN public.businesses b ON b.id = a.business_id AND b.is_active = true
-    JOIN public.branches br ON br.id = a.branch_id AND br.business_id = a.business_id AND br.is_active = true
-    WHERE a.auth_user_id = v_actor AND a.business_id = v_target.business_id AND a.branch_id = v_target.branch_id
-      AND a.role = 'ADMIN' AND a.is_active = true AND a.removed_at IS NULL AND a.staff_identity_id IS NULL
-  ) THEN RAISE EXCEPTION 'Admin authority required for this cashier' USING ERRCODE = '42501'; END IF;
-
-  v_before := jsonb_build_object(
-    'CREATE_SALE',v_target.can_create_sale,'ACCEPT_CASH',v_target.can_accept_cash,
-    'ACCEPT_ONLINE',v_target.can_accept_online,'CREATE_CREDIT_SALE',v_target.can_create_credit_sale,
-    'USE_COUPON',v_target.can_use_coupon,'ISSUE_INVOICE',v_target.can_issue_invoice,
-    'ISSUE_RECEIPT',v_target.can_issue_receipt,'REFUND',v_target.can_refund,'VOID',v_target.can_void,
-    'CORRECT_AMOUNT',v_target.can_correct_amount,'CHANGE_PAYMENT_METHOD',v_target.can_change_payment_method,
-    'VIEW_BROAD_HISTORY',v_target.can_view_broad_history,'MANAGE_PRODUCTS',v_target.can_manage_products,
-    'VIEW_REPORTS',v_target.can_view_reports
-  );
-  v_after := p_permissions;
-  UPDATE public.business_memberships SET
-    can_create_sale=(p_permissions->>'CREATE_SALE')::boolean,
-    can_accept_cash=(p_permissions->>'ACCEPT_CASH')::boolean,
-    can_accept_online=(p_permissions->>'ACCEPT_ONLINE')::boolean,
-    can_create_credit_sale=(p_permissions->>'CREATE_CREDIT_SALE')::boolean,
-    can_use_coupon=(p_permissions->>'USE_COUPON')::boolean,
-    can_issue_invoice=(p_permissions->>'ISSUE_INVOICE')::boolean,
-    can_issue_receipt=(p_permissions->>'ISSUE_RECEIPT')::boolean,
-    can_refund=(p_permissions->>'REFUND')::boolean,
-    can_void=(p_permissions->>'VOID')::boolean,
-    can_correct_amount=(p_permissions->>'CORRECT_AMOUNT')::boolean,
-    can_change_payment_method=(p_permissions->>'CHANGE_PAYMENT_METHOD')::boolean,
-    can_view_broad_history=(p_permissions->>'VIEW_BROAD_HISTORY')::boolean,
-    can_manage_products=(p_permissions->>'MANAGE_PRODUCTS')::boolean,
-    can_view_reports=(p_permissions->>'VIEW_REPORTS')::boolean,
-    updated_at=now()
-  WHERE id=v_target.id;
-  UPDATE private.cashier_sync_sessions SET revoked_at=COALESCE(revoked_at,now())
-  WHERE membership_id=v_target.id AND revoked_at IS NULL;
-  INSERT INTO private.staff_admin_audit_events(actor_auth_user_id,business_id,branch_id,membership_id,event_type,before_state,after_state,occurred_at)
-  VALUES(v_actor,v_target.business_id,v_target.branch_id,v_target.id,'PERMISSIONS_UPDATED',v_before,v_after,now());
-END;
-$function$;
-REVOKE ALL ON FUNCTION public.update_admin_cashier_permissions(text,jsonb) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.update_admin_cashier_permissions(text,jsonb) TO authenticated;
- AND (v_report ->> 'difference_minor')::bigint <> 0 THEN
-      PERFORM private.enqueue_business_notification(
-        'CASH_DIFFERENCE:' || NEW.business_id || ':' || NEW.operation_id || ':' || v_admin.membership_id,
-        NEW.business_id,
-        NEW.branch_id,
-        v_admin.membership_id,
-        'CASH_DISCREPANCY',
-        'Cash difference needs review',
-        COALESCE(v_actor_name, 'Cashier') || ' closed a shift with a cash difference. Review the closing report.',
-        jsonb_build_object(
-          'operation_id', NEW.operation_id,
-          'cashier_name', COALESCE(v_actor_name, 'Cashier'),
-          'report', COALESCE(v_report, '{}'::jsonb)
-        )
-      );
-    END IF;
-  END LOOP;
-  RETURN NEW;
-END;
-$function$;
-
-
-
-
 
 -- Admin realtime is delivered only to rows the authenticated Admin may read.
--- Cashiers use the custom PIN session and continue using the authenticated API.
 GRANT USAGE ON SCHEMA private TO authenticated;
 GRANT SELECT ON TABLE private.business_notifications TO authenticated;
 DROP POLICY IF EXISTS admin_read_own_business_notifications ON private.business_notifications;
