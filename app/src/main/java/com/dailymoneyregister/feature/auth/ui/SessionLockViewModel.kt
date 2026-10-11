@@ -115,7 +115,8 @@ class SessionLockViewModel @Inject constructor(
                             remoteFinancialSyncRepository.validateAdminSession(
                                 expectedMembershipId = session.membership?.id.orEmpty(),
                                 expectedBusinessId = session.business.id,
-                                expectedBranchId = session.branch.id
+                                expectedBranchId = session.branch.id,
+                                expectedLocalUserId = session.user.id
                             ),
                             session
                         )
