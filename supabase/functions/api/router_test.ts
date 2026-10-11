@@ -36,3 +36,18 @@ Deno.test("Router: staff activation rejects malformed invite input before backen
   }));
   assertEquals(response.status, 400);
 });
+
+Deno.test("Router: unauthenticated cashier notifications return 401", async () => {
+  const response = await handleRequest(new Request("http://localhost/api/staff/notifications"));
+  assertEquals(response.status, 401);
+});
+
+Deno.test("Router: unauthenticated cashier permission request returns 401", async () => {
+  const response = await handleRequest(new Request("http://localhost/api/staff/permission-requests", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ permission_key: "CREATE_SALE" }),
+  }));
+  assertEquals(response.status, 401);
+});
+
