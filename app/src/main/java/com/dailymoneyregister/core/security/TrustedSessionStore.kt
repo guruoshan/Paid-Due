@@ -114,7 +114,7 @@ class TrustedSessionStore @Inject constructor(
 
 
 internal object OfflineSessionLeasePolicy {
-    const val MAX_AGE_MILLIS: Long = 8 * 60 * 60 * 1000L
+    const val MAX_AGE_MILLIS: Long = 24 * 60 * 60 * 1000L
 
     fun isValid(
         lastVerifiedAtMillis: Long,
