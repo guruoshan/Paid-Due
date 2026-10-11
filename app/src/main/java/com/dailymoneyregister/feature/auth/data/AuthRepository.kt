@@ -275,8 +275,14 @@ class AuthRepository @Inject constructor(
             }
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
-        } catch (_: Exception) {
-            null
+        } catch (error: Exception) {
+            // Do not turn an explicit/unknown authorization error into an outage.
+            // Only recognizable transport failures may use the bounded offline lease.
+            val message = error.message.orEmpty()
+            if (isClearlyCloudUnavailable(message)) null
+            else RemoteBusinessRestorationResult.Failed(
+                message.ifBlank { "Supabase rejected Admin authorization." }
+            )
         }
 
         val authenticatedUser = when (cloudAuth) {

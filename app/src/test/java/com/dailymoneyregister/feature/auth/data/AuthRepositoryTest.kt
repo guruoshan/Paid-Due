@@ -18,7 +18,9 @@ class AuthRepositoryTest {
     fun cashierCloudAuthOutcomesDistinguishServerRejectionFromUnavailableServer() {
         assertEquals(CashierCloudAuthOutcome.REJECTED, classifyCashierCloudHttpFailure(401))
         assertEquals(CashierCloudAuthOutcome.REJECTED, classifyCashierCloudHttpFailure(403))
-        assertEquals(CashierCloudAuthOutcome.UNAVAILABLE, classifyCashierCloudHttpFailure(429))
+        assertEquals(CashierCloudAuthOutcome.REJECTED, classifyCashierCloudHttpFailure(429))
+        assertEquals(CashierCloudAuthOutcome.REJECTED, classifyCashierCloudHttpFailure(400))
+        assertEquals(CashierCloudAuthOutcome.UNAVAILABLE, classifyCashierCloudHttpFailure(408))
         assertEquals(CashierCloudAuthOutcome.UNAVAILABLE, classifyCashierCloudHttpFailure(503))
     }
 

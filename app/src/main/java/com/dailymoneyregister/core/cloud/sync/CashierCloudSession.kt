@@ -29,7 +29,7 @@ enum class CashierCloudAuthOutcome {
 }
 
 internal fun classifyCashierCloudHttpFailure(status: Int): CashierCloudAuthOutcome =
-    if (status == 401 || status == 403) {
+    if (status in 400..499 && status != 408) {
         CashierCloudAuthOutcome.REJECTED
     } else {
         CashierCloudAuthOutcome.UNAVAILABLE
