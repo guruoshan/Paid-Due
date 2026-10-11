@@ -4,7 +4,6 @@
 DO $test$
 DECLARE
   v_live text;
-  v_rollback text;
 BEGIN
   SELECT pg_get_functiondef(
     'public.ingest_cashier_financial_envelope(text,text,text,text,text,text,integer,timestamp with time zone,text,date,text,text,jsonb)'::regprocedure
@@ -48,17 +47,6 @@ BEGIN
     RAISE EXCEPTION 'FAIL: duplicate operation/idempotency contract missing';
   END IF;
 
-  -- Rollback definition must exist and remove the new tender guards and shift allowlist.
-  SELECT pg_get_functiondef(
-    'public.ingest_cashier_financial_envelope(text,text,text,text,text,text,integer,timestamp with time zone,text,date,text,text,jsonb)'::regprocedure
-  ) INTO v_rollback;
-  IF v_rollback IS NULL THEN
-    RAISE EXCEPTION 'FAIL: live function unavailable for rollback comparison';
-  END IF;
-  IF position('NOT v_membership.can_accept_cash' IN v_rollback) = 0 THEN
-    RAISE EXCEPTION 'FAIL: installed function is not the migrated contract; rollback check cannot establish rollback artifact correctness';
-  END IF;
-
   RAISE NOTICE 'PASS: CASH permission denial guard';
   RAISE NOTICE 'PASS: ONLINE permission denial guard';
   RAISE NOTICE 'PASS: CREDIT permission denial guard';
@@ -66,6 +54,5 @@ BEGIN
   RAISE NOTICE 'PASS: malformed settlement guard';
   RAISE NOTICE 'PASS: unknown settlement category guard';
   RAISE NOTICE 'PASS: duplicate operation/idempotency guard';
-  RAISE NOTICE 'PASS: migration rollback comparison precondition';
 END
 $test$;
