@@ -28,11 +28,26 @@ Deno.test("Router: unauthenticated cashier metadata returns 401", async () => {
   const response = await handleRequest(new Request("http://localhost/api/staff/metadata"));
   assertEquals(response.status, 401);
 });
-Deno.test("Router: legacy unauthenticated staff activation endpoint is removed", async () => {
+Deno.test("Router: staff activation rejects malformed invite input before backend access", async () => {
   const response = await handleRequest(new Request("http://localhost/api/staff/activate", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ token: "A".repeat(48), pin: "123456", canonical_phone: "+96891234567" }),
+    body: JSON.stringify({ token: "bad", pin: "123", canonical_phone: "+96891234567" }),
   }));
-  assertEquals(response.status, 404);
+  assertEquals(response.status, 400);
 });
+
+Deno.test("Router: unauthenticated cashier notifications return 401", async () => {
+  const response = await handleRequest(new Request("http://localhost/api/staff/notifications"));
+  assertEquals(response.status, 401);
+});
+
+Deno.test("Router: unauthenticated cashier permission request returns 401", async () => {
+  const response = await handleRequest(new Request("http://localhost/api/staff/permission-requests", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ permission_key: "CREATE_SALE" }),
+  }));
+  assertEquals(response.status, 401);
+});
+

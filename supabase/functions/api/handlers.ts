@@ -170,7 +170,7 @@ export async function loginStaff(
       p_membership_id: staff.membership_id
     });
     if (!Array.isArray(restorationRows) || restorationRows.length !== 1) {
-      return json({ outcome: "RESTORATION_UNAVAILABLE" }, 403);
+      return json({ outcome: "RESTORATION_UNAVAILABLE" }, 503);
     }
     const restoration = restorationRows[0];
     if (
@@ -205,32 +205,35 @@ export async function loginStaff(
       restoration
     }, 200);
 
-  } catch (error: any) {
-    if (error.status === 400 || error.status === 401) return json({ outcome: "INVALID_CREDENTIALS" }, 401);
+  } catch (error: unknown) {
     throw error;
   }
 }
 
+class InvalidCashierSessionError extends Error {}
+
 async function verifyToken(request: Request): Promise<any> {
   const auth = request.headers.get("Authorization") || "";
   const match = /^Bearer\s+([0-9a-f]{64})$/i.exec(auth);
-  if (!match) throw new Error("UNAUTHORIZED");
+  if (!match) throw new InvalidCashierSessionError("INVALID_CASHIER_SESSION");
   const tokenHash = await sha256Hex(match[1]);
-  
-  try {
-    const rows = await rpc("verify_cashier_sync_session", { p_token_hash: tokenHash });
-    if (!Array.isArray(rows) || rows.length !== 1) throw new Error("UNAUTHORIZED");
-    return rows[0];
-  } catch {
-    throw new Error("UNAUTHORIZED");
+  const rows = await rpc("verify_cashier_sync_session", { p_token_hash: tokenHash });
+  if (!Array.isArray(rows) || rows.length !== 1) {
+    throw new InvalidCashierSessionError("INVALID_CASHIER_SESSION");
   }
+  return rows[0];
 }
 
 export async function uploadFinancial(request: Request) {
   if (request.method !== "POST") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "POST" });
   
   let session;
-  try { session = await verifyToken(request); } catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
+  try {
+    session = await verifyToken(request);
+  } catch (error) {
+    if (error instanceof InvalidCashierSessionError) return json({ outcome: "UNAUTHORIZED" }, 401);
+    throw error;
+  }
 
   let body;
   try { body = await request.json(); } catch { return json({ outcome: "INVALID_REQUEST" }, 400); }
@@ -254,9 +257,9 @@ export async function uploadFinancial(request: Request) {
     }
     throw new Error("INVALID_INGEST_RESULT");
   } catch (error: any) {
-    if (error.status === 400 || error.status === 403) {
-      return json({ outcome: error.outcome }, error.status);
-    }
+    const outcome = String(error.outcome || "");
+    if (error.status === 400 && /^(INVALID_ENVELOPE|DIGEST_MISMATCH|PAYLOAD_MISMATCH|OPERATION_COLLISION)$/.test(outcome)) return json({ outcome }, 400);
+    if (error.status === 403 && /^(INVALID_CASHIER_MEMBERSHIP|OPERATION_NOT_PERMITTED)$/.test(outcome)) return json({ outcome }, 403);
     throw error;
   }
 }
@@ -265,7 +268,12 @@ export async function staffMetadata(request: Request) {
   if (request.method !== "GET") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "GET" });
   
   let session;
-  try { session = await verifyToken(request); } catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
+  try {
+    session = await verifyToken(request);
+  } catch (error) {
+    if (error instanceof InvalidCashierSessionError) return json({ outcome: "UNAUTHORIZED" }, 401);
+    throw error;
+  }
 
   try {
     const result = await rpc("fetch_cashier_metadata", {
@@ -276,9 +284,10 @@ export async function staffMetadata(request: Request) {
     if (Array.isArray(result) && result.length === 1) {
       return json(result[0], 200);
     }
-    return json({ outcome: "NOT_FOUND" }, 404);
+    return json({ outcome: "FORBIDDEN" }, 403);
   } catch (error: any) {
-    if (error.status === 400) return json({ outcome: error.outcome }, 400);
+    const outcome = String(error.outcome || "");
+    if (error.status === 403 && /Unauthorized staff metadata access/i.test(outcome)) return json({ outcome: "FORBIDDEN" }, 403);
     throw error;
   }
 }
@@ -286,7 +295,12 @@ export async function staffMetadata(request: Request) {
 export async function downloadFinancial(request: Request) {
   if (request.method !== "GET") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "GET" });
   let session;
-  try { session = await verifyToken(request); } catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
+  try {
+    session = await verifyToken(request);
+  } catch (error) {
+    if (error instanceof InvalidCashierSessionError) return json({ outcome: "UNAUTHORIZED" }, 401);
+    throw error;
+  }
   const url = new URL(request.url);
   const limit = Number(url.searchParams.get("limit") || "100");
   const afterReceivedAt = url.searchParams.get("after_received_at");
@@ -301,7 +315,9 @@ export async function downloadFinancial(request: Request) {
     });
     return json({ envelopes: Array.isArray(rows) ? rows : [] }, 200);
   } catch (error: any) {
-    if (error.status === 400 || error.status === 403) return json({ outcome: error.outcome }, error.status);
+    const outcome = String(error.outcome || "");
+    if (error.status === 400 && /^(Invalid page size|Invalid cursor|Invalid request|INVALID_REQUEST)$/.test(outcome)) return json({ outcome }, 400);
+    if (error.status === 403 && /Cashier authorization required/i.test(outcome)) return json({ outcome: "FORBIDDEN" }, 403);
     throw error;
   }
 }
@@ -313,25 +329,31 @@ const PERMISSION_KEYS = new Set([
   "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY",
 ]);
 
+class InvalidCashierNotificationSessionError extends Error {}
+
 async function verifyNotificationToken(request: Request): Promise<any> {
   const auth = request.headers.get("Authorization") || "";
   const match = /^Bearer\s+([0-9a-f]{64})$/i.exec(auth);
-  if (!match) throw new Error("UNAUTHORIZED");
+  if (!match) throw new InvalidCashierNotificationSessionError("INVALID_CASHIER_NOTIFICATION_SESSION");
   const tokenHash = await sha256Hex(match[1]);
-  try {
-    const rows = await rpc("verify_cashier_notification_session", { p_token_hash: tokenHash });
-    if (!Array.isArray(rows) || rows.length !== 1) throw new Error("UNAUTHORIZED");
-    return rows[0];
-  } catch {
-    throw new Error("UNAUTHORIZED");
+  // Only a missing/expired session is an authorization rejection. RPC failures
+  // must remain service-unavailable rather than being misreported as bad credentials.
+  const rows = await rpc("verify_cashier_notification_session", { p_token_hash: tokenHash });
+  if (!Array.isArray(rows) || rows.length !== 1) {
+    throw new InvalidCashierNotificationSessionError("INVALID_CASHIER_NOTIFICATION_SESSION");
   }
+  return rows[0];
 }
 
 export async function listCashierNotifications(request: Request) {
   if (request.method !== "GET") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "GET" });
   let session;
-  try { session = await verifyNotificationToken(request); }
-  catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
+  try {
+    session = await verifyNotificationToken(request);
+  } catch (error) {
+    if (error instanceof InvalidCashierNotificationSessionError) return json({ outcome: "UNAUTHORIZED" }, 401);
+    return json({ outcome: "NOTIFICATION_SERVICE_UNAVAILABLE" }, 503);
+  }
   try {
     const rows = await rpc("list_cashier_notifications", { p_membership_id: session.membership_id });
     return json({ notifications: Array.isArray(rows) ? rows : [] }, 200);
@@ -343,8 +365,12 @@ export async function listCashierNotifications(request: Request) {
 export async function markCashierNotificationRead(request: Request) {
   if (request.method !== "POST") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "POST" });
   let session;
-  try { session = await verifyNotificationToken(request); }
-  catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
+  try {
+    session = await verifyNotificationToken(request);
+  } catch (error) {
+    if (error instanceof InvalidCashierNotificationSessionError) return json({ outcome: "UNAUTHORIZED" }, 401);
+    return json({ outcome: "NOTIFICATION_SERVICE_UNAVAILABLE" }, 503);
+  }
   let body: any;
   try { body = await request.json(); } catch { return json({ outcome: "INVALID_REQUEST" }, 400); }
   if (typeof body.notification_id !== "string" ||
@@ -365,8 +391,15 @@ export async function markCashierNotificationRead(request: Request) {
 export async function requestCashierPermission(request: Request) {
   if (request.method !== "POST") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { "Allow": "POST" });
   let session;
-  try { session = await verifyToken(request); }
-  catch { return json({ outcome: "UNAUTHORIZED" }, 401); }
+  try {
+    session = await verifyToken(request);
+  } catch (error) {
+    if (error instanceof InvalidCashierSessionError) {
+      return json({ outcome: "UNAUTHORIZED" }, 401);
+    }
+    // An RPC/network failure is not proof that the cashier session was revoked.
+    return json({ outcome: "PERMISSION_REQUEST_UNAVAILABLE" }, 503);
+  }
   let body: any;
   try { body = await request.json(); } catch { return json({ outcome: "INVALID_REQUEST" }, 400); }
   const permissionKey = body.permission_key;

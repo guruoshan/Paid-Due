@@ -182,6 +182,17 @@ class AuthRepository @Inject constructor(
         pinThrottler.recordSuccess(identifier.preResolutionKey)
     }
 
+    private fun isClearlyCloudUnavailable(message: String): Boolean {
+        val normalized = message.lowercase()
+        if (listOf("invalid login", "invalid credentials", "invalid password", "unauthorized",
+                "forbidden", "membership is missing", "does not match", "different business",
+                "different branch", "not authorized", "disabled", "inactive").any(normalized::contains)
+        ) return false
+        return listOf("timeout", "timed out", "unavailable", "network", "connection",
+            "resolve host", "unknown host", "socket", "offline", "could not connect",
+            "failed to connect", "connection reset", "connection refused", "dns").any(normalized::contains)
+    }
+
     suspend fun loginAdmin(
         username: String,
         passwordPlain: String
@@ -239,141 +250,94 @@ class AuthRepository @Inject constructor(
             }
         }
 
-        if (
-            !user.isActive ||
-            user.role != UserRole.ADMIN ||
-            user.authType != AuthType.PASSWORD
-        ) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                    failureKey
-                )
-
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or password"
-                )
-            }
+        if (user.role != UserRole.ADMIN || user.authType != AuthType.PASSWORD) {
+            val lockoutSeconds = pinThrottler.recordFailure(failureKey)
+            return if (lockoutSeconds > 0L) AuthResult.LockedOut(lockoutSeconds)
+            else AuthResult.InvalidCredentials("Invalid username or password")
         }
 
-        val isValid =
-            PasswordHasher.verifyPassword(
-                passwordPlain,
-                user.credentialSalt ?: "",
-                user.credentialHash
-            )
+        // Supabase verifies the password and exact tenant scope first. The local
+        // password hash is consulted only when the server is unavailable and a
+        // previously verified offline lease may be used.
+        val membership = userDao.getMembership(user.id, branch.id)
+            ?: return AuthResult.Error("Supabase could not confirm Admin authorization for this business branch.")
 
-        if (!isValid) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                    failureKey
-                )
-
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or password"
-                )
-            }
-        }
-
-        val authenticatedUser =
-            upgradeAdminCredentialIfNeeded(
-                user = user,
-                passwordPlain = passwordPlain
-            )
-
-        if (authenticatedUser == null) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                    failureKey
-                )
-
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or password"
-                )
-            }
-        }
-
-        clearSuccessfulLoginThrottle(business.id, identifier, user)
-
-        val membership =
-            userDao.getMembership(
-                authenticatedUser.id,
-                branch.id
-            )
-
-        // Admin login remains offline-first: a cloud failure must not invalidate
-        // the already-verified local login. When online, establish/verify Supabase
-        // Auth before SessionManager starts the sync scheduler. The backend RPC
-        // checks that this exact user, membership, business, and branch match.
-        if (membership != null) {
-            val cloudAuth = withTimeoutOrNull(3_500L) {
+        val cloudAuth = try {
+            withTimeoutOrNull(3_500L) {
                 remoteBusinessRestorer.authenticateAdminForSync(
                     usernameOrEmail = username,
                     passwordPlain = passwordPlain,
                     expectedBusinessId = business.id,
                     expectedBranchId = branch.id,
-                    expectedUserId = authenticatedUser.id,
+                    expectedUserId = user.id,
                     expectedMembershipId = membership.id
                 )
             }
-            when {
-                cloudAuth is RemoteBusinessRestorationResult.Success -> {
-                    android.util.Log.i(
-                        "PaidDueFinancialSync",
-                        "ADMIN_SUPABASE_AUTHENTICATED membership=${membership.id}"
-                    )
-                }
-                else -> {
-                    // No secrets or credential details in logs. Local login remains
-                    // available, but the sync engine will fail closed without a
-                    // matching server-authenticated Admin session.
-                    android.util.Log.w(
-                        "PaidDueFinancialSync",
-                        "ADMIN_SUPABASE_AUTH_UNAVAILABLE"
-                    )
-                }
-            }
-        } else {
-            android.util.Log.w(
-                "PaidDueFinancialSync",
-                "ADMIN_SUPABASE_AUTH_SKIPPED_MEMBERSHIP_MISSING"
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            // Do not turn an explicit/unknown authorization error into an outage.
+            // Only recognizable transport failures may use the bounded offline lease.
+            val message = error.message.orEmpty()
+            if (isClearlyCloudUnavailable(message)) null
+            else RemoteBusinessRestorationResult.Failed(
+                message.ifBlank { "Supabase rejected Admin authorization." }
             )
         }
 
-        val session =
-            ActiveSession(
-                business,
-                branch,
-                authenticatedUser,
-                membership
-            )
+        val authenticatedUser = when (cloudAuth) {
+            is RemoteBusinessRestorationResult.Success -> user
+            else -> {
+                val unavailable = cloudAuth == null ||
+                    (cloudAuth is RemoteBusinessRestorationResult.Failed &&
+                        isClearlyCloudUnavailable(cloudAuth.message))
+                if (!unavailable) {
+                    val lockoutSeconds = pinThrottler.recordFailure(failureKey)
+                    return if (lockoutSeconds > 0L) AuthResult.LockedOut(lockoutSeconds)
+                    else AuthResult.InvalidCredentials("Supabase rejected Admin authorization.")
+                }
 
+                val localPasswordMatches = user.isActive && PasswordHasher.verifyPassword(
+                    passwordPlain, user.credentialSalt ?: "", user.credentialHash
+                )
+                if (!localPasswordMatches) {
+                    val lockoutSeconds = pinThrottler.recordFailure(failureKey)
+                    return if (lockoutSeconds > 0L) AuthResult.LockedOut(lockoutSeconds)
+                    else AuthResult.InvalidCredentials("Invalid username or password")
+                }
+
+                val offlineUser = upgradeAdminCredentialIfNeeded(user, passwordPlain)
+                    ?: return AuthResult.InvalidCredentials("Invalid username or password")
+                if (!trustedSessionStore.isOfflineLeaseValidFor(business.id, branch.id, offlineUser.id)) {
+                    return AuthResult.Error(
+                        "Supabase is unavailable and no valid 24-hour offline lease exists. Retry when connected; the credentials have not been classified as invalid."
+                    )
+                }
+                val offlineSession = ActiveSession(
+                    business, branch, offlineUser, membership, isOfflineLease = true
+                )
+                trustedSessionStore.clearAppBackgroundMarker()
+                SessionManager.setSession(offlineSession)
+                languageManager.setLanguage(offlineUser.languageCode)
+                android.util.Log.w("PaidDueFinancialSync", "ADMIN_OFFLINE_LEASE_ACCEPTED")
+                return AuthResult.Success(offlineSession)
+            }
+        }
+
+        clearSuccessfulLoginThrottle(business.id, identifier, user)
+        android.util.Log.i(
+            "PaidDueFinancialSync",
+            "ADMIN_SUPABASE_AUTHENTICATED membership=${membership.id}"
+        )
+
+        val session = ActiveSession(business, branch, authenticatedUser, membership)
         SessionManager.setSession(session)
-
         trustedSessionStore.save(
             businessId = session.business.id,
             branchId = session.branch.id,
             userId = session.user.id
         )
-
-        languageManager.setLanguage(
-            authenticatedUser.languageCode
-        )
-
+        languageManager.setLanguage(authenticatedUser.languageCode)
         return AuthResult.Success(session)
     }
 
@@ -454,97 +418,134 @@ class AuthRepository @Inject constructor(
             }
         }
 
-        if (!user.isActive) {
-            return AuthResult.InvalidCredentials(
-                "Invalid username or PIN"
-            )
-        }
+        // Membership identity is resolved locally only to select the tenant scope.
+        // The server verifies the PIN and current membership before a normal session
+        // is created; the cached PIN hash is used only when Supabase is unavailable.
+        val membership = userDao.getMembership(user.id, branch.id)
+            ?: return AuthResult.InvalidCredentials("Cashier is not authorized for this branch")
 
-        val isValid =
-            PinHasher.verifyPin(
-                pin,
-                user.credentialSalt ?: "",
-                user.credentialHash
-            )
+        val canonicalPhone = identifier.canonicalPhone
+            ?: return AuthResult.Error("A valid international phone number is required.")
 
-        if (!isValid) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                failureKey
-                )
-
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or PIN"
-                )
-            }
-        }
-
-        val authenticatedUser =
-            upgradeCashierCredentialIfNeeded(
-                user = user,
-                pin = pin
-            )
-
-        if (authenticatedUser == null) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                    failureKey
-                )
-
-            return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
-            } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or PIN"
-                )
-            }
-        }
-
-        val membership =
-            userDao.getMembership(
-                authenticatedUser.id,
-                branch.id
-            )
-                ?: return AuthResult.InvalidCredentials(
-                    "Cashier is not authorized for this branch"
-                )
-
-        clearSuccessfulLoginThrottle(business.id, identifier, user)
-
-        val session =
-            ActiveSession(
-                business,
-                branch,
-                authenticatedUser,
-                membership,
-                requiresPinChange = authenticatedUser.mustChangePin
-            )
-
-        // Cashier cloud authentication is required for remote sync.
-        // Local/offline PIN authentication remains unchanged.
-        if (
-            com.dailymoneyregister.core.cloud.sync.CashierCloudSession
-                .tokenFor(membership.id) == null && identifier.canonicalPhone != null
-        ) {
-            runCatching {
+        val cloudAuth = try {
+            withTimeoutOrNull(3_500L) {
                 com.dailymoneyregister.core.cloud.sync.CashierCloudSession.authenticate(
-                    canonicalPhone = identifier.canonicalPhone,
+                    canonicalPhone = canonicalPhone,
                     pin = pin,
                     expectedMembershipId = membership.id
                 )
-            }.onFailure {
-                android.util.Log.w("PaidDueFinancialSync", "CASHIER_CLOUD_AUTH_RETRY_FAILED")
+            } ?: com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome.UNAVAILABLE
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome.UNAVAILABLE
+        }
+
+        val authenticatedUser = when (cloudAuth) {
+            com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome.AUTHENTICATED -> user
+            com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome.REJECTED -> {
+                val lockoutSeconds = pinThrottler.recordFailure(failureKey)
+                return if (lockoutSeconds > 0L) AuthResult.LockedOut(lockoutSeconds)
+                else AuthResult.InvalidCredentials("Supabase rejected cashier authorization.")
+            }
+            com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome.INVALID_INPUT -> {
+                val lockoutSeconds = pinThrottler.recordFailure(failureKey)
+                return if (lockoutSeconds > 0L) AuthResult.LockedOut(lockoutSeconds)
+                else AuthResult.InvalidCredentials("Invalid phone number or PIN.")
+            }
+            com.dailymoneyregister.core.cloud.sync.CashierCloudAuthOutcome.UNAVAILABLE -> {
+                // Offline login is permitted only when both the cached credential
+                // and the previously server-verified, identity-bound lease are valid.
+                if (!user.isActive || !PinHasher.verifyPin(pin, user.credentialSalt ?: "", user.credentialHash)) {
+                    val lockoutSeconds = pinThrottler.recordFailure(failureKey)
+                    return if (lockoutSeconds > 0L) AuthResult.LockedOut(lockoutSeconds)
+                    else AuthResult.InvalidCredentials("Invalid username or PIN")
+                }
+                val offlineUser = upgradeCashierCredentialIfNeeded(user, pin)
+                    ?: return AuthResult.InvalidCredentials("Invalid username or PIN")
+                val offlineSession = ActiveSession(
+                    business, branch, offlineUser, membership,
+                    requiresPinChange = offlineUser.mustChangePin,
+                    isOfflineLease = true
+                )
+                if (!trustedSessionStore.isOfflineLeaseValidFor(business.id, branch.id, offlineUser.id)) {
+                    return AuthResult.Error(
+                        "Supabase is unavailable and no valid 24-hour offline lease exists. Retry when connected; the credentials have not been classified as invalid."
+                    )
+                }
+                clearSuccessfulLoginThrottle(business.id, identifier, user)
+                trustedSessionStore.clearAppBackgroundMarker()
+                SessionManager.setSession(offlineSession)
+                languageManager.setLanguage(offlineUser.languageCode)
+                android.util.Log.w("PaidDueFinancialSync", "CASHIER_OFFLINE_LEASE_ACCEPTED")
+                return AuthResult.Success(offlineSession)
             }
         }
 
-        SessionManager.setSession(session)
+        // Refresh authorization from Supabase before constructing the local session.
+        // A stale Room permission snapshot must never grant a permission removed online.
+        val metadata = try {
+            withTimeoutOrNull(3_500L) {
+                com.dailymoneyregister.core.cloud.sync.CashierCloudSession.fetchMetadata(membership.id)
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        } ?: return AuthResult.Error(
+            "Supabase authenticated the cashier but current permissions could not be confirmed. Retry when connected."
+        )
+
+        if (
+            metadata.optString("membership_id") != membership.id ||
+            metadata.optString("business_id") != business.id ||
+            metadata.optString("branch_id") != branch.id ||
+            metadata.optString("role") != "CASHIER"
+        ) {
+            com.dailymoneyregister.core.cloud.sync.CashierCloudSession.clear()
+            return AuthResult.InvalidCredentials("Supabase rejected cashier membership authorization.")
+        }
+
+        val cloudPermissions = metadata.optJSONObject("permissions")
+            ?: return AuthResult.Error("Supabase returned no cashier permissions.")
+        val requiredPermissionKeys = listOf(
+            "can_create_sale", "can_accept_cash", "can_accept_online",
+            "can_create_credit_sale", "can_use_coupon", "can_issue_invoice",
+            "can_issue_receipt", "can_refund", "can_void", "can_correct_amount",
+            "can_change_payment_method", "can_view_broad_history",
+            "can_manage_products", "can_view_reports"
+        )
+        if (requiredPermissionKeys.any { !cloudPermissions.has(it) || cloudPermissions.isNull(it) }) {
+            return AuthResult.Error("Supabase returned an incomplete cashier permission set.")
+        }
+        val authorizedMembership = membership.copy(
+            canCreateSale = cloudPermissions.getBoolean("can_create_sale"),
+            canAcceptCash = cloudPermissions.getBoolean("can_accept_cash"),
+            canAcceptOnline = cloudPermissions.getBoolean("can_accept_online"),
+            canCreateCreditSale = cloudPermissions.getBoolean("can_create_credit_sale"),
+            canUseCoupon = cloudPermissions.getBoolean("can_use_coupon"),
+            canIssueInvoice = cloudPermissions.getBoolean("can_issue_invoice"),
+            canIssueReceipt = cloudPermissions.getBoolean("can_issue_receipt"),
+            canRefund = cloudPermissions.getBoolean("can_refund"),
+            canVoid = cloudPermissions.getBoolean("can_void"),
+            canCorrectAmount = cloudPermissions.getBoolean("can_correct_amount"),
+            canChangePaymentMethod = cloudPermissions.getBoolean("can_change_payment_method"),
+            canViewBroadHistory = cloudPermissions.getBoolean("can_view_broad_history"),
+            canManageProducts = cloudPermissions.getBoolean("can_manage_products"),
+            canViewReports = cloudPermissions.getBoolean("can_view_reports")
+        )
+        userDao.updateMembership(authorizedMembership)
+
+        clearSuccessfulLoginThrottle(business.id, identifier, user)
+        val session = ActiveSession(
+            business,
+            branch,
+            authenticatedUser,
+            authorizedMembership,
+            requiresPinChange = authenticatedUser.mustChangePin
+        )
+
+
 
         trustedSessionStore.save(
             businessId = session.business.id,
