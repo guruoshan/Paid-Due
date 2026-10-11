@@ -194,6 +194,8 @@ AS $function$
 DECLARE
   v_before jsonb;
   v_after jsonb;
+  v_admin record;
+  v_cashier_name text;
 BEGIN
   IF current_setting('app.skip_permissions_notification', true) = 'true' THEN
     RETURN NEW;
@@ -228,6 +230,44 @@ BEGIN
     'An administrator changed your access permissions. Review the updated permissions when you next open the app.',
     jsonb_build_object('before', v_before, 'after', v_after, 'updated_at', NEW.updated_at)
   );
+
+  SELECT COALESCE(si.display_name, profile.display_name, NEW.local_user_id, 'Cashier')
+    INTO v_cashier_name
+  FROM public.business_memberships bm
+  LEFT JOIN private.staff_identities si ON si.id = bm.staff_identity_id
+  LEFT JOIN public.profiles profile ON profile.auth_user_id = bm.auth_user_id
+  WHERE bm.id = NEW.id;
+
+  FOR v_admin IN
+    SELECT admin.id AS membership_id
+    FROM public.business_memberships admin
+    JOIN public.profiles profile ON profile.auth_user_id = admin.auth_user_id AND profile.is_active = true
+    JOIN public.businesses business ON business.id = admin.business_id AND business.is_active = true
+    JOIN public.branches branch ON branch.id = admin.branch_id AND branch.business_id = admin.business_id AND branch.is_active = true
+    WHERE admin.business_id = NEW.business_id
+      AND admin.branch_id = NEW.branch_id
+      AND admin.role = 'ADMIN'
+      AND admin.is_active = true
+      AND admin.removed_at IS NULL
+      AND admin.staff_identity_id IS NULL
+  LOOP
+    PERFORM private.enqueue_business_notification(
+      'CASHIER_PERMISSIONS_CHANGED:' || NEW.id || ':' || v_admin.membership_id || ':' || gen_random_uuid()::text,
+      NEW.business_id,
+      NEW.branch_id,
+      v_admin.membership_id,
+      'CASHIER_PERMISSIONS_CHANGED',
+      'Cashier permissions updated',
+      COALESCE(v_cashier_name, 'Cashier') || ' access permissions were changed.',
+      jsonb_build_object(
+        'cashier_membership_id', NEW.id,
+        'cashier_name', COALESCE(v_cashier_name, 'Cashier'),
+        'before', v_before,
+        'after', v_after,
+        'updated_at', NEW.updated_at
+      )
+    );
+  END LOOP;
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'CASHIER_PERMISSION_NOTIFICATION_FAILED membership_id=% sqlstate=%', NEW.id, SQLSTATE;
