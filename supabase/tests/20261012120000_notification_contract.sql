@@ -13,7 +13,7 @@ BEGIN
   IF to_regclass('private.business_notifications') IS NULL OR to_regclass('private.cashier_permission_requests') IS NULL THEN
     RAISE EXCEPTION 'FAIL: notification tables missing';
   END IF;
-  IF to_regprocedure('public.list_admin_notifications(integer)') IS NULL OR to_regprocedure('public.resolve_admin_permission_request(uuid,text,jsonb)') IS NULL OR to_regprocedure('public.create_cashier_permission_request(text,text,text)') IS NULL THEN
+  IF to_regprocedure('public.list_admin_notifications()') IS NULL OR to_regprocedure('public.resolve_admin_permission_request(uuid,text,jsonb)') IS NULL OR to_regprocedure('public.create_cashier_permission_request(text,text,text)') IS NULL THEN
     RAISE EXCEPTION 'FAIL: notification/permission RPC missing';
   END IF;
   IF position('NOT v_membership.can_accept_cash' IN pg_get_functiondef(

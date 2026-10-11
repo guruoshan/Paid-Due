@@ -117,6 +117,8 @@ BEGIN
     SELECT admin.id AS membership_id
     FROM public.business_memberships admin
     JOIN public.profiles profile ON profile.auth_user_id = admin.auth_user_id AND profile.is_active = true
+    JOIN public.businesses business ON business.id = admin.business_id AND business.is_active = true
+    JOIN public.branches branch ON branch.id = admin.branch_id AND branch.business_id = admin.business_id AND branch.is_active = true
     WHERE admin.business_id = NEW.business_id
       AND admin.branch_id = NEW.branch_id
       AND admin.role = 'ADMIN'
@@ -336,14 +338,15 @@ DECLARE
   v_key text;
 BEGIN
   IF v_actor IS NULL THEN RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501'; END IF;
-  IF p_decision NOT IN ('APPROVE','REJECT') OR p_additional_permissions IS NULL
-     OR jsonb_typeof(p_additional_permissions) <> 'object' THEN
+  p_additional_permissions := COALESCE(p_additional_permissions, '{}'::jsonb);
+  IF p_decision IS NULL OR p_decision NOT IN ('APPROVE','REJECT')
+     OR jsonb_typeof(p_additional_permissions) IS DISTINCT FROM 'object' THEN
     RAISE EXCEPTION 'Invalid permission request decision' USING ERRCODE = '22023';
   END IF;
   IF EXISTS (
     SELECT 1 FROM jsonb_each(p_additional_permissions) e
     WHERE e.key NOT IN ('CREATE_SALE','ACCEPT_CASH','ACCEPT_ONLINE','CREATE_CREDIT_SALE',
-      'USE_COUPON','ISSUE_INVOICE','ISSUE_RECEIPT','REFUND','VOID','CORRECT_AMOUNT',
+      'USE_COUPON','ISSUE_INVOICE','REFUND','VOID','CORRECT_AMOUNT',
       'CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY')
       OR jsonb_typeof(e.value) <> 'boolean' OR e.value <> 'true'::jsonb
   ) THEN RAISE EXCEPTION 'Additional permissions must be known permissions set to true' USING ERRCODE = '22023'; END IF;
@@ -357,7 +360,11 @@ BEGIN
   WHERE m.auth_user_id = v_actor AND m.business_id = v_req.business_id AND m.branch_id = v_req.branch_id
     AND m.role = 'ADMIN' AND m.is_active = true AND m.removed_at IS NULL AND m.staff_identity_id IS NULL;
   IF NOT FOUND THEN RAISE EXCEPTION 'Admin authority required' USING ERRCODE = '42501'; END IF;
-  SELECT * INTO v_target FROM public.business_memberships WHERE id = v_req.requester_membership_id FOR UPDATE;
+  SELECT m.* INTO v_target
+  FROM public.business_memberships m
+  JOIN private.staff_identities si ON si.id = m.staff_identity_id AND si.is_active = true
+  WHERE m.id = v_req.requester_membership_id
+  FOR UPDATE OF m;
   IF NOT FOUND OR v_target.role <> 'CASHIER' OR NOT v_target.is_active OR v_target.removed_at IS NOT NULL
      OR v_target.business_id <> v_req.business_id OR v_target.branch_id <> v_req.branch_id
      OR v_target.staff_identity_id IS NULL THEN
@@ -435,15 +442,19 @@ DECLARE
   v_id uuid;
   v_created timestamptz;
 BEGIN
-  IF p_membership_id IS NULL OR btrim(p_membership_id) = '' OR
+  IF p_membership_id IS NULL OR btrim(p_membership_id) = '' OR p_permission_key IS NULL OR
      p_permission_key NOT IN ('CREATE_SALE','ACCEPT_CASH','ACCEPT_ONLINE','CREATE_CREDIT_SALE',
-       'USE_COUPON','ISSUE_INVOICE','ISSUE_RECEIPT','REFUND','VOID','CORRECT_AMOUNT',
+       'USE_COUPON','ISSUE_INVOICE','REFUND','VOID','CORRECT_AMOUNT',
        'CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY') OR
      (p_note IS NOT NULL AND length(p_note) > 500) THEN
     RAISE EXCEPTION 'Invalid permission request' USING ERRCODE = '22023';
   END IF;
-  SELECT * INTO v_member FROM public.business_memberships WHERE id = p_membership_id
-    AND role = 'CASHIER' AND is_active = true AND removed_at IS NULL;
+  SELECT m.* INTO v_member
+  FROM public.business_memberships m
+  JOIN private.staff_identities si ON si.id = m.staff_identity_id AND si.is_active = true
+  JOIN public.businesses b ON b.id = m.business_id AND b.is_active = true
+  JOIN public.branches br ON br.id = m.branch_id AND br.business_id = m.business_id AND br.is_active = true
+  WHERE m.id = p_membership_id AND m.role = 'CASHIER' AND m.is_active = true AND m.removed_at IS NULL;
   IF NOT FOUND THEN RAISE EXCEPTION 'Active cashier membership required' USING ERRCODE = '42501'; END IF;
   v_allowed := CASE p_permission_key
     WHEN 'CREATE_SALE' THEN v_member.can_create_sale
@@ -522,6 +533,9 @@ AS $function$
   SELECT s.membership_id,m.business_id,m.branch_id
   FROM private.cashier_sync_sessions s
   JOIN public.business_memberships m ON m.id = s.membership_id
+  JOIN private.staff_identities si ON si.id = m.staff_identity_id AND si.is_active = true
+  JOIN public.businesses b ON b.id = m.business_id AND b.is_active = true
+  JOIN public.branches br ON br.id = m.branch_id AND br.business_id = m.business_id AND br.is_active = true
   WHERE s.token_hash = p_token_hash AND s.expires_at > now()
     AND m.role = 'CASHIER' AND m.is_active = true AND m.removed_at IS NULL
   LIMIT 1;

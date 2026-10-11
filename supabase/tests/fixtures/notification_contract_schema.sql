@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS private.cashier_sync_sessions (
 CREATE TABLE IF NOT EXISTS private.staff_admin_audit_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   actor_auth_user_id uuid,
-  target_membership_id text,
+  membership_id text,
   business_id text,
   branch_id text,
   event_type text NOT NULL,
