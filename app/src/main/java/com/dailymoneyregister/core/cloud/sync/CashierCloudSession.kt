@@ -442,6 +442,30 @@ object CashierCloudSession {
         }
     }
 
+    suspend fun fetchMetadata(membershipId: String): JSONObject = withContext(Dispatchers.IO) {
+        val token = tokenFor(membershipId)
+            ?: throw SecurityException("CASHIER_CLOUD_SESSION_REQUIRED")
+        val baseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trimEnd('/') + "/functions/v1/api"
+        require(baseUrl.startsWith("https://"))
+        val connection = (URL("$baseUrl/api/staff/metadata").openConnection() as HttpURLConnection)
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 5000
+            connection.readTimeout = 8000
+            connection.setRequestProperty("apikey", BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY)
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            val status = connection.responseCode
+            if (status == 401 || status == 403) {
+                clear()
+                throw SecurityException("CASHIER_CLOUD_SESSION_REJECTED")
+            }
+            if (status !in 200..299) throw IOException("CASHIER_METADATA_HTTP_$status")
+            JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     suspend fun download(
         membershipId: String,
         afterReceivedAt: String?,
