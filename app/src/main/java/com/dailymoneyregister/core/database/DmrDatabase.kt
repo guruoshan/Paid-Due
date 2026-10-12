@@ -647,16 +647,21 @@ abstract class DmrDatabase : RoomDatabase() {
                     """
                     CREATE TABLE IF NOT EXISTS `customer_id_aliases` (
                         `business_id` TEXT NOT NULL,
+                        `alias_customer_id` TEXT NOT NULL,
                         `local_customer_id` TEXT NOT NULL,
                         `canonical_customer_id` TEXT NOT NULL,
                         `canonical_phone` TEXT NOT NULL,
                         `updated_at` INTEGER NOT NULL,
-                        PRIMARY KEY(`business_id`, `local_customer_id`)
+                        PRIMARY KEY(`business_id`, `alias_customer_id`)
                     )
                     """.trimIndent()
                 )
                 db.execSQL(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_customer_id_aliases_business_id_canonical_customer_id` " +
+                    "CREATE INDEX IF NOT EXISTS `index_customer_id_aliases_business_id_local_customer_id` " +
+                        "ON `customer_id_aliases` (`business_id`, `local_customer_id`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_customer_id_aliases_business_id_canonical_customer_id` " +
                         "ON `customer_id_aliases` (`business_id`, `canonical_customer_id`)"
                 )
                 db.execSQL(
