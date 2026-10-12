@@ -1,0 +1,58 @@
+name: Notification Migration Compatibility Gate
+on:
+  push:
+    branches:
+      - notifications-migration-production-reconcile
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: notification-migration-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  notification-migration-gate:
+    name: Notification Migration Compatibility Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Prepare isolated Supabase CLI project
+        run: |
+          mkdir -p /tmp/supabase-notification-gate/supabase/migrations
+          cat > /tmp/supabase-notification-gate/supabase/config.toml <<'EOF'
+          project_id = "paid-due-notification-gate"
+
+          [db.seed]
+          enabled = false
+          EOF
+      - name: Start disposable Supabase PostgreSQL
+        run: supabase start --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor --workdir /tmp/supabase-notification-gate
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Build disposable baseline schema
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/fixtures/cashier_financial_contract_schema.sql
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/fixtures/notification_contract_schema.sql
+      - name: Apply financial contract first, then notification migration
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261011211328_align_cashier_financial_contract.sql
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261011230317_business_notifications_and_permission_requests.sql
+      - name: Verify notification behavior and preserved financial guards
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/20261012120000_notification_contract.sql
+      - name: Stop disposable Supabase
+        if: always()
+        run: supabase stop --no-backup --workdir /tmp/supabase-notification-gate
