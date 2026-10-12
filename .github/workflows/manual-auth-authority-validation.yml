@@ -33,12 +33,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
       - name: Install production Android SDK platform and build tools
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed | grep -F -e 'platforms;android-37.0' -e 'build-tools;37.0.0'
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
       - name: Verify production SDK configuration
         run: |
           chmod +x ./gradlew
