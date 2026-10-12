@@ -34,13 +34,16 @@ interface CustomerDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertCustomerIdAlias(alias: CustomerIdAliasEntity): Long
 
-    @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND local_customer_id = :localCustomerId LIMIT 1")
+    @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND alias_customer_id = :aliasCustomerId LIMIT 1")
+    suspend fun getCustomerIdAliasByAliasId(businessId: String, aliasCustomerId: String): CustomerIdAliasEntity?
+
+    @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND local_customer_id = :localCustomerId ORDER BY updated_at DESC LIMIT 1")
     suspend fun getCustomerIdAliasByLocalId(businessId: String, localCustomerId: String): CustomerIdAliasEntity?
 
-    @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND canonical_customer_id = :canonicalCustomerId LIMIT 1")
+    @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND canonical_customer_id = :canonicalCustomerId ORDER BY updated_at DESC LIMIT 1")
     suspend fun getCustomerIdAliasByCanonicalId(businessId: String, canonicalCustomerId: String): CustomerIdAliasEntity?
 
-    @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND canonical_phone = :canonicalPhone LIMIT 1")
+    @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND canonical_phone = :canonicalPhone ORDER BY updated_at DESC LIMIT 1")
     suspend fun getCustomerIdAliasByPhone(businessId: String, canonicalPhone: String): CustomerIdAliasEntity?
 
 
