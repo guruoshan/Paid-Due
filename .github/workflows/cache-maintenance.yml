@@ -23,6 +23,7 @@ jobs:
       - name: Inventory and prune non-main caches
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
