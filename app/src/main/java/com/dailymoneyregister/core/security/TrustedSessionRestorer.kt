@@ -120,7 +120,7 @@ class TrustedSessionRestorer @Inject constructor(
                             SessionAuthorizationResult.REJECTED
                         } else {
                             val permissions = metadata.optJSONObject("permissions")
-                                ?: throw java.io.IOException("CASHIER_METADATA_PERMISSIONS_MISSING")
+                                ?: throw SecurityException("CASHIER_METADATA_PERMISSIONS_MISSING")
                             val required = listOf(
                                 "can_create_sale", "can_accept_cash", "can_accept_online",
                                 "can_create_credit_sale", "can_use_coupon", "can_issue_invoice",
@@ -129,7 +129,7 @@ class TrustedSessionRestorer @Inject constructor(
                                 "can_manage_products", "can_view_reports"
                             )
                             if (required.any { !permissions.has(it) || permissions.isNull(it) }) {
-                                throw java.io.IOException("CASHIER_METADATA_PERMISSIONS_INCOMPLETE")
+                                throw SecurityException("CASHIER_METADATA_PERMISSIONS_INCOMPLETE")
                             }
                             val refreshed = membership.copy(
                                 canCreateSale = permissions.getBoolean("can_create_sale"),
@@ -151,16 +151,16 @@ class TrustedSessionRestorer @Inject constructor(
                             // after the server confirms the exact tenant and membership.
                             val businessName = metadata.optString("business_name")
                                 .takeIf { it.isNotBlank() && it != "null" }
-                                ?: throw java.io.IOException("CASHIER_METADATA_BUSINESS_NAME_MISSING")
+                                ?: throw SecurityException("CASHIER_METADATA_BUSINESS_NAME_MISSING")
                             val branchName = metadata.optString("branch_name")
                                 .takeIf { it.isNotBlank() && it != "null" }
-                                ?: throw java.io.IOException("CASHIER_METADATA_BRANCH_NAME_MISSING")
+                                ?: throw SecurityException("CASHIER_METADATA_BRANCH_NAME_MISSING")
                             val branchCode = metadata.optString("branch_code")
                                 .takeIf { it.isNotBlank() && it != "null" }
-                                ?: throw java.io.IOException("CASHIER_METADATA_BRANCH_CODE_MISSING")
+                                ?: throw SecurityException("CASHIER_METADATA_BRANCH_CODE_MISSING")
                             val taxMode = runCatching {
                                 TaxRoundingMode.valueOf(metadata.getString("tax_rounding_mode"))
-                            }.getOrElse { throw java.io.IOException("CASHIER_METADATA_TAX_MODE_INVALID") }
+                            }.getOrElse { throw SecurityException("CASHIER_METADATA_TAX_MODE_INVALID") }
                             val now = System.currentTimeMillis()
                             val updatedBusiness = session.business.copy(
                                 name = businessName,
