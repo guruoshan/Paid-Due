@@ -1,5 +1,6 @@
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.200.0/assert/mod.ts";
-import { health, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, listCashierNotifications, markCashierNotificationRead, requestCashierPermission } from "./handlers.ts";
+import { health, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, syncCustomerDirectory, listCashierNotifications, markCashierNotificationRead, requestCashierPermission, PERMISSION_KEYS } from "./handlers.ts";
+import { handleRequest } from "./index.ts";
 import { sha256Hex, deriveCredential, hexToBytes, bytesToHex } from "./crypto.ts";
 
 Deno.test("GET /api/health returns 200 OK and expected version contract", async () => {
@@ -76,6 +77,17 @@ Deno.test("Crypto: SHA-256 digest consistency", async () => {
   assertEquals(hash1.length, 64);
 });
 
+
+Deno.test("Contract: permission request accepts all 14 cashier permission keys", () => {
+  const expected = [
+    "CREATE_SALE", "ACCEPT_CASH", "ACCEPT_ONLINE", "CREATE_CREDIT_SALE", "USE_COUPON",
+    "ISSUE_INVOICE", "ISSUE_RECEIPT", "REFUND", "VOID", "CORRECT_AMOUNT",
+    "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY", "MANAGE_PRODUCTS", "VIEW_REPORTS",
+  ];
+  assertEquals(PERMISSION_KEYS.size, 14);
+  for (const key of expected) assertEquals(PERMISSION_KEYS.has(key), true);
+});
+
 Deno.test("Contract: Admin update_cashier_permissions expects uppercase keys", () => {
   const permissionsKeys = [
     'CREATE_SALE', 'ACCEPT_CASH', 'ACCEPT_ONLINE', 'CREATE_CREDIT_SALE', 'USE_COUPON',
@@ -142,4 +154,81 @@ Deno.test("POST /api/staff/permission-requests requires a valid cashier session"
     body: JSON.stringify({ permission_key: "VIEW_BROAD_HISTORY" })
   }));
   assertEquals(response.status, 401);
+});
+
+
+Deno.test("GET /api/customers/sync requires a valid cashier session", async () => {
+  const response = await syncCustomerDirectory(new Request("http://localhost/api/customers/sync"));
+  assertEquals(response.status, 401);
+});
+
+Deno.test("POST /api/customers/sync requires a valid cashier session before accepting data", async () => {
+  const response = await syncCustomerDirectory(new Request("http://localhost/api/customers/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      customer_id: "local-customer-1",
+      canonical_phone: "+96891234567",
+      display_name: "Test Customer",
+      created_at: "2026-10-12T12:00:00.000Z"
+    })
+  }));
+  assertEquals(response.status, 401);
+});
+
+
+Deno.test("GET /api/customers/sync validates Admin branch scope parameters", async () => {
+  const response = await syncCustomerDirectory(new Request(
+    "http://localhost/api/customers/sync?business_id=&branch_id=",
+    { method: "GET", headers: { Authorization: "Bearer header.payload.signature" } },
+  ));
+  assertEquals(response.status, 400);
+});
+
+Deno.test("POST /api/customers/sync validates Admin payload before database access", async () => {
+  const response = await syncCustomerDirectory(new Request("http://localhost/api/customers/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer header.payload.signature" },
+    body: JSON.stringify({ business_id: "business-a", branch_id: "branch-a" }),
+  }));
+  assertEquals(response.status, 400);
+});
+
+
+Deno.test("Admin JWT customer sync rejects unsupported methods", async () => {
+  const response = await syncCustomerDirectory(new Request("http://localhost/api/customers/sync", {
+    method: "DELETE",
+    headers: { Authorization: "Bearer header.payload.signature" },
+  }));
+  assertEquals(response.status, 405);
+});
+
+
+Deno.test("API router accepts canonical and legacy Supabase function paths", async () => {
+  const paths = [
+    "http://localhost/functions/v1/api/health",
+    "http://localhost/functions/v1/api/api/health",
+    "http://localhost/api/health",
+    "http://localhost/health",
+  ];
+  for (const path of paths) {
+    const response = await handleRequest(new Request(path));
+    assertEquals(response.status, 200, path);
+    const data = await response.json();
+    assertEquals(data.status, "OK", path);
+  }
+});
+
+Deno.test("API router reaches cashier login route on canonical and legacy paths", async () => {
+  const paths = [
+    "http://localhost/functions/v1/api/staff/login",
+    "http://localhost/functions/v1/api/api/staff/login",
+    "http://localhost/api/staff/login",
+    "http://localhost/staff/login",
+  ];
+  for (const path of paths) {
+    const response = await handleRequest(new Request(path, { method: "GET" }));
+    assertEquals(response.status, 405, path);
+    assertNotEquals(response.status, 404, path);
+  }
 });

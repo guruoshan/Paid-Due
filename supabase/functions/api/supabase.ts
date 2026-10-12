@@ -63,3 +63,44 @@ export async function rpc(name: string, parameters: any): Promise<any> {
     throw new Error(`RPC_${name}_INVALID_JSON`);
   }
 }
+
+
+/** Call a PostgREST RPC with the caller's JWT identity. Service key is only apikey. */
+export async function rpcAsUser(name: string, parameters: any, accessToken: string): Promise<any> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !supabaseUrl.startsWith("http")) throw new Error("SUPABASE_URL_INVALID");
+  if (!serviceKey) throw new Error("SUPABASE_KEY_MISSING");
+  if (!accessToken || accessToken.split(".").length !== 3) throw new Error("USER_ACCESS_TOKEN_INVALID");
+
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${name}`, {
+    method: "POST",
+    headers: {
+      "apikey": serviceKey,
+      "Authorization": `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    },
+    body: JSON.stringify(parameters),
+  });
+  const raw = await response.text();
+  if (!response.ok) {
+    let message = "RPC_FAILED";
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed?.message === "string") {
+          message = parsed.message.replace(/[A-Fa-f0-9]{32,}/g, "[REDACTED]").slice(0, 250);
+        }
+      } catch {
+        message = "NON_JSON_RESPONSE";
+      }
+    }
+    const error = new Error(message);
+    (error as any).status = response.status;
+    (error as any).outcome = message;
+    throw error;
+  }
+  if (!raw) throw new Error(`RPC_${name}_EMPTY_RESPONSE`);
+  try { return JSON.parse(raw); } catch { throw new Error(`RPC_${name}_INVALID_JSON`); }
+}

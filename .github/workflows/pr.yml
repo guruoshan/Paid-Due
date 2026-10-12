@@ -8,13 +8,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-pr-${{ github.event.pull_request.number }}
+  group: android-pr-v2-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   debug-build-and-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 25
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -39,5 +39,20 @@ jobs:
           chmod +x ./gradlew
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
 
-      - name: Run debug unit tests and assemble debug APK
-        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Compile debug Kotlin
+        run: ./gradlew --no-daemon --stacktrace :app:compileDebugKotlin
+
+      - name: Run debug unit tests
+        run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest
+
+      - name: Assemble debug APK
+        run: ./gradlew --no-daemon --stacktrace clean :app:assembleDebug
+
+      - name: Upload installable debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: paid-due-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+

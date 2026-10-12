@@ -228,7 +228,7 @@ class CashSaleFinancialCharacterizationTest {
                 DmrDatabase::class.java,
                 databaseName
             )
-                .addMigrations(DmrDatabase.MIGRATION_12_13)
+                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14)
                 .addCallback(
                     com.dailymoneyregister.core.database.security
                         .FinancialImmutabilityCallback

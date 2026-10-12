@@ -51,6 +51,12 @@ jobs:
         run: |
           psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261011211328_align_cashier_financial_contract.sql
           psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261011230317_business_notifications_and_permission_requests.sql
+      - name: Apply 14-key permission request compatibility migration
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261013090000_expand_cashier_permission_request_keys.sql
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/20261013090000_permission_request_keys.sql
       - name: Verify notification behavior and preserved financial guards
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres

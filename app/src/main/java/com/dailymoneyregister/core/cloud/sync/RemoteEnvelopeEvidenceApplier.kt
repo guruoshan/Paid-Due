@@ -29,30 +29,23 @@ internal object RemoteEnvelopeEvidenceApplier {
         } else {
             listOfNotNull(evidence.optJSONObject("customer"))
         }
+        // Remote canonical IDs are mapped to stable local customer rows. Never
+        // rewrite customer_id values in already-materialized financial evidence.
+        val customerIdMap = mutableMapOf<String, String>()
         for (customerJson in customerSnapshots) {
-            val customer = CustomerEntity(
-                id = customerJson.getString("id"),
-                businessId = customerJson.getString("business_id"),
+            val remoteId = customerJson.getString("id")
+            val customerBusinessId = customerJson.getString("business_id")
+            require(customerBusinessId == businessId) { "Customer evidence belongs to another business" }
+            val localId = CustomerIdentityReconciler.reconcileRemoteCustomer(
+                database = database,
+                businessId = businessId,
+                canonicalCustomerId = remoteId,
                 canonicalPhone = customerJson.getString("canonical_phone"),
                 name = customerJson.getString("name"),
                 createdAt = customerJson.getLong("created_at"),
                 updatedAt = customerJson.getLong("updated_at")
             )
-            require(customer.businessId == businessId) { "Customer evidence belongs to another business" }
-            val existing = database.customerDao().getCustomerById(customer.id)
-            if (existing == null) {
-                require(database.customerDao().getCustomerByPhone(businessId, customer.canonicalPhone) == null) {
-                    "Customer phone is already linked to a different local customer ID"
-                }
-                database.customerDao().insertCustomer(customer)
-            } else {
-                // Names may be mutable customer-profile data. A financial envelope
-                // must not overwrite them; immutable ID/business/phone identity must match.
-                require(
-                    existing.businessId == customer.businessId &&
-                        existing.canonicalPhone == customer.canonicalPhone
-                ) { "Customer identity collision in inbound evidence" }
-            }
+            customerIdMap[remoteId] = localId
         }
 
         val creditRepaymentJson = evidence.optJSONObject("credit_repayment")
@@ -60,7 +53,7 @@ internal object RemoteEnvelopeEvidenceApplier {
             val repayment = CreditRepaymentEntity(
                 id = creditRepaymentJson.getString("id"),
                 operationId = creditRepaymentJson.getString("operation_id"),
-                customerId = creditRepaymentJson.getString("customer_id"),
+                customerId = customerIdMap[creditRepaymentJson.getString("customer_id")] ?: creditRepaymentJson.getString("customer_id"),
                 amountMinor = creditRepaymentJson.getLong("amount_minor"),
                 currencyCode = creditRepaymentJson.getString("currency_code"),
                 paymentCategory = PaymentCategory.valueOf(creditRepaymentJson.getString("payment_category")),
@@ -116,7 +109,7 @@ internal object RemoteEnvelopeEvidenceApplier {
                 CreditLedgerEventEntity(
                     id = item.getString("id"),
                     operationId = item.getString("operation_id"),
-                    customerId = item.getString("customer_id"),
+                    customerId = customerIdMap[item.getString("customer_id")] ?: item.getString("customer_id"),
                     type = CreditLedgerType.valueOf(item.getString("type")),
                     amountSignedMinor = item.getLong("amount_signed_minor"),
                     currencyCode = item.getString("currency_code"),
@@ -139,7 +132,7 @@ internal object RemoteEnvelopeEvidenceApplier {
             val item = walletsArray.getJSONObject(i)
             CouponWalletEntity(
                 id = item.getString("id"),
-                customerId = item.getString("customer_id"),
+                customerId = customerIdMap[item.getString("customer_id")] ?: item.getString("customer_id"),
                 currencyCode = item.getString("currency_code"),
                 isActive = item.optBoolean("is_active", true),
                 createdAt = item.getLong("created_at")

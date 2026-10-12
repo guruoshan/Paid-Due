@@ -232,7 +232,7 @@ object CashierCloudSession {
         }
 
         val connection = (
-            URL("$baseUrl/api/staff/login")
+            URL("${baseUrl}/staff/login")
                 .openConnection() as HttpURLConnection
         )
 
@@ -265,9 +265,16 @@ object CashierCloudSession {
             lastAuthStage = "HTTP_$status"
 
             if (status != 200) {
+                val errorBody = connection.errorStream
+                    ?.bufferedReader()
+                    ?.use { it.readText() }
+                    .orEmpty()
+                val outcome = runCatching {
+                    JSONObject(errorBody).optString("outcome", "UNKNOWN")
+                }.getOrDefault("UNKNOWN")
                 Log.w(
                     TAG,
-                    "CASHIER_CLOUD_AUTH_HTTP_$status"
+                    "CASHIER_CLOUD_AUTH_HTTP_$status path=/staff/login outcome=$outcome"
                 )
                 return@withContext false
             }
@@ -359,7 +366,7 @@ object CashierCloudSession {
         require(baseUrl.startsWith("https://"))
 
         val connection = (
-            URL("$baseUrl/api/financial/upload")
+            URL("${baseUrl}/financial/upload")
                 .openConnection() as HttpURLConnection
         )
 
@@ -391,7 +398,6 @@ object CashierCloudSession {
             }
 
             val status = connection.responseCode
-
             if (status == 401 || status == 403) {
                 clear()
                 throw SecurityException(
@@ -410,6 +416,7 @@ object CashierCloudSession {
                         .optString("outcome", "UNKNOWN")
                 }.getOrDefault("UNKNOWN")
 
+                Log.w(TAG, "CASHIER_CLOUD_HTTP path=/financial/upload status=$status outcome=$outcome")
                 throw FinancialUploadHttpException(
                     statusCode = status,
                     outcome = outcome,
@@ -423,6 +430,42 @@ object CashierCloudSession {
                     .use { it.readText() }
             )
 
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /** Fetch the authoritative cashier metadata using the existing custom sync session. */
+    suspend fun fetchMetadata(membershipId: String): JSONObject = withContext(Dispatchers.IO) {
+        val token = tokenFor(membershipId)
+            ?: throw SecurityException("CASHIER_CLOUD_SESSION_REQUIRED")
+        val baseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trimEnd('/') + "/functions/v1/api"
+        require(baseUrl.startsWith("https://"))
+        val connection = (URL("${baseUrl}/staff/metadata").openConnection() as HttpURLConnection)
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 5000
+            connection.readTimeout = 10000
+            connection.setRequestProperty("apikey", BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY)
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            val status = connection.responseCode
+            if (status !in 200..299) {
+                val errorBody = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val outcome = runCatching { JSONObject(errorBody).optString("outcome", "UNKNOWN") }.getOrDefault("UNKNOWN")
+                Log.w(TAG, "CASHIER_CLOUD_HTTP path=/staff/metadata status=$status outcome=$outcome")
+                if (status == 401 || status == 403) {
+                    clear()
+                    throw SecurityException("CASHIER_CLOUD_SESSION_REJECTED")
+                }
+                throw IOException("CASHIER_METADATA_HTTP_$status outcome=$outcome")
+            }
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            val metadata = JSONObject(body)
+            if (metadata.optString("membership_id") != membershipId) {
+                clear()
+                throw SecurityException("CASHIER_METADATA_MEMBERSHIP_MISMATCH")
+            }
+            metadata
         } finally {
             connection.disconnect()
         }
@@ -442,7 +485,7 @@ object CashierCloudSession {
             if (afterReceivedAt != null) append("&after_received_at=").append(java.net.URLEncoder.encode(afterReceivedAt, "UTF-8"))
             if (afterOperationId != null) append("&after_operation_id=").append(java.net.URLEncoder.encode(afterOperationId, "UTF-8"))
         }
-        val connection = (URL("$baseUrl/api/financial/download$query").openConnection() as HttpURLConnection)
+        val connection = (URL("${baseUrl}/financial/download$query").openConnection() as HttpURLConnection)
         try {
             connection.requestMethod = "GET"
             connection.connectTimeout = 5000
@@ -450,8 +493,16 @@ object CashierCloudSession {
             connection.setRequestProperty("apikey", BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY)
             connection.setRequestProperty("Authorization", "Bearer $token")
             val status = connection.responseCode
-            if (status == 401 || status == 403) { clear(); throw SecurityException("CASHIER_CLOUD_SESSION_REJECTED") }
-            if (status !in 200..299) throw IOException("CASHIER_DOWNLOAD_HTTP_$status")
+            if (status !in 200..299) {
+                val errorBody = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val outcome = runCatching { JSONObject(errorBody).optString("outcome", "UNKNOWN") }.getOrDefault("UNKNOWN")
+                Log.w(TAG, "CASHIER_CLOUD_HTTP path=/financial/download status=$status outcome=$outcome")
+                if (status == 401 || status == 403) {
+                    clear()
+                    throw SecurityException("CASHIER_CLOUD_SESSION_REJECTED")
+                }
+                throw IOException("CASHIER_DOWNLOAD_HTTP_$status outcome=$outcome")
+            }
             val body = connection.inputStream.bufferedReader().use { it.readText() }
             JSONObject(body).optJSONArray("envelopes") ?: JSONArray()
         } finally { connection.disconnect() }

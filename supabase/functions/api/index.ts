@@ -1,9 +1,19 @@
 import {
-  health, activateStaff, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, json,
+  health, activateStaff, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, syncCustomerDirectory,
+  listCashierNotifications, markCashierNotificationRead, requestCashierPermission, json,
 } from "./handlers.ts";
 
-// Supabase Function gateway normally forwards /api/<route> after /functions/v1/api.
-// Both forms are accepted to preserve Android compatibility and local testing.
+// Normalize the path across Supabase gateway/runtime variants. The function slug
+// is "api"; callers may send either /staff/login or /api/staff/login after it.
+function normalizeApiPath(rawPath: string): string {
+  const prefix = "/functions/v1/api";
+  let path = rawPath;
+  if (path === prefix) path = "/";
+  else if (path.startsWith(prefix + "/")) path = path.slice(prefix.length);
+  if (path === "/api") path = "/";
+  else if (path.startsWith("/api/")) path = path.slice("/api".length);
+  return path;
+}
 
 function publicInvitePage(request: Request): Response {
   if (request.method !== "GET") {
@@ -57,25 +67,24 @@ if(!/^[A-Za-z0-9_-]{32,128}$/.test(token)){
 
 export async function handleRequest(request: Request): Promise<Response> {
   const rawPath = new URL(request.url).pathname;
-  const path = rawPath.startsWith("/functions/v1/api/")
-    ? rawPath.slice("/functions/v1/api".length)
-    : rawPath;
+  const path = normalizeApiPath(rawPath);
   try {
     if (path === "/open/invite" || path === "/open/invite/") {
       return publicInvitePage(request);
     }
-    if (path === "/api/health") {
+    if (path === "/health") {
       if (request.method !== "GET") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { Allow: "GET" });
       return health();
     }
-    if (path === "/api/staff/activate") return await activateStaff(request);
-    if (path === "/api/staff/login") return await loginStaff(request);
-    if (path === "/api/financial/upload") return await uploadFinancial(request);
-    if (path === "/api/staff/metadata") return await staffMetadata(request);
-    if (path === "/api/financial/download") return await downloadFinancial(request);
-    if (path === "/api/staff/notifications") return await listCashierNotifications(request);
-    if (path === "/api/staff/notifications/read") return await markCashierNotificationRead(request);
-    if (path === "/api/staff/permission-requests") return await requestCashierPermission(request);
+    if (path === "/staff/activate") return await activateStaff(request);
+    if (path === "/staff/login") return await loginStaff(request);
+    if (path === "/financial/upload") return await uploadFinancial(request);
+    if (path === "/staff/metadata") return await staffMetadata(request);
+    if (path === "/financial/download") return await downloadFinancial(request);
+    if (path === "/customers/sync") return await syncCustomerDirectory(request);
+    if (path === "/staff/notifications") return await listCashierNotifications(request);
+    if (path === "/staff/notifications/read") return await markCashierNotificationRead(request);
+    if (path === "/staff/permission-requests") return await requestCashierPermission(request);
     return json({ outcome: "NOT_FOUND" }, 404);
   } catch (error: unknown) {
     // Never leak DB details, credential material, or bearer tokens in HTTP output.
