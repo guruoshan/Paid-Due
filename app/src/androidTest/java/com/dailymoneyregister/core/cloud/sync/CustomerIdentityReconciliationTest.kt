@@ -49,7 +49,8 @@ class CustomerIdentityReconciliationTest {
             canonicalPhone = "+96891234567",
             name = "Server Display Name",
             createdAt = 100,
-            updatedAt = 200
+            updatedAt = 200,
+            isServerCanonical = true
         )
 
         assertEquals("device-local-id", resolved)
@@ -116,3 +117,51 @@ class CustomerIdentityReconciliationTest {
         )
     }
 }
+
+
+    @Test
+    fun authoritativeDirectoryIdReconcilesAnEarlierEnvelopeAlias() = runBlocking {
+        database.customerDao().insertCustomer(
+            CustomerEntity(
+                id = "device-local-id",
+                businessId = "business-a",
+                canonicalPhone = "+96891234567",
+                name = "Existing Customer",
+                createdAt = 100,
+                updatedAt = 100
+            )
+        )
+        CustomerIdentityReconciler.reconcileRemoteCustomer(
+            database = database,
+            businessId = "business-a",
+            canonicalCustomerId = "cashier-device-id",
+            canonicalPhone = "+96891234567",
+            name = "Existing Customer",
+            createdAt = 100,
+            updatedAt = 150,
+            isServerCanonical = false
+        )
+        CustomerIdentityReconciler.reconcileRemoteCustomer(
+            database = database,
+            businessId = "business-a",
+            canonicalCustomerId = "server-canonical-id",
+            canonicalPhone = "+96891234567",
+            name = "Existing Customer",
+            createdAt = 100,
+            updatedAt = 200,
+            isServerCanonical = true
+        )
+
+        assertEquals(
+            "device-local-id",
+            CustomerIdentityReconciler.resolveLocalCustomerId(
+                database, "business-a", "cashier-device-id"
+            )
+        )
+        assertEquals(
+            "server-canonical-id",
+            CustomerIdentityReconciler.resolveCanonicalCustomerId(
+                database, "business-a", "device-local-id"
+            )
+        )
+    }
