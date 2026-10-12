@@ -69,6 +69,7 @@ jobs:
       - name: Execute Android instrumentation tests on API 37.0 emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:
+          # Force the emulator's supported software CPU emulation fallback on hosted runners.
           ANDROID_I_WANT_MY_TCG: yes
         with:
           api-level: '37.0'
