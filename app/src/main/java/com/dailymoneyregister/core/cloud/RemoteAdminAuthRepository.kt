@@ -3,12 +3,49 @@ package com.dailymoneyregister.core.cloud
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.exceptions.RestException
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import kotlinx.coroutines.CancellationException
+import java.io.IOException
+import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /** Matches E.164 (+XXXXXXX) or common local phone patterns (all-digit, starts with 0). */
 private val PHONE_PATTERN = Regex("""^\+?\d[\d\s\-().]{6,19}$""")
+
+enum class RemoteAuthFailureKind {
+    REJECTED,
+    UNAVAILABLE
+}
+
+/**
+ * Only transport-shaped exceptions qualify as an outage. Never infer outage
+ * from human-readable server/error text, which can contain misleading words.
+ */
+internal fun classifyRemoteAuthHttpStatus(statusCode: Int): RemoteAuthFailureKind =
+    if (statusCode == 408 || statusCode in 500..599) {
+        RemoteAuthFailureKind.UNAVAILABLE
+    } else {
+        // Invalid credentials, authorization failures, and rate limiting are
+        // responses from a reachable server, not permission to use offline login.
+        RemoteAuthFailureKind.REJECTED
+    }
+
+internal fun classifyRemoteAuthFailure(error: Throwable): RemoteAuthFailureKind {
+    var current: Throwable? = error
+    repeat(16) {
+        val cause = current ?: return RemoteAuthFailureKind.REJECTED
+        when (cause) {
+            is RestException -> return classifyRemoteAuthHttpStatus(cause.statusCode)
+            is IOException,
+            is TimeoutException,
+            is HttpRequestTimeoutException -> return RemoteAuthFailureKind.UNAVAILABLE
+        }
+        current = cause.cause
+    }
+    return RemoteAuthFailureKind.REJECTED
+}
 
 sealed interface RemoteAdminAuthResult {
 
@@ -22,7 +59,8 @@ sealed interface RemoteAdminAuthResult {
     ) : RemoteAdminAuthResult
 
     data class Failed(
-        val message: String
+        val message: String,
+        val failureKind: RemoteAuthFailureKind = RemoteAuthFailureKind.REJECTED
     ) : RemoteAdminAuthResult
 }
 
@@ -64,10 +102,11 @@ class RemoteAdminAuthRepository @Inject constructor(
 
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (error: Throwable) {
+        } catch (error: Exception) {
 
             RemoteAdminAuthResult.Failed(
-                error.message ?: "Admin signup failed"
+                error.message ?: "Admin signup failed",
+                classifyRemoteAuthFailure(error)
             )
         }
     }
@@ -114,10 +153,11 @@ class RemoteAdminAuthRepository @Inject constructor(
 
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (error: Throwable) {
+        } catch (error: Exception) {
 
             RemoteAdminAuthResult.Failed(
-                error.message ?: "Admin login failed"
+                error.message ?: "Admin login failed",
+                classifyRemoteAuthFailure(error)
             )
         }
     }

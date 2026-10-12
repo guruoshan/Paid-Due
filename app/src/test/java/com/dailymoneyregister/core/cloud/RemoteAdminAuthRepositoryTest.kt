@@ -2,7 +2,9 @@ package com.dailymoneyregister.core.cloud
 
 import io.github.jan.supabase.SupabaseClient
 import io.mockk.mockk
+import java.io.IOException
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -95,6 +97,34 @@ class RemoteAdminAuthRepositoryTest {
         // Result may be Failed("Authentication succeeded without an active session")
         // or Failed(Supabase exception) — both are acceptable in a unit test without
         // a real backend. The assertion is that the phone guard is NOT triggered.
+    }
+
+
+    @Test
+    fun remoteAuthOutageClassificationUsesExceptionTypeNotErrorText() {
+        assertEquals(
+            RemoteAuthFailureKind.UNAVAILABLE,
+            classifyRemoteAuthFailure(IOException("invalid credentials"))
+        )
+        assertEquals(
+            RemoteAuthFailureKind.UNAVAILABLE,
+            classifyRemoteAuthFailure(java.util.concurrent.TimeoutException("timeout"))
+        )
+        assertEquals(
+            RemoteAuthFailureKind.REJECTED,
+            classifyRemoteAuthFailure(IllegalStateException("network connection timeout"))
+        )
+    }
+
+    @Test
+    fun remoteAuthHttpStatusClassificationAllowsOfflineFallbackOnlyForTimeoutOrServerFailure() {
+        assertEquals(RemoteAuthFailureKind.REJECTED, classifyRemoteAuthHttpStatus(400))
+        assertEquals(RemoteAuthFailureKind.REJECTED, classifyRemoteAuthHttpStatus(401))
+        assertEquals(RemoteAuthFailureKind.REJECTED, classifyRemoteAuthHttpStatus(403))
+        assertEquals(RemoteAuthFailureKind.REJECTED, classifyRemoteAuthHttpStatus(429))
+        assertEquals(RemoteAuthFailureKind.UNAVAILABLE, classifyRemoteAuthHttpStatus(408))
+        assertEquals(RemoteAuthFailureKind.UNAVAILABLE, classifyRemoteAuthHttpStatus(500))
+        assertEquals(RemoteAuthFailureKind.UNAVAILABLE, classifyRemoteAuthHttpStatus(503))
     }
 
     // ── assertion helpers ──────────────────────────────────────────────────

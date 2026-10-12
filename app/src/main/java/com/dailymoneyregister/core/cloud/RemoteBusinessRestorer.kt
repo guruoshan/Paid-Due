@@ -60,6 +60,12 @@ sealed interface RemoteBusinessRestorationResult {
     data class Failed(val message: String) : RemoteBusinessRestorationResult
 }
 
+sealed interface AdminCloudAuthOutcome {
+    object Authenticated : AdminCloudAuthOutcome
+    data class Rejected(val message: String) : AdminCloudAuthOutcome
+    data class Unavailable(val message: String) : AdminCloudAuthOutcome
+}
+
 interface BusinessRestorer {
     suspend fun restoreCashierIfEmpty(
         usernameOrPhone: String,
@@ -84,8 +90,8 @@ interface BusinessRestorer {
         expectedBranchId: String,
         expectedUserId: String,
         expectedMembershipId: String
-    ): RemoteBusinessRestorationResult =
-        RemoteBusinessRestorationResult.Failed("Admin cloud authentication unavailable")
+    ): AdminCloudAuthOutcome =
+        AdminCloudAuthOutcome.Unavailable("Admin cloud authentication unavailable")
 }
 
 @Singleton
@@ -214,7 +220,7 @@ class RemoteBusinessRestorer @Inject constructor(
         expectedBranchId: String,
         expectedUserId: String,
         expectedMembershipId: String
-    ): RemoteBusinessRestorationResult {
+    ): AdminCloudAuthOutcome {
         suspend fun resolveCurrentScope(): RemoteStaffRestorationRpcRow? {
             if (!remoteAdminAuthRepository.hasAuthenticatedSession()) return null
             return try {
@@ -237,33 +243,38 @@ class RemoteBusinessRestorer @Inject constructor(
                 localBranch?.id == expectedBranchId
         }
 
-        // Reuse a valid session for this exact tenant instead of signing in on
-        // every login. This avoids needless auth churn/rate limits.
+        // A reusable session is accepted only after the server returns the exact
+        // user, membership, business, and branch expected by this local account.
         val existingScope = resolveCurrentScope()
         if (
             existingScope != null &&
             matchesExpected(existingScope) &&
             remoteAdminAuthRepository.currentAuthUserId() != null
         ) {
-            return RemoteBusinessRestorationResult.Success(
-                businessId = existingScope.businessId,
-                branchId = existingScope.branchId,
-                userId = existingScope.localUserId
-            )
+            return AdminCloudAuthOutcome.Authenticated
         }
 
         val authResult = remoteAdminAuthRepository.signIn(usernameOrEmail, passwordPlain)
         if (authResult !is RemoteAdminAuthResult.Authenticated) {
-            val reason = (authResult as? RemoteAdminAuthResult.Failed)?.message
-                ?: "Admin cloud authentication unavailable"
-            return RemoteBusinessRestorationResult.Failed(reason)
+            return when (authResult) {
+                is RemoteAdminAuthResult.Failed -> when (authResult.failureKind) {
+                    RemoteAuthFailureKind.UNAVAILABLE ->
+                        AdminCloudAuthOutcome.Unavailable(authResult.message)
+                    RemoteAuthFailureKind.REJECTED ->
+                        AdminCloudAuthOutcome.Rejected(authResult.message)
+                }
+                is RemoteAdminAuthResult.EmailVerificationRequired ->
+                    AdminCloudAuthOutcome.Rejected("Admin email verification is required.")
+                is RemoteAdminAuthResult.Authenticated ->
+                    error("Unreachable authentication result")
+            }
         }
 
         return try {
             val rows = supabase.postgrest.rpc("restore_admin_by_auth_id")
                 .decodeList<RemoteStaffRestorationRpcRow>()
             val row = rows.singleOrNull()
-                ?: return RemoteBusinessRestorationResult.Failed(
+                ?: return AdminCloudAuthOutcome.Rejected(
                     "Cloud Admin membership is missing or ambiguous"
                 )
 
@@ -271,22 +282,21 @@ class RemoteBusinessRestorer @Inject constructor(
                 !matchesExpected(row) ||
                 remoteAdminAuthRepository.currentAuthUserId() != authResult.authUserId
             ) {
-                return RemoteBusinessRestorationResult.Failed(
+                return AdminCloudAuthOutcome.Rejected(
                     "Authenticated Admin does not match the active local business membership"
                 )
             }
 
-            RemoteBusinessRestorationResult.Success(
-                businessId = row.businessId,
-                branchId = row.branchId,
-                userId = row.localUserId
-            )
+            AdminCloudAuthOutcome.Authenticated
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (e: Exception) {
-            RemoteBusinessRestorationResult.Failed(
-                e.message ?: "Admin cloud authentication unavailable"
-            )
+        } catch (error: Exception) {
+            when (classifyRemoteAuthFailure(error)) {
+                RemoteAuthFailureKind.UNAVAILABLE ->
+                    AdminCloudAuthOutcome.Unavailable("Supabase could not be reached to verify Admin membership.")
+                RemoteAuthFailureKind.REJECTED ->
+                    AdminCloudAuthOutcome.Rejected("Supabase could not validate Admin membership.")
+            }
         }
     }
 

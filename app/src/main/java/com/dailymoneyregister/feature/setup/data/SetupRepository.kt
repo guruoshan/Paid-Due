@@ -69,7 +69,7 @@ class SetupRepository @Inject constructor(
         val membership = userDao.getMembership(user.id, branch.id)
             ?: error("Setup admin membership was not persisted")
         SessionManager.setSession(ActiveSession(business, branch, user, membership))
-        trustedSessionStore.save(
+        trustedSessionStore.saveUnverified(
             businessId = business.id,
             branchId = branch.id,
             userId = user.id

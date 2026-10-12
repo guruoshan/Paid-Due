@@ -44,7 +44,24 @@ object PermissionChecker {
         membership: UserBranchMembershipEntity?,
         action: PermissionAction
     ): Boolean {
-        // Admin has full permissions
+        // Offline leases are deliberately narrower than server-authorized access.
+        // Enforce this in the central overload too, so callers cannot bypass it by
+        // supplying only a user and membership instead of an ActiveSession.
+        val activeSession = SessionManager.currentSession.value
+        if (activeSession?.isOfflineLease == true) {
+            // Never let a caller supply a different cached user to escape the
+            // active offline session's narrow permission policy.
+            if (activeSession.user.id != user.id || activeSession.business.id != user.businessId) {
+                return false
+            }
+            return when (action) {
+                PermissionAction.CREATE_SALE -> user.role == UserRole.ADMIN || membership?.canCreateSale == true
+                PermissionAction.ACCEPT_CASH -> user.role == UserRole.ADMIN || membership?.canAcceptCash == true
+                else -> false
+            }
+        }
+
+        // Admin has full permissions while online and server-authorized.
         if (user.role == UserRole.ADMIN) return true
 
         // Cashier requires an active branch membership
@@ -56,8 +73,8 @@ object PermissionChecker {
             PermissionAction.ACCEPT_ONLINE -> membership.canAcceptOnline
             PermissionAction.CREATE_CREDIT_SALE -> membership.canCreateCreditSale
             PermissionAction.USE_COUPON -> membership.canUseCoupon
-            PermissionAction.ISSUE_INVOICE,
-            PermissionAction.ISSUE_RECEIPT -> true
+            PermissionAction.ISSUE_INVOICE -> membership.canIssueInvoice
+            PermissionAction.ISSUE_RECEIPT -> membership.canIssueReceipt
             PermissionAction.REFUND -> membership.canRefund
             PermissionAction.VOID -> membership.canVoid
             PermissionAction.CORRECT_AMOUNT -> membership.canCorrectAmount

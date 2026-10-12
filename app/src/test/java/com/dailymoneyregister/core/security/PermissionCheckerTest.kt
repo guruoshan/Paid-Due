@@ -51,9 +51,13 @@ class PermissionCheckerTest {
     }
 
     @Test
-    fun documentPermissionsIgnoreLegacyFlagsForCashierWithMembership() {
-        assertTrue(PermissionChecker.isPermitted(cashier, emptyMembership, PermissionAction.ISSUE_INVOICE))
-        assertTrue(PermissionChecker.isPermitted(cashier, emptyMembership, PermissionAction.ISSUE_RECEIPT))
+    fun documentPermissionsRespectMembershipFlags() {
+        assertFalse(PermissionChecker.isPermitted(cashier, emptyMembership, PermissionAction.ISSUE_INVOICE))
+        assertFalse(PermissionChecker.isPermitted(cashier, emptyMembership, PermissionAction.ISSUE_RECEIPT))
+
+        val enabled = emptyMembership.copy(canIssueInvoice = true, canIssueReceipt = true)
+        assertTrue(PermissionChecker.isPermitted(cashier, enabled, PermissionAction.ISSUE_INVOICE))
+        assertTrue(PermissionChecker.isPermitted(cashier, enabled, PermissionAction.ISSUE_RECEIPT))
     }
 
     @Test
@@ -89,8 +93,11 @@ class PermissionCheckerTest {
     @Test
     fun sessionGateRejectsMissingStaleAndInactiveCashierMemberships() {
         val valid = activeSession(emptyMembership)
-        assertTrue(PermissionChecker.isPermitted(valid, PermissionAction.ISSUE_INVOICE))
-        assertTrue(PermissionChecker.isPermitted(valid, PermissionAction.ISSUE_RECEIPT))
+        assertFalse(PermissionChecker.isPermitted(valid, PermissionAction.ISSUE_INVOICE))
+        assertFalse(PermissionChecker.isPermitted(valid, PermissionAction.ISSUE_RECEIPT))
+        val documentEnabled = valid.copy(membership = emptyMembership.copy(canIssueInvoice = true, canIssueReceipt = true))
+        assertTrue(PermissionChecker.isPermitted(documentEnabled, PermissionAction.ISSUE_INVOICE))
+        assertTrue(PermissionChecker.isPermitted(documentEnabled, PermissionAction.ISSUE_RECEIPT))
         assertFalse(PermissionChecker.isPermitted(valid, PermissionAction.VIEW_REPORTS))
 
         assertFalse(PermissionChecker.isPermitted(valid.copy(membership = null), PermissionAction.ISSUE_INVOICE))
@@ -108,6 +115,85 @@ class PermissionCheckerTest {
                 PermissionAction.ISSUE_INVOICE
             )
         )
+    }
+
+
+    @Test
+    fun offlineLeaseRestrictsCashierToLocalCashOperations() {
+        val offlineMembership = emptyMembership.copy(
+            canCreateSale = true,
+            canAcceptCash = true,
+            canAcceptOnline = true,
+            canCreateCreditSale = true,
+            canUseCoupon = true,
+            canRefund = true,
+            canVoid = true
+        )
+        SessionManager.setSession(activeSession(offlineMembership).copy(isOfflineLease = true))
+        try {
+            assertTrue(PermissionChecker.isPermitted(cashier, offlineMembership, PermissionAction.CREATE_SALE))
+            assertTrue(PermissionChecker.isPermitted(cashier, offlineMembership, PermissionAction.ACCEPT_CASH))
+            assertFalse(PermissionChecker.isPermitted(cashier, offlineMembership, PermissionAction.ACCEPT_ONLINE))
+            assertFalse(PermissionChecker.isPermitted(cashier, offlineMembership, PermissionAction.CREATE_CREDIT_SALE))
+            assertFalse(PermissionChecker.isPermitted(cashier, offlineMembership, PermissionAction.USE_COUPON))
+            assertFalse(PermissionChecker.isPermitted(cashier, offlineMembership, PermissionAction.REFUND))
+            assertFalse(PermissionChecker.isPermitted(cashier, offlineMembership, PermissionAction.VOID))
+        } finally {
+            SessionManager.clearSession()
+        }
+    }
+
+    @Test
+    fun offlineLeaseRejectsPermissionChecksForADifferentCachedUser() {
+        val offlineMembership = emptyMembership.copy(canCreateSale = true, canAcceptCash = true)
+        SessionManager.setSession(activeSession(offlineMembership).copy(isOfflineLease = true))
+        try {
+            val otherAdmin = admin.copy(id = "different-admin")
+            assertFalse(PermissionChecker.isPermitted(otherAdmin, null, PermissionAction.CREATE_SALE))
+            assertFalse(PermissionChecker.isPermitted(otherAdmin, null, PermissionAction.ACCEPT_CASH))
+        } finally {
+            SessionManager.clearSession()
+        }
+    }
+
+    @Test
+    fun sessionLockDoesNotDestroySessionAndCanBeCleared() {
+        SessionManager.setSession(activeSession(emptyMembership))
+        try {
+            SessionManager.lockSession()
+            assertTrue(SessionManager.isLocked.value)
+            assertTrue(SessionManager.currentSession.value != null)
+            SessionManager.unlockSession()
+            assertFalse(SessionManager.isLocked.value)
+            SessionManager.lockSession()
+            SessionManager.clearSession()
+            assertFalse(SessionManager.isLocked.value)
+            assertTrue(SessionManager.currentSession.value == null)
+        } finally {
+            SessionManager.clearSession()
+        }
+    }
+
+    @Test
+    fun offlineLeaseStillHonorsCashierSaleAndCashPermissions() {
+        val denied = emptyMembership.copy(canCreateSale = false, canAcceptCash = false)
+        SessionManager.setSession(activeSession(denied).copy(isOfflineLease = true))
+        try {
+            assertFalse(PermissionChecker.isPermitted(cashier, denied, PermissionAction.CREATE_SALE))
+            assertFalse(PermissionChecker.isPermitted(cashier, denied, PermissionAction.ACCEPT_CASH))
+
+            val saleOnly = denied.copy(canCreateSale = true)
+            SessionManager.setSession(activeSession(saleOnly).copy(isOfflineLease = true))
+            assertTrue(PermissionChecker.isPermitted(cashier, saleOnly, PermissionAction.CREATE_SALE))
+            assertFalse(PermissionChecker.isPermitted(cashier, saleOnly, PermissionAction.ACCEPT_CASH))
+
+            val cashOnly = denied.copy(canAcceptCash = true)
+            SessionManager.setSession(activeSession(cashOnly).copy(isOfflineLease = true))
+            assertFalse(PermissionChecker.isPermitted(cashier, cashOnly, PermissionAction.CREATE_SALE))
+            assertTrue(PermissionChecker.isPermitted(cashier, cashOnly, PermissionAction.ACCEPT_CASH))
+        } finally {
+            SessionManager.clearSession()
+        }
     }
 
     private fun activeSession(membership: UserBranchMembershipEntity?): ActiveSession = ActiveSession(
