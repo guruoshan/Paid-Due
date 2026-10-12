@@ -88,7 +88,7 @@ class RemoteAdminAuthRepository @Inject constructor(
 
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (error: Throwable) {
+        } catch (error: Exception) {
 
             RemoteAdminAuthResult.Failed(
                 error.message ?: "Admin signup failed",
@@ -139,7 +139,7 @@ class RemoteAdminAuthRepository @Inject constructor(
 
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (error: Throwable) {
+        } catch (error: Exception) {
 
             RemoteAdminAuthResult.Failed(
                 error.message ?: "Admin login failed",

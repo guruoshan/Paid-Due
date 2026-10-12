@@ -111,6 +111,8 @@ class TrustedSessionIntegrationTest {
     @Test
     fun localSetupPersistsIdentityWithoutGrantingOfflineLease() = runBlocking {
         val setup = createSetup()
+        // Seed an old valid lease first: local setup must clear it, not preserve it.
+        trustedSessionStore.save(setup.businessId.value, setup.branchId.value, setup.adminUserId.value)
         setupRepository.establishAdminSession(setup)
 
         val remembered = trustedSessionStore.load()
