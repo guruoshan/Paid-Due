@@ -1,6 +1,4 @@
 \set ON_ERROR_STOP on
-INSERT INTO auth.users(id) VALUES ('00000000-0000-4000-8000-000000000101')
-ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.profiles(auth_user_id,is_active,display_name)
 VALUES ('00000000-0000-4000-8000-000000000101',true,'Test Admin')
 ON CONFLICT (auth_user_id) DO UPDATE SET is_active=true;
