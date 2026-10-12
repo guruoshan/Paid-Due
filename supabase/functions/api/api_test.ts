@@ -174,3 +174,21 @@ Deno.test("POST /api/customers/sync requires a valid cashier session before acce
   }));
   assertEquals(response.status, 401);
 });
+
+
+Deno.test("GET /api/customers/sync validates Admin branch scope parameters", async () => {
+  const response = await syncCustomerDirectory(new Request(
+    "http://localhost/api/customers/sync?business_id=&branch_id=",
+    { method: "GET", headers: { Authorization: "Bearer header.payload.signature" } },
+  ));
+  assertEquals(response.status, 400);
+});
+
+Deno.test("POST /api/customers/sync validates Admin payload before database access", async () => {
+  const response = await syncCustomerDirectory(new Request("http://localhost/api/customers/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer header.payload.signature" },
+    body: JSON.stringify({ business_id: "business-a", branch_id: "branch-a" }),
+  }));
+  assertEquals(response.status, 400);
+});
