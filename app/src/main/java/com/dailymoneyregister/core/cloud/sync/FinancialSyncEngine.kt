@@ -130,7 +130,8 @@ class FinancialSyncEngine @Inject constructor(
                 remoteSyncRepository.isAdminSessionAuthorized(
                     expectedMembershipId = actorMembershipId,
                     expectedBusinessId = activeSession.business.id,
-                    expectedBranchId = activeSession.branch.id
+                    expectedBranchId = activeSession.branch.id,
+                    expectedLocalUserId = activeSession.user.id
                 )
             ) {
                 // Recover blocked delivery metadata only for this verified Admin's own
