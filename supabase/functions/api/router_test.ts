@@ -28,11 +28,7 @@ Deno.test("Router: unauthenticated cashier metadata returns 401", async () => {
   const response = await handleRequest(new Request("http://localhost/api/staff/metadata"));
   assertEquals(response.status, 401);
 });
-Deno.test("Router: legacy unauthenticated staff activation endpoint is removed", async () => {
-  const response = await handleRequest(new Request("http://localhost/api/staff/activate", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ token: "A".repeat(48), pin: "123456", canonical_phone: "+96891234567" }),
-  }));
-  assertEquals(response.status, 404);
+Deno.test("Router: staff activation requires POST", async () => {
+  const response = await handleRequest(new Request("http://localhost/api/staff/activate", { method: "GET" }));
+  assertEquals(response.status, 405);
 });

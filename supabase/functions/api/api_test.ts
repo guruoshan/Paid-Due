@@ -10,7 +10,7 @@ Deno.test("GET /api/health returns 200 OK and expected version contract", async 
   assertEquals(data.status, "OK");
   assertEquals(data.backend_version, "3");
   assertEquals(data.credential_format, "pbkdf2-sha256");
-  assertEquals(data.pbkdf2_iterations, 100000);
+  assertEquals(data.pbkdf2_iterations, 600000);
 });
 
 Deno.test("POST /api/staff/login method enforcement", async () => {
@@ -64,7 +64,7 @@ Deno.test("Crypto: PBKDF2 derivation matches parameters", async () => {
   const pepper = "paid_due_test_pepper_32_characters_long_min";
 
   const derived = await deriveCredential(pin, tokenHash, pepper);
-  assertEquals(derived.credentialHash.startsWith("pbkdf2-sha256:100000:"), true);
+  assertEquals(derived.credentialHash.startsWith("pbkdf2-sha256:600000:"), true);
   assertEquals(derived.credentialSalt.length, 32);
 });
 

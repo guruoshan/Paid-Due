@@ -54,7 +54,7 @@ export function health() {
     status: "OK",
     backend_version: "3",
     credential_format: "pbkdf2-sha256",
-    pbkdf2_iterations: 100000,
+    pbkdf2_iterations: 600000,
   }, 200);
 }
 
