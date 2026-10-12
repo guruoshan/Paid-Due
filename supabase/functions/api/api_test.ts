@@ -192,3 +192,12 @@ Deno.test("POST /api/customers/sync validates Admin payload before database acce
   }));
   assertEquals(response.status, 400);
 });
+
+
+Deno.test("Admin JWT customer sync rejects unsupported methods", async () => {
+  const response = await syncCustomerDirectory(new Request("http://localhost/api/customers/sync", {
+    method: "DELETE",
+    headers: { Authorization: "Bearer header.payload.signature" },
+  }));
+  assertEquals(response.status, 405);
+});
