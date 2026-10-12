@@ -59,7 +59,7 @@ jobs:
       - name: Apply migration under test
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
-        run: psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261011140000_align_cashier_financial_contract.sql
+        run: psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261011211328_align_cashier_financial_contract.sql
 
       - name: Execute eight behavioral cases
         env:
