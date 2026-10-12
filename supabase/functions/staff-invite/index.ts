@@ -40,6 +40,8 @@ async function rpc(supabaseUrl: string, serviceKey: string, name: string, body: 
   if (!response.ok) throw new Error("RPC_" + name + "_FAILED_" + response.status);
   return raw ? JSON.parse(raw) : null;
 }
+import { buildStaffInviteUrl } from "./invite-link.ts";
+
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (request.method !== "POST") return json({ outcome: "METHOD_NOT_ALLOWED" }, 405);
@@ -99,9 +101,8 @@ Deno.serve(async (request: Request) => {
         typeof created[0]?.invite_id !== "string" || typeof created[0]?.expires_at !== "string") {
       throw new Error("INVITE_CREATE_RESULT_INVALID");
     }
-    // GitHub Pages serves this static HTML; Supabase Edge Functions do not serve
-    // browser-rendered HTML reliably. Keep the raw token in the fragment only.
-    const inviteUrl = "https://guruoshan.github.io/Paid-Due/invite/#" + encodeURIComponent(token);
+    // GitHub Pages serves the static landing page; keep the raw token in the fragment.
+    const inviteUrl = buildStaffInviteUrl(token);
     return json({ outcome: "INVITATION_CREATED", invite_url: inviteUrl, expires_at: created[0].expires_at });
   } catch (error) {
     console.error("STAFF_INVITE_FAILURE", error instanceof Error ? error.name : "UNKNOWN");
