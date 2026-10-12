@@ -44,6 +44,31 @@ class TrustedSessionStore @Inject constructor(
         }
     }
 
+    /**
+     * Persist a locally created identity without authorizing offline access.
+     * Setup must use this method; only a successful server-authenticated login
+     * may call save(), which records the lease verification time.
+     */
+    fun saveUnverified(
+        businessId: String,
+        branchId: String,
+        userId: String
+    ) {
+        check(
+            prefs.edit()
+                .putString(KEY_BUSINESS_ID, businessId)
+                .putString(KEY_BRANCH_ID, branchId)
+                .putString(KEY_USER_ID, userId)
+                .remove(KEY_APP_BACKGROUND_AT)
+                .remove(KEY_LAST_SERVER_VERIFIED_AT)
+                .remove(KEY_LAST_SERVER_VERIFIED_ELAPSED)
+                .remove(KEY_LAST_SERVER_VERIFIED_BOOT_COUNT)
+                .commit()
+        ) {
+            "Could not persist unverified session"
+        }
+    }
+
     fun load(): TrustedSessionIds? {
         val businessId = prefs.getString(KEY_BUSINESS_ID, null)
         val branchId = prefs.getString(KEY_BRANCH_ID, null)
