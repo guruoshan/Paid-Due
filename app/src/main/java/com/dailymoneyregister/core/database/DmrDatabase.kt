@@ -32,6 +32,7 @@ import com.dailymoneyregister.core.database.entity.CreditLedgerEventEntity
 import com.dailymoneyregister.core.database.entity.CreditRepaymentAllocationEntity
 import com.dailymoneyregister.core.database.entity.CreditRepaymentEntity
 import com.dailymoneyregister.core.database.entity.CustomerEntity
+import com.dailymoneyregister.core.database.entity.CustomerIdAliasEntity
 import com.dailymoneyregister.core.database.entity.DocumentEntity
 import com.dailymoneyregister.core.database.entity.DocumentMediaLinkEntity
 import com.dailymoneyregister.core.database.entity.MediaAssetEntity
@@ -63,6 +64,7 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
         HumanIdentityEntity::class,
         UserBranchMembershipEntity::class,
         CustomerEntity::class,
+        CustomerIdAliasEntity::class,
         ProductEntity::class,
         CouponWalletEntity::class,
         CouponAuthorizedUserEntity::class,
@@ -91,7 +93,7 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
         CreditRepaymentEntity::class,
         CreditRepaymentAllocationEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -639,6 +641,31 @@ abstract class DmrDatabase : RoomDatabase() {
                 )
             }
         }
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `customer_id_aliases` (
+                        `business_id` TEXT NOT NULL,
+                        `local_customer_id` TEXT NOT NULL,
+                        `canonical_customer_id` TEXT NOT NULL,
+                        `canonical_phone` TEXT NOT NULL,
+                        `updated_at` INTEGER NOT NULL,
+                        PRIMARY KEY(`business_id`, `local_customer_id`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_customer_id_aliases_business_id_canonical_customer_id` " +
+                        "ON `customer_id_aliases` (`business_id`, `canonical_customer_id`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_customer_id_aliases_business_id_canonical_phone` " +
+                        "ON `customer_id_aliases` (`business_id`, `canonical_phone`)"
+                )
+            }
+        }
+
         @Volatile
 
         private var INSTANCE: DmrDatabase? = null
@@ -677,7 +704,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                             .addCallback(FinancialImmutabilityCallback)
                             .build()
                     } catch (e: Exception) {
@@ -703,7 +730,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()
