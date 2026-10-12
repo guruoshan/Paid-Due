@@ -18,7 +18,8 @@ import javax.inject.Singleton
 @Singleton
 class FinancialSyncScheduler @Inject constructor(
     private val syncEngine: FinancialSyncEngine,
-    private val database: DmrDatabase
+    private val database: DmrDatabase,
+    private val customerDirectorySyncClient: CustomerDirectorySyncClient
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var started = false
@@ -114,6 +115,15 @@ class FinancialSyncScheduler @Inject constructor(
         }
     }
 
+    private suspend fun syncCustomerDirectoryBestEffort() {
+        try {
+            customerDirectorySyncClient.syncIfDue()
+        } catch (error: Exception) {
+            // Customer profile sync must never acknowledge, discard, or block financial outbox work.
+            Log.w("PaidDueCustomerSync", "CUSTOMER_DIRECTORY_SYNC_DEFERRED", error)
+        }
+    }
+
     private suspend fun executeSync(
         role: UserRole,
         businessId: String,
@@ -127,6 +137,7 @@ class FinancialSyncScheduler @Inject constructor(
                         businessId,
                         SessionManager.currentSession.value?.user?.id ?: membershipId
                     )
+                    syncCustomerDirectoryBestEffort()
                 }
 
                 UserRole.CASHIER -> {
@@ -162,6 +173,7 @@ class FinancialSyncScheduler @Inject constructor(
                         "PaidDueFinancialSync",
                         "CASHIER_UPLOAD_ACKNOWLEDGED=$uploaded INBOUND_APPLIED=$applied"
                     )
+                    syncCustomerDirectoryBestEffort()
                 }
 
                 else -> Unit
