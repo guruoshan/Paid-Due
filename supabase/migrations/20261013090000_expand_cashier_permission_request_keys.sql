@@ -39,6 +39,7 @@ $migration$;
 
 DO $verify$
 DECLARE
+  v_old text := '''CHANGE_PAYMENT_METHOD'',''VIEW_BROAD_HISTORY''';
   v_constraint text;
   v_request_definition text;
   v_resolve_definition text;
