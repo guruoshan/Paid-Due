@@ -108,7 +108,8 @@ class CustomerDirectorySyncClient @Inject constructor(
                 canonicalPhone = phone,
                 name = name,
                 createdAt = createdAt,
-                updatedAt = updatedAt
+                updatedAt = updatedAt,
+                isServerCanonical = true
             )
         }
     }
