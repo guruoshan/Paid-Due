@@ -6,8 +6,7 @@ import com.dailymoneyregister.core.database.entity.CustomerIdAliasEntity
 
 /**
  * Reconciles identity projections without rewriting historical financial references.
- * A server ID is an alias for the device's stable local customer row, not a replacement
- * primary key. This preserves invoices, credit/coupon ledgers, expenses and operations.
+ * Device IDs become aliases to a stable local customer row and one server-canonical ID.
  */
 internal object CustomerIdentityReconciler {
 
@@ -23,29 +22,37 @@ internal object CustomerIdentityReconciler {
         require(businessId.isNotBlank() && canonicalCustomerId.isNotBlank())
         require(canonicalPhone.matches(Regex("^\\+[1-9][0-9]{7,14}$")))
         val dao = database.customerDao()
-        val knownAlias = dao.getCustomerIdAliasByCanonicalId(businessId, canonicalCustomerId)
-        val localByPhone = dao.getCustomerByPhone(businessId, canonicalPhone)
-        val local = when {
-            knownAlias != null -> {
-                require(knownAlias.canonicalPhone == canonicalPhone) {
-                    "Canonical customer ID was previously associated with another phone"
-                }
-                dao.getCustomerById(knownAlias.localCustomerId)
-                    ?: error("Customer alias references a missing local customer")
+        val incomingAlias = dao.getCustomerIdAliasByAliasId(businessId, canonicalCustomerId)
+        if (incomingAlias != null) {
+            require(incomingAlias.canonicalPhone == canonicalPhone) {
+                "Customer ID alias was previously associated with another phone"
             }
-            localByPhone != null -> localByPhone
-            else -> dao.getCustomerById(canonicalCustomerId)?.also {
-                require(it.businessId == businessId && it.canonicalPhone == canonicalPhone) {
-                    "Canonical customer ID collides with another local identity"
+            val local = dao.getCustomerById(incomingAlias.localCustomerId)
+                ?: error("Customer alias references a missing local customer")
+            require(local.businessId == businessId && local.canonicalPhone == canonicalPhone)
+            return local.id
+        }
+
+        val knownPhoneAlias = dao.getCustomerIdAliasByPhone(businessId, canonicalPhone)
+        val serverCanonicalId = knownPhoneAlias?.canonicalCustomerId ?: canonicalCustomerId
+        val local = if (knownPhoneAlias != null) {
+            dao.getCustomerById(knownPhoneAlias.localCustomerId)
+                ?: error("Customer phone alias references a missing local customer")
+        } else {
+            dao.getCustomerByPhone(businessId, canonicalPhone)
+                ?: dao.getCustomerById(canonicalCustomerId)?.also {
+                    require(it.businessId == businessId && it.canonicalPhone == canonicalPhone) {
+                        "Canonical customer ID collides with another local identity"
+                    }
                 }
-            } ?: CustomerEntity(
-                id = canonicalCustomerId,
-                businessId = businessId,
-                canonicalPhone = canonicalPhone,
-                name = name,
-                createdAt = createdAt,
-                updatedAt = updatedAt
-            ).also { dao.insertCustomer(it) }
+                ?: CustomerEntity(
+                    id = canonicalCustomerId,
+                    businessId = businessId,
+                    canonicalPhone = canonicalPhone,
+                    name = name,
+                    createdAt = createdAt,
+                    updatedAt = updatedAt
+                ).also { dao.insertCustomer(it) }
         }
 
         require(local.businessId == businessId && local.canonicalPhone == canonicalPhone) {
@@ -53,29 +60,30 @@ internal object CustomerIdentityReconciler {
         }
         val existingLocalAlias = dao.getCustomerIdAliasByLocalId(businessId, local.id)
         require(existingLocalAlias == null ||
-            (existingLocalAlias.canonicalCustomerId == canonicalCustomerId &&
+            (existingLocalAlias.canonicalCustomerId == serverCanonicalId &&
                 existingLocalAlias.canonicalPhone == canonicalPhone)) {
             "Local customer ID was previously associated with another canonical customer"
         }
-        val existingCanonicalAlias = dao.getCustomerIdAliasByCanonicalId(businessId, canonicalCustomerId)
-        require(existingCanonicalAlias == null ||
-            (existingCanonicalAlias.localCustomerId == local.id &&
-                existingCanonicalAlias.canonicalPhone == canonicalPhone)) {
-            "Canonical customer ID maps to a different local customer"
-        }
-        dao.insertCustomerIdAlias(
-            CustomerIdAliasEntity(
-                businessId = businessId,
-                localCustomerId = local.id,
-                canonicalCustomerId = canonicalCustomerId,
-                canonicalPhone = canonicalPhone,
-                updatedAt = maxOf(updatedAt, System.currentTimeMillis())
+
+        val now = maxOf(updatedAt, System.currentTimeMillis())
+        // Keep an alias for every ID seen from another device and for the canonical ID.
+        listOf(canonicalCustomerId, serverCanonicalId).distinct().forEach { aliasId ->
+            dao.insertCustomerIdAlias(
+                CustomerIdAliasEntity(
+                    businessId = businessId,
+                    aliasCustomerId = aliasId,
+                    localCustomerId = local.id,
+                    canonicalCustomerId = serverCanonicalId,
+                    canonicalPhone = canonicalPhone,
+                    updatedAt = now
+                )
             )
-        )
-        val verified = dao.getCustomerIdAliasByLocalId(businessId, local.id)
-        require(verified?.canonicalCustomerId == canonicalCustomerId &&
-            verified.canonicalPhone == canonicalPhone) {
-            "Customer alias persistence conflict"
+            val saved = dao.getCustomerIdAliasByAliasId(businessId, aliasId)
+            require(saved?.localCustomerId == local.id &&
+                saved.canonicalCustomerId == serverCanonicalId &&
+                saved.canonicalPhone == canonicalPhone) {
+                "Customer alias persistence conflict"
+            }
         }
         return local.id
     }
@@ -91,7 +99,7 @@ internal object CustomerIdentityReconciler {
             require(direct.businessId == businessId) { "Customer belongs to another business" }
             return direct.id
         }
-        val alias = dao.getCustomerIdAliasByCanonicalId(businessId, incomingCustomerId)
+        val alias = dao.getCustomerIdAliasByAliasId(businessId, incomingCustomerId)
             ?: error("Customer identity has no local canonical mapping")
         val local = dao.getCustomerById(alias.localCustomerId)
             ?: error("Customer alias references a missing local customer")
