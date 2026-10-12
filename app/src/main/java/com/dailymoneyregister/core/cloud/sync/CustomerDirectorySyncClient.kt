@@ -51,6 +51,8 @@ class CustomerDirectorySyncClient @Inject constructor(
 
         val baseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trimEnd('/') + "/functions/v1/api"
         require(baseUrl.startsWith("https://")) { "CUSTOMER_SYNC_BACKEND_URL_INVALID" }
+        // Throttle failures too; an unavailable backend must not be hammered every sync tick.
+        lastSyncByBusiness[syncKey] = now
 
         // Push local identities first. Server phone uniqueness returns the same
         // canonical ID for independently-created records on different devices.
