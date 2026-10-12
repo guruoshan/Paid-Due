@@ -232,7 +232,7 @@ object CashierCloudSession {
         }
 
         val connection = (
-            URL("$baseUrl/api/staff/login")
+            URL("${baseUrl}/staff/login")
                 .openConnection() as HttpURLConnection
         )
 
@@ -265,9 +265,16 @@ object CashierCloudSession {
             lastAuthStage = "HTTP_$status"
 
             if (status != 200) {
+                val errorBody = connection.errorStream
+                    ?.bufferedReader()
+                    ?.use { it.readText() }
+                    .orEmpty()
+                val outcome = runCatching {
+                    JSONObject(errorBody).optString("outcome", "UNKNOWN")
+                }.getOrDefault("UNKNOWN")
                 Log.w(
                     TAG,
-                    "CASHIER_CLOUD_AUTH_HTTP_$status"
+                    "CASHIER_CLOUD_AUTH_HTTP_$status path=/staff/login outcome=$outcome"
                 )
                 return@withContext false
             }
@@ -359,7 +366,7 @@ object CashierCloudSession {
         require(baseUrl.startsWith("https://"))
 
         val connection = (
-            URL("$baseUrl/api/financial/upload")
+            URL("${baseUrl}/financial/upload")
                 .openConnection() as HttpURLConnection
         )
 
@@ -434,7 +441,7 @@ object CashierCloudSession {
             ?: throw SecurityException("CASHIER_CLOUD_SESSION_REQUIRED")
         val baseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trimEnd('/') + "/functions/v1/api"
         require(baseUrl.startsWith("https://"))
-        val connection = (URL("$baseUrl/api/staff/metadata").openConnection() as HttpURLConnection)
+        val connection = (URL("${baseUrl}/staff/metadata").openConnection() as HttpURLConnection)
         try {
             connection.requestMethod = "GET"
             connection.connectTimeout = 5000
@@ -473,7 +480,7 @@ object CashierCloudSession {
             if (afterReceivedAt != null) append("&after_received_at=").append(java.net.URLEncoder.encode(afterReceivedAt, "UTF-8"))
             if (afterOperationId != null) append("&after_operation_id=").append(java.net.URLEncoder.encode(afterOperationId, "UTF-8"))
         }
-        val connection = (URL("$baseUrl/api/financial/download$query").openConnection() as HttpURLConnection)
+        val connection = (URL("${baseUrl}/financial/download$query").openConnection() as HttpURLConnection)
         try {
             connection.requestMethod = "GET"
             connection.connectTimeout = 5000
