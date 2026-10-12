@@ -80,6 +80,11 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew --no-daemon :app:bundleRelease :app:assembleRelease
 
+      - name: Delete temporary release keystore
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/paid-due-release.jks"
+
       - name: Verify release signatures and prepare artifacts
         shell: bash
         env:
@@ -126,8 +131,3 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "Paid&Due $RELEASE_TAG" \
             --notes "Automated main-branch release. APK signature was verified against the repository EXPECTED_SHA256 variable."
-
-      - name: Delete temporary release keystore
-        if: always()
-        shell: bash
-        run: rm -f "$RUNNER_TEMP/paid-due-release.jks"
