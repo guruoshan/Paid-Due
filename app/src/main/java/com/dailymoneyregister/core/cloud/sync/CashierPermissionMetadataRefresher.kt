@@ -26,6 +26,16 @@ class CashierPermissionMetadataRefresher @Inject constructor(
         if (CashierCloudSession.tokenFor(membershipId) == null) return false
 
         val metadata = CashierCloudSession.fetchMetadata(membershipId)
+        return applyMetadataForActiveCashier(active, metadata)
+    }
+
+    internal suspend fun applyMetadataForActiveCashier(
+        active: ActiveSession,
+        metadata: JSONObject
+    ): Boolean {
+        if (active.user.role != UserRole.CASHIER) return false
+        val currentMembership = active.membership ?: return false
+        val membershipId = currentMembership.id
         require(metadata.optString("membership_id") == membershipId) {
             "CASHIER_METADATA_MEMBERSHIP_MISMATCH"
         }
@@ -44,8 +54,6 @@ class CashierPermissionMetadataRefresher @Inject constructor(
             metadata.optJSONObject("permissions")
                 ?: throw IllegalArgumentException("CASHIER_METADATA_PERMISSIONS_MISSING")
         )
-
-        // Avoid applying a response to a session that was switched while the request was in flight.
         val beforeWrite = SessionManager.currentSession.value
         if (!sameSession(beforeWrite, active)) return false
 
