@@ -138,7 +138,19 @@ class FinancialSyncScheduler @Inject constructor(
                         return
                     }
 
-                    refreshCashierPermissions(membershipId, businessId)
+                    try {
+                        refreshCashierPermissions(membershipId, businessId)
+                    } catch (error: SecurityException) {
+                        // The server rejected/revoked the custom session. Keep the durable
+                        // outbox untouched and wait for explicit re-authentication.
+                        Log.w("PaidDueFinancialSync", "CASHIER_METADATA_AUTH_REQUIRED")
+                        return
+                    } catch (error: Exception) {
+                        // A temporary metadata outage must not block an otherwise valid upload;
+                        // the ingest RPC independently checks current server-side permissions.
+                        Log.w("PaidDueFinancialSync", "CASHIER_METADATA_REFRESH_DEFERRED", error)
+                    }
+                    if (CashierCloudSession.tokenFor(membershipId) == null) return
                     val uploaded = syncEngine.syncOutbound(membershipId, role)
 
                     val applied = syncEngine.syncInbound(
