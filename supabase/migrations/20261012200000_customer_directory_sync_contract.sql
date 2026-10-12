@@ -78,7 +78,7 @@ begin
     p_business_id, p_canonical_phone, p_customer_id, btrim(p_display_name),
     coalesce(p_created_at, now()), now(), p_membership_id, p_membership_id
   )
-  on conflict (business_id, canonical_phone) do nothing;
+  on conflict on constraint customer_directory_pkey do nothing;
 
   get diagnostics v_inserted = row_count;
   select d.* into v_row
