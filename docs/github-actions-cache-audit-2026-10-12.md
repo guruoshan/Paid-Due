@@ -33,7 +33,7 @@ The main structural problems found in workflow YAML were:
 1. Use `gradle/actions/setup-gradle@v4` as the single Gradle cache mechanism; do not also set `cache: gradle` on `actions/setup-java`.
 2. PR and non-main validation workflows restore Gradle cache read-only. They do not create branch-specific cache entries.
 3. The signed release workflow is the only workflow configured to write the shared Gradle cache, and it runs on `main`.
-4. The new cache-maintenance workflow can be run manually and also runs weekly. It deletes caches for non-main refs and pull-request refs, then prunes old main entries toward an 8 GiB target while preserving the newest main cache.
+4. The new cache-maintenance workflow runs on main pushes, can be run manually, and also runs weekly. It deletes caches for non-main refs and pull-request refs, then prunes old main entries toward an 8 GiB target while preserving the newest main cache.
 5. The maintenance workflow logs before/after bytes and entry counts. Run it after these workflow changes are merged to obtain the actual storage result.
 
 ## CI/CD efficiency changes
