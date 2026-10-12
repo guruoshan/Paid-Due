@@ -1,5 +1,5 @@
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.200.0/assert/mod.ts";
-import { health, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, syncCustomerDirectory, listCashierNotifications, markCashierNotificationRead, requestCashierPermission } from "./handlers.ts";
+import { health, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, syncCustomerDirectory, listCashierNotifications, markCashierNotificationRead, requestCashierPermission, PERMISSION_KEYS } from "./handlers.ts";
 import { sha256Hex, deriveCredential, hexToBytes, bytesToHex } from "./crypto.ts";
 
 Deno.test("GET /api/health returns 200 OK and expected version contract", async () => {
@@ -74,6 +74,17 @@ Deno.test("Crypto: SHA-256 digest consistency", async () => {
   const hash2 = await sha256Hex(input);
   assertEquals(hash1, hash2);
   assertEquals(hash1.length, 64);
+});
+
+
+Deno.test("Contract: permission request accepts all 14 cashier permission keys", () => {
+  const expected = [
+    "CREATE_SALE", "ACCEPT_CASH", "ACCEPT_ONLINE", "CREATE_CREDIT_SALE", "USE_COUPON",
+    "ISSUE_INVOICE", "ISSUE_RECEIPT", "REFUND", "VOID", "CORRECT_AMOUNT",
+    "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY", "MANAGE_PRODUCTS", "VIEW_REPORTS",
+  ];
+  assertEquals(PERMISSION_KEYS.size, 14);
+  for (const key of expected) assertEquals(PERMISSION_KEYS.has(key), true);
 });
 
 Deno.test("Contract: Admin update_cashier_permissions expects uppercase keys", () => {
