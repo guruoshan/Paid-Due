@@ -21,6 +21,18 @@ fun paidDueConfig(name: String): String =
         ?: System.getenv(name)
         ?: ""
 
+
+val paidDueReleaseKeystorePath = paidDueConfig("KEYSTORE_PATH").trim()
+val paidDueReleaseKeyAlias = paidDueConfig("KEY_ALIAS").trim()
+val paidDueReleaseKeystorePassword = paidDueConfig("KEYSTORE_PASSWORD")
+val paidDueReleaseKeyPassword = paidDueConfig("KEY_PASSWORD")
+val paidDueReleaseSigningConfigured = listOf(
+    paidDueReleaseKeystorePath,
+    paidDueReleaseKeyAlias,
+    paidDueReleaseKeystorePassword,
+    paidDueReleaseKeyPassword
+).all(String::isNotBlank)
+
 fun buildConfigString(value: String): String =
     "\"" + value
         .replace("\\", "\\\\")
@@ -43,8 +55,8 @@ android {
         applicationId = "com.dailymoneyregister"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionName = System.getenv("GITHUB_RUN_NUMBER")?.let { "1.0.$it" } ?: "1.0.0"
 
         testInstrumentationRunner = "com.dailymoneyregister.HiltTestRunner"
         val paidDueSupabaseUrl =
@@ -115,8 +127,21 @@ android {
         )
     }
 
+    signingConfigs {
+        if (paidDueReleaseSigningConfigured) {
+            create("release") {
+                storeFile = file(paidDueReleaseKeystorePath)
+                storePassword = paidDueReleaseKeystorePassword
+                keyAlias = paidDueReleaseKeyAlias
+                keyPassword = paidDueReleaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         getByName("debug") {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
             buildConfigField(
                 "boolean",
                 "APPLY_INBOUND_FINANCIAL_ENVELOPES",
@@ -124,6 +149,11 @@ android {
             )
         }
         release {
+            signingConfig = if (paidDueReleaseSigningConfigured) {
+                signingConfigs.getByName("release")
+            } else {
+                null
+            }
             buildConfigField("boolean", "APPLY_INBOUND_FINANCIAL_ENVELOPES", inboundApplyRelease.toString())
             isMinifyEnabled = true
             isShrinkResources = true
@@ -131,9 +161,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-        }
-        debug {
-            applicationIdSuffix = ".debug"
         }
     }
     compileOptions {
