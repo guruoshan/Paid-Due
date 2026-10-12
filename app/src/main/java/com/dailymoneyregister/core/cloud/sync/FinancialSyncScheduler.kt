@@ -2,6 +2,7 @@
 
 import android.util.Log
 import com.dailymoneyregister.core.model.enums.UserRole
+import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.security.SessionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,7 +17,8 @@ import javax.inject.Singleton
 
 @Singleton
 class FinancialSyncScheduler @Inject constructor(
-    private val syncEngine: FinancialSyncEngine
+    private val syncEngine: FinancialSyncEngine,
+    private val database: DmrDatabase
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var started = false
@@ -67,6 +69,51 @@ class FinancialSyncScheduler @Inject constructor(
         }
     }
 
+    /**
+     * Pull server-authoritative permissions on each sync cycle. Permission changes no
+     * longer revoke the transport token; this refresh keeps the local Room session and
+     * reactive UI aligned with the membership row while the server re-checks every write.
+     */
+    private suspend fun refreshCashierPermissions(membershipId: String, businessId: String) {
+        val active = SessionManager.currentSession.value ?: return
+        if (active.user.role != UserRole.CASHIER || active.membership?.id != membershipId) return
+
+        val metadata = CashierCloudSession.fetchMetadata(membershipId)
+        if (metadata.optString("business_id") != businessId ||
+            metadata.optString("branch_id") != active.branch.id ||
+            metadata.optString("role") != "CASHIER") {
+            CashierCloudSession.clear()
+            throw SecurityException("CASHIER_METADATA_SCOPE_MISMATCH")
+        }
+
+        val permissions = metadata.optJSONObject("permissions")
+            ?: throw IllegalStateException("CASHIER_METADATA_PERMISSIONS_MISSING")
+        val local = database.userDao().getMembership(active.user.id, active.branch.id)
+            ?: throw IllegalStateException("CASHIER_LOCAL_MEMBERSHIP_MISSING")
+
+        val updated = local.copy(
+            canCreateSale = permissions.getBoolean("can_create_sale"),
+            canAcceptCash = permissions.getBoolean("can_accept_cash"),
+            canAcceptOnline = permissions.getBoolean("can_accept_online"),
+            canCreateCreditSale = permissions.getBoolean("can_create_credit_sale"),
+            canUseCoupon = permissions.getBoolean("can_use_coupon"),
+            canIssueInvoice = permissions.getBoolean("can_issue_invoice"),
+            canIssueReceipt = permissions.getBoolean("can_issue_receipt"),
+            canRefund = permissions.getBoolean("can_refund"),
+            canVoid = permissions.getBoolean("can_void"),
+            canCorrectAmount = permissions.getBoolean("can_correct_amount"),
+            canChangePaymentMethod = permissions.getBoolean("can_change_payment_method"),
+            canViewBroadHistory = permissions.getBoolean("can_view_broad_history"),
+            canManageProducts = permissions.getBoolean("can_manage_products"),
+            canViewReports = permissions.getBoolean("can_view_reports")
+        )
+        if (updated != local) {
+            database.userDao().updateMembership(updated)
+            SessionManager.setSession(active.copy(membership = updated))
+            Log.i("PaidDueFinancialSync", "CASHIER_PERMISSIONS_REFRESHED membership=$membershipId")
+        }
+    }
+
     private suspend fun executeSync(
         role: UserRole,
         businessId: String,
@@ -91,6 +138,7 @@ class FinancialSyncScheduler @Inject constructor(
                         return
                     }
 
+                    refreshCashierPermissions(membershipId, businessId)
                     val uploaded = syncEngine.syncOutbound(membershipId, role)
 
                     val applied = syncEngine.syncInbound(
