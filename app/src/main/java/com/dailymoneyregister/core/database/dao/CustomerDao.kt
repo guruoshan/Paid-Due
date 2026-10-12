@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.dailymoneyregister.core.database.entity.CustomerEntity
+import com.dailymoneyregister.core.database.entity.CustomerIdAliasEntity
 import com.dailymoneyregister.core.database.entity.DocumentEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -29,6 +30,19 @@ interface CustomerDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertCustomer(customer: CustomerEntity)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertCustomerIdAlias(alias: CustomerIdAliasEntity): Long
+
+    @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND local_customer_id = :localCustomerId LIMIT 1")
+    suspend fun getCustomerIdAliasByLocalId(businessId: String, localCustomerId: String): CustomerIdAliasEntity?
+
+    @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND canonical_customer_id = :canonicalCustomerId LIMIT 1")
+    suspend fun getCustomerIdAliasByCanonicalId(businessId: String, canonicalCustomerId: String): CustomerIdAliasEntity?
+
+    @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND canonical_phone = :canonicalPhone LIMIT 1")
+    suspend fun getCustomerIdAliasByPhone(businessId: String, canonicalPhone: String): CustomerIdAliasEntity?
+
 
     @Update
     suspend fun updateCustomer(customer: CustomerEntity)
