@@ -19,7 +19,8 @@ import javax.inject.Singleton
 class FinancialSyncScheduler @Inject constructor(
     private val syncEngine: FinancialSyncEngine,
     private val database: DmrDatabase,
-    private val customerDirectorySyncClient: CustomerDirectorySyncClient
+    private val customerDirectorySyncClient: CustomerDirectorySyncClient,
+    private val cashierPermissionMetadataRefresher: CashierPermissionMetadataRefresher
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var started = false
@@ -161,6 +162,13 @@ class FinancialSyncScheduler @Inject constructor(
                         // the ingest RPC independently checks current server-side permissions.
                         Log.w("PaidDueFinancialSync", "CASHIER_METADATA_REFRESH_DEFERRED", error)
                     }
+                    if (CashierCloudSession.tokenFor(membershipId) == null) return
+                    try {
+                        cashierPermissionMetadataRefresher.refreshActiveCashier()
+                    } catch (error: Exception) {
+                        Log.w("PaidDueFinancialSync", "CASHIER_PERMISSION_REFRESH_DEFERRED", error)
+                    }
+                    // Invalid/revoked sessions are fail-closed; transient metadata failures retain the session.
                     if (CashierCloudSession.tokenFor(membershipId) == null) return
                     syncCustomerDirectoryBestEffort()
                     val uploaded = syncEngine.syncOutbound(membershipId, role)
