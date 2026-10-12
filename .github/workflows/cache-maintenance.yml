@@ -1,6 +1,8 @@
 name: Maintain GitHub Actions cache budget
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: "17 3 * * 0"
