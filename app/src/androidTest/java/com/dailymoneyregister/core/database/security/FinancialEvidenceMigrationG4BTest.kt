@@ -325,7 +325,7 @@ class FinancialEvidenceMigrationG4BTest {
                 .openHelperFactory(
                     SupportOpenHelperFactory(key.copyOf())
                 )
-                .addMigrations(DmrDatabase.MIGRATION_12_13)
+                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()
@@ -372,7 +372,7 @@ class FinancialEvidenceMigrationG4BTest {
                 .openHelperFactory(
                     SupportOpenHelperFactory(key.copyOf())
                 )
-                .addMigrations(DmrDatabase.MIGRATION_12_13)
+                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()
