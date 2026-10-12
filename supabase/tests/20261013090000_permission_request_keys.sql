@@ -4,7 +4,7 @@ DECLARE
   v_constraint text;
   v_create text;
   v_resolve text;
-  v_old text := '''CHANGE_PAYMENT_METHOD'',''VIEW_BROAD_HISTORY''';
+  v_old text := '''CHANGE_PAYMENT_METHOD'',''VIEW_BROAD_HISTORY'')';
 BEGIN
   SELECT pg_get_constraintdef(oid) INTO v_constraint
   FROM pg_constraint
