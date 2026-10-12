@@ -132,7 +132,7 @@ internal object RemoteEnvelopeEvidenceApplier {
             val item = walletsArray.getJSONObject(i)
             CouponWalletEntity(
                 id = item.getString("id"),
-                customerId = item.getString("customer_id"),
+                customerId = customerIdMap[item.getString("customer_id")] ?: item.getString("customer_id"),
                 currencyCode = item.getString("currency_code"),
                 isActive = item.optBoolean("is_active", true),
                 createdAt = item.getLong("created_at")
