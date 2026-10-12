@@ -37,7 +37,7 @@ interface CustomerDao {
     @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND alias_customer_id = :aliasCustomerId LIMIT 1")
     suspend fun getCustomerIdAliasByAliasId(businessId: String, aliasCustomerId: String): CustomerIdAliasEntity?
 
-    @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND local_customer_id = :localCustomerId ORDER BY (alias_customer_id = canonical_customer_id) DESC, updated_at DESC LIMIT 1")
+    @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND local_customer_id = :localCustomerId ORDER BY updated_at DESC LIMIT 1")
     suspend fun getCustomerIdAliasByLocalId(businessId: String, localCustomerId: String): CustomerIdAliasEntity?
 
     @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND canonical_customer_id = :canonicalCustomerId ORDER BY updated_at DESC LIMIT 1")
