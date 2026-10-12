@@ -72,3 +72,20 @@ Branch: `fix/supabase-permission-session-refresh`
 - [ ] Permission edits do not revoke the active cashier session; server rejects a forbidden operation immediately after the change.
 - [ ] Expired/revoked sessions leave outbox rows recoverable and show a clear sign-in-needed state.
 - [ ] Customer creation on one device is visible on the other through the newly implemented customer sync contract.
+
+
+## Follow-up work added to this branch (not deployed)
+
+### Customer directory contract prototype
+
+- Added `supabase/migrations/20261012200000_customer_directory_sync_contract.sql`.
+- Adds a tenant-scoped `private.customer_directory` keyed by business + canonical E.164 phone, with RLS enabled and direct table access revoked from `anon` and `authenticated`.
+- Adds service-role-only `sync_customer_directory_upsert` and `sync_customer_directory_list` RPCs that validate active business/branch/membership scope, cap list sizes, preserve the first canonical ID for a phone, and do not silently rename an existing customer.
+- Added `POST/GET /api/customers/sync` in the Supabase API handler and route, behind the existing cashier custom-session verification.
+- Added unauthenticated-request tests and a dedicated isolated SQL contract gate at `.github/workflows/customer-directory-contract.yml`, with fixture/test SQL under `supabase/tests/`.
+
+### Important limitation — not yet end-to-end
+
+This is a backend contract prototype, **not a completed customer sync rollout**. The Android client has not yet been wired to call these endpoints or reconcile IDs. A local customer ID may already be referenced by invoices, credit ledger events, coupons, expenses, or financial operations. When two devices independently create the same phone with different IDs, the server returns the first canonical ID; client reconciliation must preserve those historical references using an explicit alias/mapping strategy before enabling the migration or deploying the Edge Function. The current admin path also needs a verified authenticated-admin route, not just the cashier custom-session route.
+
+Therefore the customer migration and Edge Function route are **not applied/deployed to production**. The new isolated contract gate is running; do not enable or deploy this prototype until it passes and the Android alias/reconciliation and admin path are implemented and tested.
