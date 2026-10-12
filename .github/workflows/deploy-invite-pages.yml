@@ -30,10 +30,14 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
+      - name: Prepare site with invitation path
+        run: |
+          mkdir -p _site/invite
+          cp invite/index.html _site/invite/index.html
       - name: Upload invitation site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: invite
+          path: _site
       - name: Deploy Pages
         id: deployment
         uses: actions/deploy-pages@v4
