@@ -1,5 +1,6 @@
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.200.0/assert/mod.ts";
 import { health, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, syncCustomerDirectory, listCashierNotifications, markCashierNotificationRead, requestCashierPermission, PERMISSION_KEYS } from "./handlers.ts";
+import { handleRequest } from "./index.ts";
 import { sha256Hex, deriveCredential, hexToBytes, bytesToHex } from "./crypto.ts";
 
 Deno.test("GET /api/health returns 200 OK and expected version contract", async () => {
@@ -200,4 +201,34 @@ Deno.test("Admin JWT customer sync rejects unsupported methods", async () => {
     headers: { Authorization: "Bearer header.payload.signature" },
   }));
   assertEquals(response.status, 405);
+});
+
+
+Deno.test("API router accepts canonical and legacy Supabase function paths", async () => {
+  const paths = [
+    "http://localhost/functions/v1/api/health",
+    "http://localhost/functions/v1/api/api/health",
+    "http://localhost/api/health",
+    "http://localhost/health",
+  ];
+  for (const path of paths) {
+    const response = await handleRequest(new Request(path));
+    assertEquals(response.status, 200, path);
+    const data = await response.json();
+    assertEquals(data.status, "OK", path);
+  }
+});
+
+Deno.test("API router reaches cashier login route on canonical and legacy paths", async () => {
+  const paths = [
+    "http://localhost/functions/v1/api/staff/login",
+    "http://localhost/functions/v1/api/api/staff/login",
+    "http://localhost/api/staff/login",
+    "http://localhost/staff/login",
+  ];
+  for (const path of paths) {
+    const response = await handleRequest(new Request(path, { method: "GET" }));
+    assertEquals(response.status, 405, path);
+    assertNotEquals(response.status, 404, path);
+  }
 });
