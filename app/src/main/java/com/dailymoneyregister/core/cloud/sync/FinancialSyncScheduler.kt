@@ -132,12 +132,12 @@ class FinancialSyncScheduler @Inject constructor(
         try {
             when (role) {
                 UserRole.ADMIN -> {
+                    syncCustomerDirectoryBestEffort()
                     syncEngine.syncOutbound(membershipId, role)
                     syncEngine.syncInbound(
                         businessId,
                         SessionManager.currentSession.value?.user?.id ?: membershipId
                     )
-                    syncCustomerDirectoryBestEffort()
                 }
 
                 UserRole.CASHIER -> {
@@ -162,6 +162,7 @@ class FinancialSyncScheduler @Inject constructor(
                         Log.w("PaidDueFinancialSync", "CASHIER_METADATA_REFRESH_DEFERRED", error)
                     }
                     if (CashierCloudSession.tokenFor(membershipId) == null) return
+                    syncCustomerDirectoryBestEffort()
                     val uploaded = syncEngine.syncOutbound(membershipId, role)
 
                     val applied = syncEngine.syncInbound(
@@ -173,7 +174,6 @@ class FinancialSyncScheduler @Inject constructor(
                         "PaidDueFinancialSync",
                         "CASHIER_UPLOAD_ACKNOWLEDGED=$uploaded INBOUND_APPLIED=$applied"
                     )
-                    syncCustomerDirectoryBestEffort()
                 }
 
                 else -> Unit
