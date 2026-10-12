@@ -46,6 +46,15 @@ interface CustomerDao {
     @Query("SELECT * FROM customer_id_aliases WHERE business_id = :businessId AND canonical_phone = :canonicalPhone ORDER BY updated_at DESC LIMIT 1")
     suspend fun getCustomerIdAliasByPhone(businessId: String, canonicalPhone: String): CustomerIdAliasEntity?
 
+    @Query("UPDATE customer_id_aliases SET canonical_customer_id = :canonicalCustomerId, updated_at = :updatedAt WHERE business_id = :businessId AND local_customer_id = :localCustomerId AND canonical_phone = :canonicalPhone")
+    suspend fun updateCanonicalIdForLocalAliases(
+        businessId: String,
+        localCustomerId: String,
+        canonicalCustomerId: String,
+        canonicalPhone: String,
+        updatedAt: Long
+    ): Int
+
 
     @Update
     suspend fun updateCustomer(customer: CustomerEntity)
