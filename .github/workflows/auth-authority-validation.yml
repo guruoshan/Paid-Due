@@ -32,7 +32,7 @@ jobs:
       - name: Install production Android SDK platform and build tools
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed | grep -E 'platforms;android-37\.0|build-tools;37\.0\.0'
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed | grep -E 'platforms;android-37\\.0|build-tools;37\\.0\\.0'
       - uses: gradle/actions/setup-gradle@v4
       - name: Verify production SDK configuration
         run: |
@@ -49,13 +49,14 @@ jobs:
         run: ./gradlew --no-daemon :app:assembleDebug
       - name: Compile Debug Android instrumentation tests
         run: ./gradlew --no-daemon :app:compileDebugAndroidTestKotlin
-      - name: Execute Android instrumentation tests on API 37 emulator
+      - name: Execute Android instrumentation tests on API 37.0 emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 37
+          api-level: '37.0'
           target: google_apis
           arch: x86_64
           profile: pixel_2
+          channel: canary
           disable-animations: true
           script: ./gradlew --no-daemon :app:connectedDebugAndroidTest
 
