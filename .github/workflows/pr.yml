@@ -1,0 +1,41 @@
+name: Android PR validation
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  debug-build-and-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Install Android SDK 37
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
+
+      - name: Run debug unit tests and assemble debug APK
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug
