@@ -5,20 +5,22 @@ import androidx.room.Entity
 import androidx.room.Index
 
 /**
- * Maps a server-canonical customer ID to this device's stable local customer ID.
- * Financial rows continue to reference their original local IDs; this table is
- * an identity projection, never a destructive rewrite of historical evidence.
+ * Maps any device-local/server customer ID alias to this device's stable local row
+ * and the server's business-scoped canonical ID. Multiple device IDs may map to
+ * one canonical customer; historical financial references are never rewritten.
  */
 @Entity(
     tableName = "customer_id_aliases",
-    primaryKeys = ["business_id", "local_customer_id"],
+    primaryKeys = ["business_id", "alias_customer_id"],
     indices = [
-        Index(value = ["business_id", "canonical_customer_id"], unique = true),
+        Index(value = ["business_id", "local_customer_id"]),
+        Index(value = ["business_id", "canonical_customer_id"]),
         Index(value = ["business_id", "canonical_phone"])
     ]
 )
 data class CustomerIdAliasEntity(
     @ColumnInfo(name = "business_id") val businessId: String,
+    @ColumnInfo(name = "alias_customer_id") val aliasCustomerId: String,
     @ColumnInfo(name = "local_customer_id") val localCustomerId: String,
     @ColumnInfo(name = "canonical_customer_id") val canonicalCustomerId: String,
     @ColumnInfo(name = "canonical_phone") val canonicalPhone: String,
