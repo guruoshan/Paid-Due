@@ -8,7 +8,6 @@ import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.security.SessionManager
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.auth.status.SessionStatus
 import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
