@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   android:
+    if: github.event_name != 'pull_request' || github.base_ref != 'main'
     name: Android best-effort compile (API 36; SQLCipher metadata gate skipped)
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -31,7 +32,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
 
       - name: Install available Android SDK platform
         run: |
