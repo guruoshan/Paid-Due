@@ -12,8 +12,11 @@ import com.dailymoneyregister.core.security.PinThrottler
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.core.identity.PhoneNumberNormalizer
+import com.dailymoneyregister.core.cloud.AdminCloudAuthOutcome
 import com.dailymoneyregister.core.cloud.BusinessRestorer
+import com.dailymoneyregister.core.cloud.RemoteAuthFailureKind
 import com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult
+import com.dailymoneyregister.core.cloud.classifyRemoteAuthFailure
 import javax.inject.Inject
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -182,17 +185,6 @@ class AuthRepository @Inject constructor(
         pinThrottler.recordSuccess(identifier.preResolutionKey)
     }
 
-    private fun isClearlyCloudUnavailable(message: String): Boolean {
-        val normalized = message.lowercase()
-        if (listOf("invalid login", "invalid credentials", "invalid password", "unauthorized",
-                "forbidden", "membership is missing", "does not match", "different business",
-                "different branch", "not authorized", "disabled", "inactive").any(normalized::contains)
-        ) return false
-        return listOf("timeout", "timed out", "unavailable", "network", "connection",
-            "resolve host", "unknown host", "socket", "offline", "could not connect",
-            "failed to connect", "connection reset", "connection refused", "dns").any(normalized::contains)
-    }
-
     suspend fun loginAdmin(
         username: String,
         passwordPlain: String
@@ -272,31 +264,26 @@ class AuthRepository @Inject constructor(
                     expectedUserId = user.id,
                     expectedMembershipId = membership.id
                 )
-            }
+            } ?: AdminCloudAuthOutcome.Unavailable("Supabase authentication timed out.")
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            // Do not turn an explicit/unknown authorization error into an outage.
-            // Only recognizable transport failures may use the bounded offline lease.
-            val message = error.message.orEmpty()
-            if (isClearlyCloudUnavailable(message)) null
-            else RemoteBusinessRestorationResult.Failed(
-                message.ifBlank { "Supabase rejected Admin authorization." }
-            )
+            when (classifyRemoteAuthFailure(error)) {
+                RemoteAuthFailureKind.UNAVAILABLE ->
+                    AdminCloudAuthOutcome.Unavailable("Supabase is temporarily unreachable.")
+                RemoteAuthFailureKind.REJECTED ->
+                    AdminCloudAuthOutcome.Rejected("Supabase rejected Admin authorization.")
+            }
         }
 
         val authenticatedUser = when (cloudAuth) {
-            is RemoteBusinessRestorationResult.Success -> user
-            else -> {
-                val unavailable = cloudAuth == null ||
-                    (cloudAuth is RemoteBusinessRestorationResult.Failed &&
-                        isClearlyCloudUnavailable(cloudAuth.message))
-                if (!unavailable) {
-                    val lockoutSeconds = pinThrottler.recordFailure(failureKey)
-                    return if (lockoutSeconds > 0L) AuthResult.LockedOut(lockoutSeconds)
-                    else AuthResult.InvalidCredentials("Supabase rejected Admin authorization.")
-                }
-
+            AdminCloudAuthOutcome.Authenticated -> user
+            is AdminCloudAuthOutcome.Rejected -> {
+                val lockoutSeconds = pinThrottler.recordFailure(failureKey)
+                return if (lockoutSeconds > 0L) AuthResult.LockedOut(lockoutSeconds)
+                else AuthResult.InvalidCredentials("Supabase rejected Admin authorization.")
+            }
+            is AdminCloudAuthOutcome.Unavailable -> {
                 val localPasswordMatches = user.isActive && PasswordHasher.verifyPassword(
                     passwordPlain, user.credentialSalt ?: "", user.credentialHash
                 )

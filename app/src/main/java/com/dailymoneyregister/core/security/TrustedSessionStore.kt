@@ -60,9 +60,9 @@ class TrustedSessionStore @Inject constructor(
                 .putString(KEY_BRANCH_ID, branchId)
                 .putString(KEY_USER_ID, userId)
                 .remove(KEY_APP_BACKGROUND_AT)
-                .putLong(KEY_LAST_SERVER_VERIFIED_AT, System.currentTimeMillis())
-                .putLong(KEY_LAST_SERVER_VERIFIED_ELAPSED, SystemClock.elapsedRealtime())
-                .putInt(KEY_LAST_SERVER_VERIFIED_BOOT_COUNT, currentBootCount())
+                .remove(KEY_LAST_SERVER_VERIFIED_AT)
+                .remove(KEY_LAST_SERVER_VERIFIED_ELAPSED)
+                .remove(KEY_LAST_SERVER_VERIFIED_BOOT_COUNT)
                 .commit()
         ) {
             "Could not persist unverified session"

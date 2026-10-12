@@ -15,14 +15,11 @@ import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.device.DeviceIdentityProvider
 import com.dailymoneyregister.core.i18n.LanguageManager
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
-import com.dailymoneyregister.core.security.PinThrottler
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionRestorer
 import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.feature.admin.data.CashierManagementRepository
 import com.dailymoneyregister.feature.admin.data.CreateCashierParams
-import com.dailymoneyregister.feature.auth.data.AuthRepository
-import com.dailymoneyregister.feature.auth.data.AuthResult
 import com.dailymoneyregister.feature.setup.data.SetupParams
 import com.dailymoneyregister.feature.setup.data.SetupRepository
 import com.dailymoneyregister.feature.settings.data.SettingsLanguageResult
@@ -45,7 +42,6 @@ class TrustedSessionIntegrationTest {
     private lateinit var database: DmrDatabase
     private lateinit var trustedSessionStore: TrustedSessionStore
     private lateinit var setupRepository: SetupRepository
-    private lateinit var authRepository: AuthRepository
     private lateinit var cashierRepository: CashierManagementRepository
     private lateinit var restorer: TrustedSessionRestorer
     private lateinit var remoteFinancialSyncRepository: RemoteFinancialSyncRepository
@@ -89,14 +85,6 @@ class TrustedSessionIntegrationTest {
         )
         Log.i("BOARDLOCK", "setUp: created SetupRepository")
 
-        authRepository = AuthRepository(
-            database,
-            PinThrottler(context = context),
-            LanguageManager(context),
-            trustedSessionStore
-        )
-        Log.i("BOARDLOCK", "setUp: created AuthRepository")
-
         cashierRepository = CashierManagementRepository(
             database,
             commandExecutor,
@@ -121,64 +109,34 @@ class TrustedSessionIntegrationTest {
     }
 
     @Test
-    fun authenticationPersistsAdminAndCashierIdsWithoutCredentials() = runBlocking {
-        Log.i("BOARDLOCK", "TEST: authenticationPersistsAdminAndCashierIdsWithoutCredentials - start")
-        Log.i("BOARDLOCK", "test: before createSetup")
+    fun localSetupPersistsIdentityWithoutGrantingOfflineLease() = runBlocking {
         val setup = createSetup()
-        Log.i("BOARDLOCK", "test: after createSetup")
-
-        val insertedAdmin = database.userDao().getUserByUsername(
-            setup.businessId.value,
-            "admin@example"
-        )
-        check(insertedAdmin != null) {
-            "BOARDLOCK: Admin was NOT inserted into user_accounts"
-        }
-        Log.i(
-            "BOARDLOCK",
-            "BOARDLOCK: hash=${insertedAdmin.credentialHash} salt=${insertedAdmin.credentialSalt}"
-        )
         setupRepository.establishAdminSession(setup)
-        Log.i("BOARDLOCK", "test: after establishAdminSession")
-        val admin = authRepository.loginAdmin("admin@example", "AdminPass123")
-        Log.i("BOARDLOCK", "test: after loginAdmin, result=$admin")
 
-       assertTrue(
-       "loginAdmin returned: $admin",
-       admin is AuthResult.Success)
-        val adminIds = trustedSessionStore.load()
-        assertNotNull(adminIds)
-        assertEquals(setup.businessId.value, adminIds?.businessId)
-        assertEquals(setup.branchId.value, adminIds?.branchId)
-        assertEquals(setup.adminUserId.value, adminIds?.userId)
-
-        val preferences = context.getSharedPreferences(TrustedSessionStore.PREFS_NAME, Context.MODE_PRIVATE)
-        assertEquals(
-            setOf("business_id", "branch_id", "user_id"),
-            preferences.all.keys
+        val remembered = trustedSessionStore.load()
+        assertNotNull(remembered)
+        assertEquals(setup.businessId.value, remembered?.businessId)
+        assertEquals(setup.branchId.value, remembered?.branchId)
+        assertEquals(setup.adminUserId.value, remembered?.userId)
+        assertFalse(
+            trustedSessionStore.isOfflineLeaseValidFor(
+                setup.businessId.value,
+                setup.branchId.value,
+                setup.adminUserId.value
+            )
         )
+
+        val preferences = context.getSharedPreferences(
+            TrustedSessionStore.PREFS_NAME,
+            Context.MODE_PRIVATE
+        )
+        assertEquals(setOf("business_id", "branch_id", "user_id"), preferences.all.keys)
         assertTrue(preferences.all.values.none { value ->
             value.toString().contains("password", ignoreCase = true) ||
                 value.toString().contains("pin", ignoreCase = true) ||
                 value.toString().contains("hash", ignoreCase = true) ||
                 value.toString().contains("salt", ignoreCase = true)
         })
-
-        val cashierId = (cashierRepository.createCashier(
-            CreateCashierParams(
-                businessId = setup.businessId.value,
-                branchId = setup.branchId.value,
-                adminUserId = setup.adminUserId.value,
-                displayName = "Trusted Cashier",
-                username = "cashier@example",
-                phone = "92345678",
-                pin = "246810"
-            )
-        ) as CommandResult.Success).data
-
-        val cashier = authRepository.loginCashier("92345678", "246810")
-        assertTrue(cashier is AuthResult.Success)
-        assertEquals(cashierId.value, trustedSessionStore.load()?.userId)
     }
 
     @Test
@@ -187,7 +145,9 @@ class TrustedSessionIntegrationTest {
         val setup = createSetup()
         Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after createSetup")
         setupRepository.establishAdminSession(setup)
-        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after establishAdminSession")
+        // Simulate a previous successful server login for this lease-restoration test.
+        // Production local setup calls saveUnverified() and cannot create this lease.
+        trustedSessionStore.save(setup.businessId.value, setup.branchId.value, setup.adminUserId.value)
         SessionManager.clearSession()
 
         val adminRestored = restorer.restore()
@@ -208,13 +168,11 @@ class TrustedSessionIntegrationTest {
             )
         ) as CommandResult.Success).data
         Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after createCashier")
-        val cashier = authRepository.loginCashier("92345678", "246810") as AuthResult.Success
-        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after loginCashier")
-        assertTrue(cashier.session.requiresPinChange)
+        // Simulate a server-verified cashier session without calling a live endpoint.
+        trustedSessionStore.save(setup.businessId.value, setup.branchId.value, cashierId.value)
         SessionManager.clearSession()
 
         val restoredCashier = restorer.restore()
-        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after second restore - DONE")
         assertNotNull(restoredCashier)
         assertEquals(cashierId.value, restoredCashier?.user?.id)
         assertTrue(restoredCashier?.requiresPinChange == true)
@@ -234,7 +192,8 @@ class TrustedSessionIntegrationTest {
 
         try {
             setupRepository.establishAdminSession(setup)
-            Log.i("BOARDLOCK", "TEST: restoreReappliesPersistedUserLanguageFromRoom - after establishAdminSession")
+            // Use an explicit verified lease fixture; setup itself cannot create one.
+            trustedSessionStore.save(setup.businessId.value, setup.branchId.value, setup.adminUserId.value)
             val beforeUser = database.userDao().getUserById(setup.adminUserId.value)!!
             assertEquals("en", beforeUser.languageCode)
 
