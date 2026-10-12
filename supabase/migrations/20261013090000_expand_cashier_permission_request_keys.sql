@@ -17,8 +17,8 @@ ALTER TABLE private.cashier_permission_requests
 -- expected old contract is not present.
 DO $migration$
 DECLARE
-  v_old text := '''CHANGE_PAYMENT_METHOD'',''VIEW_BROAD_HISTORY''';
-  v_new text := '''CHANGE_PAYMENT_METHOD'',''VIEW_BROAD_HISTORY'',''ISSUE_RECEIPT'',''MANAGE_PRODUCTS'',''VIEW_REPORTS''';
+  v_old text := '''CHANGE_PAYMENT_METHOD'',''VIEW_BROAD_HISTORY'')';
+  v_new text := '''CHANGE_PAYMENT_METHOD'',''VIEW_BROAD_HISTORY'',''ISSUE_RECEIPT'',''MANAGE_PRODUCTS'',''VIEW_REPORTS'')';
   v_definition text;
 BEGIN
   v_definition := pg_get_functiondef('public.create_cashier_permission_request(text,text,text)'::regprocedure);
