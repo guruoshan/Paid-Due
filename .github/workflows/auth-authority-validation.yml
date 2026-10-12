@@ -1,12 +1,10 @@
 name: Paid&Due authentication authority checks
 
 on:
-  push:
-    branches:
-      - auth-integration-selective-api37-20261012
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
