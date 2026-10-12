@@ -1,5 +1,6 @@
 package com.dailymoneyregister.core.cloud.sync
 
+import android.util.Log
 import androidx.room.withTransaction
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
@@ -25,7 +26,14 @@ class CashierPermissionMetadataRefresher @Inject constructor(
         val membershipId = currentMembership.id
         if (CashierCloudSession.tokenFor(membershipId) == null) return false
 
+        Log.d("PaidDueFinancialSync", "CASHIER_PERMISSION_REFRESH_REQUEST membership=$membershipId")
         val metadata = CashierCloudSession.fetchMetadata(membershipId)
+        val permissions = metadata.optJSONObject("permissions")
+            ?: throw IllegalArgumentException("CASHIER_METADATA_PERMISSIONS_MISSING")
+        Log.d(
+            "PaidDueFinancialSync",
+            "CASHIER_PERMISSION_PAYLOAD_RECEIVED membership=$membershipId key_count=${permissions.length()}"
+        )
         return applyMetadataForActiveCashier(active, metadata)
     }
 
@@ -78,11 +86,12 @@ class CashierPermissionMetadataRefresher @Inject constructor(
     ): UserBranchMembershipEntity {
         fun value(key: String): Boolean {
             require(permissions.has(key) && !permissions.isNull(key)) {
+                Log.e("PaidDueFinancialSync", "CASHIER_PERMISSION_KEY_MISSING key=$key")
                 "CASHIER_METADATA_PERMISSION_MISSING:$key"
             }
             return permissions.getBoolean(key)
         }
-        return current.copy(
+        val updated = current.copy(
             canCreateSale = value("can_create_sale"),
             canAcceptCash = value("can_accept_cash"),
             canAcceptOnline = value("can_accept_online"),
@@ -98,6 +107,8 @@ class CashierPermissionMetadataRefresher @Inject constructor(
             canManageProducts = value("can_manage_products"),
             canViewReports = value("can_view_reports")
         )
+        Log.d("PaidDueFinancialSync", "CASHIER_PERMISSION_SNAPSHOT_PARSED key_count=14")
+        return updated
     }
 
     private fun sameSession(current: ActiveSession?, expected: ActiveSession): Boolean =
