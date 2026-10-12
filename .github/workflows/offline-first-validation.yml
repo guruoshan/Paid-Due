@@ -71,6 +71,9 @@ jobs:
         with:
           deno-version: v2.x
 
+      - name: Type-check deployed API router and imports
+        working-directory: supabase/functions/api
+        run: deno check index.ts
       - name: Run API contract tests
         working-directory: supabase/functions/api
         run: deno task test api_test.ts
