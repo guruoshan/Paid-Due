@@ -1,0 +1,42 @@
+name: Customer Directory Contract Gate
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: customer-directory-contract-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  customer-directory-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.120.0
+      - name: Start isolated PostgreSQL
+        run: |
+          mkdir -p /tmp/customer-directory-gate/supabase/migrations
+          cat > /tmp/customer-directory-gate/supabase/config.toml <<'EOF'
+          project_id = "paid-due-customer-directory-gate"
+          [db.seed]
+          enabled = false
+          EOF
+          supabase start --exclude gotrue,realtime,storage-api,imgproxy,kong,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor --workdir /tmp/customer-directory-gate
+      - name: Apply fixture and customer directory migration
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/fixtures/customer_directory_sync_schema.sql
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261012200000_customer_directory_sync_contract.sql
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/20261012200000_customer_directory_sync_contract.sql
+      - name: Stop isolated PostgreSQL
+        if: always()
+        run: supabase stop --no-backup --workdir /tmp/customer-directory-gate
