@@ -78,42 +78,18 @@ class FinancialSyncScheduler @Inject constructor(
      */
     private suspend fun refreshCashierPermissions(membershipId: String, businessId: String) {
         val active = SessionManager.currentSession.value ?: return
-        if (active.user.role != UserRole.CASHIER || active.membership?.id != membershipId) return
+        if (active.user.role != UserRole.CASHIER ||
+            active.membership?.id != membershipId ||
+            active.business.id != businessId
+        ) return
 
-        val metadata = CashierCloudSession.fetchMetadata(membershipId)
-        if (metadata.optString("business_id") != businessId ||
-            metadata.optString("branch_id") != active.branch.id ||
-            metadata.optString("role") != "CASHIER") {
-            CashierCloudSession.clear()
-            throw SecurityException("CASHIER_METADATA_SCOPE_MISMATCH")
-        }
-
-        val permissions = metadata.optJSONObject("permissions")
-            ?: throw IllegalStateException("CASHIER_METADATA_PERMISSIONS_MISSING")
-        val local = database.userDao().getMembership(active.user.id, active.branch.id)
-            ?: throw IllegalStateException("CASHIER_LOCAL_MEMBERSHIP_MISSING")
-
-        val updated = local.copy(
-            canCreateSale = permissions.getBoolean("can_create_sale"),
-            canAcceptCash = permissions.getBoolean("can_accept_cash"),
-            canAcceptOnline = permissions.getBoolean("can_accept_online"),
-            canCreateCreditSale = permissions.getBoolean("can_create_credit_sale"),
-            canUseCoupon = permissions.getBoolean("can_use_coupon"),
-            canIssueInvoice = permissions.getBoolean("can_issue_invoice"),
-            canIssueReceipt = permissions.getBoolean("can_issue_receipt"),
-            canRefund = permissions.getBoolean("can_refund"),
-            canVoid = permissions.getBoolean("can_void"),
-            canCorrectAmount = permissions.getBoolean("can_correct_amount"),
-            canChangePaymentMethod = permissions.getBoolean("can_change_payment_method"),
-            canViewBroadHistory = permissions.getBoolean("can_view_broad_history"),
-            canManageProducts = permissions.getBoolean("can_manage_products"),
-            canViewReports = permissions.getBoolean("can_view_reports")
+        // One authoritative path: validates all 14 keys, writes Room transactionally,
+        // and updates the active session only if it is still the same cashier session.
+        val applied = cashierPermissionMetadataRefresher.refreshActiveCashier()
+        Log.i(
+            "PaidDueFinancialSync",
+            "CASHIER_PERMISSION_REFRESH_CHECKED membership=$membershipId applied=$applied"
         )
-        if (updated != local) {
-            database.userDao().updateMembership(updated)
-            SessionManager.setSession(active.copy(membership = updated))
-            Log.i("PaidDueFinancialSync", "CASHIER_PERMISSIONS_REFRESHED membership=$membershipId")
-        }
     }
 
     private suspend fun syncCustomerDirectoryBestEffort() {
@@ -163,11 +139,6 @@ class FinancialSyncScheduler @Inject constructor(
                         Log.w("PaidDueFinancialSync", "CASHIER_METADATA_REFRESH_DEFERRED", error)
                     }
                     if (CashierCloudSession.tokenFor(membershipId) == null) return
-                    try {
-                        cashierPermissionMetadataRefresher.refreshActiveCashier()
-                    } catch (error: Exception) {
-                        Log.w("PaidDueFinancialSync", "CASHIER_PERMISSION_REFRESH_DEFERRED", error)
-                    }
                     // Invalid/revoked sessions are fail-closed; transient metadata failures retain the session.
                     if (CashierCloudSession.tokenFor(membershipId) == null) return
                     syncCustomerDirectoryBestEffort()
