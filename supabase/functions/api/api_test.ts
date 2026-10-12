@@ -1,5 +1,5 @@
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.200.0/assert/mod.ts";
-import { health, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, listCashierNotifications, markCashierNotificationRead, requestCashierPermission } from "./handlers.ts";
+import { health, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, syncCustomerDirectory, listCashierNotifications, markCashierNotificationRead, requestCashierPermission } from "./handlers.ts";
 import { sha256Hex, deriveCredential, hexToBytes, bytesToHex } from "./crypto.ts";
 
 Deno.test("GET /api/health returns 200 OK and expected version contract", async () => {
@@ -140,6 +140,26 @@ Deno.test("POST /api/staff/permission-requests requires a valid cashier session"
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ permission_key: "VIEW_BROAD_HISTORY" })
+  }));
+  assertEquals(response.status, 401);
+});
+
+
+Deno.test("GET /api/customers/sync requires a valid cashier session", async () => {
+  const response = await syncCustomerDirectory(new Request("http://localhost/api/customers/sync"));
+  assertEquals(response.status, 401);
+});
+
+Deno.test("POST /api/customers/sync requires a valid cashier session before accepting data", async () => {
+  const response = await syncCustomerDirectory(new Request("http://localhost/api/customers/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      customer_id: "local-customer-1",
+      canonical_phone: "+96891234567",
+      display_name: "Test Customer",
+      created_at: "2026-10-12T12:00:00.000Z"
+    })
   }));
   assertEquals(response.status, 401);
 });
