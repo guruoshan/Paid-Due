@@ -71,3 +71,5 @@ jobs:
       - name: Run API contract tests
         working-directory: supabase/functions/api
         run: deno task test api_test.ts
+      - name: Run staff invitation URL contract tests
+        run: deno test supabase/functions/staff-invite/invite-link_test.ts
