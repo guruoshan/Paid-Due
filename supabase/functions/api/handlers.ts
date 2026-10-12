@@ -399,10 +399,10 @@ export async function requestCashierPermission(request: Request) {
  */
 export async function syncCustomerDirectory(request: Request) {
   const authorization = request.headers.get("Authorization") || "";
-  const bearer = /^Bearer\\s+(.+)$/i.exec(authorization)?.[1] || "";
+  const bearer = /^Bearer\s+(.+)$/i.exec(authorization)?.[1] || "";
   // Supabase Auth access tokens are JWTs; cashier sync tokens are fixed 64-hex
   // custom-session credentials. Never fall back from a failed Admin JWT to service-role scope.
-  if (bearer.split(".").length === 3 && /^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(bearer)) {
+  if (bearer.split(".").length === 3 && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(bearer)) {
     return await syncCustomerDirectoryAdmin(request, bearer);
   }
   let session;
