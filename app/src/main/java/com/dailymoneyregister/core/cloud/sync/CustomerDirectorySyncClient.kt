@@ -59,7 +59,7 @@ class CustomerDirectorySyncClient @Inject constructor(
         val localCustomers = database.customerDao().getCustomersForBusiness(businessId)
         for (customer in localCustomers) {
             val response = request(
-                url = "$baseUrl/api/customers/sync",
+                url = "$baseUrl/customers/sync",
                 method = "POST",
                 token = token,
                 body = JSONObject()
@@ -79,7 +79,7 @@ class CustomerDirectorySyncClient @Inject constructor(
         // remote IDs become aliases to those rows instead of replacing their keys.
         val query = "?business_id=${encode(businessId)}&branch_id=${encode(branchId)}&limit=500"
         val response = request(
-            url = "$baseUrl/api/customers/sync$query",
+            url = "$baseUrl/customers/sync$query",
             method = "GET",
             token = token,
             body = null
@@ -132,7 +132,12 @@ class CustomerDirectorySyncClient @Inject constructor(
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
             val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (status !in 200..299) throw IOException("CUSTOMER_SYNC_HTTP_$status")
+            if (status !in 200..299) {
+                val outcome = runCatching { JSONObject(text).optString("outcome", "UNKNOWN") }
+                    .getOrDefault("UNKNOWN")
+                Log.e(TAG, "CUSTOMER_SYNC_HTTP status=$status method=$method outcome=$outcome")
+                throw IOException("CUSTOMER_SYNC_HTTP_$status outcome=$outcome")
+            }
             return JSONObject(text)
         } finally {
             connection.disconnect()
