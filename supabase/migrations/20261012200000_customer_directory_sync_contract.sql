@@ -48,7 +48,7 @@ as $function$
 declare
   v_membership public.business_memberships%rowtype;
   v_row private.customer_directory%rowtype;
-  v_inserted boolean := false;
+  v_inserted integer := 0;
 begin
   if p_business_id is null or p_branch_id is null or p_membership_id is null
      or p_customer_id is null or length(btrim(p_customer_id)) not between 1 and 128
@@ -89,7 +89,7 @@ begin
   -- Identity is phone-based within a business. Do not silently rename an existing
   -- customer or replace its canonical ID when another device has a different local ID.
   return query select v_row.customer_id, v_row.canonical_phone, v_row.display_name,
-    v_row.created_at, v_row.updated_at, v_inserted;
+    v_row.created_at, v_row.updated_at, (v_inserted > 0);
 end;
 $function$;
 
