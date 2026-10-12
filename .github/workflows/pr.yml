@@ -39,8 +39,11 @@ jobs:
           chmod +x ./gradlew
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
 
-      - name: Run debug unit tests and assemble debug APK
-        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Run debug unit tests
+        run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest
+
+      - name: Assemble debug APK
+        run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
 
       - name: Run customer identity instrumentation on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
