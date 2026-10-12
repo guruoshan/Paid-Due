@@ -1,5 +1,5 @@
 import {
-  health, activateStaff, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, json,
+  health, activateStaff, loginStaff, uploadFinancial, staffMetadata, downloadFinancial, syncCustomerDirectory, json,
 } from "./handlers.ts";
 
 // Supabase Function gateway normally forwards /api/<route> after /functions/v1/api.
@@ -73,6 +73,7 @@ export async function handleRequest(request: Request): Promise<Response> {
     if (path === "/api/financial/upload") return await uploadFinancial(request);
     if (path === "/api/staff/metadata") return await staffMetadata(request);
     if (path === "/api/financial/download") return await downloadFinancial(request);
+    if (path === "/api/customers/sync") return await syncCustomerDirectory(request);
     if (path === "/api/staff/notifications") return await listCashierNotifications(request);
     if (path === "/api/staff/notifications/read") return await markCashierNotificationRead(request);
     if (path === "/api/staff/permission-requests") return await requestCashierPermission(request);
