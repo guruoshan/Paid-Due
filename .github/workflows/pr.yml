@@ -29,7 +29,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
 
       - name: Install Android SDK 37
         run: |
