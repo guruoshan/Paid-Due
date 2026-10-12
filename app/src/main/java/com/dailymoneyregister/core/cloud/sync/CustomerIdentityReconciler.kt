@@ -17,7 +17,8 @@ internal object CustomerIdentityReconciler {
         canonicalPhone: String,
         name: String,
         createdAt: Long,
-        updatedAt: Long
+        updatedAt: Long,
+        isServerCanonical: Boolean = false
     ): String {
         require(businessId.isNotBlank() && canonicalCustomerId.isNotBlank())
         require(canonicalPhone.matches(Regex("^\\+[1-9][0-9]{7,14}$")))
@@ -30,11 +31,18 @@ internal object CustomerIdentityReconciler {
             val local = dao.getCustomerById(incomingAlias.localCustomerId)
                 ?: error("Customer alias references a missing local customer")
             require(local.businessId == businessId && local.canonicalPhone == canonicalPhone)
+            if (isServerCanonical && incomingAlias.canonicalCustomerId != canonicalCustomerId) {
+                dao.updateCanonicalIdForLocalAliases(
+                    businessId, local.id, canonicalCustomerId, canonicalPhone,
+                    maxOf(updatedAt, System.currentTimeMillis())
+                )
+            }
             return local.id
         }
 
         val knownPhoneAlias = dao.getCustomerIdAliasByPhone(businessId, canonicalPhone)
-        val serverCanonicalId = knownPhoneAlias?.canonicalCustomerId ?: canonicalCustomerId
+        val serverCanonicalId = if (isServerCanonical) canonicalCustomerId
+            else knownPhoneAlias?.canonicalCustomerId ?: canonicalCustomerId
         val local = if (knownPhoneAlias != null) {
             dao.getCustomerById(knownPhoneAlias.localCustomerId)
                 ?: error("Customer phone alias references a missing local customer")
@@ -58,8 +66,14 @@ internal object CustomerIdentityReconciler {
         require(local.businessId == businessId && local.canonicalPhone == canonicalPhone) {
             "Customer phone is already linked to a different local customer ID"
         }
+        if (isServerCanonical) {
+            dao.updateCanonicalIdForLocalAliases(
+                businessId, local.id, serverCanonicalId, canonicalPhone,
+                maxOf(updatedAt, System.currentTimeMillis())
+            )
+        }
         val existingLocalAlias = dao.getCustomerIdAliasByLocalId(businessId, local.id)
-        require(existingLocalAlias == null ||
+        require(isServerCanonical || existingLocalAlias == null ||
             (existingLocalAlias.canonicalCustomerId == serverCanonicalId &&
                 existingLocalAlias.canonicalPhone == canonicalPhone)) {
             "Local customer ID was previously associated with another canonical customer"
