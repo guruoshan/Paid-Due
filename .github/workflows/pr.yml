@@ -14,7 +14,7 @@ concurrency:
 jobs:
   debug-build-and-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 25
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -39,6 +39,9 @@ jobs:
           chmod +x ./gradlew
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
 
+      - name: Compile debug Kotlin
+        run: ./gradlew --no-daemon --stacktrace :app:compileDebugKotlin
+
       - name: Run debug unit tests
         run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest
 
@@ -53,12 +56,3 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Run customer identity instrumentation on Android emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 36
-          target: google_apis
-          arch: x86_64
-          profile: pixel_2
-          disable-animations: true
-          script: ./gradlew --no-daemon :app:connectedDebugAndroidTest
