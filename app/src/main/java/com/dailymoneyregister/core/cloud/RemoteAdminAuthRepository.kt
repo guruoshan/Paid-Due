@@ -3,6 +3,8 @@ package com.dailymoneyregister.core.cloud
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.exceptions.RestException
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
 import java.util.concurrent.TimeoutException
@@ -21,12 +23,24 @@ enum class RemoteAuthFailureKind {
  * Only transport-shaped exceptions qualify as an outage. Never infer outage
  * from human-readable server/error text, which can contain misleading words.
  */
+internal fun classifyRemoteAuthHttpStatus(statusCode: Int): RemoteAuthFailureKind =
+    if (statusCode == 408 || statusCode in 500..599) {
+        RemoteAuthFailureKind.UNAVAILABLE
+    } else {
+        // Invalid credentials, authorization failures, and rate limiting are
+        // responses from a reachable server, not permission to use offline login.
+        RemoteAuthFailureKind.REJECTED
+    }
+
 internal fun classifyRemoteAuthFailure(error: Throwable): RemoteAuthFailureKind {
     var current: Throwable? = error
     repeat(16) {
         val cause = current ?: return RemoteAuthFailureKind.REJECTED
-        if (cause is IOException || cause is TimeoutException) {
-            return RemoteAuthFailureKind.UNAVAILABLE
+        when (cause) {
+            is RestException -> return classifyRemoteAuthHttpStatus(cause.statusCode)
+            is IOException,
+            is TimeoutException,
+            is HttpRequestTimeoutException -> return RemoteAuthFailureKind.UNAVAILABLE
         }
         current = cause.cause
     }

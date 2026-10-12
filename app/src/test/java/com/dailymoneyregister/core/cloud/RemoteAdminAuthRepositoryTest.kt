@@ -107,9 +107,24 @@ class RemoteAdminAuthRepositoryTest {
             classifyRemoteAuthFailure(IOException("invalid credentials"))
         )
         assertEquals(
+            RemoteAuthFailureKind.UNAVAILABLE,
+            classifyRemoteAuthFailure(java.util.concurrent.TimeoutException("timeout"))
+        )
+        assertEquals(
             RemoteAuthFailureKind.REJECTED,
             classifyRemoteAuthFailure(IllegalStateException("network connection timeout"))
         )
+    }
+
+    @Test
+    fun remoteAuthHttpStatusClassificationAllowsOfflineFallbackOnlyForTimeoutOrServerFailure() {
+        assertEquals(RemoteAuthFailureKind.REJECTED, classifyRemoteAuthHttpStatus(400))
+        assertEquals(RemoteAuthFailureKind.REJECTED, classifyRemoteAuthHttpStatus(401))
+        assertEquals(RemoteAuthFailureKind.REJECTED, classifyRemoteAuthHttpStatus(403))
+        assertEquals(RemoteAuthFailureKind.REJECTED, classifyRemoteAuthHttpStatus(429))
+        assertEquals(RemoteAuthFailureKind.UNAVAILABLE, classifyRemoteAuthHttpStatus(408))
+        assertEquals(RemoteAuthFailureKind.UNAVAILABLE, classifyRemoteAuthHttpStatus(500))
+        assertEquals(RemoteAuthFailureKind.UNAVAILABLE, classifyRemoteAuthHttpStatus(503))
     }
 
     // ── assertion helpers ──────────────────────────────────────────────────
