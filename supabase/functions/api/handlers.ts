@@ -169,8 +169,11 @@ export async function loginStaff(
     const restorationRows = await rpc("fetch_cashier_restoration", {
       p_membership_id: staff.membership_id
     });
-    if (!Array.isArray(restorationRows) || restorationRows.length !== 1) {
-      return json({ outcome: "RESTORATION_UNAVAILABLE" }, 503);
+    if (!Array.isArray(restorationRows)) {
+      throw new Error("RESTORATION_CONTRACT_INVALID");
+    }
+    if (restorationRows.length !== 1) {
+      return json({ outcome: "INVALID_CASHIER_MEMBERSHIP" }, 403);
     }
     const restoration = restorationRows[0];
     if (
