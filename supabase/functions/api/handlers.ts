@@ -390,3 +390,91 @@ export async function requestCashierPermission(request: Request) {
     return json({ outcome: "PERMISSION_REQUEST_UNAVAILABLE" }, 503);
   }
 }
+
+
+/**
+ * Customer directory sync for authenticated cashier custom sessions.
+ * Customer identity is canonical-phone scoped per business. The client must
+ * reconcile a returned canonical customer_id before replacing local references.
+ */
+export async function syncCustomerDirectory(request: Request) {
+  let session;
+  try {
+    session = await verifyToken(request);
+  } catch {
+    return json({ outcome: "UNAUTHORIZED" }, 401);
+  }
+
+  if (request.method === "GET") {
+    const url = new URL(request.url);
+    const rawLimit = url.searchParams.get("limit") || "100";
+    const limit = Number(rawLimit);
+    const after = url.searchParams.get("after_updated_at");
+    if (!Number.isInteger(limit) || limit < 1 || limit > 500 ||
+        (after !== null && (!Number.isFinite(Date.parse(after)) || after.length > 64))) {
+      return json({ outcome: "INVALID_REQUEST" }, 400);
+    }
+    try {
+      const rows = await rpc("sync_customer_directory_list", {
+        p_business_id: session.business_id,
+        p_branch_id: session.branch_id,
+        p_membership_id: session.membership_id,
+        p_after_updated_at: after,
+        p_limit: limit,
+      });
+      return json({ customers: Array.isArray(rows) ? rows : [] }, 200);
+    } catch (error: any) {
+      if (error.status === 400 || error.status === 403) {
+        return json({ outcome: error.outcome || "CUSTOMER_SYNC_REJECTED" }, error.status);
+      }
+      throw error;
+    }
+  }
+
+  if (request.method !== "POST") {
+    return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { Allow: "GET, POST" });
+  }
+  const contentType = request.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().startsWith("application/json")) {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+  if (
+    typeof body.customer_id !== "string" || body.customer_id.trim().length < 1 ||
+    body.customer_id.trim().length > 128 ||
+    typeof body.canonical_phone !== "string" || !PHONE_REGEX.test(body.canonical_phone) ||
+    typeof body.display_name !== "string" || body.display_name.trim().length < 1 ||
+    body.display_name.trim().length > 200 ||
+    (body.created_at != null && (typeof body.created_at !== "string" ||
+      !Number.isFinite(Date.parse(body.created_at)) || body.created_at.length > 64))
+  ) {
+    return json({ outcome: "INVALID_CUSTOMER" }, 400);
+  }
+
+  try {
+    const rows = await rpc("sync_customer_directory_upsert", {
+      p_business_id: session.business_id,
+      p_branch_id: session.branch_id,
+      p_membership_id: session.membership_id,
+      p_customer_id: body.customer_id.trim(),
+      p_canonical_phone: body.canonical_phone,
+      p_display_name: body.display_name.trim(),
+      p_created_at: body.created_at || null,
+    });
+    if (!Array.isArray(rows) || rows.length !== 1) {
+      throw new Error("CUSTOMER_SYNC_RESULT_INVALID");
+    }
+    return json({ customer: rows[0] }, 200);
+  } catch (error: any) {
+    if (error.status === 400 || error.status === 403) {
+      return json({ outcome: error.outcome || "CUSTOMER_SYNC_REJECTED" }, error.status);
+    }
+    throw error;
+  }
+}
