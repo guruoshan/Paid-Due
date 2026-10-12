@@ -3,7 +3,6 @@ package com.dailymoneyregister.core.cloud.sync
 import android.util.Log
 import com.dailymoneyregister.BuildConfig
 import com.dailymoneyregister.core.database.DmrDatabase
-import com.dailymoneyregister.core.database.entity.CustomerEntity
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.security.SessionManager
 import io.github.jan.supabase.SupabaseClient
@@ -39,8 +38,9 @@ class CustomerDirectorySyncClient @Inject constructor(
         val membershipId = session.membership?.id?.takeIf { it.isNotBlank() } ?: return@withContext
         val businessId = session.business.id
         val branchId = session.branch.id
+        val syncKey = "$businessId:$branchId:${session.user.role.name}"
         val now = System.currentTimeMillis()
-        val previous = lastSyncByBusiness[businessId] ?: 0L
+        val previous = lastSyncByBusiness[syncKey] ?: 0L
         if (now - previous < MIN_SYNC_INTERVAL_MILLIS) return@withContext
 
         val token = when (session.user.role) {
@@ -86,7 +86,7 @@ class CustomerDirectorySyncClient @Inject constructor(
         for (index in 0 until customers.length()) {
             reconcile(customers.getJSONObject(index), businessId)
         }
-        lastSyncByBusiness[businessId] = System.currentTimeMillis()
+        lastSyncByBusiness[syncKey] = System.currentTimeMillis()
         Log.i(TAG, "CUSTOMER_DIRECTORY_SYNC_OK business=$businessId pushed=${localCustomers.size} pulled=${customers.length()}")
     }
 
