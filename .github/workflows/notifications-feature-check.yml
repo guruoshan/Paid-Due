@@ -12,25 +12,37 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: notification-feature-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  android-unit-tests:
+  android-unit-tests-and-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     env:
       PAID_DUE_SUPABASE_URL: https://example.supabase.co
       PAID_DUE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_test_only
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v4
-      - name: Install Android SDK prerequisites (AGP downloads compileSdk 37)
+      - name: Install Android SDK prerequisites
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Run Android unit tests
-        run: bash ./gradlew --no-daemon :app:testDebugUnitTest
+        with:
+          cache-read-only: true
+      - name: Run Android unit tests and build debug APK once
+        run: bash ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paid-due-direct-invite-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
 
   supabase-api-tests:
     runs-on: ubuntu-latest
@@ -42,28 +54,3 @@ jobs:
           deno-version: v2.x
       - name: Run Supabase API contract tests
         run: deno test --allow-net supabase/functions/api/api_test.ts
-
-  android-debug-apk:
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    env:
-      PAID_DUE_SUPABASE_URL: https://example.supabase.co
-      PAID_DUE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_test_only
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v4
-      - name: Install Android SDK prerequisites
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
-      - uses: gradle/actions/setup-gradle@v4
-      - name: Build debug APK
-        run: bash ./gradlew --no-daemon :app:assembleDebug
-      - uses: actions/upload-artifact@v4
-        with:
-          name: paid-due-direct-invite-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 7

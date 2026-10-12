@@ -28,7 +28,7 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.120.0
 
       - name: Prepare isolated Supabase CLI project without app migrations
         run: |

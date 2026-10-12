@@ -1,0 +1,85 @@
+name: Maintain GitHub Actions cache budget
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 0"
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: actions-cache-maintenance
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Inventory and prune non-main caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          list_caches() {
+            gh cache list --limit 1000 --json key,ref,lastAccessedAt,sizeInBytes
+          }
+
+          before="$(list_caches)"
+          before_bytes="$(jq '[.[].sizeInBytes] | add // 0' <<< "$before")"
+          echo "Cache bytes before cleanup: $before_bytes"
+          echo "Cache entries before cleanup: $(jq 'length' <<< "$before")"
+
+          # Non-main and pull-request caches are disposable: CI restores the main
+          # cache read-only, so these refs no longer need independent cache copies.
+          refs="$(jq -r '[.[].ref | select(. != "refs/heads/main")] | unique[]?' <<< "$before")"
+          if [[ -n "$refs" ]]; then
+            while IFS= read -r ref; do
+              [[ -z "$ref" ]] && continue
+              echo "Deleting cache entries for $ref"
+              gh cache delete --all --ref "$ref"
+            done <<< "$refs"
+          fi
+
+          # Keep the newest main cache and prune older main entries until the
+          # repository is at or below an 8 GiB working target where possible.
+          # This leaves headroom under GitHub's 10 GB repository cache limit.
+          target_bytes=$((8 * 1024 * 1024 * 1024))
+          while true; do
+            current="$(list_caches)"
+            total_bytes="$(jq '[.[].sizeInBytes] | add // 0' <<< "$current")"
+            main_count="$(jq '[.[] | select(.ref == "refs/heads/main")] | length' <<< "$current")"
+            echo "Current cache bytes: $total_bytes; main cache entries: $main_count"
+
+            if (( total_bytes <= target_bytes || main_count <= 1 )); then
+              break
+            fi
+
+            oldest="$(jq -r '[.[] | select(.ref == "refs/heads/main")] | sort_by(.lastAccessedAt) | .[0] | [.key, .sizeInBytes] | @tsv' <<< "$current")"
+            IFS=$'\t' read -r key size_bytes <<< "$oldest"
+            if [[ -z "$key" || -z "$size_bytes" ]]; then
+              echo "::error::Could not identify the oldest main cache safely."
+              exit 1
+            fi
+            echo "Deleting old main cache key: $key ($size_bytes bytes)"
+            gh cache delete "$key" --ref refs/heads/main
+          done
+
+          after="$(list_caches)"
+          after_bytes="$(jq '[.[].sizeInBytes] | add // 0' <<< "$after")"
+          after_count="$(jq 'length' <<< "$after")"
+          echo "Cache bytes after cleanup: $after_bytes"
+          echo "Cache entries after cleanup: $after_count"
+          {
+            echo "### GitHub Actions cache maintenance"
+            echo "- Before: $before_bytes bytes across $(jq 'length' <<< "$before") entries"
+            echo "- After: $after_bytes bytes across $after_count entries"
+            echo "- Non-main branch and pull-request caches were pruned."
+            echo "- Old main caches were pruned toward an 8 GiB target, preserving the newest main cache."
+          } >> "$GITHUB_STEP_SUMMARY"

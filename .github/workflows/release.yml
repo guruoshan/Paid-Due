@@ -29,7 +29,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
       - name: Validate required release configuration
         shell: bash
@@ -53,12 +52,16 @@ jobs:
             exit 1
           }
 
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
       - name: Install Android SDK 37
         shell: bash
         run: |
           set -euo pipefail
           chmod +x ./gradlew
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37" "build-tools;37.0.0" "platform-tools"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
 
       - name: Decode release keystore to runner temporary storage
         shell: bash

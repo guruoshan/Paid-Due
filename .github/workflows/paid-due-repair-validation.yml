@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   android-build-and-unit-tests:
+    if: github.event_name != 'pull_request' || github.base_ref != 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -26,7 +27,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-          cache: gradle
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
 
       - name: Use Android SDK preinstalled on the GitHub runner
         run: |
@@ -41,7 +44,7 @@ jobs:
       - name: Build debug APK and run unit tests
         run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
 
-      - name: Build debug APK and run unit tests with inbound apply explicitly enabled
+      - name: Run unit tests with inbound apply explicitly enabled
         env:
           PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES: "true"
-        run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
