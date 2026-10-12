@@ -61,6 +61,21 @@ class CustomerIdentityReconciliationTest {
                 database, "business-a", "server-canonical-id"
             )
         )
+        CustomerIdentityReconciler.reconcileRemoteCustomer(
+            database = database,
+            businessId = "business-a",
+            canonicalCustomerId = "other-device-local-id",
+            canonicalPhone = "+96891234567",
+            name = "Customer From Other Device",
+            createdAt = 100,
+            updatedAt = 300
+        )
+        assertEquals(
+            "device-local-id",
+            CustomerIdentityReconciler.resolveLocalCustomerId(
+                database, "business-a", "other-device-local-id"
+            )
+        )
         assertEquals(
             "server-canonical-id",
             CustomerIdentityReconciler.resolveCanonicalCustomerId(
