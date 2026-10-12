@@ -41,3 +41,13 @@ jobs:
 
       - name: Run debug unit tests and assemble debug APK
         run: ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug
+
+      - name: Run customer identity instrumentation on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: ./gradlew --no-daemon :app:connectedDebugAndroidTest
