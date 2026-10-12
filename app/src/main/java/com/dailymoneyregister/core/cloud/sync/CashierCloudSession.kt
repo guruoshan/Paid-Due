@@ -398,17 +398,6 @@ object CashierCloudSession {
             }
 
             val status = connection.responseCode
-            if (status !in 200..299) {
-                val errorBody = connection.errorStream
-                    ?.bufferedReader()
-                    ?.use { it.readText() }
-                    .orEmpty()
-                val outcome = runCatching {
-                    JSONObject(errorBody).optString("outcome", "UNKNOWN")
-                }.getOrDefault("UNKNOWN")
-                Log.w(TAG, "CASHIER_CLOUD_HTTP path=/financial/upload status=$status outcome=$outcome")
-            }
-
             if (status == 401 || status == 403) {
                 clear()
                 throw SecurityException(
@@ -427,6 +416,7 @@ object CashierCloudSession {
                         .optString("outcome", "UNKNOWN")
                 }.getOrDefault("UNKNOWN")
 
+                Log.w(TAG, "CASHIER_CLOUD_HTTP path=/financial/upload status=$status outcome=$outcome")
                 throw FinancialUploadHttpException(
                     statusCode = status,
                     outcome = outcome,
