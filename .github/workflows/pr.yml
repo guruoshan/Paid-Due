@@ -43,7 +43,7 @@ jobs:
         run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest
 
       - name: Assemble debug APK
-        run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
+        run: ./gradlew --no-daemon --stacktrace clean :app:assembleDebug
 
       - name: Upload installable debug APK
         uses: actions/upload-artifact@v4
