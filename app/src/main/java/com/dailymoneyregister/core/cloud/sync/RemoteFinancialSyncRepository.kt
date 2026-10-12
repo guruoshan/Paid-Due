@@ -277,7 +277,7 @@ class RemoteFinancialSyncRepository @Inject constructor(
         expectedMembershipId: String,
         expectedBusinessId: String,
         expectedBranchId: String,
-        expectedLocalUserId: String = ""
+        expectedLocalUserId: String
     ): SessionAuthorizationResult {
         if (supabase.auth.currentSessionOrNull() == null) {
             // Missing locally cached auth state is not a server rejection; offline
@@ -316,7 +316,7 @@ class RemoteFinancialSyncRepository @Inject constructor(
         expectedMembershipId: String,
         expectedBusinessId: String,
         expectedBranchId: String,
-        expectedLocalUserId: String = ""
+        expectedLocalUserId: String
     ): Boolean =
         validateAdminSession(expectedMembershipId, expectedBusinessId, expectedBranchId, expectedLocalUserId) ==
             SessionAuthorizationResult.AUTHORIZED
