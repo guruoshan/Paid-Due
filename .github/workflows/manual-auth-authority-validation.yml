@@ -1,0 +1,101 @@
+name: Manual Paid&Due API 37 authentication validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit to validate
+        required: true
+        default: auth-integration-reconciled-api37-20261012
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manual-auth-authority-${{ inputs.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      PAID_DUE_SUPABASE_URL: https://ttvdpgxqvvtjnxxfkoui.supabase.co
+      PAID_DUE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_6IHSTMfMOmK2ecB58U7tjA_CWJwDyZt
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Install production Android SDK platform and build tools
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed | grep -F -e 'platforms;android-37.0' -e 'build-tools;37.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Verify production SDK configuration
+        run: |
+          chmod +x ./gradlew
+          grep -q 'version = release(37)' app/build.gradle.kts
+          grep -q 'targetSdk = 37' app/build.gradle.kts
+          test "$PAID_DUE_SUPABASE_URL" = "https://ttvdpgxqvvtjnxxfkoui.supabase.co"
+          test "$PAID_DUE_SUPABASE_PUBLISHABLE_KEY" = "sb_publishable_6IHSTMfMOmK2ecB58U7tjA_CWJwDyZt"
+      - name: Validate Android AAR metadata
+        run: ./gradlew --no-daemon :app:checkDebugAarMetadata
+      - name: Compile Debug Kotlin
+        run: ./gradlew --no-daemon :app:compileDebugKotlin
+      - name: Run Debug unit tests
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
+      - name: Assemble Debug APK
+        run: ./gradlew --no-daemon :app:assembleDebug
+      - name: Verify packaged Supabase runtime configuration
+        shell: bash
+        run: |
+          CONFIG="app/build/generated/source/buildConfig/debug/com/dailymoneyregister/BuildConfig.java"
+          test -f "$CONFIG"
+          grep -F 'https://ttvdpgxqvvtjnxxfkoui.supabase.co' "$CONFIG"
+          ! grep -F 'example.supabase.co' "$CONFIG"
+          ! grep -F 'sb_publishable_build_test_only' "$CONFIG"
+      - name: Upload Debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: paid-due-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Compile Debug Android instrumentation tests
+        run: ./gradlew --no-daemon :app:compileDebugAndroidTestKotlin
+      - name: Execute Android instrumentation tests on API 37.0 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          ANDROID_I_WANT_MY_TCG: yes
+        with:
+          api-level: '37.0'
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          channel: canary
+          disable-animations: true
+          script: ./gradlew --no-daemon :app:connectedDebugAndroidTest
+
+  deno:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Run API Deno tests
+        working-directory: supabase/functions/api
+        run: deno task test
+      - name: Run staff invitation URL contract tests
+        run: deno test supabase/functions/staff-invite/invite-link_test.ts
