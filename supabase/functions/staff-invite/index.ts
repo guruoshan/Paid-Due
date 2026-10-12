@@ -99,11 +99,9 @@ Deno.serve(async (request: Request) => {
         typeof created[0]?.invite_id !== "string" || typeof created[0]?.expires_at !== "string") {
       throw new Error("INVITE_CREATE_RESULT_INVALID");
     }
-    const baseUrl = supabaseUrl.endsWith("/") ? supabaseUrl.slice(0, -1) : supabaseUrl;
-    const landingUrl = baseUrl + "/functions/v1/staff-open#" + encodeURIComponent(token);
-    // Share a normal HTTPS URL so WhatsApp and browsers can open it reliably.
-    // The landing page keeps the token in the URL fragment and hands off to the app.
-    const inviteUrl = landingUrl;
+    // GitHub Pages serves this static HTML; Supabase Edge Functions do not serve
+    // browser-rendered HTML reliably. Keep the raw token in the fragment only.
+    const inviteUrl = "https://guruoshan.github.io/Paid-Due/invite/#" + encodeURIComponent(token);
     return json({ outcome: "INVITATION_CREATED", invite_url: inviteUrl, expires_at: created[0].expires_at });
   } catch (error) {
     console.error("STAFF_INVITE_FAILURE", error instanceof Error ? error.name : "UNKNOWN");
