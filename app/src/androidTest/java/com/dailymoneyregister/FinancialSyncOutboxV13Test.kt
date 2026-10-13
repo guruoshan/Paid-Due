@@ -185,12 +185,12 @@ class FinancialSyncOutboxV13Test {
 
         // Install an obsolete trigger only in this test database.
         sql.execSQL(
-            "DROP TRIGGER financial_sync_outbox_after_cash_sale_success"
+            "DROP TRIGGER IF EXISTS financial_sync_outbox_after_operation_success"
         )
 
         sql.execSQL(
             """
-            CREATE TRIGGER financial_sync_outbox_after_operation_success
+            CREATE TRIGGER financial_sync_outbox_after_cash_sale_success
             AFTER UPDATE ON operations
             BEGIN
                 SELECT 1;
