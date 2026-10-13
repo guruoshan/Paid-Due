@@ -313,6 +313,12 @@ class FinancialSyncEngine @Inject constructor(
         var totalFetched = 0
         var totalSkipped = 0
 
+        // Commit only through the last contiguous success before the first unresolved
+        // envelope. Continue paging with a transient cursor so later valid envelopes run,
+        // but leave the durable cursor behind the first poison item for the next sync retry.
+        var unresolvedEnvelopeSeen = false
+        var durableCursorCandidate: VersionedInboundCursor? = storedCursor
+
         if (session?.user?.role == UserRole.CASHIER) {
             val refreshed = runCatching {
                 staffIdentitySync.refreshCashierPermissions(session)
@@ -356,8 +362,7 @@ class FinancialSyncEngine @Inject constructor(
                         envelope.operationId,
                         "Inbound application is not enabled for operation ${envelope.operationType}; deferred"
                     )
-                    // Persist the rejection and quarantine this envelope, then keep
-                    // processing unrelated later envelopes in the same page.
+                    unresolvedEnvelopeSeen = true
                     pageLastProcessedEnvelope = envelope
                     continue
                 }
@@ -379,6 +384,7 @@ class FinancialSyncEngine @Inject constructor(
                             "Remote canonical_sha256 does not match canonical_text"
                         }
                     )
+                    unresolvedEnvelopeSeen = true
                     pageLastProcessedEnvelope = envelope
                     continue
                 }
@@ -399,10 +405,14 @@ class FinancialSyncEngine @Inject constructor(
                 when (result) {
                     is InboundProcessResult.Applied -> {
                         totalApplied++
+                        clearInboundRejection(envelope.operationId, businessId)
+                        if (!unresolvedEnvelopeSeen) durableCursorCandidate = cursorFor(envelope)
                         pageLastProcessedEnvelope = envelope
                     }
                     is InboundProcessResult.Skipped -> {
                         totalSkipped++
+                        clearInboundRejection(envelope.operationId, businessId)
+                        if (!unresolvedEnvelopeSeen) durableCursorCandidate = cursorFor(envelope)
                         pageLastProcessedEnvelope = envelope
                     }
                     is InboundProcessResult.UnsupportedYet -> {
@@ -416,15 +426,13 @@ class FinancialSyncEngine @Inject constructor(
                             envelope.operationId,
                             "Unsupported inbound operation ${result.operationType}; deferred"
                         )
-                        // The attention record is the durable local quarantine marker.
-                        // Advance page processing so an unsupported envelope cannot starve later ones.
+                        unresolvedEnvelopeSeen = true
                         pageLastProcessedEnvelope = envelope
                         continue
                     }
                     is InboundProcessResult.Rejected -> {
                         reportInboundRejection(envelope.operationId, result.reason)
-                        // Keep rejected evidence in the attention/quarantine store, but do not let
-                        // one poison envelope permanently block later valid financial envelopes.
+                        unresolvedEnvelopeSeen = true
                         pageLastProcessedEnvelope = envelope
                         continue
                     }
@@ -432,19 +440,24 @@ class FinancialSyncEngine @Inject constructor(
             }
 
             if (pageLastProcessedEnvelope != null) {
+                // This cursor is only for traversing the current run's pages. Do not
+                // persist it here: it may lie after an unresolved envelope.
                 currentAfterReceivedAt = pageLastProcessedEnvelope.receivedAtIso
                 currentAfterOperationId = pageLastProcessedEnvelope.operationId
-                saveStoredCursor(
-                    businessId = businessId,
-                    adminAccountId = adminAccountId,
-                    receivedAtIso = currentAfterReceivedAt!!,
-                    operationId = currentAfterOperationId!!
-                )
             }
 
             if (envelopes.size < limit) {
                 break
             }
+        }
+
+        durableCursorCandidate?.let { candidate ->
+            saveStoredCursor(
+                businessId = businessId,
+                adminAccountId = adminAccountId,
+                receivedAtIso = candidate.receivedAtIso,
+                operationId = candidate.operationId
+            )
         }
 
         if (totalApplied > 0) Log.i("PaidDueFinancialSync", "INBOUND_APPLIED $totalApplied")
@@ -459,11 +472,27 @@ class FinancialSyncEngine @Inject constructor(
             SessionManager.currentSession.value?.user?.id ?: "test-admin"
         )
 
+    private fun cursorFor(envelope: RemoteEnvelopeV2): VersionedInboundCursor =
+        VersionedInboundCursor(
+            InboundCursorCodec.CURRENT_MATERIALIZER_VERSION,
+            envelope.receivedAtIso,
+            envelope.operationId
+        )
+
+    private fun clearInboundRejection(operationId: String, businessId: String) {
+        context?.getSharedPreferences("dmr_financial_sync_attention", Context.MODE_PRIVATE)
+            ?.edit()?.remove("inbound_$operationId")?.commit()
+        if (FinancialSyncStatus.adminVisibleProblem.value?.operationId == operationId) {
+            FinancialSyncStatus.clearVisibleProblem()
+        }
+        FinancialSyncStatus.clearUnsupported(context, businessId, operationId)
+    }
+
     private fun reportInboundRejection(operationId: String, reason: String) {
         val message = "Inbound operation $operationId was rejected: $reason"
         FinancialSyncStatus.report(FinancialSyncProblem(operationId, message))
         context?.getSharedPreferences("dmr_financial_sync_attention", Context.MODE_PRIVATE)
-            ?.edit()?.putString("inbound_$operationId", message)?.apply()
+            ?.edit()?.putString("inbound_$operationId", message)?.commit()
         val now = System.currentTimeMillis()
         val lastLoggedAt = lastInboundRejectionLogAt[operationId] ?: Long.MIN_VALUE
         if (lastLoggedAt == Long.MIN_VALUE || now - lastLoggedAt >= 60_000L) {
