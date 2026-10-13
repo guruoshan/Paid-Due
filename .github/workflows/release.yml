@@ -148,10 +148,8 @@ jobs:
           apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -n 1)"
           test -x "$apksigner"
           signer_output="$("$apksigner" verify --verbose --print-certs "$apk_path")"
-          printf '%s
-' "$signer_output"
-          actual="$(printf '%s
-' "$signer_output" | awk -F': ' '/certificate SHA-256 digest:/ {print $NF; exit}' | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          printf '%s\n' "$signer_output"
+          actual="$(printf '%s\n' "$signer_output" | awk -F': ' '/certificate SHA-256 digest:/ {print $NF; exit}' | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
           expected="$(printf '%s' "$EXPECTED_SHA256" | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
           [[ "$actual" =~ ^[0-9A-F]{64}$ ]] || { echo "::error::Could not read APK signer SHA-256 digest."; exit 1; }
           [[ "$actual" == "$expected" ]] || { echo "::error::APK signing certificate does not match EXPECTED_SHA256."; exit 1; }
