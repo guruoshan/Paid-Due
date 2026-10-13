@@ -21,7 +21,7 @@ import java.security.MessageDigest
 object ReleaseUpdater {
     private const val RELEASE_API =
         "https://api.github.com/repos/guruoshan/Paid-Due/releases/latest"
-    private const val APK_PREFIX = "paid-due-v"
+    private const val APK_PREFIX = "paid-due-"
     private const val APK_MIME = "application/vnd.android.package-archive"
 
     data class CheckResult(
