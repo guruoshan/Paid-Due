@@ -19,7 +19,7 @@ class InboundEnvelopeAuditMigrationTest {
     )
 
     @Test
-    fun migration14To16AddsIdentityAndAuditTablesWithoutTouchingBusinessHistory() {
+    fun migration14To17AddsIdentityAuditAndPermissionWithoutTouchingBusinessHistory() {
         val name = "dmr-staff-identity-audit-v14-v16"
         val old = migrationHelper.createDatabase(name, 14)
         old.execSQL(
@@ -29,10 +29,11 @@ class InboundEnvelopeAuditMigrationTest {
 
         val migrated = migrationHelper.runMigrationsAndValidate(
             name,
-            16,
+            17,
             true,
             DmrDatabase.MIGRATION_14_15,
-            DmrDatabase.MIGRATION_15_16
+            DmrDatabase.MIGRATION_15_16,
+            DmrDatabase.MIGRATION_16_17
         )
         migrated.query("SELECT name FROM businesses WHERE id = 'existing-business'").use {
             assertTrue(it.moveToFirst())
@@ -42,6 +43,7 @@ class InboundEnvelopeAuditMigrationTest {
             assertTrue(it.moveToFirst())
             assertEquals(0, it.getInt(0))
         }
+        migrated.query("SELECT can_access_customer_directory FROM user_branch_memberships LIMIT 0").use { assertEquals(0, it.count) }
         migrated.query("SELECT COUNT(*) FROM inbound_envelope_audit_events").use {
             assertTrue(it.moveToFirst())
             assertEquals(0, it.getInt(0))
