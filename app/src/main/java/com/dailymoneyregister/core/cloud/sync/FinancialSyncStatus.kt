@@ -37,6 +37,24 @@ object FinancialSyncStatus {
         _unsupportedInboundCounts.value = _unsupportedInboundCounts.value + (businessId to ids.size)
     }
 
+    fun clearUnsupported(context: Context?, businessId: String, operationId: String) {
+        val ids = unsupportedIdsInMemory.getOrPut(businessId) {
+            context?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                ?.getStringSet(key(businessId), emptySet())
+                ?.toMutableSet()
+                ?: mutableSetOf()
+        }
+        if (!ids.remove(operationId)) return
+        val preferences = context?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (preferences != null) {
+            val editor = preferences.edit()
+            if (ids.isEmpty()) editor.remove(key(businessId))
+            else editor.putStringSet(key(businessId), ids.toSet())
+            editor.commit()
+        }
+        _unsupportedInboundCounts.value = _unsupportedInboundCounts.value + (businessId to ids.size)
+    }
+
     private fun key(businessId: String) = "unsupported_operation_ids_$businessId"
 
     internal fun report(problem: FinancialSyncProblem) {
