@@ -109,16 +109,16 @@ class FinancialSyncOutboxV13Test {
     }
 
     @Test
-    fun onlineSaleDoesNotEnterCashQueue() = withDb { db ->
+    fun onlineSaleEntersFinancialQueue() = withDb { db ->
         seedSale(db, "online-one", "ONLINE")
 
         succeed(db, "online-one")
 
-        assertEquals(0, count(db, "online-one"))
+        assertEquals(1, count(db, "online-one"))
     }
 
     @Test
-    fun mixedPaymentMustNotEnterCashOnlyQueue() = withDb { db ->
+    fun mixedPaymentEntersFinancialQueue() = withDb { db ->
         seedSale(db, "mixed-one", "CASH")
 
         insertSettlement(
@@ -131,9 +131,8 @@ class FinancialSyncOutboxV13Test {
 
         succeed(db, "mixed-one")
 
-        // Fail closed: an operation with multiple funding
-        // categories must not be mislabeled CASH-only.
-        assertEquals(0, count(db, "mixed-one"))
+        // Mixed tender is a supported sale and must enter the same idempotent outbox.
+        assertEquals(1, count(db, "mixed-one"))
     }
 
     @Test
@@ -191,7 +190,7 @@ class FinancialSyncOutboxV13Test {
 
         sql.execSQL(
             """
-            CREATE TRIGGER financial_sync_outbox_after_cash_sale_success
+            CREATE TRIGGER financial_sync_outbox_after_operation_success
             AFTER UPDATE ON operations
             BEGIN
                 SELECT 1;
@@ -207,7 +206,7 @@ class FinancialSyncOutboxV13Test {
             """
             SELECT sql FROM sqlite_master
             WHERE type = 'trigger'
-              AND name = 'financial_sync_outbox_after_cash_sale_success'
+              AND name = 'financial_sync_outbox_after_operation_success'
             """
         ).use { cursor ->
             assertTrue(cursor.moveToFirst())
@@ -215,7 +214,7 @@ class FinancialSyncOutboxV13Test {
         }
 
         assertTrue(definition.contains("AND NOT EXISTS"))
-        assertTrue(definition.contains("CASH_TENDER"))
+        assertTrue(definition.contains("NEW.operation_type IN"))
 
         // The already queued operation must remain untouched.
         assertEquals(1, count(db, "g1-existing"))
@@ -227,7 +226,7 @@ class FinancialSyncOutboxV13Test {
 
         assertEquals(1, total(db))
 
-        // Mixed payment must not enter the cash-only queue.
+        // Mixed tender is supported and must be queued once.
         seedSale(db, "g1-mixed", "CASH")
         insertSettlement(
             db,
@@ -237,14 +236,14 @@ class FinancialSyncOutboxV13Test {
             "g1-mixed-online"
         )
         succeed(db, "g1-mixed")
-        assertEquals(0, count(db, "g1-mixed"))
+        assertEquals(1, count(db, "g1-mixed"))
 
         // A new cash-only sale must still queue exactly once.
         seedSale(db, "g1-new-cash", "CASH")
         succeed(db, "g1-new-cash")
 
         assertEquals(1, count(db, "g1-new-cash"))
-        assertEquals(2, total(db))
+        assertEquals(3, total(db))
     }
     private fun withDb(block: (DmrDatabase) -> Unit) {
         val context = ApplicationProvider.getApplicationContext<
