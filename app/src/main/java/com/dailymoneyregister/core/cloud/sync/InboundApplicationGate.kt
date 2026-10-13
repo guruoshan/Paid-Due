@@ -5,14 +5,28 @@ import com.dailymoneyregister.BuildConfig
 /**
  * Release-safe inbound switch.
  *
- * Release builds apply only RECORD_SALE until each other operation type has a
- * complete, verified cross-device materialization contract. Debug builds may
- * exercise expanded supported handlers, and tests may explicitly override the gate.
+ * Release builds allow only operation types with an existing inbound materializer
+ * and operation-specific evidence validation. New operation types must not be added
+ * here until their payload, persistence, idempotency, and replay behavior are verified.
  */
 internal object InboundApplicationGate {
     var testOverride: Boolean? = null
 
-    private val releaseSafeOperationTypes = setOf("RECORD_SALE")
+    private val releaseSafeOperationTypes = setOf(
+        "RECORD_SALE",
+        "RECORD_CREDIT_REPAYMENT",
+        "RECORD_COUPON_PURCHASE",
+        "RECORD_AMOUNT_CORRECTION",
+        "RECORD_PAYMENT_METHOD_CHANGE",
+        "RECORD_VOID",
+        "RECORD_REFUND",
+        "RECORD_EXPENSE",
+        "RECORD_EXPENSE_CORRECTION",
+        "RECORD_EXPENSE_VOID",
+        "OPEN_CASH_SHIFT",
+        "COUNT_CASH_SHIFT",
+        "CLOSE_CASH_SHIFT"
+    )
 
     fun enabled(): Boolean = testOverride ?: BuildConfig.APPLY_INBOUND_FINANCIAL_ENVELOPES
 
@@ -32,6 +46,6 @@ internal object InboundApplicationGate {
     ): Boolean = override ?: if (debugBuild) {
         buildFlag
     } else {
-        operationType in releaseSafeOperationTypes
+        buildFlag && operationType in releaseSafeOperationTypes
     }
 }
