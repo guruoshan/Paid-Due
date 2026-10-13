@@ -1074,15 +1074,12 @@ AS $function$
    AND br.business_id = m.business_id AND br.is_active = true
   JOIN private.staff_identities si
     ON si.id = m.staff_identity_id AND si.is_active = true
-  LEFT JOIN private.staff_invite_activations activation
-    ON activation.membership_id = m.id
-   AND activation.staff_identity_id = si.id
   WHERE m.id = p_membership_id
     AND m.role = 'CASHIER'
     AND m.is_active = true
     AND m.removed_at IS NULL
     AND m.staff_identity_id IS NOT NULL
-    AND COALESCE(m.local_user_id, activation.local_user_id) IS NOT NULL
+    AND m.local_user_id IS NOT NULL
     AND si.credential_hash IS NOT NULL
     AND si.credential_salt IS NOT NULL
   LIMIT 1;
