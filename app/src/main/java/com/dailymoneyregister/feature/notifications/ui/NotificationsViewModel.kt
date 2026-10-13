@@ -16,6 +16,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.isActive
 import javax.inject.Inject
 
 data class NotificationsUiState(
@@ -69,23 +71,35 @@ class NotificationsViewModel @Inject constructor(
     private fun startNotificationUpdates() {
         if (notificationWatchJob != null) return
         notificationWatchJob = viewModelScope.launch {
-            if (_uiState.value.isAdmin) {
-                try {
-                    repository.observeAdminNotificationInserts().collect {
-                        while (_uiState.value.isLoading) delay(150)
-                        refresh()
+            coroutineScope {
+                if (_uiState.value.isAdmin) {
+                    // Reconnect after a closed/failed subscription. Realtime is an
+                    // invalidation signal only; durable inbox reads remain authoritative.
+                    launch {
+                        while (isActive) {
+                            try {
+                                repository.observeAdminNotificationInserts().collect {
+                                    while (_uiState.value.isLoading) delay(150)
+                                    refresh()
+                                }
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                // Continue into the retry delay below.
+                            }
+                            delay(3_000)
+                        }
                     }
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    // Fall back to the durable inbox if Realtime is disabled or disconnects.
                 }
-            }
-            // Custom PIN cashiers have no Supabase Auth JWT for Realtime.
-            // Polling also remains as a fallback for Admins if the socket closes.
-            while (true) {
-                delay(20_000)
-                if (!_uiState.value.isLoading) refresh()
+
+                // Poll independently of the socket. This also recovers from a
+                // half-open connection where the Realtime flow never closes.
+                launch {
+                    while (isActive) {
+                        delay(20_000)
+                        if (!_uiState.value.isLoading) refresh()
+                    }
+                }
             }
         }
     }
