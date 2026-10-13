@@ -85,7 +85,8 @@ class RemoteEnvelopeMaterializerTest {
             storedOperation = firstArg<OperationEntity>()
             1L
         }
-        coEvery { operationDao.markSucceededIfPending(any(), any(), any(), any()) } returns 1
+        coEvery { operationDao.markSucceededIfPending(any(), any(), any(), any()) } returns 0
+        coEvery { operationDao.isOperationSucceeded(operationId) } answers { storedOperation?.status == OperationStatus.SUCCEEDED }
         coEvery { transactionDao.getTransactionById(transactionId) } returns null
         coEvery { transactionDao.insertTransaction(any()) } returns Unit
         coEvery { transactionDao.getItemsForTransaction(transactionId) } returns emptyList()
