@@ -305,7 +305,7 @@ class RemoteFinancialSyncRepository @Inject constructor(
         ).jsonObject
 
         val dtoList = supabase.postgrest.rpc(
-            function = "fetch_financial_envelopes_v3",
+            function = "fetch_financial_envelopes_v4",
             parameters = paramJsonObj
         ).decodeList<RemoteEnvelopeV2Dto>()
 
@@ -324,7 +324,8 @@ class RemoteFinancialSyncRepository @Inject constructor(
                 receivedAtIso = dto.receivedAt,
                 canonicalText = dto.canonicalText,
                 payloadJson = jsonPayload,
-                canonicalSha256 = dto.canonicalSha256
+                canonicalSha256 = dto.canonicalSha256,
+                actorMembershipId = dto.actorMembershipId
             )
         }
     }
@@ -332,7 +333,7 @@ class RemoteFinancialSyncRepository @Inject constructor(
     private fun org.json.JSONArray.toEnvelopeList(): List<RemoteEnvelopeV2> = (0 until length()).map { i ->
         val row = getJSONObject(i)
         val text = row.getString("canonical_text")
-        RemoteEnvelopeV2(row.getString("operation_id"), row.getString("business_id"), row.optString("branch_id", null), row.getString("operation_type"), row.getString("occurred_at"), row.getString("received_at"), text, JSONObject(row.optJSONObject("canonical_payload")?.toString() ?: text), row.optString("canonical_sha256").ifBlank { null })
+        RemoteEnvelopeV2(row.getString("operation_id"), row.getString("business_id"), row.optString("branch_id", null), row.getString("operation_type"), row.getString("occurred_at"), row.getString("received_at"), text, JSONObject(row.optJSONObject("canonical_payload")?.toString() ?: text), row.optString("canonical_sha256").ifBlank { null }, row.optString("actor_membership_id").ifBlank { null })
     }
 
     private suspend fun fetchRemoteEnvelopes(
@@ -429,7 +430,8 @@ data class RemoteEnvelopeV2Dto(
     @SerialName("received_at") val receivedAt: String,
     @SerialName("canonical_text") val canonicalText: String,
     @SerialName("canonical_payload") val canonicalPayload: kotlinx.serialization.json.JsonElement? = null,
-    @SerialName("canonical_sha256") val canonicalSha256: String? = null
+    @SerialName("canonical_sha256") val canonicalSha256: String? = null,
+    @SerialName("actor_membership_id") val actorMembershipId: String? = null
 )
 
 data class RemoteEnvelopeV2(
