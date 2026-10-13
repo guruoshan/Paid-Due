@@ -23,6 +23,7 @@ object ReleaseUpdater {
         "https://api.github.com/repos/guruoshan/Paid-Due/releases/latest"
     private const val APK_PREFIX = "paid-due-"
     private const val APK_MIME = "application/vnd.android.package-archive"
+    private const val MAX_APK_BYTES = 150L * 1024L * 1024L
 
     data class CheckResult(
         val latestVersion: Long,
@@ -103,19 +104,31 @@ object ReleaseUpdater {
                 require(connection.responseCode == HttpURLConnection.HTTP_OK) {
                     "Could not download the update (HTTP ${connection.responseCode})."
                 }
+                val checksum = MessageDigest.getInstance("SHA-256")
+                var downloadedBytes = 0L
                 connection.inputStream.use { input ->
-                    apkFile.outputStream().use { output -> input.copyTo(output) }
+                    apkFile.outputStream().use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            downloadedBytes += count
+                            require(downloadedBytes <= MAX_APK_BYTES) {
+                                "The update APK exceeds the 150 MB safety limit. Installation was blocked."
+                            }
+                            checksum.update(buffer, 0, count)
+                            output.write(buffer, 0, count)
+                        }
+                    }
+                }
+                require(downloadedBytes > 0L) { "The downloaded APK is empty." }
+                val actual = checksum.digest().joinToString("") { "%02x".format(it) }
+                require(actual.equals(expectedSha256, ignoreCase = true)) {
+                    "The downloaded APK failed its SHA-256 integrity check. Installation was blocked."
                 }
             } finally {
                 connection.disconnect()
             }
-            require(apkFile.isFile && apkFile.length() > 0L) { "The downloaded APK is empty." }
-            val actual = MessageDigest.getInstance("SHA-256").digest(apkFile.readBytes())
-                .joinToString("") { "%02x".format(it) }
-            require(actual.equals(expectedSha256, ignoreCase = true)) {
-                "The downloaded APK failed its SHA-256 integrity check. Installation was blocked."
-            }
-
             withContext(Dispatchers.Main) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                     !context.packageManager.canRequestPackageInstalls()
