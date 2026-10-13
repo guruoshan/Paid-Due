@@ -1,4 +1,4 @@
-﻿package com.dailymoneyregister.core.cloud.sync
+package com.dailymoneyregister.core.cloud.sync
 
 import android.util.Log
 import com.dailymoneyregister.core.model.enums.UserRole
@@ -16,7 +16,8 @@ import javax.inject.Singleton
 
 @Singleton
 class FinancialSyncScheduler @Inject constructor(
-    private val syncEngine: FinancialSyncEngine
+    private val syncEngine: FinancialSyncEngine,
+    private val permissionRefresher: CashierPermissionRefresher
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var started = false
@@ -90,6 +91,10 @@ class FinancialSyncScheduler @Inject constructor(
                         )
                         return
                     }
+
+                    // Pull Admin-made permission changes first so they apply even
+                    // if the financial upload/download below fails.
+                    permissionRefresher.refresh(membershipId)
 
                     val uploaded = syncEngine.syncOutbound(membershipId, role)
 
