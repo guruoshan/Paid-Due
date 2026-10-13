@@ -17,11 +17,9 @@ interface CloudStaffIdentityDao {
           AND business_id = :businessId
           AND branch_id = :branchId
           AND role = 'CASHIER'
-          AND is_active = 1
-          AND is_removed = 0
         LIMIT 1
     """)
-    suspend fun findActiveCashier(
+    suspend fun findIdentity(
         localUserId: String,
         businessId: String,
         branchId: String
