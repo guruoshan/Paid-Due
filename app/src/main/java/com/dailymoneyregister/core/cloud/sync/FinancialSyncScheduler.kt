@@ -16,7 +16,8 @@ import javax.inject.Singleton
 
 @Singleton
 class FinancialSyncScheduler @Inject constructor(
-    private val syncEngine: FinancialSyncEngine
+    private val syncEngine: FinancialSyncEngine,
+    private val customerDirectorySyncClient: CustomerDirectorySyncClient
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var started = false
@@ -67,6 +68,15 @@ class FinancialSyncScheduler @Inject constructor(
         }
     }
 
+    private suspend fun syncCustomerDirectoryBestEffort() {
+        try {
+            customerDirectorySyncClient.syncIfDue()
+        } catch (error: Exception) {
+            // Directory sync is best-effort: never blocks or acknowledges financial outbox work.
+            Log.w("PaidDueCustomerSync", "CUSTOMER_DIRECTORY_SYNC_DEFERRED", error)
+        }
+    }
+
     private suspend fun executeSync(
         role: UserRole,
         businessId: String,
@@ -75,6 +85,7 @@ class FinancialSyncScheduler @Inject constructor(
         try {
             when (role) {
                 UserRole.ADMIN -> {
+                    syncCustomerDirectoryBestEffort()
                     syncEngine.syncOutbound(membershipId, role)
                     syncEngine.syncInbound(
                         businessId,
@@ -83,6 +94,7 @@ class FinancialSyncScheduler @Inject constructor(
                 }
 
                 UserRole.CASHIER -> {
+                    syncCustomerDirectoryBestEffort()
                     if (CashierCloudSession.tokenFor(membershipId) == null) {
                         Log.w(
                             "PaidDueFinancialSync",

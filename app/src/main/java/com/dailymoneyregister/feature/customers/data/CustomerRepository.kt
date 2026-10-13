@@ -68,13 +68,13 @@ class CustomerRepository @Inject constructor(
 ) {
 
     suspend fun listCustomers(): List<CustomerSummary> {
-        val businessId = requireAccess()
+        val businessId = requireDirectoryAccess()
         return customerDao.getCustomerSummaries(businessId)
     }
 
     /** Returns null when the customer does not exist in the signed-in business. */
     suspend fun getHistory(customerId: String): CustomerHistory? {
-        val businessId = requireAccess()
+        val businessId = requireHistoryAccess()
 
         val customer = customerDao.getCustomerById(customerId) ?: return null
         if (customer.businessId != businessId) return null
@@ -218,30 +218,57 @@ class CustomerRepository @Inject constructor(
         )
     }
 
-    /** Returns the signed-in business id, or throws when access is not allowed. */
-    private fun requireAccess(): String {
+    /** Directory access is business-wide, but requires a valid active user/session. */
+    private fun requireDirectoryAccess(): String {
         val session = SessionManager.currentSession.value
             ?: throw PermissionDeniedException("No active session")
-        if (session.requiresPinChange) {
-            throw PermissionDeniedException("PIN change required before viewing customers")
+        if (session.requiresPinChange || !session.user.isActive ||
+            session.user.businessId != session.business.id ||
+            session.branch.businessId != session.business.id
+        ) throw PermissionDeniedException("Active business session required")
+
+        if (session.user.role.name == "CASHIER") {
+            val membership = session.membership
+                ?: throw PermissionDeniedException("Active branch membership required")
+            if (membership.userId != session.user.id ||
+                membership.branchId != session.branch.id ||
+                membership.role.name != "CASHIER"
+            ) throw PermissionDeniedException("Active branch membership mismatch")
         }
         PermissionChecker.assertPermitted(
-            session.user,
-            session.membership,
-            PermissionAction.VIEW_BROAD_HISTORY
+            session.user, session.membership, PermissionAction.CUSTOMER_DIRECTORY_ACCESS
         )
         return session.business.id
     }
 
+    /** Financial history retains the stricter existing broad-history permission. */
+    private fun requireHistoryAccess(): String {
+        val businessId = requireDirectoryAccess()
+        val session = SessionManager.currentSession.value
+            ?: throw PermissionDeniedException("No active session")
+        PermissionChecker.assertPermitted(
+            session.user, session.membership, PermissionAction.VIEW_BROAD_HISTORY
+        )
+        return businessId
+    }
+
     companion object {
-        /** UI gate only. The repository enforces the real check again. */
+        /** UI gate mirrors directory access; history remains separately protected. */
         fun canViewCustomers(): Boolean {
             val session = SessionManager.currentSession.value ?: return false
-            if (session.requiresPinChange) return false
+            if (session.requiresPinChange || !session.user.isActive ||
+                session.user.businessId != session.business.id ||
+                session.branch.businessId != session.business.id
+            ) return false
+            if (session.user.role.name == "CASHIER") {
+                val membership = session.membership ?: return false
+                if (membership.userId != session.user.id ||
+                    membership.branchId != session.branch.id ||
+                    membership.role.name != "CASHIER"
+                ) return false
+            }
             return PermissionChecker.isPermitted(
-                session.user,
-                session.membership,
-                PermissionAction.VIEW_BROAD_HISTORY
+                session.user, session.membership, PermissionAction.CUSTOMER_DIRECTORY_ACCESS
             )
         }
     }

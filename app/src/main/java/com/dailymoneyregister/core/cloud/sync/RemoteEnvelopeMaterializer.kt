@@ -391,6 +391,10 @@ object RemoteEnvelopeMaterializer {
 
         // d) actor user and branch rows exist locally or are created in the same transaction
         return database.withTransaction {
+            CustomerIdentityReconciler.reconcileEvidenceCustomers(
+                database, sessionBusinessId,
+                jsonPayload.optJSONObject("financial_evidence") ?: JSONObject()
+            )
             val operationDao = database.operationDao()
             val transactionDao = database.transactionDao()
             val occurredAt = java.time.Instant.parse(envelope.occurredAtIso).toEpochMilli()
@@ -427,7 +431,9 @@ object RemoteEnvelopeMaterializer {
                 id = txId,
                 branchId = branchId,
                 type = TransactionType.valueOf(txType),
-                customerId = tJson.optString("customer_id").ifBlank { null },
+                customerId = tJson.optString("customer_id").ifBlank { null }?.let {
+                    CustomerIdentityReconciler.resolveLocalCustomerIdOrSelf(database, sessionBusinessId, it)
+                },
                 subtotalMinor = tJson.getLong("subtotal_minor"),
                 taxRateBps = tJson.getInt("tax_rate_bps"),
                 taxableBaseMinor = tJson.getLong("taxable_base_minor"),
@@ -896,6 +902,10 @@ object RemoteEnvelopeMaterializer {
         }
 
         return database.withTransaction {
+            CustomerIdentityReconciler.reconcileEvidenceCustomers(
+                database, businessId,
+                jsonPayload.optJSONObject("financial_evidence") ?: JSONObject()
+            )
             val operationDao = database.operationDao()
             val transactionDao = database.transactionDao()
             val expenseDao = database.expenseDao()
@@ -926,7 +936,9 @@ object RemoteEnvelopeMaterializer {
                     id = txId,
                     branchId = tJson.getString("branch_id"),
                     type = TransactionType.valueOf(tJson.getString("type")),
-                    customerId = tJson.optString("customer_id").ifBlank { null },
+                    customerId = tJson.optString("customer_id").ifBlank { null }?.let {
+                    CustomerIdentityReconciler.resolveLocalCustomerIdOrSelf(database, businessId, it)
+                },
                     subtotalMinor = tJson.getLong("subtotal_minor"),
                     taxRateBps = tJson.getInt("tax_rate_bps"),
                     taxableBaseMinor = tJson.getLong("taxable_base_minor"),
