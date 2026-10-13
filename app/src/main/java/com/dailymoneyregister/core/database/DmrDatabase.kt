@@ -99,7 +99,7 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
         CreditRepaymentEntity::class,
         CreditRepaymentAllocationEntity::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -710,6 +710,14 @@ abstract class DmrDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE user_branch_memberships ADD COLUMN can_access_customer_directory INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
         @Volatile
 
         private var INSTANCE: DmrDatabase? = null
@@ -748,7 +756,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
                             .addCallback(FinancialImmutabilityCallback)
                             .build()
                     } catch (e: Exception) {
