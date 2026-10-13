@@ -26,8 +26,9 @@ object CreateCashierPayloadCodec {
 
     const val CURRENT_SCHEMA_VERSION = 2
 
-    fun encode(payload: CreateCashierRecoveryPayload): String = buildString {
-        appendLine("v=$CURRENT_SCHEMA_VERSION")
+    fun encode(payload: CreateCashierRecoveryPayload, schemaVersion: Int = CURRENT_SCHEMA_VERSION): String = buildString {
+        require(schemaVersion in 1..CURRENT_SCHEMA_VERSION) { "Unsupported Cashier payload schema version" }
+        appendLine("v=$schemaVersion")
         appendLine("operationId=${DurableEnvelopeCodec.escape(payload.operationId)}")
         appendLine("businessId=${DurableEnvelopeCodec.escape(payload.businessId)}")
         appendLine("branchId=${DurableEnvelopeCodec.escape(payload.branchId)}")
@@ -56,7 +57,7 @@ object CreateCashierPayloadCodec {
         appendLine("canCorrectAmount=${payload.permissions.canCorrectAmount}")
         appendLine("canChangePaymentMethod=${payload.permissions.canChangePaymentMethod}")
         appendLine("canViewBroadHistory=${payload.permissions.canViewBroadHistory}")
-        appendLine("canAccessCustomerDirectory=${payload.permissions.canAccessCustomerDirectory}")
+        if (schemaVersion >= 2) appendLine("canAccessCustomerDirectory=${payload.permissions.canAccessCustomerDirectory}")
         appendLine("canManageProducts=${payload.permissions.canManageProducts}")
         appendLine("canViewReports=${payload.permissions.canViewReports}")
     }
