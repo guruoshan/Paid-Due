@@ -724,17 +724,17 @@ BEGIN
      OR p_canonical_payload ->> 'branch_id' IS DISTINCT FROM p_branch_id
      OR p_canonical_payload ->> 'operation_type' IS DISTINCT FROM p_operation_type
      OR p_canonical_payload ->> 'actor_user_id' IS DISTINCT FROM v_membership.local_user_id
-     OR CASE
-          WHEN COALESCE(p_canonical_payload ->> 'command_schema_version', '') ~ '^[1-9][0-9]*$'
+     OR (CASE
+          WHEN COALESCE(p_canonical_payload ->> 'command_schema_version', '') ~ '^[1-9][0-9]{0,8}$'
             THEN (p_canonical_payload ->> 'command_schema_version')::integer = p_schema_version
           ELSE false
-        END IS NOT TRUE
-     OR CASE
+        END) IS NOT TRUE
+     OR (CASE
           WHEN COALESCE(p_canonical_payload ->> 'occurred_at', '') ~ '^[0-9]{1,16}$'
             THEN (p_canonical_payload ->> 'occurred_at')::bigint =
               floor(extract(epoch FROM p_occurred_at) * 1000)::bigint
           ELSE false
-        END IS NOT TRUE
+        END) IS NOT TRUE
      OR COALESCE(p_canonical_payload ->> 'request_fingerprint', '') = ''
   THEN
     RAISE EXCEPTION 'PAYLOAD_METADATA_MISMATCH' USING ERRCODE = '22023';
