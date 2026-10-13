@@ -156,14 +156,14 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
                                 ) AND NEW.operation_type IN (
                                     'RECORD_SALE', 'RECORD_CREDIT_REPAYMENT',
                                     'RECORD_COUPON_PURCHASE', 'RECORD_REFUND', 'RECORD_VOID',
-                                    'RECORD_AMOUNT_CORRECTION', 'RECORD_PAYMENT_METHOD_CHANGE'
+                                    'RECORD_AMOUNT_CORRECTION', 'RECORD_PAYMENT_METHOD_CHANGE',
+                                    'OPEN_CASH_SHIFT', 'COUNT_CASH_SHIFT', 'CLOSE_CASH_SHIFT'
                                 ) THEN 'QUEUED'
                                 WHEN EXISTS (
                                     SELECT 1 FROM user_accounts u
                                     WHERE u.id = NEW.actor_user_id AND u.role = 'CASHIER'
                                 ) AND NEW.operation_type IN (
-                                    'RECORD_EXPENSE', 'RECORD_EXPENSE_CORRECTION', 'RECORD_EXPENSE_VOID',
-                                    'OPEN_CASH_SHIFT', 'COUNT_CASH_SHIFT', 'CLOSE_CASH_SHIFT'
+                                    'RECORD_EXPENSE', 'RECORD_EXPENSE_CORRECTION', 'RECORD_EXPENSE_VOID'
                                 ) THEN 'NOT_SYNCABLE_YET'
                                 ELSE 'NOT_APPLICABLE'
                             END,
