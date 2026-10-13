@@ -324,7 +324,10 @@ class RemoteFinancialSyncRepository @Inject constructor(
                 receivedAtIso = dto.receivedAt,
                 canonicalText = dto.canonicalText,
                 payloadJson = jsonPayload,
-                canonicalSha256 = dto.canonicalSha256
+                canonicalSha256 = dto.canonicalSha256,
+                actorMembershipId = dto.actorMembershipId,
+                actorLocalUserId = dto.actorLocalUserId,
+                actorRole = dto.actorRole
             )
         }
     }
@@ -332,7 +335,20 @@ class RemoteFinancialSyncRepository @Inject constructor(
     private fun org.json.JSONArray.toEnvelopeList(): List<RemoteEnvelopeV2> = (0 until length()).map { i ->
         val row = getJSONObject(i)
         val text = row.getString("canonical_text")
-        RemoteEnvelopeV2(row.getString("operation_id"), row.getString("business_id"), row.optString("branch_id", null), row.getString("operation_type"), row.getString("occurred_at"), row.getString("received_at"), text, JSONObject(row.optJSONObject("canonical_payload")?.toString() ?: text), row.optString("canonical_sha256").ifBlank { null })
+        RemoteEnvelopeV2(
+            operationId = row.getString("operation_id"),
+            businessId = row.getString("business_id"),
+            branchId = row.optString("branch_id", null),
+            operationType = row.getString("operation_type"),
+            occurredAtIso = row.getString("occurred_at"),
+            receivedAtIso = row.getString("received_at"),
+            canonicalText = text,
+            payloadJson = JSONObject(row.optJSONObject("canonical_payload")?.toString() ?: text),
+            canonicalSha256 = row.optString("canonical_sha256").ifBlank { null },
+            actorMembershipId = row.optString("actor_membership_id").ifBlank { null },
+            actorLocalUserId = row.optString("actor_local_user_id").ifBlank { null },
+            actorRole = row.optString("actor_role").ifBlank { null }
+        )
     }
 
     private suspend fun fetchRemoteEnvelopes(
@@ -429,7 +445,10 @@ data class RemoteEnvelopeV2Dto(
     @SerialName("received_at") val receivedAt: String,
     @SerialName("canonical_text") val canonicalText: String,
     @SerialName("canonical_payload") val canonicalPayload: kotlinx.serialization.json.JsonElement? = null,
-    @SerialName("canonical_sha256") val canonicalSha256: String? = null
+    @SerialName("canonical_sha256") val canonicalSha256: String? = null,
+    @SerialName("actor_membership_id") val actorMembershipId: String? = null,
+    @SerialName("actor_local_user_id") val actorLocalUserId: String? = null,
+    @SerialName("actor_role") val actorRole: String? = null
 )
 
 data class RemoteEnvelopeV2(
@@ -441,7 +460,10 @@ data class RemoteEnvelopeV2(
     val receivedAtIso: String,
     val canonicalText: String,
     val payloadJson: JSONObject,
-    val canonicalSha256: String? = null
+    val canonicalSha256: String? = null,
+    val actorMembershipId: String? = null,
+    val actorLocalUserId: String? = null,
+    val actorRole: String? = null
 )
 
 
