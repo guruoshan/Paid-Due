@@ -90,10 +90,30 @@ object RemoteEnvelopeMaterializer {
             ?: return InboundProcessResult.Rejected("Branch ID missing in envelope and admin session")
 
         val payloadActorUserId = jsonPayload.optString("actor_user_id")
-        if (
-            payloadActorUserId.isBlank() ||
-            database.userDao().getUserByIdInBusiness(payloadActorUserId, sessionBusinessId) == null
-        ) {
+        if (payloadActorUserId.isBlank()) {
+            return InboundProcessResult.Rejected("Referenced operation actor ID is missing")
+        }
+        val actorMembershipId = envelope.actorMembershipId
+        if (!actorMembershipId.isNullOrBlank()) {
+            val synchronizedIdentity = database.cloudStaffIdentityDao().find(
+                membershipId = actorMembershipId,
+                localUserId = payloadActorUserId,
+                businessId = sessionBusinessId,
+                branchId = branchId
+            )
+            if (
+                synchronizedIdentity == null ||
+                !synchronizedIdentity.isActive ||
+                synchronizedIdentity.isRemoved ||
+                synchronizedIdentity.role !in setOf("ADMIN", "CASHIER")
+            ) {
+                return InboundProcessResult.Rejected(
+                    "Referenced actor membership is not present and active in the synchronized business/branch identity directory"
+                )
+            }
+        } else if (database.userDao().getUserByIdInBusiness(payloadActorUserId, sessionBusinessId) == null) {
+            // Compatibility for old in-process tests/envelopes only. Current cloud
+            // downloads include actor_membership_id and use the synchronized projection.
             return InboundProcessResult.Rejected("Referenced operation actor is missing locally")
         }
 
