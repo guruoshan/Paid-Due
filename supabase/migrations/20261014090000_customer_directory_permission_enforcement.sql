@@ -1,8 +1,3 @@
--- Explicit, server-enforced customer-directory permission.
--- Existing cashier access defaults to false; Admin access remains unchanged.
-ALTER TABLE public.business_memberships
-  ADD COLUMN IF NOT EXISTS can_access_customer_directory boolean NOT NULL DEFAULT false;
-
 CREATE OR REPLACE FUNCTION public.create_cashier_permission_request(p_membership_id text, p_permission_key text, p_note text DEFAULT NULL::text)
  RETURNS TABLE(request_id uuid, created_at timestamp with time zone, duplicate boolean)
  LANGUAGE plpgsql
@@ -18,7 +13,7 @@ BEGIN
   IF p_membership_id IS NULL OR btrim(p_membership_id) = '' OR p_permission_key IS NULL OR
      p_permission_key NOT IN ('CREATE_SALE','ACCEPT_CASH','ACCEPT_ONLINE','CREATE_CREDIT_SALE',
        'USE_COUPON','ISSUE_INVOICE','REFUND','VOID','CORRECT_AMOUNT',
-       'CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY','CUSTOMER_DIRECTORY_ACCESS','ISSUE_RECEIPT','MANAGE_PRODUCTS','VIEW_REPORTS') OR
+       'CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY','ISSUE_RECEIPT','MANAGE_PRODUCTS','VIEW_REPORTS') OR
      (p_note IS NOT NULL AND length(p_note) > 500) THEN
     RAISE EXCEPTION 'Invalid permission request' USING ERRCODE = '22023';
   END IF;
@@ -42,7 +37,6 @@ BEGIN
     WHEN 'CORRECT_AMOUNT' THEN v_member.can_correct_amount
     WHEN 'CHANGE_PAYMENT_METHOD' THEN v_member.can_change_payment_method
     WHEN 'VIEW_BROAD_HISTORY' THEN v_member.can_view_broad_history
-    WHEN 'CUSTOMER_DIRECTORY_ACCESS' THEN v_member.can_access_customer_directory
     WHEN 'MANAGE_PRODUCTS' THEN v_member.can_manage_products
     WHEN 'VIEW_REPORTS' THEN v_member.can_view_reports
 
@@ -115,7 +109,6 @@ BEGIN
                 m.can_change_payment_method,
             'can_view_broad_history',
                 m.can_view_broad_history,
-            'can_access_customer_directory', m.can_access_customer_directory,
             'can_manage_products', m.can_manage_products,
             'can_view_reports', m.can_view_reports
         ),
@@ -174,7 +167,6 @@ BEGIN
       'CORRECT_AMOUNT', cashier.can_correct_amount,
       'CHANGE_PAYMENT_METHOD', cashier.can_change_payment_method,
       'VIEW_BROAD_HISTORY', cashier.can_view_broad_history,
-      'CUSTOMER_DIRECTORY_ACCESS', cashier.can_access_customer_directory,
       'MANAGE_PRODUCTS', cashier.can_manage_products,
       'VIEW_REPORTS', cashier.can_view_reports
     ),
@@ -233,7 +225,7 @@ BEGIN
     SELECT 1 FROM jsonb_each(p_additional_permissions) e
     WHERE e.key NOT IN ('CREATE_SALE','ACCEPT_CASH','ACCEPT_ONLINE','CREATE_CREDIT_SALE',
       'USE_COUPON','ISSUE_INVOICE','REFUND','VOID','CORRECT_AMOUNT',
-      'CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY','CUSTOMER_DIRECTORY_ACCESS','ISSUE_RECEIPT','MANAGE_PRODUCTS','VIEW_REPORTS')
+      'CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY','ISSUE_RECEIPT','MANAGE_PRODUCTS','VIEW_REPORTS')
       OR jsonb_typeof(e.value) <> 'boolean' OR e.value <> 'true'::jsonb
   ) THEN RAISE EXCEPTION 'Additional permissions must be known permissions set to true' USING ERRCODE = '22023'; END IF;
 
@@ -264,7 +256,7 @@ BEGIN
       'USE_COUPON',v_target.can_use_coupon,'ISSUE_INVOICE',v_target.can_issue_invoice,
       'ISSUE_RECEIPT',v_target.can_issue_receipt,'REFUND',v_target.can_refund,'VOID',v_target.can_void,
       'CORRECT_AMOUNT',v_target.can_correct_amount,'CHANGE_PAYMENT_METHOD',v_target.can_change_payment_method,
-      'VIEW_BROAD_HISTORY',v_target.can_view_broad_history,'CUSTOMER_DIRECTORY_ACCESS',v_target.can_access_customer_directory,'MANAGE_PRODUCTS',v_target.can_manage_products,
+      'VIEW_BROAD_HISTORY',v_target.can_view_broad_history,'MANAGE_PRODUCTS',v_target.can_manage_products,
       'VIEW_REPORTS',v_target.can_view_reports
     );
     v_after := v_before || jsonb_build_object(v_req.permission_key, true) || p_additional_permissions;
@@ -282,7 +274,6 @@ BEGIN
       can_correct_amount = COALESCE((v_after->>'CORRECT_AMOUNT')::boolean, can_correct_amount),
       can_change_payment_method = COALESCE((v_after->>'CHANGE_PAYMENT_METHOD')::boolean, can_change_payment_method),
       can_view_broad_history = COALESCE((v_after->>'VIEW_BROAD_HISTORY')::boolean, can_view_broad_history),
-      can_access_customer_directory = COALESCE((v_after->>'CUSTOMER_DIRECTORY_ACCESS')::boolean, can_access_customer_directory),
       can_manage_products = COALESCE((v_after->>'MANAGE_PRODUCTS')::boolean, can_manage_products),
       can_view_reports = COALESCE((v_after->>'VIEW_REPORTS')::boolean, can_view_reports),
 
@@ -334,7 +325,7 @@ begin
     join public.branches br on br.id = m.branch_id and br.business_id = m.business_id and br.is_active = true
     where m.id = p_membership_id and m.business_id = p_business_id
       and m.branch_id = p_branch_id and m.is_active = true and m.removed_at is null
-      and (m.role = 'ADMIN' or (m.role = 'CASHIER' and m.can_access_customer_directory = true))
+      and (m.role = 'ADMIN' or (m.role = 'CASHIER' and m.can_view_broad_history = true))
   ) then
     raise exception 'ACTIVE_MEMBERSHIP_REQUIRED' using errcode = '42501';
   end if;
@@ -376,7 +367,7 @@ begin
     and m.branch_id = p_branch_id
     and m.is_active = true
     and m.removed_at is null
-    and (m.role = 'ADMIN' or (m.role = 'CASHIER' and m.can_access_customer_directory = true));
+    and (m.role = 'ADMIN' or (m.role = 'CASHIER' and m.can_view_broad_history = true));
   if not found then
     raise exception 'ACTIVE_MEMBERSHIP_REQUIRED' using errcode = '42501';
   end if;
@@ -430,7 +421,7 @@ BEGIN
     WHERE k.key NOT IN (
       'CREATE_SALE','ACCEPT_CASH','ACCEPT_ONLINE','CREATE_CREDIT_SALE',
       'USE_COUPON','ISSUE_INVOICE','ISSUE_RECEIPT','REFUND','VOID',
-      'CORRECT_AMOUNT','CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY','CUSTOMER_DIRECTORY_ACCESS',
+      'CORRECT_AMOUNT','CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY',
       'MANAGE_PRODUCTS','VIEW_REPORTS'
     )
   ) OR EXISTS (
@@ -439,7 +430,7 @@ BEGIN
     WHERE pg_catalog.jsonb_typeof(e.value) <> 'boolean'
   ) OR (
     SELECT count(*) FROM pg_catalog.jsonb_object_keys(p_permissions)
-  ) <> 15 THEN
+  ) <> 14 THEN
     RAISE EXCEPTION 'Invalid staff permissions' USING ERRCODE = '22023';
   END IF;
 
@@ -490,7 +481,6 @@ BEGIN
     'CORRECT_AMOUNT',v_target.can_correct_amount,
     'CHANGE_PAYMENT_METHOD',v_target.can_change_payment_method,
     'VIEW_BROAD_HISTORY',v_target.can_view_broad_history,
-    'CUSTOMER_DIRECTORY_ACCESS',v_target.can_access_customer_directory,
     'MANAGE_PRODUCTS',v_target.can_manage_products,
     'VIEW_REPORTS',v_target.can_view_reports
   );
@@ -509,7 +499,6 @@ BEGIN
       can_correct_amount = (p_permissions->>'CORRECT_AMOUNT')::boolean,
       can_change_payment_method = (p_permissions->>'CHANGE_PAYMENT_METHOD')::boolean,
       can_view_broad_history = (p_permissions->>'VIEW_BROAD_HISTORY')::boolean,
-      can_access_customer_directory = (p_permissions->>'CUSTOMER_DIRECTORY_ACCESS')::boolean,
       can_manage_products = (p_permissions->>'MANAGE_PRODUCTS')::boolean,
       can_view_reports = (p_permissions->>'VIEW_REPORTS')::boolean,
       updated_at = pg_catalog.now()
@@ -549,7 +538,7 @@ BEGIN
     WHERE k.key NOT IN (
       'CREATE_SALE','ACCEPT_CASH','ACCEPT_ONLINE','CREATE_CREDIT_SALE','USE_COUPON',
       'ISSUE_INVOICE','ISSUE_RECEIPT','REFUND','VOID','CORRECT_AMOUNT',
-      'CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY','CUSTOMER_DIRECTORY_ACCESS','MANAGE_PRODUCTS','VIEW_REPORTS'
+      'CHANGE_PAYMENT_METHOD','VIEW_BROAD_HISTORY','MANAGE_PRODUCTS','VIEW_REPORTS'
     )
   ) OR EXISTS (
     SELECT 1 FROM pg_catalog.jsonb_each(p_permissions) AS e(key,value)
@@ -603,7 +592,6 @@ BEGIN
     can_correct_amount = COALESCE((p_permissions->>'CORRECT_AMOUNT')::boolean,m.can_correct_amount),
     can_change_payment_method = COALESCE((p_permissions->>'CHANGE_PAYMENT_METHOD')::boolean,m.can_change_payment_method),
     can_view_broad_history = COALESCE((p_permissions->>'VIEW_BROAD_HISTORY')::boolean,m.can_view_broad_history),
-    can_access_customer_directory = COALESCE((p_permissions->>'CUSTOMER_DIRECTORY_ACCESS')::boolean,m.can_access_customer_directory),
     can_manage_products = COALESCE((p_permissions->>'MANAGE_PRODUCTS')::boolean,m.can_manage_products),
     can_view_reports = COALESCE((p_permissions->>'VIEW_REPORTS')::boolean,m.can_view_reports),
     updated_at = pg_catalog.now()
