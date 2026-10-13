@@ -3,6 +3,7 @@ package com.dailymoneyregister.core.cloud.sync
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.CustomerEntity
 import com.dailymoneyregister.core.database.entity.CustomerIdAliasEntity
+import org.json.JSONObject
 
 /**
  * Reconciles identity projections without rewriting historical financial references.
@@ -98,6 +99,68 @@ internal object CustomerIdentityReconciler {
                 saved.canonicalPhone == canonicalPhone) {
                 "Customer alias persistence conflict"
             }
+        }
+        return local.id
+    }
+
+    /**
+     * Reconcile only the customer identity snapshots carried by an already
+     * tenant-validated inbound envelope. This changes identity aliases, never
+     * historical financial IDs or amounts.
+     */
+    suspend fun reconcileEvidenceCustomers(
+        database: DmrDatabase,
+        businessId: String,
+        evidence: JSONObject
+    ) {
+        val array = evidence.optJSONArray("customers")
+        val rows = if (array != null) {
+            (0 until array.length()).map { array.getJSONObject(it) }
+        } else {
+            listOfNotNull(evidence.optJSONObject("customer"))
+        }
+        for (row in rows) {
+            val rowBusinessId = row.optString("business_id").ifBlank { businessId }
+            require(rowBusinessId == businessId) {
+                "Customer evidence belongs to another business"
+            }
+            val customerId = row.optString("id").ifBlank { row.optString("customer_id") }
+            require(customerId.isNotBlank()) { "Customer evidence is missing its ID" }
+            reconcileRemoteCustomer(
+                database = database,
+                businessId = businessId,
+                canonicalCustomerId = customerId,
+                canonicalPhone = row.optString("canonical_phone"),
+                name = row.optString("name").ifBlank { row.optString("display_name") },
+                createdAt = row.optLong("created_at", System.currentTimeMillis()),
+                updatedAt = row.optLong("updated_at", row.optLong("created_at", System.currentTimeMillis())),
+                isServerCanonical = false
+            )
+        }
+    }
+
+    /**
+     * Resolve a remote/local ID when a same-business alias is known. If no
+     * directory snapshot or alias has arrived yet, preserve the incoming ID;
+     * do not reject an otherwise valid financial envelope merely due to sync
+     * ordering. Existing local IDs that belong to another business are rejected.
+     */
+    suspend fun resolveLocalCustomerIdOrSelf(
+        database: DmrDatabase,
+        businessId: String,
+        incomingCustomerId: String
+    ): String {
+        val dao = database.customerDao()
+        val direct = dao.getCustomerById(incomingCustomerId)
+        if (direct != null) {
+            require(direct.businessId == businessId) { "Customer belongs to another business" }
+            return direct.id
+        }
+        val alias = dao.getCustomerIdAliasByAliasId(businessId, incomingCustomerId) ?: return incomingCustomerId
+        val local = dao.getCustomerById(alias.localCustomerId)
+            ?: error("Customer alias references a missing local customer")
+        require(local.businessId == businessId && local.canonicalPhone == alias.canonicalPhone) {
+            "Customer alias belongs to another business or identity"
         }
         return local.id
     }
