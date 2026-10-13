@@ -232,7 +232,7 @@ object CashierCloudSession {
         }
 
         val connection = (
-            URL("$baseUrl/api/staff/login")
+            URL("$baseUrl/staff/login")
                 .openConnection() as HttpURLConnection
         )
 
@@ -359,7 +359,7 @@ object CashierCloudSession {
         require(baseUrl.startsWith("https://"))
 
         val connection = (
-            URL("$baseUrl/api/financial/upload")
+            URL("$baseUrl/financial/upload")
                 .openConnection() as HttpURLConnection
         )
 
@@ -442,7 +442,7 @@ object CashierCloudSession {
             if (afterReceivedAt != null) append("&after_received_at=").append(java.net.URLEncoder.encode(afterReceivedAt, "UTF-8"))
             if (afterOperationId != null) append("&after_operation_id=").append(java.net.URLEncoder.encode(afterOperationId, "UTF-8"))
         }
-        val connection = (URL("$baseUrl/api/financial/download$query").openConnection() as HttpURLConnection)
+        val connection = (URL("$baseUrl/financial/download$query").openConnection() as HttpURLConnection)
         try {
             connection.requestMethod = "GET"
             connection.connectTimeout = 5000
