@@ -8,6 +8,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.dailymoneyregister.core.database.security.FinancialImmutabilityCallback
+import com.dailymoneyregister.core.database.dao.CloudStaffIdentityDao
 import com.dailymoneyregister.core.database.dao.BusinessBranchDao
 import com.dailymoneyregister.core.database.dao.CashShiftDao
 import com.dailymoneyregister.core.database.dao.CustomerDao
@@ -19,6 +20,7 @@ import com.dailymoneyregister.core.database.dao.ProductDao
 import com.dailymoneyregister.core.database.dao.ReportingReadDao
 import com.dailymoneyregister.core.database.dao.TransactionDao
 import com.dailymoneyregister.core.database.dao.UserDao
+import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
 import com.dailymoneyregister.core.database.entity.AmountCorrectionEventEntity
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
@@ -59,6 +61,7 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
 @Database(
     entities = [
         BusinessEntity::class,
+        CloudStaffIdentityEntity::class,
         BranchEntity::class,
         UserAccountEntity::class,
         HumanIdentityEntity::class,
@@ -93,13 +96,14 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
         CreditRepaymentEntity::class,
         CreditRepaymentAllocationEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
 abstract class DmrDatabase : RoomDatabase() {
 
     abstract fun businessBranchDao(): BusinessBranchDao
+    abstract fun cloudStaffIdentityDao(): CloudStaffIdentityDao
     abstract fun userDao(): UserDao
     abstract fun operationDao(): OperationDao
     abstract fun financialSyncOutboxDao(): FinancialSyncOutboxDao
@@ -660,6 +664,27 @@ abstract class DmrDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS cloud_staff_identities (
+                        membership_id TEXT NOT NULL PRIMARY KEY,
+                        local_user_id TEXT NOT NULL,
+                        business_id TEXT NOT NULL,
+                        branch_id TEXT NOT NULL,
+                        role TEXT NOT NULL,
+                        permissions_json TEXT NOT NULL,
+                        is_active INTEGER NOT NULL,
+                        is_removed INTEGER NOT NULL,
+                        updated_at INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_cloud_staff_identities_business_id_local_user_id ON cloud_staff_identities (business_id, local_user_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_cloud_staff_identities_business_id_branch_id ON cloud_staff_identities (business_id, branch_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_cloud_staff_identities_business_id_branch_id_is_active_is_removed ON cloud_staff_identities (business_id, branch_id, is_active, is_removed)")
+            }
+        }
+
         @Volatile
 
         private var INSTANCE: DmrDatabase? = null
@@ -698,7 +723,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                             .addCallback(FinancialImmutabilityCallback)
                             .build()
                     } catch (e: Exception) {
