@@ -113,6 +113,14 @@ class FinancialSyncEngine @Inject constructor(
         }
 
         val activeSession = SessionManager.currentSession.value
+        if (activeSession?.user?.role == UserRole.CASHIER) {
+            val refreshed = runCatching {
+                staffIdentitySync.refreshCashierPermissions(activeSession)
+            }.onFailure { error ->
+                Log.w("PaidDueFinancialSync", "CASHIER_PERMISSION_REFRESH_DEFERRED", error)
+            }.getOrDefault(false)
+            if (!refreshed) return@withLock 0
+        }
         if (
             role == UserRole.ADMIN &&
             activeSession != null &&
@@ -303,6 +311,15 @@ class FinancialSyncEngine @Inject constructor(
         var totalApplied = 0
         var totalFetched = 0
         var totalSkipped = 0
+
+        if (session?.user?.role == UserRole.CASHIER) {
+            val refreshed = runCatching {
+                staffIdentitySync.refreshCashierPermissions(session)
+            }.onFailure { error ->
+                Log.w("PaidDueFinancialSync", "CASHIER_PERMISSION_REFRESH_DEFERRED", error)
+            }.getOrDefault(false)
+            if (!refreshed) return@withLock 0
+        }
 
         val limit = 100
 
