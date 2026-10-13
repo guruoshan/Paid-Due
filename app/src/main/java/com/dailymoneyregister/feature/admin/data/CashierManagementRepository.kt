@@ -273,11 +273,10 @@ class CashierManagementRepository @Inject constructor(
             override val actorUserId = payload.adminUserId
             override val deviceId = payload.deviceId
             override val occurredAt = payload.occurredAt
-            override val commandSchemaVersion =
-                CreateCashierPayloadCodec.CURRENT_SCHEMA_VERSION
+            override val commandSchemaVersion = fingerprintSchemaVersion
             override val requestFingerprint = requestedFingerprint
             override val intentPayload =
-                CreateCashierPayloadCodec.encode(payload)
+                CreateCashierPayloadCodec.encode(payload, fingerprintSchemaVersion)
         }
 
         return commandExecutor.execute(
