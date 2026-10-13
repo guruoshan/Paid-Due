@@ -77,10 +77,7 @@ class FinancialSyncOutboxV13Test {
     fun downloadedCashSaleLeavesNoOutboxButLocalCashSaleQueuesOnce() = withDb { db ->
         // Simulate the committed inbound/materialized operation: inbound rows do not
         // pass through the local outbox trigger.
-        seedSale(db, "downloaded-cash", "CASH")
-        db.openHelper.writableDatabase.execSQL(
-            "UPDATE operations SET status = 'SUCCEEDED' WHERE id = 'downloaded-cash'"
-        )
+        seedSale(db, "downloaded-cash", "CASH", initialStatus = "SUCCEEDED")
         assertEquals(0, count(db, "downloaded-cash"))
 
         seedSale(db, "local-cash", "CASH")
@@ -266,7 +263,8 @@ class FinancialSyncOutboxV13Test {
     private fun seedSale(
         db: DmrDatabase,
         operationId: String,
-        category: String
+        category: String,
+        initialStatus: String = "PENDING"
     ) {
         val sql = db.openHelper.writableDatabase
         val tx = "tx-$operationId"
@@ -308,7 +306,7 @@ class FinancialSyncOutboxV13Test {
                 '$operationId', 'business-test', 'branch-test',
                 'RECORD_SALE', 'TRANSACTION', '$tx',
                 '$tx', 'cashier-test', 'device-test',
-                100, 'fingerprint-test', 1, '{}', 'PENDING'
+                100, 'fingerprint-test', 1, '{}', '$initialStatus'
             )
             """
         )
