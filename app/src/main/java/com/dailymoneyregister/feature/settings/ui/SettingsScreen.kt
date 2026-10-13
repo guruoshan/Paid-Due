@@ -1,6 +1,7 @@
 ﻿package com.dailymoneyregister.feature.settings.ui
 
 import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.core.update.ReleaseUpdateCard
 import com.dailymoneyregister.feature.customers.data.CustomerRepository
 
 import com.dailymoneyregister.core.ui.nativeLabel
@@ -232,6 +233,8 @@ fun SettingsScreen(
                     Text(stringResource(R.string.change), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
                 }
             }
+
+            ReleaseUpdateCard()
 
             Spacer(modifier = Modifier.weight(1f))
 
