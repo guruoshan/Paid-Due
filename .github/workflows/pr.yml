@@ -50,10 +50,11 @@ jobs:
           echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
             --name paid-due-api36 --package "system-images;android-36;google_apis;x86_64" \
             --device pixel_2 --force
+          adb start-server
           nohup "$ANDROID_HOME/emulator/emulator" -avd paid-due-api36 \
-            -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect \
+            -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel auto \
             > "$RUNNER_TEMP/paid-due-emulator.log" 2>&1 &
-          adb wait-for-device
+          timeout 180 adb wait-for-device
           for attempt in $(seq 1 90); do
             booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
             if [[ "$booted" == "1" ]]; then break; fi
