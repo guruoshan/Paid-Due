@@ -228,11 +228,16 @@ object RemoteEnvelopeMaterializer {
         if (actorUserId.isBlank()) {
             return InboundProcessResult.Rejected("Actor user ID is missing")
         }
-        val actor = database.userDao().getUserByIdInBusiness(actorUserId, sessionBusinessId)
-            ?: return InboundProcessResult.Rejected("Referenced actor user '$actorUserId' is missing locally")
+        if (!hasActorIdentity(database, actorUserId, sessionBusinessId, branchId)) {
+            return InboundProcessResult.Rejected(
+                "Referenced actor user '$actorUserId' is missing from synchronized staff identities"
+            )
+        }
         val createdByUserId = tJson.optString("created_by_user_id").ifBlank { actorUserId }
-        if (database.userDao().getUserByIdInBusiness(createdByUserId, sessionBusinessId) == null) {
-            return InboundProcessResult.Rejected("Referenced transaction user '$createdByUserId' is missing locally")
+        if (!hasActorIdentity(database, createdByUserId, sessionBusinessId, branchId)) {
+            return InboundProcessResult.Rejected(
+                "Referenced transaction user '$createdByUserId' is missing from synchronized staff identities"
+            )
         }
         if (tJson.getString("branch_id") != branchId) {
             return InboundProcessResult.Rejected("Transaction branch does not match envelope branch")
@@ -315,8 +320,10 @@ object RemoteEnvelopeMaterializer {
                 return InboundProcessResult.Rejected("Correction/reclassification settlement cannot be zero")
             }
             val settlementActor = settlement.optString("actor_user_id").ifBlank { actorUserId }
-            if (database.userDao().getUserByIdInBusiness(settlementActor, sessionBusinessId) == null) {
-                return InboundProcessResult.Rejected("Referenced settlement user '$settlementActor' is missing locally")
+            if (!hasActorIdentity(database, settlementActor, sessionBusinessId, branchId)) {
+                return InboundProcessResult.Rejected(
+                    "Referenced settlement user '$settlementActor' is missing from synchronized staff identities"
+                )
             }
         }
 
@@ -577,11 +584,19 @@ object RemoteEnvelopeMaterializer {
         businessId: String,
         branchId: String
     ): Boolean {
+        // A synchronized cloud identity is authoritative when present, including
+        // inactive/removed tombstones. Never let a stale local login row override revocation.
+        val cloudIdentity = database.cloudStaffIdentityDao()
+            .findIdentity(actorUserId, businessId, branchId)
+        if (cloudIdentity != null) {
+            return cloudIdentity.isActive && !cloudIdentity.isRemoved &&
+                cloudIdentity.role == "CASHIER"
+        }
+
         val localActor = database.userDao().getUserByIdInBusiness(actorUserId, businessId)
-        if (localActor != null && localActor.role.name == "ADMIN") return true
-        if (localActor != null && database.userDao().getMembership(actorUserId, branchId) != null) return true
-        return database.cloudStaffIdentityDao()
-            .findIdentity(actorUserId, businessId, branchId) != null
+        if (localActor == null || !localActor.isActive) return false
+        if (localActor.role.name == "ADMIN") return true
+        return database.userDao().getMembership(actorUserId, branchId) != null
     }
 
     private fun normalizeJson(value: Any?): Any? = when (value) {
