@@ -49,7 +49,7 @@ class CustomerDirectorySyncClient @Inject constructor(
             else -> null
         } ?: return@withContext
 
-        val baseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trimEnd('/') + "/functions/v1/api"
+        val baseUrl = BuildConfig.PAID_DUE_BACKEND_BASE_URL.trimEnd('/')
         require(baseUrl.startsWith("https://")) { "CUSTOMER_SYNC_BACKEND_URL_INVALID" }
         // Throttle failures too; an unavailable backend must not be hammered every sync tick.
         lastSyncByBusiness[syncKey] = now

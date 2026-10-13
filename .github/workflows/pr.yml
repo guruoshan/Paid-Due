@@ -83,3 +83,14 @@ jobs:
 
       - name: Run unit tests, instrumentation tests, and assemble debug APK
         run: ./gradlew --no-daemon :app:testDebugUnitTest :app:connectedDebugAndroidTest :app:assembleDebug
+      - name: Upload Android test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: android-test-reports-${{ github.run_id }}
+          path: |
+            app/build/reports/androidTests/connected/debug
+            app/build/outputs/androidTest-results/connected/debug
+            app/build/test-results/testDebugUnitTest
+          if-no-files-found: warn
+          retention-days: 7
