@@ -24,7 +24,7 @@ data class CreateCashierRecoveryPayload(
 
 object CreateCashierPayloadCodec {
 
-    const val CURRENT_SCHEMA_VERSION = 1
+    const val CURRENT_SCHEMA_VERSION = 2
 
     fun encode(payload: CreateCashierRecoveryPayload): String = buildString {
         appendLine("v=$CURRENT_SCHEMA_VERSION")
@@ -56,6 +56,7 @@ object CreateCashierPayloadCodec {
         appendLine("canCorrectAmount=${payload.permissions.canCorrectAmount}")
         appendLine("canChangePaymentMethod=${payload.permissions.canChangePaymentMethod}")
         appendLine("canViewBroadHistory=${payload.permissions.canViewBroadHistory}")
+        appendLine("canAccessCustomerDirectory=${payload.permissions.canAccessCustomerDirectory}")
         appendLine("canManageProducts=${payload.permissions.canManageProducts}")
         appendLine("canViewReports=${payload.permissions.canViewReports}")
     }
@@ -66,7 +67,7 @@ object CreateCashierPayloadCodec {
         val version = required(map, "v").toIntOrNull()
             ?: throw IllegalStateException("Invalid Cashier payload schema version")
 
-        if (version != CURRENT_SCHEMA_VERSION) {
+        if (version !in 1..CURRENT_SCHEMA_VERSION) {
             throw IllegalStateException("Unsupported Cashier payload schema version: $version")
         }
 
@@ -100,17 +101,19 @@ object CreateCashierPayloadCodec {
                 canCorrectAmount = required(map, "canCorrectAmount").toBooleanStrict(),
                 canChangePaymentMethod = required(map, "canChangePaymentMethod").toBooleanStrict(),
                 canViewBroadHistory = required(map, "canViewBroadHistory").toBooleanStrict(),
+                canAccessCustomerDirectory = map["canAccessCustomerDirectory"]?.toBooleanStrictOrNull() ?: false,
                 canManageProducts = required(map, "canManageProducts").toBooleanStrict(),
                 canViewReports = required(map, "canViewReports").toBooleanStrict()
             )
         )
     }
 
-    fun fingerprint(params: CreateCashierParams): String {
+    fun fingerprint(params: CreateCashierParams, schemaVersion: Int = CURRENT_SCHEMA_VERSION): String {
+        require(schemaVersion in 1..CURRENT_SCHEMA_VERSION) { "Unsupported Cashier fingerprint schema version" }
         val p = params.permissions
 
-        val values = listOf(
-            CURRENT_SCHEMA_VERSION.toString(),
+        val values = mutableListOf(
+            schemaVersion.toString(),
             params.businessId,
             params.branchId,
             params.adminUserId,
@@ -133,6 +136,7 @@ object CreateCashierPayloadCodec {
             p.canManageProducts.toString(),
             p.canViewReports.toString()
         )
+        if (schemaVersion >= 2) values.add(p.canAccessCustomerDirectory.toString())
 
         val canonical = values.joinToString("|") { value ->
             "${value.length}:$value"
