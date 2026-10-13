@@ -22,6 +22,7 @@ class StaffIdentitySyncTest {
         val source = mockk<EmployeeDirectoryCloudSource>()
         val database = mockk<DmrDatabase>()
         val dao = mockk<CloudStaffIdentityDao>()
+        val cashierMetadataSynchronizer = mockk<CashierMetadataSynchronizer>(relaxed = true)
         val captured = slot<List<CloudStaffIdentityEntity>>()
         every { database.cloudStaffIdentityDao() } returns dao
         coEvery { source.listCashiers() } returns listOf(
@@ -48,7 +49,7 @@ class StaffIdentitySyncTest {
         )
         coEvery { dao.upsertAll(capture(captured)) } returns Unit
 
-        DefaultStaffIdentitySync(source, database).synchronize("business-a", "branch-a")
+        DefaultStaffIdentitySync(source, database, cashierMetadataSynchronizer).synchronize("business-a", "branch-a")
 
         coVerify(exactly = 1) { dao.upsertAll(any()) }
         assertEquals(1, captured.captured.size)
