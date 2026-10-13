@@ -157,6 +157,28 @@ BEGIN
     RAISE EXCEPTION 'Replay must persist exactly one financial envelope';
   END IF;
 
+  SELECT count(*) INTO v_count
+  FROM public.fetch_cashier_financial_envelopes_v2(
+    'biz-test', 'branch-test', 'membership-test', NULL, NULL, 100
+  ) fetched
+  WHERE fetched.operation_id = 'release-blocker-replay-test'
+    AND fetched.actor_membership_id = 'membership-test'
+    AND fetched.actor_local_user_id = 'cashier-local'
+    AND fetched.actor_role = 'CASHIER';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'Cashier download did not include authoritative actor membership metadata';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.fetch_financial_envelopes_v3('biz-test', NULL, NULL, 100) fetched
+  WHERE fetched.operation_id = 'release-blocker-replay-test'
+    AND fetched.actor_membership_id = 'membership-test'
+    AND fetched.actor_local_user_id = 'cashier-local'
+    AND fetched.actor_role = 'CASHIER';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'Admin download did not include authoritative actor membership metadata';
+  END IF;
+
   v_bad_payload := v_payload || jsonb_build_object('operation_id', 'release-blocker-bad-date-test');
   v_bad_canonical_text := v_bad_payload::text;
   v_bad_digest := encode(extensions.digest(convert_to(v_bad_canonical_text, 'UTF8'), 'sha256'), 'hex');
