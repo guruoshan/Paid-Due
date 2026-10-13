@@ -30,6 +30,30 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Install Deno for Edge Function contract tests
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install Android SDK 37
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
+
+      - name: Run Android financial-validation unit tests before signing
+        env:
+          PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES: "true"
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:testReleaseUnitTest
+
+      - name: Run Supabase Edge Function contract tests before signing
+        working-directory: supabase/functions/api
+        run: deno task test api_test.ts
+
+      - name: Run staff invitation URL security contract tests before signing
+        run: deno test supabase/functions/staff-invite/invite-link_test.ts
+
       - name: Validate required release configuration
         shell: bash
         env:
@@ -56,12 +80,11 @@ jobs:
         with:
           cache-read-only: false
 
-      - name: Install Android SDK 37
+      - name: Confirm release financial validation remains enabled
         shell: bash
         run: |
           set -euo pipefail
-          chmod +x ./gradlew
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
+          test "${PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES:-true}" = "true"
 
       - name: Decode release keystore to runner temporary storage
         shell: bash
@@ -81,6 +104,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES: "true"
         run: ./gradlew --no-daemon :app:bundleRelease :app:assembleRelease
 
       - name: Delete temporary release keystore
