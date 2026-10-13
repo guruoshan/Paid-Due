@@ -55,6 +55,18 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
         run: psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/20261012120000_notification_contract.sql
+      - name: Apply customer-directory and release-blocker migrations in isolation
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261012200000_customer_directory_sync_contract.sql
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261013100000_admin_customer_directory_sync.sql
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261014090000_customer_directory_permission_enforcement.sql
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261014120000_release_blocker_security_hardening.sql
+      - name: Verify release-blocker security, permission and replay behavior
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/20261014120000_release_blocker_security_hardening.sql
       - name: Stop disposable Supabase
         if: always() && steps.setup-supabase-cli.outcome == 'success'
         run: supabase stop --no-backup --workdir /tmp/supabase-notification-gate
