@@ -79,7 +79,6 @@ class CashierMetadataSynchronizer @Inject constructor(
                 canCorrectAmount = permissions.optBoolean("can_correct_amount", false),
                 canChangePaymentMethod = permissions.optBoolean("can_change_payment_method", false),
                 canViewBroadHistory = permissions.optBoolean("can_view_broad_history", false),
-                canAccessCustomerDirectory = permissions.optBoolean("can_access_customer_directory", false),
                 canManageProducts = permissions.optBoolean("can_manage_products", false),
                 canViewReports = permissions.optBoolean("can_view_reports", false)
             )
