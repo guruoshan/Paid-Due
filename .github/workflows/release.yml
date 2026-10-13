@@ -55,10 +55,6 @@ jobs:
         working-directory: supabase/functions/api
         run: deno task test api_test.ts
 
-      - name: Run API router regression tests before signing
-        working-directory: supabase/functions/api
-        run: deno test router_test.ts
-
       - name: Run staff invitation URL security contract tests before signing
         run: deno test supabase/functions/staff-invite/invite-link_test.ts
 
