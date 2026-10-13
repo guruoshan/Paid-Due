@@ -239,6 +239,38 @@ class InviteActivationRepository @Inject constructor(
                     return ActivationResult.Failed
                 }
 
+                /*
+                 * Cross-device sync needs a server Cashier session. The PIN
+                 * is only known here and at PIN login, so establish it now.
+                 * Activation is already committed; a failure here must not
+                 * undo it. The next PIN login retries.
+                 */
+                val cloudSession =
+                    try {
+                        com.dailymoneyregister.core.cloud.sync
+                            .CashierCloudSession.authenticate(
+                                canonicalPhone =
+                                    remoteResult.activation
+                                        .canonicalPhone,
+                                pin = pin,
+                                expectedMembershipId =
+                                    remoteResult.activation
+                                        .membershipId
+                            )
+                    } catch (
+                        cancelled:
+                        kotlinx.coroutines.CancellationException
+                    ) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        false
+                    }
+
+                android.util.Log.i(
+                    "PaidDueFinancialSync",
+                    "CASHIER_ACTIVATION_CLOUD_SESSION=$cloudSession"
+                )
+
                 SessionManager.setSession(
                     session
                 )
