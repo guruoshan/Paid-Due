@@ -8,6 +8,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.dailymoneyregister.core.database.security.FinancialImmutabilityCallback
+import com.dailymoneyregister.core.database.dao.InboundEnvelopeAuditDao
 import com.dailymoneyregister.core.database.dao.CloudStaffIdentityDao
 import com.dailymoneyregister.core.database.dao.BusinessBranchDao
 import com.dailymoneyregister.core.database.dao.CashShiftDao
@@ -20,6 +21,7 @@ import com.dailymoneyregister.core.database.dao.ProductDao
 import com.dailymoneyregister.core.database.dao.ReportingReadDao
 import com.dailymoneyregister.core.database.dao.TransactionDao
 import com.dailymoneyregister.core.database.dao.UserDao
+import com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity
 import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
 import com.dailymoneyregister.core.database.entity.AmountCorrectionEventEntity
 import com.dailymoneyregister.core.database.entity.BranchEntity
@@ -62,6 +64,7 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
     entities = [
         BusinessEntity::class,
         CloudStaffIdentityEntity::class,
+        InboundEnvelopeAuditEventEntity::class,
         BranchEntity::class,
         UserAccountEntity::class,
         HumanIdentityEntity::class,
@@ -96,7 +99,7 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
         CreditRepaymentEntity::class,
         CreditRepaymentAllocationEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -104,6 +107,7 @@ abstract class DmrDatabase : RoomDatabase() {
 
     abstract fun businessBranchDao(): BusinessBranchDao
     abstract fun cloudStaffIdentityDao(): CloudStaffIdentityDao
+    abstract fun inboundEnvelopeAuditDao(): InboundEnvelopeAuditDao
     abstract fun userDao(): UserDao
     abstract fun operationDao(): OperationDao
     abstract fun financialSyncOutboxDao(): FinancialSyncOutboxDao
@@ -685,6 +689,27 @@ abstract class DmrDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS inbound_envelope_audit_events (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        operation_id TEXT NOT NULL,
+                        business_id TEXT NOT NULL,
+                        branch_id TEXT,
+                        operation_type TEXT NOT NULL,
+                        received_at_iso TEXT NOT NULL,
+                        canonical_sha256 TEXT,
+                        event_type TEXT NOT NULL,
+                        reason TEXT NOT NULL,
+                        occurred_at INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_inbound_envelope_audit_events_operation_id_occurred_at ON inbound_envelope_audit_events (operation_id, occurred_at)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_inbound_envelope_audit_events_business_id_branch_id_occurred_at ON inbound_envelope_audit_events (business_id, branch_id, occurred_at)")
+            }
+        }
+
         @Volatile
 
         private var INSTANCE: DmrDatabase? = null
@@ -723,7 +748,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                             .addCallback(FinancialImmutabilityCallback)
                             .build()
                     } catch (e: Exception) {
