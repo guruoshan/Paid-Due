@@ -17,7 +17,6 @@ enum class PermissionAction {
     CORRECT_AMOUNT,
     CHANGE_PAYMENT_METHOD,
     VIEW_BROAD_HISTORY,
-    CUSTOMER_DIRECTORY_ACCESS,
     MANAGE_PRODUCTS,
     VIEW_REPORTS
 }
@@ -64,8 +63,6 @@ object PermissionChecker {
             PermissionAction.CORRECT_AMOUNT -> membership.canCorrectAmount
             PermissionAction.CHANGE_PAYMENT_METHOD -> membership.canChangePaymentMethod
             PermissionAction.VIEW_BROAD_HISTORY -> membership.canViewBroadHistory
-            // Listing business customers is separate from viewing broad financial history.
-            PermissionAction.CUSTOMER_DIRECTORY_ACCESS -> membership.canAccessCustomerDirectory
             PermissionAction.MANAGE_PRODUCTS -> membership.canManageProducts
             PermissionAction.VIEW_REPORTS -> false
         }
