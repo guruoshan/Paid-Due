@@ -248,7 +248,13 @@ BEGIN
     );
     IF CASE
       WHEN length(v_difference_minor) BETWEEN 1 AND 19
-       AND v_difference_minor ~ '^-?[0-9]+
+       AND v_difference_minor ~ '^-?[0-9]+$'
+       AND v_difference_minor !~ '[^0-9-]'
+       AND position('-' in substring(v_difference_minor from 2)) = 0
+       AND v_difference_minor <> '-'
+      THEN v_difference_minor::numeric <> 0
+      ELSE false
+    END THEN
       PERFORM private.enqueue_business_notification(
         'CASH_DIFFERENCE:' || NEW.business_id || ':' || NEW.operation_id || ':' || v_admin.membership_id,
         NEW.business_id, NEW.branch_id, v_admin.membership_id,
