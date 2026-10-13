@@ -1,5 +1,5 @@
 import { sha256Hex, deriveCredential, hexToBytes } from "./crypto.ts";
-import { rpc } from "./supabase.ts";
+import { rpc, rpcAsUser } from "./supabase.ts";
 import { checkAuthRateLimit } from "./rateLimit.ts";
 
 type RateGate = (
@@ -307,10 +307,10 @@ export async function downloadFinancial(request: Request) {
 }
 
 
-const PERMISSION_KEYS = new Set([
+export const PERMISSION_KEYS = new Set([
   "CREATE_SALE", "ACCEPT_CASH", "ACCEPT_ONLINE", "CREATE_CREDIT_SALE", "USE_COUPON",
-  "ISSUE_INVOICE", "REFUND", "VOID", "CORRECT_AMOUNT",
-  "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY",
+  "ISSUE_INVOICE", "ISSUE_RECEIPT", "REFUND", "VOID", "CORRECT_AMOUNT",
+  "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY", "MANAGE_PRODUCTS", "VIEW_REPORTS",
 ]);
 
 async function verifyNotificationToken(request: Request): Promise<any> {
@@ -388,5 +388,166 @@ export async function requestCashierPermission(request: Request) {
       return json({ outcome: "REQUEST_NOT_ALLOWED" }, error.status);
     }
     return json({ outcome: "PERMISSION_REQUEST_UNAVAILABLE" }, 503);
+  }
+}
+
+
+/**
+ * Customer directory sync for authenticated cashier custom sessions.
+ * Customer identity is canonical-phone scoped per business. The client must
+ * reconcile a returned canonical customer_id before replacing local references.
+ */
+export async function syncCustomerDirectory(request: Request) {
+  const authorization = request.headers.get("Authorization") || "";
+  const bearer = /^Bearer\s+(.+)$/i.exec(authorization)?.[1] || "";
+  // Supabase Auth access tokens are JWTs; cashier sync tokens are fixed 64-hex
+  // custom-session credentials. Never fall back from a failed Admin JWT to service-role scope.
+  if (bearer.split(".").length === 3 && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(bearer)) {
+    return await syncCustomerDirectoryAdmin(request, bearer);
+  }
+  let session;
+  try {
+    session = await verifyToken(request);
+  } catch {
+    return json({ outcome: "UNAUTHORIZED" }, 401);
+  }
+
+  if (request.method === "GET") {
+    const url = new URL(request.url);
+    const rawLimit = url.searchParams.get("limit") || "100";
+    const limit = Number(rawLimit);
+    const after = url.searchParams.get("after_updated_at");
+    if (!Number.isInteger(limit) || limit < 1 || limit > 500 ||
+        (after !== null && (!Number.isFinite(Date.parse(after)) || after.length > 64))) {
+      return json({ outcome: "INVALID_REQUEST" }, 400);
+    }
+    try {
+      const rows = await rpc("sync_customer_directory_list", {
+        p_business_id: session.business_id,
+        p_branch_id: session.branch_id,
+        p_membership_id: session.membership_id,
+        p_after_updated_at: after,
+        p_limit: limit,
+      });
+      return json({ customers: Array.isArray(rows) ? rows : [] }, 200);
+    } catch (error: any) {
+      if (error.status === 400 || error.status === 403) {
+        return json({ outcome: error.outcome || "CUSTOMER_SYNC_REJECTED" }, error.status);
+      }
+      throw error;
+    }
+  }
+
+  if (request.method !== "POST") {
+    return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { Allow: "GET, POST" });
+  }
+  const contentType = request.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().startsWith("application/json")) {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+  if (
+    typeof body.customer_id !== "string" || body.customer_id.trim().length < 1 ||
+    body.customer_id.trim().length > 128 ||
+    typeof body.canonical_phone !== "string" || !PHONE_REGEX.test(body.canonical_phone) ||
+    typeof body.display_name !== "string" || body.display_name.trim().length < 1 ||
+    body.display_name.trim().length > 200 ||
+    (body.created_at != null && (typeof body.created_at !== "string" ||
+      !Number.isFinite(Date.parse(body.created_at)) || body.created_at.length > 64))
+  ) {
+    return json({ outcome: "INVALID_CUSTOMER" }, 400);
+  }
+
+  try {
+    const rows = await rpc("sync_customer_directory_upsert", {
+      p_business_id: session.business_id,
+      p_branch_id: session.branch_id,
+      p_membership_id: session.membership_id,
+      p_customer_id: body.customer_id.trim(),
+      p_canonical_phone: body.canonical_phone,
+      p_display_name: body.display_name.trim(),
+      p_created_at: body.created_at || null,
+    });
+    if (!Array.isArray(rows) || rows.length !== 1) {
+      throw new Error("CUSTOMER_SYNC_RESULT_INVALID");
+    }
+    return json({ customer: rows[0] }, 200);
+  } catch (error: any) {
+    if (error.status === 400 || error.status === 403) {
+      return json({ outcome: error.outcome || "CUSTOMER_SYNC_REJECTED" }, error.status);
+    }
+    throw error;
+  }
+}
+
+
+/**
+ * Admin customer directory route. Authorization is enforced by SECURITY DEFINER
+ * RPCs under the caller's Supabase JWT (auth.uid()). The service-role key is
+ * only the PostgREST apikey; it is never used as the Authorization identity.
+ */
+async function syncCustomerDirectoryAdmin(request: Request, accessToken: string) {
+  const url = new URL(request.url);
+  if (request.method !== "GET" && request.method !== "POST") {
+    return json({ outcome: "METHOD_NOT_ALLOWED" }, 405, { Allow: "GET, POST" });
+  }
+
+  if (request.method === "GET") {
+    const businessId = url.searchParams.get("business_id") || "";
+    const branchId = url.searchParams.get("branch_id") || "";
+    const rawLimit = url.searchParams.get("limit") || "100";
+    const limit = Number(rawLimit);
+    const after = url.searchParams.get("after_updated_at");
+    if (!businessId || businessId.length > 128 || !branchId || branchId.length > 128 ||
+        !Number.isInteger(limit) || limit < 1 || limit > 500 ||
+        (after !== null && (!Number.isFinite(Date.parse(after)) || after.length > 64))) {
+      return json({ outcome: "INVALID_REQUEST" }, 400);
+    }
+    try {
+      const rows = await rpcAsUser("sync_customer_directory_admin_list", {
+        p_business_id: businessId, p_branch_id: branchId,
+        p_after_updated_at: after, p_limit: limit,
+      }, accessToken);
+      return json({ customers: Array.isArray(rows) ? rows : [] }, 200);
+    } catch (error: any) {
+      if (error.status === 400) return json({ outcome: "INVALID_REQUEST" }, 400);
+      if (error.status === 401 || error.status === 403) return json({ outcome: "FORBIDDEN" }, 403);
+      return json({ outcome: "CUSTOMER_SYNC_UNAVAILABLE" }, 503);
+    }
+  }
+
+  const contentType = request.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().startsWith("application/json")) {
+    return json({ outcome: "INVALID_REQUEST" }, 400);
+  }
+  let body: any;
+  try { body = await request.json(); } catch { return json({ outcome: "INVALID_REQUEST" }, 400); }
+  if (typeof body.business_id !== "string" || !body.business_id.trim() || body.business_id.length > 128 ||
+      typeof body.branch_id !== "string" || !body.branch_id.trim() || body.branch_id.length > 128 ||
+      typeof body.customer_id !== "string" || !body.customer_id.trim() || body.customer_id.trim().length > 128 ||
+      typeof body.canonical_phone !== "string" || !PHONE_REGEX.test(body.canonical_phone) ||
+      typeof body.display_name !== "string" || !body.display_name.trim() || body.display_name.trim().length > 200 ||
+      (body.created_at != null && (typeof body.created_at !== "string" ||
+        !Number.isFinite(Date.parse(body.created_at)) || body.created_at.length > 64))) {
+    return json({ outcome: "INVALID_CUSTOMER" }, 400);
+  }
+  try {
+    const rows = await rpcAsUser("sync_customer_directory_admin_upsert", {
+      p_business_id: body.business_id.trim(), p_branch_id: body.branch_id.trim(),
+      p_customer_id: body.customer_id.trim(), p_canonical_phone: body.canonical_phone,
+      p_display_name: body.display_name.trim(), p_created_at: body.created_at || null,
+    }, accessToken);
+    if (!Array.isArray(rows) || rows.length !== 1) throw new Error("CUSTOMER_SYNC_RESULT_INVALID");
+    return json({ customer: rows[0] }, 200);
+  } catch (error: any) {
+    if (error.status === 400) return json({ outcome: "INVALID_CUSTOMER" }, 400);
+    if (error.status === 401 || error.status === 403) return json({ outcome: "FORBIDDEN" }, 403);
+    return json({ outcome: "CUSTOMER_SYNC_UNAVAILABLE" }, 503);
   }
 }
