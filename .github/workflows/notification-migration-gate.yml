@@ -59,6 +59,9 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
         run: |
+          # This baseline gate intentionally omits the staff-invitation migration chain.
+          # Add only the existing relation shape required to compile the restoration RPC.
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -c "CREATE TABLE private.staff_invite_activations (membership_id text, staff_identity_id uuid, local_user_id text)"
           psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261012200000_customer_directory_sync_contract.sql
           psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261013100000_admin_customer_directory_sync.sql
           psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261014090000_customer_directory_permission_enforcement.sql
