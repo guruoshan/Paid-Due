@@ -25,7 +25,8 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
         "coupon_authorized_user_events",
         "cash_shift_events",
         "expenses",
-        "expense_events"
+        "expense_events",
+        "inbound_envelope_audit_events"
     )
 
     override fun onOpen(db: SupportSQLiteDatabase) {
@@ -100,26 +101,17 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
                 )
                 db.execSQL(
                     """
-                    CREATE TRIGGER financial_sync_outbox_after_cash_sale_success
+                    CREATE TRIGGER financial_sync_outbox_after_operation_success
                     AFTER UPDATE ON operations
                     WHEN OLD.status != 'SUCCEEDED'
                       AND NEW.status = 'SUCCEEDED'
                       AND NEW.branch_id IS NOT NULL
-                      AND NEW.operation_type = 'RECORD_SALE'
-                      AND EXISTS (
-                          SELECT 1
-                          FROM settlement_entries s
-                          WHERE s.operation_id = NEW.id
-                            AND s.entry_purpose = 'SALE_FUNDING'
-                            AND s.category = 'CASH'
-                            AND s.channel = 'CASH_TENDER'
-                      )
-                      AND NOT EXISTS (
-                          SELECT 1
-                          FROM settlement_entries s
-                          WHERE s.operation_id = NEW.id
-                            AND s.entry_purpose = 'SALE_FUNDING'
-                            AND (s.category != 'CASH' OR s.channel != 'CASH_TENDER')
+                      AND NEW.operation_type IN (
+                          'RECORD_SALE', 'RECORD_CREDIT_REPAYMENT',
+                          'RECORD_COUPON_PURCHASE', 'RECORD_AMOUNT_CORRECTION',
+                          'RECORD_PAYMENT_METHOD_CHANGE', 'RECORD_VOID', 'RECORD_REFUND',
+                          'RECORD_EXPENSE', 'RECORD_EXPENSE_CORRECTION', 'RECORD_EXPENSE_VOID',
+                          'OPEN_CASH_SHIFT', 'COUNT_CASH_SHIFT', 'CLOSE_CASH_SHIFT'
                       )
                       AND NOT EXISTS (
                           SELECT 1 FROM financial_sync_outbox WHERE operation_id = NEW.id

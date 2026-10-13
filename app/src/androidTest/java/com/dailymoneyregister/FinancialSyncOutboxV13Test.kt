@@ -109,16 +109,16 @@ class FinancialSyncOutboxV13Test {
     }
 
     @Test
-    fun onlineSaleDoesNotEnterCashQueue() = withDb { db ->
+    fun onlineSaleQueuesForFinancialSync() = withDb { db ->
         seedSale(db, "online-one", "ONLINE")
 
         succeed(db, "online-one")
 
-        assertEquals(0, count(db, "online-one"))
+        assertEquals(1, count(db, "online-one"))
     }
 
     @Test
-    fun mixedPaymentMustNotEnterCashOnlyQueue() = withDb { db ->
+    fun splitTenderSaleQueuesWithoutMislabelingTender() = withDb { db ->
         seedSale(db, "mixed-one", "CASH")
 
         insertSettlement(
@@ -131,9 +131,9 @@ class FinancialSyncOutboxV13Test {
 
         succeed(db, "mixed-one")
 
-        // Fail closed: an operation with multiple funding
-        // categories must not be mislabeled CASH-only.
-        assertEquals(0, count(db, "mixed-one"))
+        // Outbox admission is operation-based; the codec uploads the complete
+        // settlement chain so the server can validate every tender component.
+        assertEquals(1, count(db, "mixed-one"))
     }
 
     @Test

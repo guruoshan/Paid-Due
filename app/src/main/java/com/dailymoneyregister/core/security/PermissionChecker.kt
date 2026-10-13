@@ -65,7 +65,7 @@ object PermissionChecker {
             PermissionAction.CHANGE_PAYMENT_METHOD -> membership.canChangePaymentMethod
             PermissionAction.VIEW_BROAD_HISTORY -> membership.canViewBroadHistory
             // Listing business customers is separate from viewing broad financial history.
-            PermissionAction.CUSTOMER_DIRECTORY_ACCESS -> true
+            PermissionAction.CUSTOMER_DIRECTORY_ACCESS -> membership.canAccessCustomerDirectory
             PermissionAction.MANAGE_PRODUCTS -> membership.canManageProducts
             PermissionAction.VIEW_REPORTS -> false
         }

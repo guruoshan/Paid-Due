@@ -19,13 +19,14 @@ class FinancialSyncEngine @Inject constructor(
     private val database: DmrDatabase,
     private val remoteSyncRepository: RemoteFinancialSyncRepository,
     private val inboundEnvelopeApplier: InboundEnvelopeApplier,
-    @ApplicationContext private val context: Context? = null
+    @ApplicationContext private val context: Context? = null,
+    private val cloudStaffIdentitySync: CloudStaffIdentitySync? = null
 ) {
     constructor(
         database: DmrDatabase,
         remoteSyncRepository: RemoteFinancialSyncRepository,
         inboundEnvelopeApplier: InboundEnvelopeApplier = MaterializingInboundEnvelopeApplier()
-    ) : this(database, remoteSyncRepository, inboundEnvelopeApplier, null)
+    ) : this(database, remoteSyncRepository, inboundEnvelopeApplier, null, null)
 
     private val inMemoryCursors = mutableMapOf<String, VersionedInboundCursor>()
     private val syncMutex = Mutex()
@@ -279,6 +280,31 @@ class FinancialSyncEngine @Inject constructor(
         val sessionBusinessId = session?.business?.id ?: businessId
         val sessionBranchId = session?.membership?.branchId
 
+        if (session != null && session.business.id != businessId) {
+            Log.e("PaidDueFinancialSync", "INBOUND_SCOPE_REJECTED requested_business=$businessId")
+            return 0
+        }
+        if (session?.user?.role == UserRole.ADMIN && cloudStaffIdentitySync != null) {
+            val branchId = sessionBranchId
+            if (branchId.isNullOrBlank()) {
+                Log.e("PaidDueFinancialSync", "STAFF_IDENTITY_SYNC_FAILED reason=admin_branch_missing")
+                return 0
+            }
+            try {
+                val synchronized = cloudStaffIdentitySync.synchronize(sessionBusinessId, branchId)
+                Log.i("PaidDueFinancialSync", "STAFF_IDENTITY_SYNC_OK business=$sessionBusinessId branch=$branchId rows=$synchronized")
+            } catch (error: Exception) {
+                Log.e("PaidDueFinancialSync", "STAFF_IDENTITY_SYNC_FAILED business=$sessionBusinessId branch=$branchId", error)
+                FinancialSyncStatus.report(
+                    FinancialSyncProblem(
+                        "staff-identity-sync:$sessionBusinessId:$branchId",
+                        "Staff identity synchronization failed; inbound financial processing was deferred."
+                    )
+                )
+                return 0
+            }
+        }
+
         val storedCursor = getStoredCursor(businessId, adminAccountId)
         var currentAfterReceivedAt: String? = storedCursor?.let {
             java.time.Instant.parse(it.receivedAtIso).minusSeconds(5).toString()
@@ -319,13 +345,10 @@ class FinancialSyncEngine @Inject constructor(
                         businessId,
                         envelope.operationId
                     )
-                    reportInboundRejection(
-                        envelope.operationId,
-                        "Inbound application is not enabled for operation ${envelope.operationType}; deferred"
-                    )
-                    // Do not advance the durable cursor past an operation type
-                    // whose inbound materializer is not enabled for this build.
-                    return totalApplied
+                    val reason = "Inbound application is not enabled for operation ${envelope.operationType}; quarantined for explicit recovery"
+                    quarantineInboundEnvelope(envelope, businessId, sessionBranchId, reason)
+                    pageLastProcessedEnvelope = envelope
+                    continue
                 }
 
                 // Verify the digest returned by the backend before parsing or applying
@@ -337,15 +360,14 @@ class FinancialSyncEngine @Inject constructor(
                     remoteDigest.isNullOrBlank() ||
                     !remoteDigest.equals(calculatedDigest, ignoreCase = true)
                 ) {
-                    reportInboundRejection(
-                        envelope.operationId,
-                        if (remoteDigest.isNullOrBlank()) {
-                            "Remote envelope is missing canonical_sha256"
-                        } else {
-                            "Remote canonical_sha256 does not match canonical_text"
-                        }
-                    )
-                    return totalApplied
+                    val reason = if (remoteDigest.isNullOrBlank()) {
+                        "Remote envelope is missing canonical_sha256"
+                    } else {
+                        "Remote canonical_sha256 does not match canonical_text"
+                    }
+                    quarantineInboundEnvelope(envelope, businessId, sessionBranchId, reason)
+                    pageLastProcessedEnvelope = envelope
+                    continue
                 }
 
                 val result = try {
@@ -363,10 +385,12 @@ class FinancialSyncEngine @Inject constructor(
 
                 when (result) {
                     is InboundProcessResult.Applied -> {
+                        appendRecoveryIfPreviouslyRejected(envelope, businessId, sessionBranchId)
                         totalApplied++
                         pageLastProcessedEnvelope = envelope
                     }
                     is InboundProcessResult.Skipped -> {
+                        appendRecoveryIfPreviouslyRejected(envelope, businessId, sessionBranchId)
                         totalSkipped++
                         pageLastProcessedEnvelope = envelope
                     }
@@ -377,19 +401,15 @@ class FinancialSyncEngine @Inject constructor(
                             businessId,
                             envelope.operationId
                         )
-                        reportInboundRejection(
-                            envelope.operationId,
-                            "Unsupported inbound operation ${result.operationType}; deferred"
-                        )
-                        // Leave the cursor unchanged so this envelope remains
-                        // visible and cannot be mistaken for applied financial data.
-                        return totalApplied
+                        val reason = "Unsupported inbound operation ${result.operationType}; quarantined for explicit recovery"
+                        quarantineInboundEnvelope(envelope, businessId, sessionBranchId, reason)
+                        pageLastProcessedEnvelope = envelope
+                        continue
                     }
                     is InboundProcessResult.Rejected -> {
-                        reportInboundRejection(envelope.operationId, result.reason)
-                        if (totalApplied > 0) Log.i("PaidDueFinancialSync", "INBOUND_APPLIED $totalApplied")
-                        if (totalSkipped > 0) Log.i("PaidDueFinancialSync", "INBOUND_SKIPPED $totalSkipped")
-                        return totalApplied
+                        quarantineInboundEnvelope(envelope, businessId, sessionBranchId, result.reason)
+                        pageLastProcessedEnvelope = envelope
+                        continue
                     }
                 }
             }
@@ -421,6 +441,69 @@ class FinancialSyncEngine @Inject constructor(
             businessId,
             SessionManager.currentSession.value?.user?.id ?: "test-admin"
         )
+
+    /**
+     * A quarantined envelope is durably recorded before the cursor advances.
+     * The immutable cloud envelope is never changed or marked processed.
+     */
+    private suspend fun quarantineInboundEnvelope(
+        envelope: RemoteEnvelopeV2,
+        businessId: String,
+        sessionBranchId: String?,
+        reason: String
+    ) {
+        database.inboundEnvelopeAuditDao().append(
+            com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity(
+                id = java.util.UUID.randomUUID().toString(),
+                operationId = envelope.operationId,
+                businessId = businessId,
+                branchId = envelope.branchId ?: sessionBranchId,
+                operationType = envelope.operationType,
+                receivedAtIso = envelope.receivedAtIso,
+                canonicalSha256 = envelope.canonicalSha256,
+                eventType = "REJECTED",
+                reason = reason,
+                occurredAt = System.currentTimeMillis()
+            )
+        )
+        reportInboundRejection(envelope.operationId, reason)
+    }
+
+    private suspend fun appendRecoveryIfPreviouslyRejected(
+        envelope: RemoteEnvelopeV2,
+        businessId: String,
+        sessionBranchId: String?
+    ) {
+        if (!database.inboundEnvelopeAuditDao().hasRejection(envelope.operationId)) return
+        database.inboundEnvelopeAuditDao().append(
+            com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity(
+                id = java.util.UUID.randomUUID().toString(),
+                operationId = envelope.operationId,
+                businessId = businessId,
+                branchId = envelope.branchId ?: sessionBranchId,
+                operationType = envelope.operationType,
+                receivedAtIso = envelope.receivedAtIso,
+                canonicalSha256 = envelope.canonicalSha256,
+                eventType = "RECOVERED",
+                reason = "Envelope was successfully applied or verified as a duplicate after prior rejection.",
+                occurredAt = System.currentTimeMillis()
+            )
+        )
+    }
+
+    /**
+     * Call after fixing the rejection cause to re-fetch immutable envelopes.
+     * Existing applied operations are protected by operation-ID/fingerprint
+     * idempotency checks; the original envelope is never edited.
+     */
+    suspend fun requestInboundReplayForRecovery(businessId: String, adminAccountId: String) =
+        syncMutex.withLock {
+            clearStoredCursor(businessId, adminAccountId)
+            Log.w(
+                "PaidDueFinancialSync",
+                "INBOUND_RECOVERY_REQUESTED business=$businessId admin=$adminAccountId"
+            )
+        }
 
     private fun reportInboundRejection(operationId: String, reason: String) {
         val message = "Inbound operation $operationId was rejected: $reason"

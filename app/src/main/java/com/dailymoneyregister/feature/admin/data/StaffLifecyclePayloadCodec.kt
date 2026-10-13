@@ -46,6 +46,7 @@ object StaffLifecyclePayloadCodec {
         "canCorrectAmount" to canCorrectAmount,
         "canChangePaymentMethod" to canChangePaymentMethod,
         "canViewBroadHistory" to canViewBroadHistory,
+        "canAccessCustomerDirectory" to canAccessCustomerDirectory,
         "canManageProducts" to canManageProducts,
         "canViewReports" to canViewReports
     )
@@ -98,6 +99,7 @@ object StaffLifecyclePayloadCodec {
                 canCorrectAmount = flag(map, "canCorrectAmount"),
                 canChangePaymentMethod = flag(map, "canChangePaymentMethod"),
                 canViewBroadHistory = flag(map, "canViewBroadHistory"),
+                canAccessCustomerDirectory = map["canAccessCustomerDirectory"]?.toBooleanStrictOrNull() ?: false,
                 canManageProducts = flag(map, "canManageProducts"),
                 canViewReports = flag(map, "canViewReports")
             )

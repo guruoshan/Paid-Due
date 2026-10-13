@@ -405,6 +405,7 @@
     <string name="staff_perm_correct_amount">Correct amounts</string>
     <string name="staff_perm_change_payment">Change payment method</string>
     <string name="staff_perm_broad_history">View full history</string>
+    <string name="staff_perm_customer_directory_access">Access customer directory</string>
     <string name="staff_perm_manage_products">Manage products</string>
     <string name="staff_perm_view_reports">View reports</string>
     <string name="admin_email">Admin email</string>

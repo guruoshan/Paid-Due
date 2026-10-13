@@ -18,6 +18,7 @@ enum class CashierPermissionKey(@StringRes val labelRes: Int) {
     CORRECT_AMOUNT(R.string.staff_perm_correct_amount),
     CHANGE_PAYMENT_METHOD(R.string.staff_perm_change_payment),
     VIEW_BROAD_HISTORY(R.string.staff_perm_broad_history),
+    CUSTOMER_DIRECTORY_ACCESS(R.string.staff_perm_customer_directory_access),
     MANAGE_PRODUCTS(R.string.staff_perm_manage_products),
     VIEW_REPORTS(R.string.staff_perm_view_reports);
 
@@ -54,6 +55,7 @@ fun CashierPermissionsConfig.isGranted(key: CashierPermissionKey): Boolean = whe
     CashierPermissionKey.CORRECT_AMOUNT -> canCorrectAmount
     CashierPermissionKey.CHANGE_PAYMENT_METHOD -> canChangePaymentMethod
     CashierPermissionKey.VIEW_BROAD_HISTORY -> canViewBroadHistory
+    CashierPermissionKey.CUSTOMER_DIRECTORY_ACCESS -> canAccessCustomerDirectory
     CashierPermissionKey.MANAGE_PRODUCTS -> canManageProducts
     CashierPermissionKey.VIEW_REPORTS -> canViewReports
 }
@@ -74,6 +76,7 @@ fun CashierPermissionsConfig.withPermission(
     CashierPermissionKey.CORRECT_AMOUNT -> copy(canCorrectAmount = value)
     CashierPermissionKey.CHANGE_PAYMENT_METHOD -> copy(canChangePaymentMethod = value)
     CashierPermissionKey.VIEW_BROAD_HISTORY -> copy(canViewBroadHistory = value)
+    CashierPermissionKey.CUSTOMER_DIRECTORY_ACCESS -> copy(canAccessCustomerDirectory = value)
     CashierPermissionKey.MANAGE_PRODUCTS -> copy(canManageProducts = value)
     CashierPermissionKey.VIEW_REPORTS -> copy(canViewReports = value)
 }
