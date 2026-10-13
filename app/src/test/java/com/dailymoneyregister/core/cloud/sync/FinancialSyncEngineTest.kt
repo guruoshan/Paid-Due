@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.dao.ExpenseDao
 import com.dailymoneyregister.core.database.dao.FinancialSyncOutboxDao
+import com.dailymoneyregister.core.database.dao.InboundEnvelopeAuditDao
 import com.dailymoneyregister.core.database.dao.OperationDao
 import com.dailymoneyregister.core.database.dao.TransactionDao
 import com.dailymoneyregister.core.database.entity.FinancialSyncOutboxEntity
@@ -32,6 +33,7 @@ class FinancialSyncEngineTest {
     private val expenseDao = mockk<ExpenseDao>()
     private val businessBranchDao = mockk<com.dailymoneyregister.core.database.dao.BusinessBranchDao>()
     private val userDao = mockk<com.dailymoneyregister.core.database.dao.UserDao>()
+    private val inboundAuditDao = mockk<InboundEnvelopeAuditDao>()
     private val remoteRepo = mockk<RemoteFinancialSyncRepository>()
     private val inboundApplier = FakeInboundEnvelopeApplier()
 
@@ -95,6 +97,9 @@ class FinancialSyncEngineTest {
         every { android.util.Log.w(any(), any<String>()) } returns 0
         every { android.util.Log.e(any(), any()) } returns 0
         every { android.util.Log.e(any(), any(), any()) } returns 0
+        coEvery { db.inboundEnvelopeAuditDao() } returns inboundAuditDao
+        coEvery { inboundAuditDao.append(any()) } just Runs
+        coEvery { inboundAuditDao.hasRejection(any()) } returns false
 
         mockkStatic("androidx.room.RoomDatabaseKt")
         coEvery { db.withTransaction(any<suspend () -> Any>()) } coAnswers {
@@ -257,6 +262,45 @@ class FinancialSyncEngineTest {
 
         assertEquals(0, count)
         assertEquals(emptyList<String>(), inboundApplier.appliedOperationIds)
+    }
+
+    @Test
+    fun rejectedEnvelopeIsAuditedAndDoesNotBlockLaterEnvelopes() = runTest {
+        coEvery { db.businessBranchDao() } returns businessBranchDao
+        coEvery { db.userDao() } returns userDao
+        coEvery { businessBranchDao.getBusinessById("biz-1") } returns mockk()
+        coEvery { userDao.getUserByIdInBusiness("test-admin", "biz-1") } returns mockk()
+
+        fun envelope(id: String, receivedAt: String): RemoteEnvelopeV2 {
+            val payload = JSONObject()
+                .put("operation_id", id)
+                .put("business_id", "biz-1")
+                .put("branch_id", "branch-1")
+            val canonical = payload.toString()
+            return RemoteEnvelopeV2(
+                operationId = id,
+                businessId = "biz-1",
+                branchId = "branch-1",
+                operationType = "RECORD_SALE",
+                occurredAtIso = "2026-10-09T10:00:00Z",
+                receivedAtIso = receivedAt,
+                canonicalText = canonical,
+                payloadJson = payload,
+                canonicalSha256 = com.dailymoneyregister.core.command.CommandFingerprint.sha256(canonical)
+            )
+        }
+
+        val secondId = "0199c001-1234-7abc-8def-0123456789ac"
+        val first = envelope(opId, "2026-10-09T10:00:01Z")
+        val second = envelope(secondId, "2026-10-09T10:00:02Z")
+        coEvery { remoteRepo.fetchRemoteEnvelopesV2("biz-1", null, null, any()) } returns listOf(first, second)
+        inboundApplier.result = InboundProcessResult.Rejected("missing synchronized actor")
+
+        val count = engine.syncInbound("biz-1")
+
+        assertEquals(0, count)
+        assertEquals(listOf(opId, secondId), inboundApplier.appliedOperationIds)
+        coVerify(exactly = 2) { inboundAuditDao.append(any()) }
     }
 
     @Test
