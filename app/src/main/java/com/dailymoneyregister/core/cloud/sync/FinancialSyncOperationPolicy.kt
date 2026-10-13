@@ -27,7 +27,10 @@ object FinancialSyncOperationPolicy {
         OperationType.RECORD_REFUND,
         OperationType.RECORD_VOID,
         OperationType.RECORD_AMOUNT_CORRECTION,
-        OperationType.RECORD_PAYMENT_METHOD_CHANGE
+        OperationType.RECORD_PAYMENT_METHOD_CHANGE,
+        OperationType.OPEN_CASH_SHIFT,
+        OperationType.COUNT_CASH_SHIFT,
+        OperationType.CLOSE_CASH_SHIFT
     )
 
     fun initialState(role: UserRole, type: OperationType): FinancialSyncDeliveryState =
