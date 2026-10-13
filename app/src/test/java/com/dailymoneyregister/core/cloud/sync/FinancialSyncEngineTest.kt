@@ -300,6 +300,12 @@ class FinancialSyncEngineTest {
 
         assertEquals(1, applied)
         assertEquals(listOf(poisonId, validId), inboundApplier.appliedOperationIds)
+
+        val cursorField = FinancialSyncEngine::class.java.getDeclaredField("inMemoryCursors")
+        cursorField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val cursors = cursorField.get(engine) as Map<String, VersionedInboundCursor>
+        assertEquals(validId, cursors.values.singleOrNull()?.operationId)
     }
 
     @Test
