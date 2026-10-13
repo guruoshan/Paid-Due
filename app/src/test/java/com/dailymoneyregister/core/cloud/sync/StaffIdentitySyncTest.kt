@@ -61,7 +61,8 @@ class StaffIdentitySyncTest {
         assertEquals("CASHIER", identity.role)
         assertFalse(identity.isActive)
         assertTrue(identity.isRemoved)
-        assertTrue(identity.permissionsJson.contains("CUSTOMER_DIRECTORY_ACCESS"))
+        assertTrue(identity.permissionsJson.contains("CREATE_SALE"))
+        assertFalse(identity.permissionsJson.contains("CUSTOMER_DIRECTORY_ACCESS"))
         assertFalse(identity.permissionsJson.contains("credential"))
         assertFalse(identity.permissionsJson.contains("pin"))
     }
