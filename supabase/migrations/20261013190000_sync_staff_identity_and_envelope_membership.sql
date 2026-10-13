@@ -87,10 +87,10 @@ BEGIN
       AND m.removed_at IS NULL
       AND b.is_active
       AND br.is_active
-      AND pg_catalog.coalesce(si.is_active, true)
+      AND COALESCE(si.is_active, true)
     ),
     (m.removed_at IS NOT NULL),
-    pg_catalog.coalesce(m.updated_at, m.created_at, pg_catalog.now())
+    COALESCE(m.updated_at, m.created_at, pg_catalog.now())
   FROM public.business_memberships m
   JOIN public.businesses b ON b.id = m.business_id
   JOIN public.branches br
