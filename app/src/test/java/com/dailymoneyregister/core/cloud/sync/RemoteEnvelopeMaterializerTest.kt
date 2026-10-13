@@ -43,6 +43,7 @@ class RemoteEnvelopeMaterializerTest {
     private val operationId = "0199c101-1234-7abc-8def-0123456789ab"
     private val fingerprint = "cash-sale-request-fingerprint"
     private var storedOperation: OperationEntity? = null
+    private lateinit var cloudIdentity: CloudStaffIdentityEntity
 
     @Before
     fun setUp() {
@@ -67,8 +68,7 @@ class RemoteEnvelopeMaterializerTest {
             updatedAt = 1L
         )
         coEvery { branchDao.getBranchById(branchId) } returns branch
-        coEvery { identityDao.findIdentity(actorUserId, businessId, branchId) } returns
-            CloudStaffIdentityEntity(
+        cloudIdentity = CloudStaffIdentityEntity(
                 membershipId = "membership-a",
                 localUserId = actorUserId,
                 businessId = businessId,
@@ -79,6 +79,7 @@ class RemoteEnvelopeMaterializerTest {
                 isRemoved = false,
                 updatedAt = 1L
             )
+        coEvery { identityDao.findIdentity(actorUserId, businessId, branchId) } coAnswers { cloudIdentity }
         coEvery { userDao.getUserByIdInBusiness(actorUserId, businessId) } returns null
         coEvery { operationDao.getOperationById(operationId) } coAnswers { storedOperation }
         coEvery { operationDao.insertOperationIfAbsent(any()) } coAnswers {
@@ -124,6 +125,28 @@ class RemoteEnvelopeMaterializerTest {
         coVerify(exactly = 1) { operationDao.insertOperationIfAbsent(any()) }
         coVerify(exactly = 1) { transactionDao.insertTransaction(any()) }
         coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
+    }
+
+    @Test
+    fun removedSynchronizedIdentityFailsClosedBeforeFinancialWrites() = runTest {
+        cloudIdentity = cloudIdentity.copy(isActive = false, isRemoved = true)
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database = database,
+            envelope = cashSaleEnvelope(),
+            sessionBusinessId = businessId,
+            sessionBranchId = branchId
+        )
+
+        assertEquals(
+            InboundProcessResult.Rejected(
+                "Referenced operation actor is missing from synchronized staff identities"
+            ),
+            result
+        )
+        assertEquals(null, storedOperation)
+        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
+        coVerify(exactly = 0) { transactionDao.insertTransaction(any()) }
     }
 
     private fun cashSaleEnvelope(): RemoteEnvelopeV2 {
