@@ -25,7 +25,8 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
         "coupon_authorized_user_events",
         "cash_shift_events",
         "expenses",
-        "expense_events"
+        "expense_events",
+        "inbound_envelope_audit_events"
     )
 
     override fun onOpen(db: SupportSQLiteDatabase) {
