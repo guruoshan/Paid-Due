@@ -72,6 +72,10 @@ class NotificationsViewModelRealtimeTest {
         advanceTimeBy(3_001)
         runCurrent()
         assertTrue("Realtime subscription must be retried after disconnect", subscriptionAttempts.get() >= 2)
+        // Cancel ViewModel-owned infinite reconnect/poll loops before runTest tries to drain its scheduler.
+        store?.clear()
+        store = null
+        runCurrent()
     }
 
     @Test
@@ -99,6 +103,10 @@ class NotificationsViewModelRealtimeTest {
 
         assertTrue("Polling must refresh the durable inbox while the Realtime flow is still open",
             notificationLoads.get() > initialLoads)
+        // Cancel ViewModel-owned infinite polling before runTest tries to drain its scheduler.
+        store?.clear()
+        store = null
+        runCurrent()
     }
 
     private fun adminSession(): ActiveSession {
