@@ -22,6 +22,14 @@ class InboundApplicationGateTest {
     )
 
     @Test
+    fun configuredBuildFlagKeepsInboundApplicationEnabledForValidatedBuilds() {
+        assertTrue(
+            "Release workflow must explicitly enable inbound application after validation tests pass",
+            com.dailymoneyregister.BuildConfig.APPLY_INBOUND_FINANCIAL_ENVELOPES
+        )
+    }
+
+    @Test
     fun releaseEnablesAllImplementedFinancialMaterializers() {
         releaseMaterializerOperations.forEach { operationType ->
             assertTrue(
