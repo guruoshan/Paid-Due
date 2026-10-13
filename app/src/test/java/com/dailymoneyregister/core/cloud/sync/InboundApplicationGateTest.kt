@@ -6,15 +6,15 @@ import org.junit.Test
 
 class InboundApplicationGateTest {
     @Test
-    fun releaseDefaultsToCashSalesOnly() {
-        assertTrue(InboundApplicationGate.shouldEnable("RECORD_SALE", false, null))
-        assertFalse(InboundApplicationGate.shouldEnable("RECORD_REFUND", false, null))
-        assertFalse(InboundApplicationGate.shouldEnable("RECORD_CREDIT_REPAYMENT", false, null))
+    fun releaseDefaultsToCashSalesOnlyEvenWhenReleaseFlagIsEnabled() {
+        assertTrue(InboundApplicationGate.shouldEnable("RECORD_SALE", true, null))
+        assertFalse(InboundApplicationGate.shouldEnable("RECORD_REFUND", true, null))
+        assertFalse(InboundApplicationGate.shouldEnable("RECORD_CREDIT_REPAYMENT", true, null))
     }
 
     @Test
-    fun explicitBuildFlagEnablesApprovedExpandedMaterialization() {
-        assertTrue(InboundApplicationGate.shouldEnable("RECORD_REFUND", true, null))
+    fun debugBuildFlagEnablesExpandedMaterializationForTesting() {
+        assertTrue(InboundApplicationGate.shouldEnable("RECORD_REFUND", true, null, debugBuild = true))
     }
 
     @Test
