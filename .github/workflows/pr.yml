@@ -45,6 +45,23 @@ jobs:
       - name: Run debug unit tests
         run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest
 
+      - name: Generate and verify Room schema v14
+        run: |
+          ./gradlew --no-daemon --stacktrace :app:kspDebugKotlin
+          test -s app/schemas/com.dailymoneyregister.core.database.DmrDatabase/14.json
+          grep -q '"version": 14' app/schemas/com.dailymoneyregister.core.database.DmrDatabase/14.json
+
+      - name: Run Room migration instrumentation tests on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: Pixel_2
+          script: |
+            ./gradlew --no-daemon --stacktrace :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.dailymoneyregister.FinancialSyncOutboxV13Test
+
+
       - name: Assemble debug APK
         run: ./gradlew --no-daemon --stacktrace clean :app:assembleDebug
 
