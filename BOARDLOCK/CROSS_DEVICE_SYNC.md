@@ -1,13 +1,14 @@
 # BOARDLOCK — Cross-device financial synchronization
 
-**Status: FOUNDATION ONLY — NOT FUNCTIONAL, NOT DEPLOYED.**
-No financial synchronization, cloud intake or Admin cross-device reporting is active.
+**Status: PHASE 1 FIX IN REVIEW — NOT MERGED OR RELEASED.**
+The existing implementation was not release-ready: release inbound materialization defaulted to disabled, and the production release could fetch cloud envelopes without applying them. The first vertical slice in `fix/cross-device-sync-mainline-2026-10-13` changes release behavior to allow only `RECORD_SALE` inbound by default, while keeping all other operation types fail-closed. It also normalizes the Android cashier-session URLs to the canonical Supabase Edge Function routes. This is not proof of end-to-end success until CI and the physical-device test pass.
 
 ## Current verified problem
 Cashiers on different phones commit transactions to their separate local Room
 databases. Admin reporting uses the Admin phone's Room data and therefore cannot
-see other devices' transactions. Supabase Admin identity and token-link PIN activation do
-not provide financial synchronization.
+see other devices' transactions unless inbound materialization succeeds.
+
+Read-only production audit on 2026-10-13 found one stored `RECORD_SALE` envelope, while the release build's inbound gate was disabled by default. This is sufficient to explain why a sale can reach Supabase but remain invisible in the Admin phone's local reports. Supabase Edge logs also show repeated 404 responses from an older installed client for `/api/api/customers/sync`, and earlier 404s for `/api/api/staff/login`; the branch changes cashier endpoints to canonical `/staff/login`, `/financial/upload`, and `/financial/download` paths. The logs did not show a corresponding financial-upload request during the observed window, so the login/session route still needs physical-device confirmation.
 
 ## Authority and vocabulary
 Committed financial transactions and their lifecycle are immutable. One cashier
@@ -92,4 +93,5 @@ different canonical digest is an integrity conflict, never an automatic retry.
 - No test result is claimed without the actual Gradle output.
 - Do not merge or release based on these foundation commits.
 
-**FOUNDATION ONLY — NOT FUNCTIONAL, NOT DEPLOYED.**
+**PHASE 1 FIX IN REVIEW — NOT MERGED OR RELEASED.**
+Release safety rule: only `RECORD_SALE` may be materialized by default in a release build. Other types remain deferred without advancing the durable cursor. Do not expand the allowlist until type-specific contract tests, cursor/recovery behavior, and physical-device reconciliation pass.

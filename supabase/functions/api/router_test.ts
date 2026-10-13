@@ -36,3 +36,24 @@ Deno.test("Router: legacy unauthenticated staff activation endpoint is removed",
   }));
   assertEquals(response.status, 404);
 });
+
+Deno.test("Router: canonical staff login route is recognized on the gateway path", async () => {
+  const response = await handleRequest(new Request("http://localhost/functions/v1/api/staff/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({}),
+  }));
+  assertEquals(response.status, 400);
+});
+Deno.test("Router: canonical financial upload route is recognized on the gateway path", async () => {
+  const response = await handleRequest(new Request("http://localhost/functions/v1/api/financial/upload", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  }));
+  assertEquals(response.status, 401);
+});
+Deno.test("Router: canonical financial download route is recognized on the gateway path", async () => {
+  const response = await handleRequest(new Request("http://localhost/functions/v1/api/financial/download"));
+  assertEquals(response.status, 401);
+});
