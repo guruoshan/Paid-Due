@@ -236,7 +236,7 @@ class CustomerRepository @Inject constructor(
             ) throw PermissionDeniedException("Active branch membership mismatch")
         }
         PermissionChecker.assertPermitted(
-            session.user, session.membership, PermissionAction.CUSTOMER_DIRECTORY_ACCESS
+            session.user, session.membership, PermissionAction.VIEW_BROAD_HISTORY
         )
         return session.business.id
     }
@@ -268,7 +268,7 @@ class CustomerRepository @Inject constructor(
                 ) return false
             }
             return PermissionChecker.isPermitted(
-                session.user, session.membership, PermissionAction.CUSTOMER_DIRECTORY_ACCESS
+                session.user, session.membership, PermissionAction.VIEW_BROAD_HISTORY
             )
         }
     }
