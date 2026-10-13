@@ -647,6 +647,13 @@ class InviteActivationRepository @Inject constructor(
                                 false
                             ),
 
+                        canAccessCustomerDirectory =
+                            permission(
+                                activation,
+                                "CUSTOMER_DIRECTORY_ACCESS",
+                                false
+                            ),
+
                         canManageProducts =
                             permission(
                                 activation,
