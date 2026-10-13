@@ -1,11 +1,9 @@
 package com.dailymoneyregister.core.cloud.sync
 
-import android.content.Context
 import com.dailymoneyregister.BuildConfig
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
-import dagger.hilt.android.qualifiers.ApplicationContext
 import java.net.HttpURLConnection
 import java.net.URL
 import javax.inject.Inject
@@ -20,7 +18,6 @@ import org.json.JSONObject
  */
 @Singleton
 class CashierMetadataSynchronizer @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val database: DmrDatabase
 ) {
     suspend fun refresh(session: ActiveSession): Boolean = withContext(Dispatchers.IO) {
