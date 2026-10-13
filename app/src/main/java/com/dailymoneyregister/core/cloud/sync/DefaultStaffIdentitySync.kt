@@ -14,7 +14,8 @@ import org.json.JSONObject
 @Singleton
 class DefaultStaffIdentitySync @Inject constructor(
     private val source: EmployeeDirectoryCloudSource,
-    private val database: DmrDatabase
+    private val database: DmrDatabase,
+    private val cashierMetadataSynchronizer: CashierMetadataSynchronizer
 ) : StaffIdentitySync {
     override suspend fun synchronize(businessId: String, branchId: String) {
         require(businessId.isNotBlank() && branchId.isNotBlank())
@@ -39,4 +40,8 @@ class DefaultStaffIdentitySync @Inject constructor(
             }
         if (rows.isNotEmpty()) database.cloudStaffIdentityDao().upsertAll(rows)
     }
+
+    override suspend fun refreshCashierPermissions(
+        session: com.dailymoneyregister.core.security.ActiveSession
+    ): Boolean = cashierMetadataSynchronizer.refresh(session)
 }
