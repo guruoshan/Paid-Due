@@ -19,13 +19,14 @@ class FinancialSyncEngine @Inject constructor(
     private val database: DmrDatabase,
     private val remoteSyncRepository: RemoteFinancialSyncRepository,
     private val inboundEnvelopeApplier: InboundEnvelopeApplier,
-    @ApplicationContext private val context: Context? = null
+    @ApplicationContext private val context: Context? = null,
+    private val staffIdentitySync: StaffIdentitySync
 ) {
     constructor(
         database: DmrDatabase,
         remoteSyncRepository: RemoteFinancialSyncRepository,
         inboundEnvelopeApplier: InboundEnvelopeApplier = MaterializingInboundEnvelopeApplier()
-    ) : this(database, remoteSyncRepository, inboundEnvelopeApplier, null)
+    ) : this(database, remoteSyncRepository, inboundEnvelopeApplier, null, StaffIdentitySync.NoOp)
 
     private val inMemoryCursors = mutableMapOf<String, VersionedInboundCursor>()
     private val syncMutex = Mutex()
@@ -278,6 +279,20 @@ class FinancialSyncEngine @Inject constructor(
         val session = SessionManager.currentSession.value
         val sessionBusinessId = session?.business?.id ?: businessId
         val sessionBranchId = session?.membership?.branchId
+
+        // Staff identity must be available before any financial envelope is materialized.
+        // Failure is visible in logs and the actor remains fail-closed in the materializer.
+        if (
+            session?.user?.role == UserRole.ADMIN &&
+            session.business.id == businessId &&
+            !sessionBranchId.isNullOrBlank()
+        ) {
+            runCatching {
+                staffIdentitySync.synchronize(businessId, sessionBranchId)
+            }.onFailure { error ->
+                Log.w("PaidDueFinancialSync", "STAFF_IDENTITY_SYNC_DEFERRED", error)
+            }
+        }
 
         val storedCursor = getStoredCursor(businessId, adminAccountId)
         var currentAfterReceivedAt: String? = storedCursor?.let {
