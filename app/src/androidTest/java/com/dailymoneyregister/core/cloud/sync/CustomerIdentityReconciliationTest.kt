@@ -121,6 +121,16 @@ class CustomerIdentityReconciliationTest {
         assertNull(database.customerDao().getCustomerById("remote-customer-id"))
     }
 
+    @Test
+    fun unknownCustomerIdIsPreservedUntilDirectorySnapshotArrives() = runBlocking {
+        assertEquals(
+            "remote-id-not-yet-synced",
+            CustomerIdentityReconciler.resolveLocalCustomerIdOrSelf(
+                database, "business-a", "remote-id-not-yet-synced"
+            )
+        )
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun canonicalIdCannotBeReboundToAnotherPhone() = runBlocking {
         database.customerDao().insertCustomer(
