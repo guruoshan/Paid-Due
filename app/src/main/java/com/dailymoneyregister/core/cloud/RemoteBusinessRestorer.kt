@@ -516,7 +516,6 @@ class RemoteBusinessRestorer @Inject constructor(
                         canCorrectAmount = permissions["CORRECT_AMOUNT"] ?: false,
                         canChangePaymentMethod = permissions["CHANGE_PAYMENT_METHOD"] ?: false,
                         canViewBroadHistory = permissions["VIEW_BROAD_HISTORY"] ?: false,
-                        canAccessCustomerDirectory = permissions["CUSTOMER_DIRECTORY_ACCESS"] ?: false,
                         canManageProducts = permissions["MANAGE_PRODUCTS"] ?: false,
                         canViewReports = permissions["VIEW_REPORTS"] ?: false,
                         createdAt = activatedAtMillis
