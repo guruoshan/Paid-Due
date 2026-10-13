@@ -57,3 +57,13 @@ Deno.test("Router: canonical financial download route is recognized on the gatew
   const response = await handleRequest(new Request("http://localhost/functions/v1/api/financial/download"));
   assertEquals(response.status, 401);
 });
+
+Deno.test("Router: customer sync duplicate /api prefixes normalize to the handler", async () => {
+  const response = await handleRequest(new Request("http://localhost/api/api/customers/sync"));
+  assertEquals(response.status, 401);
+});
+
+Deno.test("Router: customer sync duplicate gateway prefix normalizes to the handler", async () => {
+  const response = await handleRequest(new Request("http://localhost/functions/v1/api/api/customers/sync"));
+  assertEquals(response.status, 401);
+});
