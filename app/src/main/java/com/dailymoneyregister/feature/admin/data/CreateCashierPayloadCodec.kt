@@ -111,7 +111,7 @@ object CreateCashierPayloadCodec {
     fun fingerprint(params: CreateCashierParams): String {
         val p = params.permissions
 
-        val values = listOf(
+        val values = mutableListOf(
             CURRENT_SCHEMA_VERSION.toString(),
             params.businessId,
             params.branchId,
@@ -135,6 +135,9 @@ object CreateCashierPayloadCodec {
             p.canManageProducts.toString(),
             p.canViewReports.toString()
         )
+        // Keep the historical fingerprint stable when this new permission is false.
+        // A true grant is part of the command intent and therefore changes the fingerprint.
+        if (p.canAccessCustomerDirectory) values.add("canAccessCustomerDirectory=true")
 
         val canonical = values.joinToString("|") { value ->
             "${value.length}:$value"
