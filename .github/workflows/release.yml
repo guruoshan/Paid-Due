@@ -44,12 +44,37 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x ./gradlew
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "emulator" "system-images;android-36;google_apis;x86_64"
 
-      - name: Run Android financial-validation unit tests before signing
+      - name: Start isolated Android API 36 emulator for instrumentation tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --name paid-due-api36 --package "system-images;android-36;google_apis;x86_64" \
+            --device pixel_2 --force
+          nohup "$ANDROID_HOME/emulator/emulator" -avd paid-due-api36 \
+            -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect \
+            > "$RUNNER_TEMP/paid-due-emulator.log" 2>&1 &
+          adb wait-for-device
+          for attempt in $(seq 1 90); do
+            booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
+            if [[ "$booted" == "1" ]]; then break; fi
+            sleep 5
+          done
+          [[ "${booted:-}" == "1" ]] || {
+            cat "$RUNNER_TEMP/paid-due-emulator.log"
+            echo "::error::Android emulator did not finish booting."
+            exit 1
+          }
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+
+      - name: Run Android financial-validation unit and instrumentation tests plus release compilation before signing
         env:
           PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES: "true"
-        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:testReleaseUnitTest
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:connectedDebugAndroidTest :app:compileReleaseKotlin
 
       - name: Run Supabase Edge Function contract tests before signing
         working-directory: supabase/functions/api
@@ -120,8 +145,10 @@ jobs:
           apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -n 1)"
           test -x "$apksigner"
           signer_output="$("$apksigner" verify --verbose --print-certs "$apk_path")"
-          printf '%s\n' "$signer_output"
-          actual="$(printf '%s\n' "$signer_output" | awk -F': ' '/certificate SHA-256 digest:/ {print $NF; exit}' | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          printf '%s
+' "$signer_output"
+          actual="$(printf '%s
+' "$signer_output" | awk -F': ' '/certificate SHA-256 digest:/ {print $NF; exit}' | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
           expected="$(printf '%s' "$EXPECTED_SHA256" | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
           [[ "$actual" =~ ^[0-9A-F]{64}$ ]] || { echo "::error::Could not read APK signer SHA-256 digest."; exit 1; }
           [[ "$actual" == "$expected" ]] || { echo "::error::APK signing certificate does not match EXPECTED_SHA256."; exit 1; }
