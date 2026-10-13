@@ -30,7 +30,9 @@ internal object RemoteEnvelopeEvidenceApplier {
             val repayment = CreditRepaymentEntity(
                 id = creditRepaymentJson.getString("id"),
                 operationId = creditRepaymentJson.getString("operation_id"),
-                customerId = CustomerIdentityReconciler.resolveLocalCustomerIdOrSelf(\n                    database, businessId, creditRepaymentJson.getString("customer_id")\n                ),
+                customerId = CustomerIdentityReconciler.resolveLocalCustomerIdOrSelf(
+                    database, businessId, creditRepaymentJson.getString("customer_id")
+                ),
                 amountMinor = creditRepaymentJson.getLong("amount_minor"),
                 currencyCode = creditRepaymentJson.getString("currency_code"),
                 paymentCategory = PaymentCategory.valueOf(creditRepaymentJson.getString("payment_category")),
@@ -86,7 +88,9 @@ internal object RemoteEnvelopeEvidenceApplier {
                 CreditLedgerEventEntity(
                     id = item.getString("id"),
                     operationId = item.getString("operation_id"),
-                    customerId = CustomerIdentityReconciler.resolveLocalCustomerIdOrSelf(\n                        database, businessId, item.getString("customer_id")\n                    ),
+                    customerId = CustomerIdentityReconciler.resolveLocalCustomerIdOrSelf(
+                        database, businessId, item.getString("customer_id")
+                    ),
                     type = CreditLedgerType.valueOf(item.getString("type")),
                     amountSignedMinor = item.getLong("amount_signed_minor"),
                     currencyCode = item.getString("currency_code"),
