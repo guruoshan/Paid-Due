@@ -306,14 +306,28 @@ class FinancialSyncEngine @Inject constructor(
             totalFetched += envelopes.size
             Log.i("PaidDueFinancialSync", "INBOUND_FETCHED ${envelopes.size}")
 
-            if (!InboundApplicationGate.enabled()) {
-                Log.w("PaidDueFinancialSync", "INBOUND_APPLY_DISABLED fetched=${envelopes.size}")
-                return totalApplied
-            }
-
             var pageLastProcessedEnvelope: RemoteEnvelopeV2? = null
 
             for (envelope in envelopes) {
+                if (!InboundApplicationGate.enabledFor(envelope.operationType)) {
+                    Log.w(
+                        "PaidDueFinancialSync",
+                        "INBOUND_APPLY_DISABLED type=${envelope.operationType} fetched=${envelopes.size}"
+                    )
+                    FinancialSyncStatus.recordUnsupported(
+                        context,
+                        businessId,
+                        envelope.operationId
+                    )
+                    reportInboundRejection(
+                        envelope.operationId,
+                        "Inbound application is not enabled for operation ${envelope.operationType}; deferred"
+                    )
+                    // Do not advance the durable cursor past an operation type
+                    // whose inbound materializer is not enabled for this build.
+                    return totalApplied
+                }
+
                 // Verify the digest returned by the backend before parsing or applying
                 // any financial evidence. A missing digest is not treated as trusted data.
                 val remoteDigest = envelope.canonicalSha256
