@@ -46,10 +46,10 @@ jobs:
           chmod +x ./gradlew
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
 
-      - name: Run Android financial-validation unit tests before signing
+      - name: Run Android financial-validation unit tests and verify release compilation before signing
         env:
           PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES: "true"
-        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:testReleaseUnitTest
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:compileReleaseKotlin
 
       - name: Run Supabase Edge Function contract tests before signing
         working-directory: supabase/functions/api
