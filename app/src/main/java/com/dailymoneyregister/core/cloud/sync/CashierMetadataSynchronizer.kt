@@ -83,7 +83,20 @@ class CashierMetadataSynchronizer @Inject constructor(
                 canManageProducts = permissions.optBoolean("can_manage_products", false),
                 canViewReports = permissions.optBoolean("can_view_reports", false)
             )
+            val liveSession = SessionManager.currentSession.value
+                ?: return@withContext false
+            if (
+                liveSession.membership?.id != membership.id ||
+                liveSession.business.id != session.business.id ||
+                liveSession.branch.id != session.branch.id ||
+                liveSession.user.id != session.user.id
+            ) {
+                return@withContext false
+            }
             database.userDao().updateMembership(refreshed)
+            // Keep the in-memory authorization snapshot aligned with Room; permission
+            // checks read the current session before financial actions.
+            SessionManager.setSession(liveSession.copy(membership = refreshed))
             true
         } finally {
             connection.disconnect()
