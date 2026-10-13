@@ -42,7 +42,7 @@ class FinancialEvidenceMigrationG4BTest {
     )
 
     @Test
-    fun populatedCreditCouponRefundEvidenceSurvivesEncrypted12To13() {
+    fun populatedCreditCouponRefundEvidenceSurvivesEncrypted12To14() {
         val context: Context =
             InstrumentationRegistry.getInstrumentation().targetContext
 
@@ -316,7 +316,7 @@ class FinancialEvidenceMigrationG4BTest {
                 )
             )
 
-            // Open the encrypted database as Room v13.
+            // Open the encrypted database through the current Room v14 migration chain.
             room = Room.databaseBuilder(
                 context,
                 DmrDatabase::class.java,
@@ -325,7 +325,7 @@ class FinancialEvidenceMigrationG4BTest {
                 .openHelperFactory(
                     SupportOpenHelperFactory(key.copyOf())
                 )
-                .addMigrations(DmrDatabase.MIGRATION_12_13)
+                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()
@@ -334,7 +334,7 @@ class FinancialEvidenceMigrationG4BTest {
 
             current.query("PRAGMA user_version").use {
                 assertTrue(it.moveToFirst())
-                assertEquals(13, it.getInt(0))
+                assertEquals(14, it.getInt(0))
             }
 
             verifyForeignKeys(current)
@@ -372,7 +372,7 @@ class FinancialEvidenceMigrationG4BTest {
                 .openHelperFactory(
                     SupportOpenHelperFactory(key.copyOf())
                 )
-                .addMigrations(DmrDatabase.MIGRATION_12_13)
+                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()

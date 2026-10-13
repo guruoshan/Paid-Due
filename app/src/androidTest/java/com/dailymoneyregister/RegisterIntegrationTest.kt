@@ -727,7 +727,7 @@ class RegisterIntegrationTest {
         operationTransform: (OperationEntity) -> OperationEntity = { it }
     ): OperationEntity {
         // Safe ASCII fixture has identical V1/V2/V3 decoding semantics.
-        val payload = command.intentPayload.replace("v=3\n", "v=$version\n")
+        val payload = command.intentPayload.replace("v=4\n", "v=$version\n")
             .let { if (version == 1) it.replace("commandType=CASH_SALE\n", "") else it }
         val operation = operationTransform(OperationEntity(
             id = command.operationId.value, businessId = command.businessId,

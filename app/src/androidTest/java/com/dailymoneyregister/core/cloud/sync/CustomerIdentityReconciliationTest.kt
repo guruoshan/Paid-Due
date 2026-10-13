@@ -132,7 +132,7 @@ class CustomerIdentityReconciliationTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun canonicalIdCannotBeReboundToAnotherPhone() = runBlocking {
+    fun canonicalIdCannotBeReboundToAnotherPhone(): Unit = runBlocking {
         database.customerDao().insertCustomer(
             CustomerEntity(
                 id = "device-local-id",

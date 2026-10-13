@@ -24,7 +24,7 @@ class FinancialSyncEncryptedMigrationG2Test {
     )
 
     @Test
-    fun encryptedVersion12CashSaleSurvivesVersion13Migration() {
+    fun encryptedVersion12CashSaleSurvivesVersion14Migration() {
         val context: Context =
             InstrumentationRegistry.getInstrumentation().targetContext
 
@@ -152,7 +152,7 @@ class FinancialSyncEncryptedMigrationG2Test {
             )
 
             // STEP 3: Open the encrypted v12 database through
-            // Room v13 with the real migration and callback.
+            // the current Room v14 schema with the full migration chain and callback.
             System.loadLibrary("sqlcipher")
 
             migrated = Room.databaseBuilder(
@@ -163,7 +163,7 @@ class FinancialSyncEncryptedMigrationG2Test {
                 .openHelperFactory(
                     SupportOpenHelperFactory(passphrase.copyOf())
                 )
-                .addMigrations(DmrDatabase.MIGRATION_12_13)
+                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()
@@ -172,7 +172,7 @@ class FinancialSyncEncryptedMigrationG2Test {
 
             sql.query("PRAGMA user_version").use {
                 assertTrue(it.moveToFirst())
-                assertEquals(13, it.getInt(0))
+                assertEquals(14, it.getInt(0))
             }
 
             // STEP 4: Financial evidence must be unchanged.

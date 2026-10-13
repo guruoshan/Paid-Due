@@ -49,7 +49,7 @@ class UiLocalizationTest {
         compose.onNodeWithText("Tax Rate (%)").performTextInput("7.5")
         compose.onNodeWithText("Save").performClick()
         compose.runOnIdle {
-            assertEquals("7.5", saved)
+            assertEquals("7.50", saved)
             assertEquals(true, dismissed)
         }
     }

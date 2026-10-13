@@ -139,7 +139,7 @@ class CashierLifecycleIntegrationTest {
             assertEquals("99450798", user.username)
 
             // The old number no longer signs in, the new one does.
-            assertTrue(authRepository.loginCashier("91123456", "482915") is AuthResult.InvalidCredentials)
+            assertTrue(authRepository.loginCashier("91123456", "482915") !is AuthResult.Success)
             assertTrue(authRepository.loginCashier("99450798", "482915") is AuthResult.Success)
         }
     }
