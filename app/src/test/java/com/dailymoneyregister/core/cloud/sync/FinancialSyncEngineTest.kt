@@ -97,7 +97,7 @@ class FinancialSyncEngineTest {
         every { android.util.Log.w(any(), any<String>()) } returns 0
         every { android.util.Log.e(any(), any()) } returns 0
         every { android.util.Log.e(any(), any(), any()) } returns 0
-        coEvery { db.inboundEnvelopeAuditDao() } returns inboundAuditDao
+        every { db.inboundEnvelopeAuditDao() } returns inboundAuditDao
         coEvery { inboundAuditDao.append(any()) } just Runs
         coEvery { inboundAuditDao.hasRejection(any()) } returns false
 
