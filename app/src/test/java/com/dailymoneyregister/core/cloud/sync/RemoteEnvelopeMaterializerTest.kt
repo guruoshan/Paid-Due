@@ -97,7 +97,9 @@ class RemoteEnvelopeMaterializerTest {
 
         mockkStatic("androidx.room.RoomDatabaseKt")
         coEvery { database.withTransaction(any<suspend () -> Any>()) } coAnswers {
-            firstArg<suspend () -> Any>().invoke()
+            // The generated static call receives the RoomDatabase receiver first
+            // and the transaction lambda second.
+            secondArg<suspend () -> Any>().invoke()
         }
     }
 
