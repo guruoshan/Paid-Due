@@ -56,6 +56,7 @@ object CreateCashierPayloadCodec {
         appendLine("canCorrectAmount=${payload.permissions.canCorrectAmount}")
         appendLine("canChangePaymentMethod=${payload.permissions.canChangePaymentMethod}")
         appendLine("canViewBroadHistory=${payload.permissions.canViewBroadHistory}")
+        appendLine("canAccessCustomerDirectory=${payload.permissions.canAccessCustomerDirectory}")
         appendLine("canManageProducts=${payload.permissions.canManageProducts}")
         appendLine("canViewReports=${payload.permissions.canViewReports}")
     }
@@ -100,6 +101,7 @@ object CreateCashierPayloadCodec {
                 canCorrectAmount = required(map, "canCorrectAmount").toBooleanStrict(),
                 canChangePaymentMethod = required(map, "canChangePaymentMethod").toBooleanStrict(),
                 canViewBroadHistory = required(map, "canViewBroadHistory").toBooleanStrict(),
+                canAccessCustomerDirectory = map["canAccessCustomerDirectory"]?.toBooleanStrictOrNull() ?: false,
                 canManageProducts = required(map, "canManageProducts").toBooleanStrict(),
                 canViewReports = required(map, "canViewReports").toBooleanStrict()
             )
