@@ -19,13 +19,14 @@ class FinancialSyncEngine @Inject constructor(
     private val database: DmrDatabase,
     private val remoteSyncRepository: RemoteFinancialSyncRepository,
     private val inboundEnvelopeApplier: InboundEnvelopeApplier,
-    @ApplicationContext private val context: Context? = null
+    @ApplicationContext private val context: Context? = null,
+    private val cloudStaffIdentitySync: CloudStaffIdentitySync? = null
 ) {
     constructor(
         database: DmrDatabase,
         remoteSyncRepository: RemoteFinancialSyncRepository,
         inboundEnvelopeApplier: InboundEnvelopeApplier = MaterializingInboundEnvelopeApplier()
-    ) : this(database, remoteSyncRepository, inboundEnvelopeApplier, null)
+    ) : this(database, remoteSyncRepository, inboundEnvelopeApplier, null, null)
 
     private val inMemoryCursors = mutableMapOf<String, VersionedInboundCursor>()
     private val syncMutex = Mutex()
@@ -278,6 +279,31 @@ class FinancialSyncEngine @Inject constructor(
         val session = SessionManager.currentSession.value
         val sessionBusinessId = session?.business?.id ?: businessId
         val sessionBranchId = session?.membership?.branchId
+
+        if (session != null && session.business.id != businessId) {
+            Log.e("PaidDueFinancialSync", "INBOUND_SCOPE_REJECTED requested_business=$businessId")
+            return 0
+        }
+        if (session?.user?.role == UserRole.ADMIN && cloudStaffIdentitySync != null) {
+            val branchId = sessionBranchId
+            if (branchId.isNullOrBlank()) {
+                Log.e("PaidDueFinancialSync", "STAFF_IDENTITY_SYNC_FAILED reason=admin_branch_missing")
+                return 0
+            }
+            try {
+                val synchronized = cloudStaffIdentitySync.synchronize(sessionBusinessId, branchId)
+                Log.i("PaidDueFinancialSync", "STAFF_IDENTITY_SYNC_OK business=$sessionBusinessId branch=$branchId rows=$synchronized")
+            } catch (error: Exception) {
+                Log.e("PaidDueFinancialSync", "STAFF_IDENTITY_SYNC_FAILED business=$sessionBusinessId branch=$branchId", error)
+                FinancialSyncStatus.report(
+                    FinancialSyncProblem(
+                        "staff-identity-sync:$sessionBusinessId:$branchId",
+                        "Staff identity synchronization failed; inbound financial processing was deferred."
+                    )
+                )
+                return 0
+            }
+        }
 
         val storedCursor = getStoredCursor(businessId, adminAccountId)
         var currentAfterReceivedAt: String? = storedCursor?.let {
