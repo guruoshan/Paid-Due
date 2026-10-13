@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.CustomerEntity
 import kotlinx.coroutines.runBlocking
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -83,6 +84,41 @@ class CustomerIdentityReconciliationTest {
                 database, "business-a", "device-local-id"
             )
         )
+    }
+
+    @Test
+    fun inboundEvidenceSnapshotMapsRemoteIdToExistingLocalCustomer() = runBlocking {
+        database.customerDao().insertCustomer(
+            CustomerEntity(
+                id = "device-local-id",
+                businessId = "business-a",
+                canonicalPhone = "+96891234567",
+                name = "Existing Customer",
+                createdAt = 100,
+                updatedAt = 100
+            )
+        )
+        val evidence = JSONObject().put(
+            "customer",
+            JSONObject()
+                .put("id", "remote-customer-id")
+                .put("business_id", "business-a")
+                .put("canonical_phone", "+96891234567")
+                .put("name", "Remote Name")
+                .put("created_at", 100L)
+                .put("updated_at", 200L)
+        )
+
+        CustomerIdentityReconciler.reconcileEvidenceCustomers(database, "business-a", evidence)
+
+        assertEquals(
+            "device-local-id",
+            CustomerIdentityReconciler.resolveLocalCustomerIdOrSelf(
+                database, "business-a", "remote-customer-id"
+            )
+        )
+        assertNotNull(database.customerDao().getCustomerById("device-local-id"))
+        assertNull(database.customerDao().getCustomerById("remote-customer-id"))
     }
 
     @Test(expected = IllegalArgumentException::class)
