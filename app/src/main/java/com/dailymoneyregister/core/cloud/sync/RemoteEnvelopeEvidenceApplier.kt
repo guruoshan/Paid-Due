@@ -23,44 +23,14 @@ internal object RemoteEnvelopeEvidenceApplier {
         actorUserId: String,
         transactionId: String? = null
     ) {
-        val customersArray = evidence.optJSONArray("customers")
-        val customerSnapshots = if (customersArray != null) {
-            (0 until customersArray.length()).map { customersArray.getJSONObject(it) }
-        } else {
-            listOfNotNull(evidence.optJSONObject("customer"))
-        }
-        for (customerJson in customerSnapshots) {
-            val customer = CustomerEntity(
-                id = customerJson.getString("id"),
-                businessId = customerJson.getString("business_id"),
-                canonicalPhone = customerJson.getString("canonical_phone"),
-                name = customerJson.getString("name"),
-                createdAt = customerJson.getLong("created_at"),
-                updatedAt = customerJson.getLong("updated_at")
-            )
-            require(customer.businessId == businessId) { "Customer evidence belongs to another business" }
-            val existing = database.customerDao().getCustomerById(customer.id)
-            if (existing == null) {
-                require(database.customerDao().getCustomerByPhone(businessId, customer.canonicalPhone) == null) {
-                    "Customer phone is already linked to a different local customer ID"
-                }
-                database.customerDao().insertCustomer(customer)
-            } else {
-                // Names may be mutable customer-profile data. A financial envelope
-                // must not overwrite them; immutable ID/business/phone identity must match.
-                require(
-                    existing.businessId == customer.businessId &&
-                        existing.canonicalPhone == customer.canonicalPhone
-                ) { "Customer identity collision in inbound evidence" }
-            }
-        }
+        CustomerIdentityReconciler.reconcileEvidenceCustomers(database, businessId, evidence)
 
         val creditRepaymentJson = evidence.optJSONObject("credit_repayment")
         if (creditRepaymentJson != null) {
             val repayment = CreditRepaymentEntity(
                 id = creditRepaymentJson.getString("id"),
                 operationId = creditRepaymentJson.getString("operation_id"),
-                customerId = creditRepaymentJson.getString("customer_id"),
+                customerId = CustomerIdentityReconciler.resolveLocalCustomerIdOrSelf(\n                    database, businessId, creditRepaymentJson.getString("customer_id")\n                ),
                 amountMinor = creditRepaymentJson.getLong("amount_minor"),
                 currencyCode = creditRepaymentJson.getString("currency_code"),
                 paymentCategory = PaymentCategory.valueOf(creditRepaymentJson.getString("payment_category")),
@@ -116,7 +86,7 @@ internal object RemoteEnvelopeEvidenceApplier {
                 CreditLedgerEventEntity(
                     id = item.getString("id"),
                     operationId = item.getString("operation_id"),
-                    customerId = item.getString("customer_id"),
+                    customerId = CustomerIdentityReconciler.resolveLocalCustomerIdOrSelf(\n                        database, businessId, item.getString("customer_id")\n                    ),
                     type = CreditLedgerType.valueOf(item.getString("type")),
                     amountSignedMinor = item.getLong("amount_signed_minor"),
                     currencyCode = item.getString("currency_code"),
