@@ -72,7 +72,7 @@ BEGIN
 
   RETURN QUERY SELECT v_id,v_created,false;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.fetch_cashier_metadata(p_business_id text, p_branch_id text, p_membership_id text)
  RETURNS TABLE(membership_id text, business_id text, business_name text, branch_id text, branch_name text, branch_code text, branch_address text, branch_phone text, tax_registration_number text, country_code text, currency_code text, currency_decimal_places integer, currency_symbol text, timezone_id text, tax_rounding_mode text, default_tax_rate_bps integer, role text, permissions jsonb, display_name text, canonical_phone text)
@@ -138,7 +138,7 @@ BEGIN
       AND m.role = 'CASHIER'
       AND m.is_active = true;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.list_admin_cashiers_with_permissions()
  RETURNS TABLE(local_user_id text, membership_id text, branch_id text, display_name text, canonical_phone text, is_active boolean, permissions jsonb, is_removed boolean)
@@ -206,7 +206,7 @@ BEGIN
     AND pg_catalog.btrim(cashier.local_user_id) <> ''
   ORDER BY staff.display_name, cashier.local_user_id;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.resolve_admin_permission_request(p_request_id uuid, p_decision text, p_additional_permissions jsonb DEFAULT '{}'::jsonb)
  RETURNS void
@@ -313,7 +313,7 @@ BEGIN
       'additional_permissions', CASE WHEN p_decision = 'APPROVE' THEN p_additional_permissions ELSE '{}'::jsonb END)
   );
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.sync_customer_directory_list(p_business_id text, p_branch_id text, p_membership_id text, p_after_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_limit integer DEFAULT 100)
  RETURNS TABLE(customer_id text, canonical_phone text, display_name text, created_at timestamp with time zone, updated_at timestamp with time zone)
@@ -347,7 +347,7 @@ begin
   order by d.updated_at asc, d.canonical_phone asc
   limit p_limit;
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.sync_customer_directory_upsert(p_business_id text, p_branch_id text, p_membership_id text, p_customer_id text, p_canonical_phone text, p_display_name text, p_created_at timestamp with time zone DEFAULT now())
  RETURNS TABLE(customer_id text, canonical_phone text, display_name text, created_at timestamp with time zone, updated_at timestamp with time zone, was_created boolean)
@@ -401,7 +401,7 @@ begin
   return query select v_row.customer_id, v_row.canonical_phone, v_row.display_name,
     v_row.created_at, v_row.updated_at, (v_inserted > 0);
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.update_admin_cashier_permissions(p_membership_id text, p_permissions jsonb)
  RETURNS void
@@ -523,7 +523,7 @@ BEGIN
     'PERMISSIONS_UPDATED', v_before, v_after, pg_catalog.now()
   );
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.update_cashier_permissions(p_membership_id text, p_permissions jsonb)
  RETURNS TABLE(membership_id text, updated_at timestamp with time zone)
@@ -612,5 +612,5 @@ BEGIN
 
   RETURN QUERY SELECT v_target.id, v_updated;
 END;
-$function$
+$function$;
 
