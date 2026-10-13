@@ -246,26 +246,24 @@ BEGIN
         'report', COALESCE(v_report, '{}'::jsonb)
       )
     );
-    IF CASE
-      WHEN length(v_difference_minor) BETWEEN 1 AND 19
+    IF length(v_difference_minor) BETWEEN 1 AND 19
        AND v_difference_minor ~ '^-?[0-9]+$'
        AND v_difference_minor !~ '[^0-9-]'
        AND position('-' in substring(v_difference_minor from 2)) = 0
-       AND v_difference_minor <> '-'
-      THEN v_difference_minor::numeric <> 0
-      ELSE false
-    END THEN
-      PERFORM private.enqueue_business_notification(
-        'CASH_DIFFERENCE:' || NEW.business_id || ':' || NEW.operation_id || ':' || v_admin.membership_id,
-        NEW.business_id, NEW.branch_id, v_admin.membership_id,
-        'CASH_DISCREPANCY', 'Cash difference needs review',
-        COALESCE(v_actor_name, 'Cashier') || ' closed a shift with a cash difference. Review the closing report.',
-        jsonb_build_object(
-          'operation_id', NEW.operation_id,
-          'cashier_name', COALESCE(v_actor_name, 'Cashier'),
-          'report', COALESCE(v_report, '{}'::jsonb)
-        )
-      );
+       AND v_difference_minor <> '-' THEN
+      IF v_difference_minor::numeric <> 0 THEN
+        PERFORM private.enqueue_business_notification(
+          'CASH_DIFFERENCE:' || NEW.business_id || ':' || NEW.operation_id || ':' || v_admin.membership_id,
+          NEW.business_id, NEW.branch_id, v_admin.membership_id,
+          'CASH_DISCREPANCY', 'Cash difference needs review',
+          COALESCE(v_actor_name, 'Cashier') || ' closed a shift with a cash difference. Review the closing report.',
+          jsonb_build_object(
+            'operation_id', NEW.operation_id,
+            'cashier_name', COALESCE(v_actor_name, 'Cashier'),
+            'report', COALESCE(v_report, '{}'::jsonb)
+          )
+        );
+      END IF;
     END IF;
   END LOOP;
   RETURN NEW;
