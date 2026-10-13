@@ -243,7 +243,10 @@ data class UserBranchMembershipEntity(
     val canViewReports: Boolean = false,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: Long
+    val createdAt: Long,
+
+    @ColumnInfo(name = "can_access_customer_directory")
+    val canAccessCustomerDirectory: Boolean = false
 )
 
 @Entity(
