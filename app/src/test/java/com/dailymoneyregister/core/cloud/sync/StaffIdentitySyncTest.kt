@@ -33,7 +33,7 @@ class StaffIdentitySyncTest {
                 displayName = "Cashier",
                 canonicalPhone = "+96890000000",
                 isActive = false,
-                permissions = mapOf("CREATE_SALE" to false, "CUSTOMER_DIRECTORY_ACCESS" to false),
+                permissions = mapOf("CREATE_SALE" to false),
                 isRemoved = true
             ),
             CloudCashierDirectoryEntry(
