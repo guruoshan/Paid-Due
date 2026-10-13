@@ -249,6 +249,76 @@ class FinancialSyncOutboxV13Test {
         assertEquals(1, count(db, "g1-new-cash"))
         assertEquals(2, total(db))
     }
+    @Test
+    fun migration13To14CreatesCustomerAliasTable() {
+        val name = "boardlock-customer-alias-v13-v14-migration"
+        val old = migrationHelper.createDatabase(name, 13)
+        old.execSQL(
+            """
+            INSERT INTO businesses (id, name, created_at, updated_at)
+            VALUES ('legacy-business-13', 'Existing Shop 13', 10, 10)
+            """.trimIndent()
+        )
+        old.close()
+
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            name,
+            14,
+            true,
+            DmrDatabase.MIGRATION_13_14
+        )
+
+        migrated.query(
+            "SELECT name FROM businesses WHERE id = 'legacy-business-13'"
+        ).use {
+            assertTrue(it.moveToFirst())
+            assertEquals("Existing Shop 13", it.getString(0))
+        }
+        migrated.query(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'customer_id_aliases'"
+        ).use {
+            assertTrue("customer_id_aliases must exist after 13 -> 14", it.moveToFirst())
+        }
+        migrated.close()
+    }
+
+    @Test
+    fun migration12To14PreservesBusinessAndCreatesBothMigrationTables() {
+        val name = "boardlock-complete-v12-v14-migration"
+        val old = migrationHelper.createDatabase(name, 12)
+        old.execSQL(
+            """
+            INSERT INTO businesses (id, name, created_at, updated_at)
+            VALUES ('legacy-business-12', 'Existing Shop 12', 10, 10)
+            """.trimIndent()
+        )
+        old.close()
+
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            name,
+            14,
+            true,
+            DmrDatabase.MIGRATION_12_13,
+            DmrDatabase.MIGRATION_13_14
+        )
+
+        migrated.query(
+            "SELECT name FROM businesses WHERE id = 'legacy-business-12'"
+        ).use {
+            assertTrue(it.moveToFirst())
+            assertEquals("Existing Shop 12", it.getString(0))
+        }
+        listOf("financial_sync_outbox", "customer_id_aliases").forEach { table ->
+            migrated.query(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+                arrayOf(table)
+            ).use {
+                assertTrue("$table must exist after 12 -> 14", it.moveToFirst())
+            }
+        }
+        migrated.close()
+    }
+
     private fun withDb(block: (DmrDatabase) -> Unit) {
         val context = ApplicationProvider.getApplicationContext<
             android.content.Context
