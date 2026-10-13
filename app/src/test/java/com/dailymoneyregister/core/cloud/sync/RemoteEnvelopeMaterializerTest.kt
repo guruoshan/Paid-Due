@@ -131,6 +131,38 @@ class RemoteEnvelopeMaterializerTest {
     }
 
     @Test
+    fun appliesServerAuthenticatedAdminSaleWhenAdminRowIsAbsentAndSkipsReplay() = runTest {
+        val adminActorId = "admin-user-from-authoritative-envelope"
+        val envelope = cashSaleEnvelope(
+            actorId = adminActorId,
+            serverActorMembershipId = "admin-membership-a",
+            serverActorRole = "ADMIN"
+        )
+
+        val first = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database = database,
+            envelope = envelope,
+            sessionBusinessId = businessId,
+            sessionBranchId = branchId
+        )
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database = database,
+            envelope = envelope,
+            sessionBusinessId = businessId,
+            sessionBranchId = branchId
+        )
+
+        assertEquals(InboundProcessResult.Applied, first)
+        assertEquals(InboundProcessResult.Skipped, replay)
+        assertEquals(operationId, storedOperation?.id)
+        assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
+        coVerify(exactly = 1) { operationDao.insertOperationIfAbsent(any()) }
+        coVerify(exactly = 1) { transactionDao.insertTransaction(any()) }
+        coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
+        coVerify(exactly = 0) { userDao.getUserByIdInBusiness(adminActorId, businessId) }
+    }
+
+    @Test
     fun removedSynchronizedIdentityFailsClosedBeforeFinancialWrites() = runTest {
         cloudIdentity = cloudIdentity.copy(isActive = false, isRemoved = true)
 
@@ -152,7 +184,11 @@ class RemoteEnvelopeMaterializerTest {
         coVerify(exactly = 0) { transactionDao.insertTransaction(any()) }
     }
 
-    private fun cashSaleEnvelope(): RemoteEnvelopeV2 {
+    private fun cashSaleEnvelope(
+        actorId: String = actorUserId,
+        serverActorMembershipId: String? = null,
+        serverActorRole: String? = null
+    ): RemoteEnvelopeV2 {
         val occurredAtIso = "2026-10-09T10:00:00Z"
         val occurredAtMillis = Instant.parse(occurredAtIso).toEpochMilli()
         val settlement = JSONObject().apply {
@@ -167,7 +203,7 @@ class RemoteEnvelopeMaterializerTest {
             put("amount_signed_minor", 1000L)
             put("currency_code", "OMR")
             put("confirmation_type", ConfirmationType.CASHIER_CONFIRMED.name)
-            put("actor_user_id", actorUserId)
+            put("actor_user_id", actorId)
         }
         val transaction = JSONObject().apply {
             put("id", transactionId)
@@ -180,7 +216,7 @@ class RemoteEnvelopeMaterializerTest {
             put("grand_total_minor", 1000L)
             put("currency_code", "OMR")
             put("currency_decimal_places", 3)
-            put("created_by_user_id", actorUserId)
+            put("created_by_user_id", actorId)
             put("device_id", "cashier-device")
             put("created_at", occurredAtMillis)
             put("display_ref", "SALE-001")
@@ -190,7 +226,7 @@ class RemoteEnvelopeMaterializerTest {
             put("business_id", businessId)
             put("branch_id", branchId)
             put("operation_type", "RECORD_SALE")
-            put("actor_user_id", actorUserId)
+            put("actor_user_id", actorId)
             put("device_id", "cashier-device")
             put("occurred_at", occurredAtMillis)
             put("command_schema_version", 1)
@@ -212,7 +248,10 @@ class RemoteEnvelopeMaterializerTest {
             receivedAtIso = "2026-10-09T10:00:01Z",
             canonicalText = canonicalText,
             payloadJson = payload,
-            canonicalSha256 = CommandFingerprint.sha256(canonicalText)
+            canonicalSha256 = CommandFingerprint.sha256(canonicalText),
+            actorMembershipId = serverActorMembershipId,
+            actorLocalUserId = if (serverActorMembershipId == null) null else actorId,
+            actorRole = if (serverActorMembershipId == null) null else serverActorRole
         )
     }
 }
