@@ -14,7 +14,7 @@ concurrency:
 jobs:
   debug-build-and-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -37,7 +37,32 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x ./gradlew
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "emulator" "system-images;android-36;google_apis;x86_64"
 
-      - name: Run debug unit tests and assemble debug APK
-        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Start isolated Android API 36 emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --name paid-due-api36 --package "system-images;android-36;google_apis;x86_64" \
+            --device pixel_2 --force
+          nohup "$ANDROID_HOME/emulator/emulator" -avd paid-due-api36 \
+            -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect \
+            > "$RUNNER_TEMP/paid-due-emulator.log" 2>&1 &
+          adb wait-for-device
+          for attempt in $(seq 1 90); do
+            booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
+            if [[ "$booted" == "1" ]]; then break; fi
+            sleep 5
+          done
+          [[ "${booted:-}" == "1" ]] || {
+            cat "$RUNNER_TEMP/paid-due-emulator.log"
+            echo "::error::Android emulator did not finish booting."
+            exit 1
+          }
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+
+      - name: Run unit tests, instrumentation tests, and assemble debug APK
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:connectedDebugAndroidTest :app:assembleDebug
