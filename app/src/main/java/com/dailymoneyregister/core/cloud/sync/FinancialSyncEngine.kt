@@ -295,11 +295,12 @@ class FinancialSyncEngine @Inject constructor(
             session.business.id == businessId &&
             !sessionBranchId.isNullOrBlank()
         ) {
-            runCatching {
+            val identitySyncSucceeded = runCatching {
                 staffIdentitySync.synchronize(businessId, sessionBranchId)
             }.onFailure { error ->
                 Log.w("PaidDueFinancialSync", "STAFF_IDENTITY_SYNC_DEFERRED", error)
-            }
+            }.isSuccess
+            if (!identitySyncSucceeded) return@withLock 0
         }
 
         val storedCursor = getStoredCursor(businessId, adminAccountId)
@@ -355,9 +356,10 @@ class FinancialSyncEngine @Inject constructor(
                         envelope.operationId,
                         "Inbound application is not enabled for operation ${envelope.operationType}; deferred"
                     )
-                    // Do not advance the durable cursor past an operation type
-                    // whose inbound materializer is not enabled for this build.
-                    return totalApplied
+                    // Persist the rejection and quarantine this envelope, then keep
+                    // processing unrelated later envelopes in the same page.
+                    pageLastProcessedEnvelope = envelope
+                    continue
                 }
 
                 // Verify the digest returned by the backend before parsing or applying
@@ -377,7 +379,8 @@ class FinancialSyncEngine @Inject constructor(
                             "Remote canonical_sha256 does not match canonical_text"
                         }
                     )
-                    return totalApplied
+                    pageLastProcessedEnvelope = envelope
+                    continue
                 }
 
                 val result = try {
@@ -413,15 +416,17 @@ class FinancialSyncEngine @Inject constructor(
                             envelope.operationId,
                             "Unsupported inbound operation ${result.operationType}; deferred"
                         )
-                        // Leave the cursor unchanged so this envelope remains
-                        // visible and cannot be mistaken for applied financial data.
-                        return totalApplied
+                        // The attention record is the durable local quarantine marker.
+                        // Advance page processing so an unsupported envelope cannot starve later ones.
+                        pageLastProcessedEnvelope = envelope
+                        continue
                     }
                     is InboundProcessResult.Rejected -> {
                         reportInboundRejection(envelope.operationId, result.reason)
-                        if (totalApplied > 0) Log.i("PaidDueFinancialSync", "INBOUND_APPLIED $totalApplied")
-                        if (totalSkipped > 0) Log.i("PaidDueFinancialSync", "INBOUND_SKIPPED $totalSkipped")
-                        return totalApplied
+                        // Keep rejected evidence in the attention/quarantine store, but do not let
+                        // one poison envelope permanently block later valid financial envelopes.
+                        pageLastProcessedEnvelope = envelope
+                        continue
                     }
                 }
             }
