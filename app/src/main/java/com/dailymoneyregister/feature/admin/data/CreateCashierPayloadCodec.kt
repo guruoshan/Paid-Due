@@ -56,7 +56,6 @@ object CreateCashierPayloadCodec {
         appendLine("canCorrectAmount=${payload.permissions.canCorrectAmount}")
         appendLine("canChangePaymentMethod=${payload.permissions.canChangePaymentMethod}")
         appendLine("canViewBroadHistory=${payload.permissions.canViewBroadHistory}")
-        appendLine("canAccessCustomerDirectory=${payload.permissions.canAccessCustomerDirectory}")
         appendLine("canManageProducts=${payload.permissions.canManageProducts}")
         appendLine("canViewReports=${payload.permissions.canViewReports}")
     }
@@ -101,7 +100,6 @@ object CreateCashierPayloadCodec {
                 canCorrectAmount = required(map, "canCorrectAmount").toBooleanStrict(),
                 canChangePaymentMethod = required(map, "canChangePaymentMethod").toBooleanStrict(),
                 canViewBroadHistory = required(map, "canViewBroadHistory").toBooleanStrict(),
-                canAccessCustomerDirectory = map["canAccessCustomerDirectory"]?.toBooleanStrictOrNull() ?: false,
                 canManageProducts = required(map, "canManageProducts").toBooleanStrict(),
                 canViewReports = required(map, "canViewReports").toBooleanStrict()
             )
@@ -137,7 +135,6 @@ object CreateCashierPayloadCodec {
         )
         // Keep the historical fingerprint stable when this new permission is false.
         // A true grant is part of the command intent and therefore changes the fingerprint.
-        if (p.canAccessCustomerDirectory) values.add("canAccessCustomerDirectory=true")
 
         val canonical = values.joinToString("|") { value ->
             "${value.length}:$value"
