@@ -236,6 +236,9 @@ data class UserBranchMembershipEntity(
     @ColumnInfo(name = "can_view_broad_history")
     val canViewBroadHistory: Boolean = false,
 
+    @ColumnInfo(name = "can_access_customer_directory")
+    val canAccessCustomerDirectory: Boolean = false,
+
     @ColumnInfo(name = "can_manage_products")
     val canManageProducts: Boolean = false,
 
