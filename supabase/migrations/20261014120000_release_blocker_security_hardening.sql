@@ -958,3 +958,137 @@ REVOKE ALL ON FUNCTION public.fetch_cashier_financial_envelopes_v2(text, text, t
   FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.fetch_cashier_financial_envelopes_v2(text, text, text, timestamptz, text, integer)
   TO service_role;
+
+
+-- These metadata RPCs are service-role only and are called after the Edge API
+-- verifies a cashier session. Also enforce membership removal directly in each
+-- SECURITY DEFINER query, so a caller cannot rely on wrapper behavior alone.
+CREATE OR REPLACE FUNCTION public.fetch_cashier_metadata(
+  p_business_id text,
+  p_branch_id text,
+  p_membership_id text
+)
+RETURNS TABLE(
+  membership_id text, business_id text, business_name text, branch_id text,
+  branch_name text, branch_code text, branch_address text, branch_phone text,
+  tax_registration_number text, country_code text, currency_code text,
+  currency_decimal_places integer, currency_symbol text, timezone_id text,
+  tax_rounding_mode text, default_tax_rate_bps integer, role text,
+  permissions jsonb, display_name text, canonical_phone text
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+BEGIN
+  IF p_business_id IS NULL OR btrim(p_business_id) = ''
+     OR p_branch_id IS NULL OR btrim(p_branch_id) = ''
+     OR p_membership_id IS NULL OR btrim(p_membership_id) = '' THEN
+    RAISE EXCEPTION 'Invalid cashier metadata request' USING ERRCODE = '22023';
+  END IF;
+
+  RETURN QUERY
+  SELECT m.id, b.id, b.name, br.id, br.name, br.code,
+         br.address, br.phone, br.tax_registration_number, br.country_code,
+         br.currency_code, br.currency_decimal_places, br.currency_symbol,
+         br.timezone_id, br.tax_rounding_mode, br.default_tax_rate_bps,
+         m.role,
+         jsonb_build_object(
+           'can_create_sale', m.can_create_sale,
+           'can_accept_cash', m.can_accept_cash,
+           'can_accept_online', m.can_accept_online,
+           'can_create_credit_sale', m.can_create_credit_sale,
+           'can_use_coupon', m.can_use_coupon,
+           'can_issue_invoice', m.can_issue_invoice,
+           'can_issue_receipt', m.can_issue_receipt,
+           'can_refund', m.can_refund,
+           'can_void', m.can_void,
+           'can_correct_amount', m.can_correct_amount,
+           'can_change_payment_method', m.can_change_payment_method,
+           'can_view_broad_history', m.can_view_broad_history,
+           'can_manage_products', m.can_manage_products,
+           'can_view_reports', m.can_view_reports
+         ),
+         si.display_name, si.canonical_phone
+  FROM public.business_memberships m
+  JOIN public.businesses b
+    ON b.id = m.business_id AND b.is_active = true
+  JOIN public.branches br
+    ON br.id = m.branch_id
+   AND br.business_id = m.business_id AND br.is_active = true
+  JOIN private.staff_identities si
+    ON si.id = m.staff_identity_id AND si.is_active = true
+  WHERE m.id = p_membership_id
+    AND m.business_id = p_business_id
+    AND m.branch_id = p_branch_id
+    AND m.role = 'CASHIER'
+    AND m.is_active = true
+    AND m.removed_at IS NULL
+    AND m.staff_identity_id IS NOT NULL;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.fetch_cashier_restoration(p_membership_id text)
+RETURNS TABLE(
+  membership_id text, local_user_id text, staff_identity_id uuid,
+  business_id text, branch_id text, business_name text, branch_name text,
+  branch_code text, country_code text, currency_code text,
+  currency_decimal_places integer, currency_symbol text, timezone_id text,
+  tax_rounding_mode text, default_tax_rate_bps integer, branch_address text,
+  branch_phone text, tax_registration_number text, display_name text,
+  canonical_phone text, permissions jsonb
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+  SELECT m.id,
+         COALESCE(m.local_user_id, activation.local_user_id),
+         si.id, b.id, br.id, b.name, br.name, br.code, br.country_code,
+         br.currency_code, br.currency_decimal_places, br.currency_symbol,
+         br.timezone_id, br.tax_rounding_mode, br.default_tax_rate_bps,
+         br.address, br.phone, br.tax_registration_number,
+         si.display_name, si.canonical_phone,
+         jsonb_build_object(
+           'CREATE_SALE', m.can_create_sale,
+           'ACCEPT_CASH', m.can_accept_cash,
+           'ACCEPT_ONLINE', m.can_accept_online,
+           'CREATE_CREDIT_SALE', m.can_create_credit_sale,
+           'USE_COUPON', m.can_use_coupon,
+           'ISSUE_INVOICE', m.can_issue_invoice,
+           'ISSUE_RECEIPT', m.can_issue_receipt,
+           'REFUND', m.can_refund,
+           'VOID', m.can_void,
+           'CORRECT_AMOUNT', m.can_correct_amount,
+           'CHANGE_PAYMENT_METHOD', m.can_change_payment_method,
+           'VIEW_BROAD_HISTORY', m.can_view_broad_history,
+           'MANAGE_PRODUCTS', m.can_manage_products,
+           'VIEW_REPORTS', m.can_view_reports
+         )
+  FROM public.business_memberships m
+  JOIN public.businesses b
+    ON b.id = m.business_id AND b.is_active = true
+  JOIN public.branches br
+    ON br.id = m.branch_id
+   AND br.business_id = m.business_id AND br.is_active = true
+  JOIN private.staff_identities si
+    ON si.id = m.staff_identity_id AND si.is_active = true
+  LEFT JOIN private.staff_invite_activations activation
+    ON activation.membership_id = m.id
+   AND activation.staff_identity_id = si.id
+  WHERE m.id = p_membership_id
+    AND m.role = 'CASHIER'
+    AND m.is_active = true
+    AND m.removed_at IS NULL
+    AND m.staff_identity_id IS NOT NULL
+    AND COALESCE(m.local_user_id, activation.local_user_id) IS NOT NULL
+    AND si.credential_hash IS NOT NULL
+    AND si.credential_salt IS NOT NULL
+  LIMIT 1;
+$function$;
+
+REVOKE ALL ON FUNCTION public.fetch_cashier_metadata(text, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.fetch_cashier_metadata(text, text, text) TO service_role;
+REVOKE ALL ON FUNCTION public.fetch_cashier_restoration(text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.fetch_cashier_restoration(text) TO service_role;
