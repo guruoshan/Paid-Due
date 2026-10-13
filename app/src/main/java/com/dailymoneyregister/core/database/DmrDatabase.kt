@@ -666,6 +666,9 @@ abstract class DmrDatabase : RoomDatabase() {
 
         val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE user_branch_memberships ADD COLUMN can_access_customer_directory INTEGER NOT NULL DEFAULT 0"
+                )
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS cloud_staff_identities (
                         membership_id TEXT NOT NULL PRIMARY KEY,
