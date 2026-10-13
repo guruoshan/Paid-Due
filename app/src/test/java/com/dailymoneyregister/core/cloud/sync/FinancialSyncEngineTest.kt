@@ -260,6 +260,49 @@ class FinancialSyncEngineTest {
     }
 
     @Test
+    fun rejectedEnvelopeDoesNotBlockLaterValidEnvelope() = runTest {
+        coEvery { db.businessBranchDao() } returns businessBranchDao
+        coEvery { db.userDao() } returns userDao
+        coEvery { businessBranchDao.getBusinessById("biz-1") } returns mockk()
+        coEvery { userDao.getUserByIdInBusiness("test-admin", "biz-1") } returns mockk()
+
+        val poisonId = "0199c002-1234-7abc-8def-0123456789ab"
+        val validId = "0199c003-1234-7abc-8def-0123456789ab"
+        fun envelope(id: String, receivedAt: String): RemoteEnvelopeV2 {
+            val payload = JSONObject()
+                .put("operation_id", id)
+                .put("business_id", "biz-1")
+            val canonical = payload.toString()
+            return RemoteEnvelopeV2(
+                operationId = id,
+                businessId = "biz-1",
+                branchId = "branch-1",
+                operationType = "RECORD_SALE",
+                occurredAtIso = "2026-10-09T10:00:00Z",
+                receivedAtIso = receivedAt,
+                canonicalText = canonical,
+                payloadJson = payload,
+                canonicalSha256 = com.dailymoneyregister.core.command.CommandFingerprint.sha256(canonical)
+            )
+        }
+        val poison = envelope(poisonId, "2026-10-09T10:00:01Z")
+        val valid = envelope(validId, "2026-10-09T10:00:02Z")
+        coEvery { remoteRepo.fetchRemoteEnvelopesV2("biz-1", null, null, any()) } returns listOf(poison, valid)
+        inboundApplier.resultFor = { row ->
+            if (row.operationId == poisonId) {
+                InboundProcessResult.Rejected("controlled poison fixture")
+            } else {
+                InboundProcessResult.Applied
+            }
+        }
+
+        val applied = engine.syncInbound("biz-1")
+
+        assertEquals(1, applied)
+        assertEquals(listOf(poisonId, validId), inboundApplier.appliedOperationIds)
+    }
+
+    @Test
     fun retryBackoffIsExponentialAndCapped() {
         assertEquals(15_000L, engine.retryDelayMillis(1))
         assertEquals(30_000L, engine.retryDelayMillis(2))
@@ -268,6 +311,7 @@ class FinancialSyncEngineTest {
 
     private class FakeInboundEnvelopeApplier : InboundEnvelopeApplier {
         var result: InboundProcessResult = InboundProcessResult.Skipped
+        var resultFor: (RemoteEnvelopeV2) -> InboundProcessResult = { result }
         val appliedOperationIds = mutableListOf<String>()
 
         override suspend fun apply(
@@ -277,7 +321,7 @@ class FinancialSyncEngineTest {
             sessionBranchId: String?
         ): InboundProcessResult {
             appliedOperationIds += envelope.operationId
-            return result
+            return resultFor(envelope)
         }
     }
 }
