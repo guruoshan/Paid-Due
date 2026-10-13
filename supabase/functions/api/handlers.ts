@@ -310,7 +310,7 @@ export async function downloadFinancial(request: Request) {
 export const PERMISSION_KEYS = new Set([
   "CREATE_SALE", "ACCEPT_CASH", "ACCEPT_ONLINE", "CREATE_CREDIT_SALE", "USE_COUPON",
   "ISSUE_INVOICE", "ISSUE_RECEIPT", "REFUND", "VOID", "CORRECT_AMOUNT",
-  "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY", "MANAGE_PRODUCTS", "VIEW_REPORTS",
+  "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY", "CUSTOMER_DIRECTORY_ACCESS", "MANAGE_PRODUCTS", "VIEW_REPORTS",
 ]);
 
 async function verifyNotificationToken(request: Request): Promise<any> {
