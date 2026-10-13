@@ -298,6 +298,8 @@ class FinancialSyncEngineTest {
 
         val applied = engine.syncInbound("biz-1")
 
+        // Later good evidence applies in this pass, but the durable checkpoint must
+        // remain before the first rejected envelope so that item can be retried.
         assertEquals(1, applied)
         assertEquals(listOf(poisonId, validId), inboundApplier.appliedOperationIds)
 
@@ -305,7 +307,26 @@ class FinancialSyncEngineTest {
         cursorField.isAccessible = true
         @Suppress("UNCHECKED_CAST")
         val cursors = cursorField.get(engine) as Map<String, VersionedInboundCursor>
+        assertEquals(0, cursors.size)
+
+        // Simulate the defect being corrected on a subsequent run. The rejected sale
+        // is retried, while the already-applied later operation is safely skipped.
+        inboundApplier.resultFor = { row ->
+            if (row.operationId == poisonId) InboundProcessResult.Applied
+            else InboundProcessResult.Skipped
+        }
+        val recovered = engine.syncInbound("biz-1")
+        assertEquals(1, recovered)
+        assertEquals(listOf(poisonId, validId, poisonId, validId), inboundApplier.appliedOperationIds)
         assertEquals(validId, cursors.values.singleOrNull()?.operationId)
+    }
+
+    @Test
+    fun cursorV1IsInvalidatedSoOldRejectedEnvelopesAreRevisited() {
+        assertEquals(
+            null,
+            InboundCursorCodec.decode("1|2026-10-09T10:00:01Z|previously-rejected-operation")
+        )
     }
 
     @Test
