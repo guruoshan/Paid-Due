@@ -779,3 +779,182 @@ BEGIN
   RETURN QUERY SELECT 'ACKNOWLEDGED'::text, p_operation_id, p_canonical_sha256, true;
 END;
 $function$;
+
+
+-- Preserve the authoritative actor membership metadata in the existing download
+-- contract. The canonical sale payload contains actor_user_id but intentionally
+-- does not contain the backend membership row ID. Cashier devices must therefore
+-- be able to validate a historical Admin-authored sale without an Admin login row.
+-- The membership lookup is scoped to the envelope's immutable business and branch;
+-- it deliberately does not require the actor to remain active after the sale.
+DROP FUNCTION IF EXISTS public.fetch_financial_envelopes_v3(text, timestamptz, text, integer);
+CREATE FUNCTION public.fetch_financial_envelopes_v3(
+  p_business_id text,
+  p_after_received_at timestamptz DEFAULT NULL,
+  p_after_operation_id text DEFAULT NULL,
+  p_limit integer DEFAULT 100
+)
+RETURNS TABLE(
+  operation_id text,
+  business_id text,
+  branch_id text,
+  operation_type text,
+  occurred_at timestamptz,
+  received_at timestamptz,
+  canonical_text text,
+  canonical_payload jsonb,
+  canonical_sha256 text,
+  actor_membership_id text,
+  actor_local_user_id text,
+  actor_role text
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501';
+  END IF;
+  IF p_business_id IS NULL OR btrim(p_business_id) = ''
+     OR p_limit IS NULL OR p_limit < 1 OR p_limit > 100
+     OR ((p_after_received_at IS NULL) <> (p_after_operation_id IS NULL)) THEN
+    RAISE EXCEPTION 'Invalid envelope page request' USING ERRCODE = '22023';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.business_memberships m
+    JOIN public.businesses b ON b.id = m.business_id AND b.is_active = true
+    JOIN public.branches br
+      ON br.id = m.branch_id AND br.business_id = m.business_id AND br.is_active = true
+    JOIN public.profiles p ON p.auth_user_id = m.auth_user_id AND p.is_active = true
+    WHERE m.auth_user_id = v_uid
+      AND m.business_id = p_business_id
+      AND m.role = 'ADMIN'
+      AND m.is_active = true
+      AND m.removed_at IS NULL
+      AND m.staff_identity_id IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Admin authorization required' USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT e.operation_id, e.business_id, e.branch_id, e.operation_type,
+         e.occurred_at, e.received_at, e.canonical_text,
+         e.canonical_payload, e.canonical_sha256,
+         e.actor_membership_id, actor.local_user_id, actor.role
+  FROM private.financial_operation_envelopes e
+  LEFT JOIN public.business_memberships actor
+    ON actor.id = e.actor_membership_id
+   AND actor.business_id = e.business_id
+   AND actor.branch_id = e.branch_id
+  WHERE e.business_id = p_business_id
+    AND (
+      p_after_received_at IS NULL
+      OR (e.received_at, e.operation_id) > (p_after_received_at, p_after_operation_id)
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM public.business_memberships m
+      WHERE m.auth_user_id = v_uid
+        AND m.business_id = e.business_id
+        AND m.branch_id = e.branch_id
+        AND m.role = 'ADMIN'
+        AND m.is_active = true
+        AND m.removed_at IS NULL
+        AND m.staff_identity_id IS NULL
+    )
+  ORDER BY e.received_at, e.operation_id
+  LIMIT p_limit;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.fetch_financial_envelopes_v3(text, timestamptz, text, integer)
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.fetch_financial_envelopes_v3(text, timestamptz, text, integer)
+  TO authenticated;
+
+DROP FUNCTION IF EXISTS public.fetch_cashier_financial_envelopes_v2(text, text, text, timestamptz, text, integer);
+CREATE FUNCTION public.fetch_cashier_financial_envelopes_v2(
+  p_business_id text,
+  p_branch_id text,
+  p_membership_id text,
+  p_after_received_at timestamptz DEFAULT NULL,
+  p_after_operation_id text DEFAULT NULL,
+  p_limit integer DEFAULT 100
+)
+RETURNS TABLE(
+  operation_id text,
+  business_id text,
+  branch_id text,
+  operation_type text,
+  occurred_at timestamptz,
+  received_at timestamptz,
+  canonical_text text,
+  canonical_payload jsonb,
+  canonical_sha256 text,
+  actor_membership_id text,
+  actor_local_user_id text,
+  actor_role text
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+BEGIN
+  IF p_business_id IS NULL OR btrim(p_business_id) = ''
+     OR p_branch_id IS NULL OR btrim(p_branch_id) = ''
+     OR p_membership_id IS NULL OR btrim(p_membership_id) = ''
+     OR p_limit IS NULL OR p_limit < 1 OR p_limit > 100
+     OR ((p_after_received_at IS NULL) <> (p_after_operation_id IS NULL)) THEN
+    RAISE EXCEPTION 'Invalid envelope page request' USING ERRCODE = '22023';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.business_memberships m
+    JOIN private.staff_identities s
+      ON s.id = m.staff_identity_id AND s.is_active = true
+    JOIN public.businesses b ON b.id = m.business_id AND b.is_active = true
+    JOIN public.branches br
+      ON br.id = m.branch_id
+     AND br.business_id = m.business_id
+     AND br.is_active = true
+    WHERE m.id = p_membership_id
+      AND m.business_id = p_business_id
+      AND m.branch_id = p_branch_id
+      AND m.role = 'CASHIER'
+      AND m.is_active = true
+      AND m.removed_at IS NULL
+      AND m.staff_identity_id IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'Cashier authorization required' USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT e.operation_id, e.business_id, e.branch_id, e.operation_type,
+         e.occurred_at, e.received_at, e.canonical_text,
+         e.canonical_payload, e.canonical_sha256,
+         e.actor_membership_id, actor.local_user_id, actor.role
+  FROM private.financial_operation_envelopes e
+  LEFT JOIN public.business_memberships actor
+    ON actor.id = e.actor_membership_id
+   AND actor.business_id = e.business_id
+   AND actor.branch_id = e.branch_id
+  WHERE e.business_id = p_business_id
+    AND e.branch_id = p_branch_id
+    AND (
+      p_after_received_at IS NULL
+      OR (e.received_at, e.operation_id) > (p_after_received_at, p_after_operation_id)
+    )
+  ORDER BY e.received_at, e.operation_id
+  LIMIT p_limit;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.fetch_cashier_financial_envelopes_v2(text, text, text, timestamptz, text, integer)
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.fetch_cashier_financial_envelopes_v2(text, text, text, timestamptz, text, integer)
+  TO service_role;
