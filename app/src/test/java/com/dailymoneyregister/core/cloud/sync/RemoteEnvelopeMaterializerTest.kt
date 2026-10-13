@@ -125,6 +125,9 @@ class RemoteEnvelopeMaterializerTest {
         coVerify(exactly = 1) { operationDao.insertOperationIfAbsent(any()) }
         coVerify(exactly = 1) { transactionDao.insertTransaction(any()) }
         coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
+        // The remote identity projection, not a locally installed cashier account,
+        // is sufficient to validate the actor and replay the immutable sale.
+        coVerify(exactly = 0) { userDao.getUserByIdInBusiness(actorUserId, businessId) }
     }
 
     @Test
