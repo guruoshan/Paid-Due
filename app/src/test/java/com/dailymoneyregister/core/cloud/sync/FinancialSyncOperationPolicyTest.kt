@@ -17,6 +17,10 @@ class FinancialSyncOperationPolicyTest {
             FinancialSyncOperationPolicy.initialState(UserRole.CASHIER, OperationType.RECORD_EXPENSE)
         )
         assertEquals(
+            FinancialSyncDeliveryState.QUEUED,
+            FinancialSyncOperationPolicy.initialState(UserRole.CASHIER, OperationType.CLOSE_CASH_SHIFT)
+        )
+        assertEquals(
             FinancialSyncDeliveryState.NOT_APPLICABLE,
             FinancialSyncOperationPolicy.initialState(UserRole.ADMIN, OperationType.CREATE_CASHIER)
         )
