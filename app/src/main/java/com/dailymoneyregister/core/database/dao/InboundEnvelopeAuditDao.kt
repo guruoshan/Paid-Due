@@ -12,9 +12,12 @@ interface InboundEnvelopeAuditDao {
     suspend fun append(event: InboundEnvelopeAuditEventEntity)
 
     @Query("""
-        SELECT EXISTS(
-            SELECT 1 FROM inbound_envelope_audit_events
+        SELECT (
+            SELECT COUNT(*) FROM inbound_envelope_audit_events
             WHERE operation_id = :operationId AND event_type = 'REJECTED'
+        ) > (
+            SELECT COUNT(*) FROM inbound_envelope_audit_events
+            WHERE operation_id = :operationId AND event_type = 'RECOVERED'
         )
     """)
     suspend fun hasRejection(operationId: String): Boolean
