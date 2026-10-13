@@ -47,9 +47,14 @@ jobs:
         run: |
           set -euo pipefail
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          export ANDROID_USER_HOME="$HOME/.android"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
           echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
             --name paid-due-api36 --package "system-images;android-36;google_apis;x86_64" \
             --device pixel_2 --force
+          "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" list avd
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fx "paid-due-api36"
           adb start-server
           nohup "$ANDROID_HOME/emulator/emulator" -avd paid-due-api36 \
             -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel auto \
