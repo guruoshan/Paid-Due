@@ -34,7 +34,6 @@ data class CashierPermissionsConfig(
     val canCorrectAmount: Boolean = false,
     val canChangePaymentMethod: Boolean = false,
     val canViewBroadHistory: Boolean = false,
-    val canAccessCustomerDirectory: Boolean = false,
     val canManageProducts: Boolean = false,
     val canViewReports: Boolean = false
 )
@@ -359,7 +358,6 @@ class CashierManagementRepository @Inject constructor(
                 canCorrectAmount = permissions.canCorrectAmount,
                 canChangePaymentMethod = permissions.canChangePaymentMethod,
                 canViewBroadHistory = permissions.canViewBroadHistory,
-                canAccessCustomerDirectory = permissions.canAccessCustomerDirectory,
                 canManageProducts = permissions.canManageProducts,
                 canViewReports = permissions.canViewReports,
                 createdAt = now
@@ -387,7 +385,6 @@ private fun Map<String, Boolean>.toCashierPermissionsConfig() = CashierPermissio
     canCorrectAmount = this["CORRECT_AMOUNT"] ?: false,
     canChangePaymentMethod = this["CHANGE_PAYMENT_METHOD"] ?: false,
     canViewBroadHistory = this["VIEW_BROAD_HISTORY"] ?: false,
-    canAccessCustomerDirectory = this["CUSTOMER_DIRECTORY_ACCESS"] ?: false,
     canManageProducts = this["MANAGE_PRODUCTS"] ?: false,
     canViewReports = this["VIEW_REPORTS"] ?: false
 )
@@ -405,7 +402,6 @@ private fun CashierPermissionsConfig.toRemotePermissionMap(): Map<String, Boolea
     "CORRECT_AMOUNT" to canCorrectAmount,
     "CHANGE_PAYMENT_METHOD" to canChangePaymentMethod,
     "VIEW_BROAD_HISTORY" to canViewBroadHistory,
-    "CUSTOMER_DIRECTORY_ACCESS" to canAccessCustomerDirectory,
     "MANAGE_PRODUCTS" to canManageProducts,
     "VIEW_REPORTS" to canViewReports
 )
