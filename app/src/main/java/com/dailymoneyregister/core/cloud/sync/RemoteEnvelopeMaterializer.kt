@@ -92,7 +92,7 @@ object RemoteEnvelopeMaterializer {
         val payloadActorUserId = jsonPayload.optString("actor_user_id")
         if (
             payloadActorUserId.isBlank() ||
-            !hasActorIdentity(database, payloadActorUserId, sessionBusinessId, branchId)
+            !hasActorIdentity(database, payloadActorUserId, sessionBusinessId, branchId, envelope)
         ) {
             return InboundProcessResult.Rejected("Referenced operation actor is missing from synchronized staff identities")
         }
@@ -135,7 +135,7 @@ object RemoteEnvelopeMaterializer {
                 jsonPayload.optString("actor_user_id")
             }
             if (actorUserId.isBlank() ||
-                !hasActorIdentity(database, actorUserId, sessionBusinessId, branchId)
+                !hasActorIdentity(database, actorUserId, sessionBusinessId, branchId, envelope)
             ) {
                 return InboundProcessResult.Rejected("Referenced expense actor is missing from synchronized staff identities")
             }
@@ -228,13 +228,13 @@ object RemoteEnvelopeMaterializer {
         if (actorUserId.isBlank()) {
             return InboundProcessResult.Rejected("Actor user ID is missing")
         }
-        if (!hasActorIdentity(database, actorUserId, sessionBusinessId, branchId)) {
+        if (!hasActorIdentity(database, actorUserId, sessionBusinessId, branchId, envelope)) {
             return InboundProcessResult.Rejected(
                 "Referenced actor user '$actorUserId' is missing from synchronized staff identities"
             )
         }
         val createdByUserId = tJson.optString("created_by_user_id").ifBlank { actorUserId }
-        if (!hasActorIdentity(database, createdByUserId, sessionBusinessId, branchId)) {
+        if (!hasActorIdentity(database, createdByUserId, sessionBusinessId, branchId, envelope)) {
             return InboundProcessResult.Rejected(
                 "Referenced transaction user '$createdByUserId' is missing from synchronized staff identities"
             )
@@ -320,7 +320,7 @@ object RemoteEnvelopeMaterializer {
                 return InboundProcessResult.Rejected("Correction/reclassification settlement cannot be zero")
             }
             val settlementActor = settlement.optString("actor_user_id").ifBlank { actorUserId }
-            if (!hasActorIdentity(database, settlementActor, sessionBusinessId, branchId)) {
+            if (!hasActorIdentity(database, settlementActor, sessionBusinessId, branchId, envelope)) {
                 return InboundProcessResult.Rejected(
                     "Referenced settlement user '$settlementActor' is missing from synchronized staff identities"
                 )
@@ -582,8 +582,23 @@ object RemoteEnvelopeMaterializer {
         database: DmrDatabase,
         actorUserId: String,
         businessId: String,
-        branchId: String
+        branchId: String,
+        envelope: RemoteEnvelopeV2? = null
     ): Boolean {
+        // The download RPC returns actor membership metadata from the immutable
+        // server envelope row, joined to a membership in this exact business/branch.
+        // Ingest validated its local_user_id against canonical actor_user_id. This
+        // permits historical Admin-authored sales on Cashier devices without creating
+        // a second local Admin login, while still rejecting absent/mismatched metadata.
+        if (
+            envelope != null &&
+            !envelope.actorMembershipId.isNullOrBlank() &&
+            envelope.actorLocalUserId == actorUserId &&
+            envelope.actorRole in setOf("ADMIN", "CASHIER") &&
+            envelope.businessId == businessId &&
+            envelope.branchId == branchId
+        ) return true
+
         // A synchronized cloud identity is authoritative when present, including
         // inactive/removed tombstones. Never let a stale local login row override revocation.
         val cloudIdentity = database.cloudStaffIdentityDao()
