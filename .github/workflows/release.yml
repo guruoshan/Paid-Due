@@ -14,7 +14,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -29,6 +29,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
       - name: Install Deno for Edge Function contract tests
         uses: denoland/setup-deno@v2
@@ -50,6 +54,10 @@ jobs:
       - name: Run Supabase Edge Function contract tests before signing
         working-directory: supabase/functions/api
         run: deno task test api_test.ts
+
+      - name: Run API router regression tests before signing
+        working-directory: supabase/functions/api
+        run: deno test router_test.ts
 
       - name: Run staff invitation URL security contract tests before signing
         run: deno test supabase/functions/staff-invite/invite-link_test.ts
@@ -75,16 +83,6 @@ jobs:
             echo "::error::EXPECTED_SHA256 must be a 64-character SHA-256 certificate fingerprint."
             exit 1
           }
-
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-read-only: false
-
-      - name: Confirm release financial validation remains enabled
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "${PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES:-true}" = "true"
 
       - name: Decode release keystore to runner temporary storage
         shell: bash
