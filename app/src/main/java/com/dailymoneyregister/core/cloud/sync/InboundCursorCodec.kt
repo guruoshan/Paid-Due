@@ -7,7 +7,7 @@ internal data class VersionedInboundCursor(
 )
 
 internal object InboundCursorCodec {
-    const val CURRENT_MATERIALIZER_VERSION = 1
+    const val CURRENT_MATERIALIZER_VERSION = 2
 
     fun encode(cursor: VersionedInboundCursor): String =
         "${cursor.materializerVersion}|${cursor.receivedAtIso}|${cursor.operationId}"
