@@ -6,8 +6,11 @@ DECLARE
   v_admin_uid uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   v_occurred_at timestamptz := '2026-10-09 10:00:00+00'::timestamptz;
   v_payload jsonb;
+  v_bad_payload jsonb;
   v_canonical_text text;
+  v_bad_canonical_text text;
   v_digest text;
+  v_bad_digest text;
   v_result record;
   v_rejected boolean;
   v_count bigint;
@@ -154,6 +157,9 @@ BEGIN
     RAISE EXCEPTION 'Replay must persist exactly one financial envelope';
   END IF;
 
+  v_bad_payload := v_payload || jsonb_build_object('operation_id', 'release-blocker-bad-date-test');
+  v_bad_canonical_text := v_bad_payload::text;
+  v_bad_digest := encode(extensions.digest(convert_to(v_bad_canonical_text, 'UTF8'), 'sha256'), 'hex');
   v_rejected := false;
   BEGIN
     PERFORM *
@@ -161,7 +167,7 @@ BEGIN
       'biz-test', 'release-blocker-bad-date-test', 'branch-test', 'membership-test',
       'release-blocker-device', 'RECORD_SALE', 1, v_occurred_at, 'Asia/Muscat',
       date '2026-10-08',
-      v_canonical_text, v_digest, v_payload || jsonb_build_object('operation_id', 'release-blocker-bad-date-test')
+      v_bad_canonical_text, v_bad_digest, v_bad_payload
     );
   EXCEPTION WHEN OTHERS THEN
     v_rejected := true;
