@@ -92,9 +92,9 @@ object RemoteEnvelopeMaterializer {
         val payloadActorUserId = jsonPayload.optString("actor_user_id")
         if (
             payloadActorUserId.isBlank() ||
-            database.userDao().getUserByIdInBusiness(payloadActorUserId, sessionBusinessId) == null
+            !hasActorIdentity(database, payloadActorUserId, sessionBusinessId, branchId)
         ) {
-            return InboundProcessResult.Rejected("Referenced operation actor is missing locally")
+            return InboundProcessResult.Rejected("Referenced operation actor is missing from synchronized staff identities")
         }
 
         // A duplicate operation ID is only a replay when its immutable identity
@@ -135,9 +135,9 @@ object RemoteEnvelopeMaterializer {
                 jsonPayload.optString("actor_user_id")
             }
             if (actorUserId.isBlank() ||
-                database.userDao().getUserByIdInBusiness(actorUserId, sessionBusinessId) == null
+                !hasActorIdentity(database, actorUserId, sessionBusinessId, branchId)
             ) {
-                return InboundProcessResult.Rejected("Referenced expense actor is missing locally")
+                return InboundProcessResult.Rejected("Referenced expense actor is missing from synchronized staff identities")
             }
             val branch = database.businessBranchDao().getBranchById(branchId)
                 ?: return InboundProcessResult.Rejected("Referenced branch '$branchId' is missing locally")
@@ -569,6 +569,19 @@ object RemoteEnvelopeMaterializer {
 
             InboundProcessResult.Applied
         }
+    }
+
+    private suspend fun hasActorIdentity(
+        database: DmrDatabase,
+        actorUserId: String,
+        businessId: String,
+        branchId: String
+    ): Boolean {
+        val localActor = database.userDao().getUserByIdInBusiness(actorUserId, businessId)
+        if (localActor != null && localActor.role.name == "ADMIN") return true
+        if (localActor != null && database.userDao().getMembership(actorUserId, branchId) != null) return true
+        return database.cloudStaffIdentityDao()
+            .findIdentity(actorUserId, businessId, branchId) != null
     }
 
     private fun normalizeJson(value: Any?): Any? = when (value) {
