@@ -496,13 +496,14 @@ class FinancialSyncEngine @Inject constructor(
      * Existing applied operations are protected by operation-ID/fingerprint
      * idempotency checks; the original envelope is never edited.
      */
-    fun requestInboundReplayForRecovery(businessId: String, adminAccountId: String) {
-        clearStoredCursor(businessId, adminAccountId)
-        Log.w(
-            "PaidDueFinancialSync",
-            "INBOUND_RECOVERY_REQUESTED business=$businessId admin=$adminAccountId"
-        )
-    }
+    suspend fun requestInboundReplayForRecovery(businessId: String, adminAccountId: String) =
+        syncMutex.withLock {
+            clearStoredCursor(businessId, adminAccountId)
+            Log.w(
+                "PaidDueFinancialSync",
+                "INBOUND_RECOVERY_REQUESTED business=$businessId admin=$adminAccountId"
+            )
+        }
 
     private fun reportInboundRejection(operationId: String, reason: String) {
         val message = "Inbound operation $operationId was rejected: $reason"
