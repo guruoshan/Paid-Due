@@ -67,21 +67,21 @@ class CashierMetadataSynchronizer @Inject constructor(
                     return@withContext false
                 }
             val refreshed = current.copy(
-                canCreateSale = permissions.optBoolean("can_create_sale", current.canCreateSale),
-                canAcceptCash = permissions.optBoolean("can_accept_cash", current.canAcceptCash),
-                canAcceptOnline = permissions.optBoolean("can_accept_online", current.canAcceptOnline),
-                canCreateCreditSale = permissions.optBoolean("can_create_credit_sale", current.canCreateCreditSale),
-                canUseCoupon = permissions.optBoolean("can_use_coupon", current.canUseCoupon),
-                canIssueInvoice = permissions.optBoolean("can_issue_invoice", current.canIssueInvoice),
-                canIssueReceipt = permissions.optBoolean("can_issue_receipt", current.canIssueReceipt),
-                canRefund = permissions.optBoolean("can_refund", current.canRefund),
-                canVoid = permissions.optBoolean("can_void", current.canVoid),
-                canCorrectAmount = permissions.optBoolean("can_correct_amount", current.canCorrectAmount),
-                canChangePaymentMethod = permissions.optBoolean("can_change_payment_method", current.canChangePaymentMethod),
-                canViewBroadHistory = permissions.optBoolean("can_view_broad_history", current.canViewBroadHistory),
+                canCreateSale = permissions.optBoolean("can_create_sale", false),
+                canAcceptCash = permissions.optBoolean("can_accept_cash", false),
+                canAcceptOnline = permissions.optBoolean("can_accept_online", false),
+                canCreateCreditSale = permissions.optBoolean("can_create_credit_sale", false),
+                canUseCoupon = permissions.optBoolean("can_use_coupon", false),
+                canIssueInvoice = permissions.optBoolean("can_issue_invoice", false),
+                canIssueReceipt = permissions.optBoolean("can_issue_receipt", false),
+                canRefund = permissions.optBoolean("can_refund", false),
+                canVoid = permissions.optBoolean("can_void", false),
+                canCorrectAmount = permissions.optBoolean("can_correct_amount", false),
+                canChangePaymentMethod = permissions.optBoolean("can_change_payment_method", false),
+                canViewBroadHistory = permissions.optBoolean("can_view_broad_history", false),
                 canAccessCustomerDirectory = permissions.optBoolean("can_access_customer_directory", false),
-                canManageProducts = permissions.optBoolean("can_manage_products", current.canManageProducts),
-                canViewReports = permissions.optBoolean("can_view_reports", current.canViewReports)
+                canManageProducts = permissions.optBoolean("can_manage_products", false),
+                canViewReports = permissions.optBoolean("can_view_reports", false)
             )
             database.userDao().updateMembership(refreshed)
             true
