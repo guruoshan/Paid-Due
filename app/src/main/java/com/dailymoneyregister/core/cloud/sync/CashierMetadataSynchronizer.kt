@@ -12,6 +12,32 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
+
+/**
+ * Keep Android permission refresh pinned to the production 14-key contract.
+ * Missing, extra, or non-boolean keys are a schema mismatch, not implicit grants.
+ */
+internal fun hasCompatibleCashierPermissionSchema(permissions: JSONObject): Boolean {
+    val expectedKeys = setOf(
+        "can_create_sale",
+        "can_accept_cash",
+        "can_accept_online",
+        "can_create_credit_sale",
+        "can_use_coupon",
+        "can_issue_invoice",
+        "can_issue_receipt",
+        "can_refund",
+        "can_void",
+        "can_correct_amount",
+        "can_change_payment_method",
+        "can_view_broad_history",
+        "can_manage_products",
+        "can_view_reports"
+    )
+    val actualKeys = permissions.keys().asSequence().toSet()
+    return actualKeys == expectedKeys && actualKeys.all { permissions.opt(it) is Boolean }
+}
+
 /**
  * Refreshes the active cashier's authoritative membership scope and permissions.
  * Network failures defer sync; revoked, moved, or role-changed memberships fail closed.
@@ -61,6 +87,11 @@ class CashierMetadataSynchronizer @Inject constructor(
             }
             val permissions = row.optJSONObject("permissions")
                 ?: return@withContext false
+            if (!hasCompatibleCashierPermissionSchema(permissions)) {
+                // A backend schema drift must not leave stale privileges active.
+                SessionManager.clearSession()
+                return@withContext false
+            }
             val current = database.userDao().getMembership(session.user.id, session.branch.id)
                 ?: run {
                     SessionManager.clearSession()
