@@ -594,7 +594,7 @@ object RemoteEnvelopeMaterializer {
             envelope != null &&
             !envelope.actorMembershipId.isNullOrBlank() &&
             envelope.actorLocalUserId == actorUserId &&
-            envelope.actorRole in setOf("ADMIN", "CASHIER") &&
+            (envelope.actorRole == "ADMIN" || envelope.actorRole == "CASHIER") &&
             envelope.businessId == businessId &&
             envelope.branchId == branchId
         ) return true
