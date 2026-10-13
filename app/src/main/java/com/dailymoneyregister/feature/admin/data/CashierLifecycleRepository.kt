@@ -241,6 +241,7 @@ class CashierLifecycleRepository @Inject constructor(
                         canCorrectAmount = perms.canCorrectAmount,
                         canChangePaymentMethod = perms.canChangePaymentMethod,
                         canViewBroadHistory = perms.canViewBroadHistory,
+                        canAccessCustomerDirectory = perms.canAccessCustomerDirectory,
                         canManageProducts = perms.canManageProducts,
                         canViewReports = perms.canViewReports
                     )
