@@ -42,11 +42,11 @@ class FinancialEvidenceMigrationG4BTest {
     )
 
     @Test
-    fun populatedCreditCouponRefundEvidenceSurvivesEncrypted12To14() {
+    fun populatedCreditCouponRefundEvidenceSurvivesEncrypted12To15() {
         val context: Context =
             InstrumentationRegistry.getInstrumentation().targetContext
 
-        val name = "boardlock_g4b_evidence_v12_to_v13.db"
+        val name = "boardlock_g4b_evidence_v12_to_v15.db"
         require(name != "daily_money_register.db")
 
         val key = ByteArray(32) { (it + 91).toByte() }
@@ -316,7 +316,7 @@ class FinancialEvidenceMigrationG4BTest {
                 )
             )
 
-            // Open the encrypted database through the current Room v14 migration chain.
+            // Open the encrypted database through the current Room v15 migration chain.
             room = Room.databaseBuilder(
                 context,
                 DmrDatabase::class.java,
@@ -325,7 +325,7 @@ class FinancialEvidenceMigrationG4BTest {
                 .openHelperFactory(
                     SupportOpenHelperFactory(key.copyOf())
                 )
-                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14)
+                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14, DmrDatabase.MIGRATION_14_15)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()
@@ -334,7 +334,7 @@ class FinancialEvidenceMigrationG4BTest {
 
             current.query("PRAGMA user_version").use {
                 assertTrue(it.moveToFirst())
-                assertEquals(14, it.getInt(0))
+                assertEquals(15, it.getInt(0))
             }
 
             verifyForeignKeys(current)
@@ -372,7 +372,7 @@ class FinancialEvidenceMigrationG4BTest {
                 .openHelperFactory(
                     SupportOpenHelperFactory(key.copyOf())
                 )
-                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14)
+                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14, DmrDatabase.MIGRATION_14_15)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()
