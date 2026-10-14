@@ -39,7 +39,51 @@ jobs:
         with:
           cache-read-only: false
 
-      - name: Run unit, emulator instrumentation, and release compile checks
+      - name: Prepare Android SDK and executable Gradle wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          set -o pipefail
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "emulator" "system-images;android-36;google_apis;x86_64"
+          ln -sfn "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
+
+      - name: Start isolated Android API 36 emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          export ANDROID_USER_HOME="$HOME/.android"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --name paid-due-api36 --package "system-images;android-36;google_apis;x86_64" \
+            --device pixel_2 --force
+          adb start-server
+          if [[ -e /dev/kvm ]]; then sudo chmod 666 /dev/kvm; fi
+          nohup "$ANDROID_HOME/emulator/emulator" -avd paid-due-api36 \
+            -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel auto \
+            > "$RUNNER_TEMP/paid-due-emulator.log" 2>&1 &
+          if ! timeout 180 adb wait-for-device; then
+            cat "$RUNNER_TEMP/paid-due-emulator.log" || true
+            echo "::error::Android emulator never registered with adb."
+            exit 1
+          fi
+          booted=""
+          for attempt in $(seq 1 90); do
+            booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r')"
+            [[ "$booted" == "1" ]] && break
+            sleep 5
+          done
+          [[ "$booted" == "1" ]] || {
+            cat "$RUNNER_TEMP/paid-due-emulator.log"
+            echo "::error::Android emulator did not finish booting."
+            exit 1
+          }
+
+      - name: Run unit and emulator instrumentation tests plus release compile
         run: ./gradlew --no-daemon :app:testDebugUnitTest :app:connectedDebugAndroidTest :app:compileReleaseKotlin
 
       - name: Build unsigned release APK (no signing secrets in this job)
