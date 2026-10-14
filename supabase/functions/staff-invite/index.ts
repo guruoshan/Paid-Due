@@ -101,7 +101,8 @@ Deno.serve(async (request: Request) => {
         typeof created[0]?.invite_id !== "string" || typeof created[0]?.expires_at !== "string") {
       throw new Error("INVITE_CREATE_RESULT_INVALID");
     }
-    // GitHub Pages serves the static landing page; keep the raw token in the fragment.
+    // The public landing page is static GitHub Pages. Supabase Edge Functions
+    // do not serve browser HTML reliably; the token stays in the URL fragment.
     const inviteUrl = buildStaffInviteUrl(token);
     return json({ outcome: "INVITATION_CREATED", invite_url: inviteUrl, expires_at: created[0].expires_at });
   } catch (error) {

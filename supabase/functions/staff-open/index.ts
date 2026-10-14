@@ -1,21 +1,23 @@
-const headers = {
+const HTML_HEADERS = {
   "Content-Type": "text/html; charset=utf-8",
-  "Cache-Control": "no-store, max-age=0",
+  "Content-Disposition": "inline; filename=\"staff-open.html\"",
+  "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+  "Pragma": "no-cache",
   "X-Content-Type-Options": "nosniff",
+  "X-Staff-Open-Version": "11",
   "Referrer-Policy": "no-referrer",
   "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
 };
 
 Deno.serve((request: Request) => {
-  if (request.method !== "GET") {
-    return new Response("Method not allowed", {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return new Response("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Paid&amp;Due invitation</title></head><body><main><h1>Paid&amp;Due</h1><p>This page only supports opening an invitation link in a browser.</p></main></body></html>", {
       status: 405,
-      headers: { ...headers, "Content-Type": "text/plain; charset=utf-8", "Allow": "GET" },
+      headers: { ...HTML_HEADERS, "Allow": "GET, HEAD" },
     });
   }
 
-  // Invitation tokens stay in the URL fragment. Browsers do not send fragments
-  // in HTTP requests, so the token is not exposed in this function's request URL.
+  // The invitation token remains in the URL fragment, so it is not sent to the server.
   const body = `<!doctype html>
 <html lang="en">
 <head>
@@ -57,9 +59,6 @@ p{line-height:1.5;color:#555}
   button.hidden = false;
   message.textContent = "Your administrator invited you to join Paid&Due.";
   status.textContent = "Tap Open Paid&Due to create your six-digit PIN.";
-
-  // Deliberately do not auto-redirect. Browsers may block external-app launches
-  // without a user gesture; the visible link is the supported handoff path.
   button.addEventListener("click", function () {
     status.textContent = "Opening Paid&Due…";
   });
@@ -67,5 +66,8 @@ p{line-height:1.5;color:#555}
 </script>
 </body>
 </html>`;
-  return new Response(body, { status: 200, headers });
+  return new Response(request.method === "HEAD" ? null : body, {
+    status: 200,
+    headers: HTML_HEADERS,
+  });
 });
