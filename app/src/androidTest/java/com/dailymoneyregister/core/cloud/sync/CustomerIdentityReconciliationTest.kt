@@ -116,8 +116,6 @@ class CustomerIdentityReconciliationTest {
             updatedAt = 100
         )
     }
-}
-
 
     @Test
     fun authoritativeDirectoryIdReconcilesAnEarlierEnvelopeAlias() = runBlocking {
@@ -165,3 +163,4 @@ class CustomerIdentityReconciliationTest {
             )
         )
     }
+}
