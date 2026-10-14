@@ -59,7 +59,12 @@ jobs:
           arch: x86_64
           profile: Pixel_2
           script: |
+            # Verify the 12 -> 13 migration path.
             ./gradlew --no-daemon --stacktrace :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.dailymoneyregister.FinancialSyncOutboxV13Test
+            # Verify the 13 -> 14 migration path.
+            ./gradlew --no-daemon --stacktrace :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.dailymoneyregister.DatabaseMigrationTest#migration13To14CreatesCustomerIdentityAliasesAndIndexes
+            # Verify populated encrypted data survives the full 12 -> 14 path.
+            ./gradlew --no-daemon --stacktrace :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.dailymoneyregister.core.database.security.FinancialEvidenceMigrationG4BTest
 
 
       - name: Assemble debug APK
