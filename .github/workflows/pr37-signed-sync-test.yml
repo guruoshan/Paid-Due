@@ -1,0 +1,118 @@
+name: PR 37 signed sync-test APK (no release)
+
+on:
+  push:
+    branches:
+      - fix/production-readiness-financial-sync
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: pr37-signed-sync-test-apk
+  cancel-in-progress: false
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES: "true"
+    steps:
+      - name: Checkout PR 37 branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: fix/production-readiness-financial-sync
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
+      - name: Run unit, emulator instrumentation, and release compile checks
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:connectedDebugAndroidTest :app:compileReleaseKotlin
+
+      - name: Build unsigned release APK (no signing secrets in this job)
+        run: ./gradlew --no-daemon :app:assembleRelease
+
+      - name: Upload unsigned release APK for isolated signing
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr37-unsigned-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 2
+
+  sign-test-apk:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    steps:
+      - name: Download unsigned release APK
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.5
+        with:
+          name: pr37-unsigned-release-apk
+          path: unsigned
+
+      - name: Sign APK and verify the expected production certificate
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          EXPECTED_SHA256: ${{ vars.EXPECTED_SHA256 }}
+        run: |
+          set -euo pipefail
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD EXPECTED_SHA256; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Required signing configuration $name is missing."
+              exit 1
+            fi
+          done
+          normalized="$(printf '%s' "$EXPECTED_SHA256" | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          [[ "$normalized" =~ ^[0-9A-F]{64}$ ]] || { echo "::error::EXPECTED_SHA256 is not a valid SHA-256 fingerprint."; exit 1; }
+
+          apk_path="$(find unsigned -type f -name '*.apk' -print -quit)"
+          test -n "$apk_path" && test -s "$apk_path"
+          umask 077
+          key_path="$RUNNER_TEMP/paid-due-release.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$key_path"
+          test -s "$key_path"
+
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -n 1)"
+          test -x "$apksigner"
+          mkdir -p signed
+          "$apksigner" sign --ks "$key_path" --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEY_PASSWORD \
+            --out signed/paid-due-pr37-sync-test.apk "$apk_path"
+          signer_output="$("$apksigner" verify --verbose --print-certs signed/paid-due-pr37-sync-test.apk)"
+          printf '%s\n' "$signer_output"
+          actual="$(printf '%s\n' "$signer_output" | awk -F': ' '/certificate SHA-256 digest:/ {print $NF; exit}' | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          [[ "$actual" =~ ^[0-9A-F]{64}$ && "$actual" == "$normalized" ]] || {
+            echo "::error::Signed APK certificate does not match EXPECTED_SHA256."
+            exit 1
+          }
+          rm -f "$key_path"
+          unset KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD
+
+      - name: Upload verified signed test APK (does not publish a GitHub Release)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr37-signed-sync-test-apk
+          path: signed/paid-due-pr37-sync-test.apk
+          if-no-files-found: error
+          retention-days: 7
