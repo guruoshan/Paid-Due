@@ -45,6 +45,13 @@ DECLARE
   v_count integer;
   v_list regprocedure := 'public.list_admin_cashiers()'::regprocedure;
   v_ingest regprocedure := 'public.ingest_financial_envelope(text,text,text,text,text,text,integer,timestamptz,text,date,text,text,jsonb)'::regprocedure;
+  v_payload jsonb;
+  v_collision_payload jsonb;
+  v_canonical_text text;
+  v_digest text;
+  v_occurred_at timestamptz;
+  v_local_date date;
+  v_result record;
 BEGIN
   PERFORM set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
 
@@ -83,5 +90,64 @@ BEGIN
      OR has_function_privilege('anon', v_ingest, 'EXECUTE') THEN
     RAISE EXCEPTION 'ingest_financial_envelope execute grants differ from deployed policy';
   END IF;
+
+  -- Validate the deployed uppercase acknowledgement contract, duplicate replay,
+  -- and collision rejection so a source-capture migration cannot regress sync.
+  v_occurred_at := clock_timestamp() - interval '1 second';
+  v_local_date := (v_occurred_at AT TIME ZONE 'UTC')::date;
+  v_payload := jsonb_build_object(
+    'operation_id', 'source-capture-test-op',
+    'business_id', 'biz-test'
+  );
+  v_canonical_text := v_payload::text;
+  v_digest := encode(extensions.digest(convert_to(v_canonical_text, 'UTF8'), 'sha256'), 'hex');
+
+  SELECT * INTO v_result
+  FROM public.ingest_financial_envelope(
+    'biz-test', 'source-capture-test-op', 'branch-test', 'admin-membership-test',
+    'source-capture-device', 'CLOSE_CASH_SHIFT', 1, v_occurred_at, 'UTC',
+    v_local_date, v_canonical_text, v_digest, v_payload
+  );
+  IF v_result.status <> 'ACKNOWLEDGED' OR v_result.duplicate THEN
+    RAISE EXCEPTION 'First financial-envelope upload must be ACKNOWLEDGED and non-duplicate';
+  END IF;
+
+  SELECT * INTO v_result
+  FROM public.ingest_financial_envelope(
+    'biz-test', 'source-capture-test-op', 'branch-test', 'admin-membership-test',
+    'source-capture-device', 'CLOSE_CASH_SHIFT', 1, v_occurred_at, 'UTC',
+    v_local_date, v_canonical_text, v_digest, v_payload
+  );
+  IF v_result.status <> 'ACKNOWLEDGED' OR NOT v_result.duplicate THEN
+    RAISE EXCEPTION 'Exact financial-envelope replay must be ACKNOWLEDGED as duplicate';
+  END IF;
+
+  v_collision_payload := jsonb_build_object(
+    'operation_id', 'source-capture-test-op',
+    'business_id', 'biz-test',
+    'collision', true
+  );
+  v_canonical_text := v_collision_payload::text;
+  v_digest := encode(extensions.digest(convert_to(v_canonical_text, 'UTF8'), 'sha256'), 'hex');
+  BEGIN
+    SELECT * INTO v_result
+    FROM public.ingest_financial_envelope(
+      'biz-test', 'source-capture-test-op', 'branch-test', 'admin-membership-test',
+      'source-capture-device', 'CLOSE_CASH_SHIFT', 1, v_occurred_at, 'UTC',
+      v_local_date, v_canonical_text, v_digest, v_collision_payload
+    );
+    RAISE EXCEPTION 'Expected OPERATION_COLLISION';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'OPERATION_COLLISION' THEN
+      RAISE;
+    END IF;
+  END;
+
+  SELECT count(*) INTO v_count
+  FROM private.financial_operation_envelopes
+  WHERE business_id = 'biz-test' AND operation_id = 'source-capture-test-op';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'Idempotent upload/collision handling changed financial envelope count';
+  END IF;
 END;
-$$;
+$;
