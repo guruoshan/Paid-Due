@@ -1,6 +1,7 @@
 package com.dailymoneyregister.core.cloud.sync
 
 import android.content.Context
+import kotlinx.coroutines.runBlocking
 import androidx.test.core.app.ApplicationProvider
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.BranchEntity
@@ -39,7 +40,7 @@ class CashierPermissionMetadataRefresherTest {
     }
 
     @Test
-    fun allFourteenFlagsUpdateWithoutClearingActiveSession() {
+    fun allFourteenFlagsUpdateWithoutClearingActiveSession() = runBlocking {
         val business = BusinessEntity("business-a", "Business A", 1, 1)
         val branch = BranchEntity(
             id = "branch-a",
