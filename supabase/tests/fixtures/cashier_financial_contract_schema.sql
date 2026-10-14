@@ -11,7 +11,21 @@ CREATE TABLE public.businesses (
 CREATE TABLE public.branches (
   id text PRIMARY KEY,
   business_id text NOT NULL REFERENCES public.businesses(id),
-  is_active boolean NOT NULL DEFAULT true
+  name text NOT NULL DEFAULT 'Test Branch',
+  code text NOT NULL DEFAULT 'TEST',
+  country_code text NOT NULL DEFAULT 'OM',
+  currency_code text NOT NULL DEFAULT 'OMR',
+  currency_decimal_places integer NOT NULL DEFAULT 3,
+  currency_symbol text NOT NULL DEFAULT 'OMR',
+  timezone_id text NOT NULL DEFAULT 'UTC',
+  tax_rounding_mode text NOT NULL DEFAULT 'HALF_UP',
+  default_tax_rate_bps integer NOT NULL DEFAULT 0,
+  address text,
+  phone text,
+  tax_registration_number text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE private.staff_identities (
   id uuid PRIMARY KEY,
