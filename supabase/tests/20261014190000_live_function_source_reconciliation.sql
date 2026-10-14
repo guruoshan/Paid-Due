@@ -150,4 +150,4 @@ BEGIN
     RAISE EXCEPTION 'Idempotent upload/collision handling changed financial envelope count';
   END IF;
 END;
-$;
+$$;
