@@ -316,7 +316,7 @@ class FinancialEvidenceMigrationG4BTest {
                 )
             )
 
-            // Open the encrypted database as Room v13.
+            // Open the encrypted database through both migrations to Room v14.
             room = Room.databaseBuilder(
                 context,
                 DmrDatabase::class.java,
@@ -334,7 +334,7 @@ class FinancialEvidenceMigrationG4BTest {
 
             current.query("PRAGMA user_version").use {
                 assertTrue(it.moveToFirst())
-                assertEquals(13, it.getInt(0))
+                assertEquals(14, it.getInt(0))
             }
 
             verifyForeignKeys(current)
