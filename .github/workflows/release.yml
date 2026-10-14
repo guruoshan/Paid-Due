@@ -101,7 +101,7 @@ jobs:
       - name: Run Android financial-validation unit and instrumentation tests plus release compilation before signing
         env:
           PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES: "true"
-        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:connectedDebugAndroidTest :app:compileReleaseKotlin
+        run: ./gradlew --no-daemon --max-workers=1 :app:testDebugUnitTest :app:connectedDebugAndroidTest :app:compileReleaseKotlin
       - name: Upload Android test reports on failure
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
