@@ -84,7 +84,7 @@ jobs:
           }
 
       - name: Run unit and emulator instrumentation tests plus release compile
-        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:connectedDebugAndroidTest :app:compileReleaseKotlin
+        run: ./gradlew --no-daemon --max-workers=1 :app:testDebugUnitTest :app:connectedDebugAndroidTest :app:compileReleaseKotlin
 
       - name: Build unsigned release APK (no signing secrets in this job)
         run: ./gradlew --no-daemon :app:assembleRelease
