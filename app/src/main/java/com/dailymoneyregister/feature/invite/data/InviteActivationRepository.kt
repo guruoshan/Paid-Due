@@ -239,43 +239,6 @@ class InviteActivationRepository @Inject constructor(
                     return ActivationResult.Failed
                 }
 
-                /*
-                 * Cross-device sync needs a server Cashier session. The PIN
-                 * is only known here and at PIN login, so establish it now.
-                 * Activation is already committed; a slow or failed server
-                 * login must never undo it or hold the screen: bounded wait,
-                 * and the next PIN login retries.
-                 */
-                val cloudSession =
-                    try {
-                        kotlinx.coroutines.withTimeoutOrNull(
-                            CLOUD_SESSION_TIMEOUT_MS
-                        ) {
-                            com.dailymoneyregister.core.cloud.sync
-                                .CashierCloudSession.authenticate(
-                                    canonicalPhone =
-                                        remoteResult.activation
-                                            .canonicalPhone,
-                                    pin = pin,
-                                    expectedMembershipId =
-                                        remoteResult.activation
-                                            .membershipId
-                                )
-                        } ?: false
-                    } catch (
-                        cancelled:
-                        kotlinx.coroutines.CancellationException
-                    ) {
-                        throw cancelled
-                    } catch (_: Exception) {
-                        false
-                    }
-
-                android.util.Log.i(
-                    "PaidDueFinancialSync",
-                    "CASHIER_ACTIVATION_CLOUD_SESSION=$cloudSession"
-                )
-
                 SessionManager.setSession(
                     session
                 )
@@ -744,9 +707,4 @@ class InviteActivationRepository @Inject constructor(
     ): String =
         canonicalPhone
             .filter(Char::isDigit)
-
-    private companion object {
-        /** Upper bound on the post-activation server login (offline-safe). */
-        const val CLOUD_SESSION_TIMEOUT_MS = 8_000L
-    }
 }
