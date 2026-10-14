@@ -152,7 +152,7 @@ class FinancialSyncEncryptedMigrationG2Test {
             )
 
             // STEP 3: Open the encrypted v12 database through
-            // the current Room v14 schema with the full migration chain and callback.
+            // the current Room v15 schema with the full migration chain and callback.
             System.loadLibrary("sqlcipher")
 
             migrated = Room.databaseBuilder(
