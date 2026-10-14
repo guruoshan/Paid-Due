@@ -2276,4 +2276,54 @@ class DatabaseMigrationTest {
             }
         }
     }
+
+    @Test
+    fun migration13To14CreatesCustomerIdentityAliasesAndIndexes() {
+        val databaseName = "dmr-migration-13-14-customer-aliases-test"
+
+        migrationHelper.createDatabase(databaseName, 13).close()
+
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            databaseName,
+            14,
+            true,
+            DmrDatabase.MIGRATION_13_14
+        )
+
+        val columns = mutableSetOf<String>()
+        migrated.query("PRAGMA table_info(customer_id_aliases)").use { cursor ->
+            while (cursor.moveToNext()) {
+                columns += cursor.getString(1)
+            }
+        }
+
+        assertEquals(
+            setOf(
+                "business_id",
+                "alias_customer_id",
+                "local_customer_id",
+                "canonical_customer_id",
+                "canonical_phone",
+                "updated_at"
+            ),
+            columns
+        )
+
+        val indexes = mutableSetOf<String>()
+        migrated.query("PRAGMA index_list(customer_id_aliases)").use { cursor ->
+            while (cursor.moveToNext()) {
+                indexes += cursor.getString(1)
+            }
+        }
+
+        assertTrue("Missing business/local customer alias index",
+            "index_customer_id_aliases_business_id_local_customer_id" in indexes)
+        assertTrue("Missing business/canonical customer alias index",
+            "index_customer_id_aliases_business_id_canonical_customer_id" in indexes)
+        assertTrue("Missing business/canonical phone alias index",
+            "index_customer_id_aliases_business_id_canonical_phone" in indexes)
+
+        migrated.close()
+    }
+
 }
