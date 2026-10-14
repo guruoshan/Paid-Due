@@ -38,8 +38,8 @@ fun buildConfigString(value: String): String =
         .replace("\\", "\\\\")
         .replace("\"", "\\\"") + "\""
 android {
-    // Inbound application is enabled for the release-safe RECORD_SALE vertical slice.
-    // The operation gate keeps every other release operation type fail-closed.
+    // Release inbound application is enabled by default; InboundApplicationGate
+    // limits release materialization to operation types with verified evidence handlers.
     val inboundApplyOverride = providers.gradleProperty("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES")
         .orElse(providers.environmentVariable("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES"))
         .orNull
@@ -135,6 +135,14 @@ android {
                 keyAlias = paidDueReleaseKeyAlias
                 keyPassword = paidDueReleaseKeyPassword
             }
+        }
+    }
+
+    packaging {
+        resources {
+            // JUnit 5 test dependencies contribute duplicate license metadata to
+            // the instrumentation APK; this metadata is not runtime code.
+            excludes += "META-INF/LICENSE.md"
         }
     }
 
@@ -241,6 +249,7 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.mockk)
     androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.hilt.android.testing)
     androidTestUtil(libs.androidx.test.orchestrator)

@@ -8,14 +8,18 @@ import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.core.cloud.sync.FinancialSyncScheduler
+import com.dailymoneyregister.feature.notifications.data.BusinessNotification
 import com.dailymoneyregister.feature.notifications.data.NotificationsRepository
 import com.dailymoneyregister.feature.notifications.ui.NotificationsViewModel
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -63,7 +67,7 @@ class NotificationsViewModelRealtimeTest {
         coEvery { repository.listNotifications() } returns emptyList()
         coEvery { repository.listPermissionRequests() } returns emptyList()
 
-        val viewModel = NotificationsViewModel(repository)
+        val viewModel = NotificationsViewModel(repository, mockk(relaxed = true))
         store = ViewModelStore().apply { put("notifications-test", viewModel) }
         viewModel.refresh()
         runCurrent()
@@ -92,7 +96,7 @@ class NotificationsViewModelRealtimeTest {
         }
         coEvery { repository.listPermissionRequests() } returns emptyList()
 
-        val viewModel = NotificationsViewModel(repository)
+        val viewModel = NotificationsViewModel(repository, mockk(relaxed = true))
         store = ViewModelStore().apply { put("notifications-test", viewModel) }
         viewModel.refresh()
         runCurrent()
@@ -104,6 +108,44 @@ class NotificationsViewModelRealtimeTest {
         assertTrue("Polling must refresh the durable inbox while the Realtime flow is still open",
             notificationLoads.get() > initialLoads)
         // Cancel ViewModel-owned infinite polling before runTest tries to drain its scheduler.
+        store?.clear()
+        store = null
+        runCurrent()
+    }
+
+    @Test
+    fun newDayClosedNotificationTriggersImmediateFinancialCatchUpOnlyOnce() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val repository = mockk<NotificationsRepository>()
+        val financialSyncScheduler = mockk<FinancialSyncScheduler>(relaxed = true)
+        val realtimeEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+        val notificationLoads = AtomicInteger()
+        val dayClosed = BusinessNotification(
+            id = "day-close-notification",
+            notificationType = "DAY_CLOSED",
+            title = "Day closed",
+            body = "A cashier closed the day.",
+            createdAt = "2026-10-14T10:00:00Z"
+        )
+        every { repository.observeAdminNotificationInserts() } returns realtimeEvents
+        coEvery { repository.listNotifications() } coAnswers {
+            if (notificationLoads.getAndIncrement() == 0) emptyList() else listOf(dayClosed)
+        }
+        coEvery { repository.listPermissionRequests() } returns emptyList()
+
+        val viewModel = NotificationsViewModel(repository, financialSyncScheduler)
+        store = ViewModelStore().apply { put("notifications-catch-up-test", viewModel) }
+        viewModel.refresh()
+        runCurrent()
+
+        realtimeEvents.tryEmit(Unit)
+        runCurrent()
+        verify(exactly = 1) { financialSyncScheduler.triggerSync() }
+
+        realtimeEvents.tryEmit(Unit)
+        runCurrent()
+        verify(exactly = 1) { financialSyncScheduler.triggerSync() }
+
         store?.clear()
         store = null
         runCurrent()

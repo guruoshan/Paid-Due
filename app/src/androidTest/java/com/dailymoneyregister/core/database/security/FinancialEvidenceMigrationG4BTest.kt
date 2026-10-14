@@ -316,7 +316,7 @@ class FinancialEvidenceMigrationG4BTest {
                 )
             )
 
-            // Open the encrypted database through the current Room v15 migration chain.
+            // Open the encrypted database through the current Room v18 migration chain.
             room = Room.databaseBuilder(
                 context,
                 DmrDatabase::class.java,
@@ -325,7 +325,7 @@ class FinancialEvidenceMigrationG4BTest {
                 .openHelperFactory(
                     SupportOpenHelperFactory(key.copyOf())
                 )
-                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14, DmrDatabase.MIGRATION_14_15)
+                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14, DmrDatabase.MIGRATION_14_15, DmrDatabase.MIGRATION_15_16, DmrDatabase.MIGRATION_16_17, DmrDatabase.MIGRATION_17_18)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()
@@ -334,7 +334,7 @@ class FinancialEvidenceMigrationG4BTest {
 
             current.query("PRAGMA user_version").use {
                 assertTrue(it.moveToFirst())
-                assertEquals(15, it.getInt(0))
+                assertEquals(18, it.getInt(0))
             }
 
             verifyForeignKeys(current)
@@ -372,7 +372,7 @@ class FinancialEvidenceMigrationG4BTest {
                 .openHelperFactory(
                     SupportOpenHelperFactory(key.copyOf())
                 )
-                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14, DmrDatabase.MIGRATION_14_15)
+                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14, DmrDatabase.MIGRATION_14_15, DmrDatabase.MIGRATION_15_16, DmrDatabase.MIGRATION_16_17, DmrDatabase.MIGRATION_17_18)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()

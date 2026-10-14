@@ -358,9 +358,11 @@ class FinancialSyncEngine @Inject constructor(
                         businessId,
                         envelope.operationId
                     )
-                    reportInboundRejection(
-                        envelope.operationId,
-                        "Inbound application is not enabled for operation ${envelope.operationType}; deferred"
+                    quarantineInboundEnvelope(
+                        envelope = envelope,
+                        businessId = businessId,
+                        sessionBranchId = sessionBranchId,
+                        reason = "Inbound application is not enabled for operation ${envelope.operationType}; deferred"
                     )
                     unresolvedEnvelopeSeen = true
                     pageLastProcessedEnvelope = envelope
@@ -376,9 +378,11 @@ class FinancialSyncEngine @Inject constructor(
                     remoteDigest.isNullOrBlank() ||
                     !remoteDigest.equals(calculatedDigest, ignoreCase = true)
                 ) {
-                    reportInboundRejection(
-                        envelope.operationId,
-                        if (remoteDigest.isNullOrBlank()) {
+                    quarantineInboundEnvelope(
+                        envelope = envelope,
+                        businessId = businessId,
+                        sessionBranchId = sessionBranchId,
+                        reason = if (remoteDigest.isNullOrBlank()) {
                             "Remote envelope is missing canonical_sha256"
                         } else {
                             "Remote canonical_sha256 does not match canonical_text"
@@ -404,12 +408,14 @@ class FinancialSyncEngine @Inject constructor(
 
                 when (result) {
                     is InboundProcessResult.Applied -> {
+                        appendRecoveryIfPreviouslyRejected(envelope, businessId, sessionBranchId)
                         totalApplied++
                         clearInboundRejection(envelope.operationId, businessId)
                         if (!unresolvedEnvelopeSeen) durableCursorCandidate = cursorFor(envelope)
                         pageLastProcessedEnvelope = envelope
                     }
                     is InboundProcessResult.Skipped -> {
+                        appendRecoveryIfPreviouslyRejected(envelope, businessId, sessionBranchId)
                         totalSkipped++
                         clearInboundRejection(envelope.operationId, businessId)
                         if (!unresolvedEnvelopeSeen) durableCursorCandidate = cursorFor(envelope)
@@ -422,16 +428,23 @@ class FinancialSyncEngine @Inject constructor(
                             businessId,
                             envelope.operationId
                         )
-                        reportInboundRejection(
-                            envelope.operationId,
-                            "Unsupported inbound operation ${result.operationType}; deferred"
+                        quarantineInboundEnvelope(
+                            envelope = envelope,
+                            businessId = businessId,
+                            sessionBranchId = sessionBranchId,
+                            reason = "Unsupported inbound operation ${result.operationType}; deferred"
                         )
                         unresolvedEnvelopeSeen = true
                         pageLastProcessedEnvelope = envelope
                         continue
                     }
                     is InboundProcessResult.Rejected -> {
-                        reportInboundRejection(envelope.operationId, result.reason)
+                        quarantineInboundEnvelope(
+                            envelope = envelope,
+                            businessId = businessId,
+                            sessionBranchId = sessionBranchId,
+                            reason = result.reason
+                        )
                         unresolvedEnvelopeSeen = true
                         pageLastProcessedEnvelope = envelope
                         continue
@@ -486,6 +499,60 @@ class FinancialSyncEngine @Inject constructor(
             FinancialSyncStatus.clearVisibleProblem()
         }
         FinancialSyncStatus.clearUnsupported(context, businessId, operationId)
+    }
+
+    /**
+     * Persist rejection evidence before returning control to the sync loop. Repeated
+     * attempts for the same unresolved operation do not create unbounded duplicate
+     * audit rows; a RECOVERED event closes the current rejection state.
+     */
+    private suspend fun quarantineInboundEnvelope(
+        envelope: RemoteEnvelopeV2,
+        businessId: String,
+        sessionBranchId: String?,
+        reason: String
+    ) {
+        val auditDao = database.inboundEnvelopeAuditDao()
+        if (!auditDao.hasRejection(envelope.operationId)) {
+            auditDao.append(
+                com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity(
+                    id = java.util.UUID.randomUUID().toString(),
+                    operationId = envelope.operationId,
+                    businessId = businessId,
+                    branchId = envelope.branchId ?: sessionBranchId,
+                    operationType = envelope.operationType,
+                    receivedAtIso = envelope.receivedAtIso,
+                    canonicalSha256 = envelope.canonicalSha256,
+                    eventType = "REJECTED",
+                    reason = reason,
+                    occurredAt = System.currentTimeMillis()
+                )
+            )
+        }
+        reportInboundRejection(envelope.operationId, reason)
+    }
+
+    private suspend fun appendRecoveryIfPreviouslyRejected(
+        envelope: RemoteEnvelopeV2,
+        businessId: String,
+        sessionBranchId: String?
+    ) {
+        val auditDao = database.inboundEnvelopeAuditDao()
+        if (!auditDao.hasRejection(envelope.operationId)) return
+        auditDao.append(
+            com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity(
+                id = java.util.UUID.randomUUID().toString(),
+                operationId = envelope.operationId,
+                businessId = businessId,
+                branchId = envelope.branchId ?: sessionBranchId,
+                operationType = envelope.operationType,
+                receivedAtIso = envelope.receivedAtIso,
+                canonicalSha256 = envelope.canonicalSha256,
+                eventType = "RECOVERED",
+                reason = "Envelope was successfully applied or verified as a duplicate after prior rejection.",
+                occurredAt = System.currentTimeMillis()
+            )
+        )
     }
 
     private fun reportInboundRejection(operationId: String, reason: String) {

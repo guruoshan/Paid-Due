@@ -136,6 +136,80 @@ class FinancialSyncOutboxV13Test {
     }
 
     @Test
+    fun cloudOnlyCashierCashShiftIsQueuedForSynchronization() = withDb { db ->
+        val sql = db.openHelper.writableDatabase
+        sql.execSQL(
+            """
+            INSERT INTO businesses (id, name, created_at, updated_at)
+            VALUES ('cloud-business', 'Cloud Shop', 1, 1)
+            """.trimIndent()
+        )
+        sql.execSQL(
+            """
+            INSERT INTO branches (
+                id, business_id, name, code, country_code, currency_code,
+                currency_decimal_places, currency_symbol, timezone_id,
+                tax_rounding_mode, default_tax_rate_bps, created_at, updated_at
+            ) VALUES (
+                'cloud-branch', 'cloud-business', 'Main', 'MAIN', 'OM', 'OMR',
+                3, 'OMR', 'Asia/Muscat', 'HALF_UP', 0, 1, 1
+            )
+            """.trimIndent()
+        )
+        sql.execSQL(
+            """
+            INSERT INTO cloud_staff_identities (
+                membership_id, local_user_id, business_id, branch_id, role,
+                permissions_json, is_active, is_removed, updated_at, display_name
+            ) VALUES (
+                'cloud-membership', 'cloud-cashier', 'cloud-business', 'cloud-branch',
+                'CASHIER', '{}', 1, 0, 1, 'Cloud Cashier'
+            )
+            """.trimIndent()
+        )
+        sql.execSQL(
+            """
+            INSERT INTO operations (
+                id, business_id, branch_id, operation_type, subject_type, subject_id,
+                transaction_id, cash_shift_id, actor_user_id, device_id, occurred_at,
+                request_fingerprint, command_schema_version, intent_payload, status
+            ) VALUES (
+                'cloud-shift-open', 'cloud-business', 'cloud-branch', 'OPEN_CASH_SHIFT',
+                'CASH_SHIFT', 'cloud-shift', NULL, 'cloud-shift', 'cloud-cashier',
+                'cloud-device', 100, 'cloud-shift-fingerprint', 1, '{}', 'PENDING'
+            )
+            """.trimIndent()
+        )
+
+        // Cloud-only staff must not need a local login-account row to sync.
+        assertEquals(
+            0,
+            sql.query("SELECT COUNT(*) FROM user_accounts WHERE id='cloud-cashier'").use {
+                assertTrue(it.moveToFirst())
+                it.getInt(0)
+            }
+        )
+
+        sql.execSQL(
+            """
+            UPDATE operations
+            SET status = 'SUCCEEDED',
+                result_reference_type = 'CASH_SHIFT',
+                result_reference_id = 'cloud-shift'
+            WHERE id = 'cloud-shift-open'
+            """.trimIndent()
+        )
+
+        assertEquals(1, count(db, "cloud-shift-open"))
+        sql.query(
+            "SELECT status FROM financial_sync_outbox WHERE operation_id='cloud-shift-open'"
+        ).use {
+            assertTrue(it.moveToFirst())
+            assertEquals("QUEUED", it.getString(0))
+        }
+    }
+
+    @Test
     fun duplicateSuccessCannotCreateSecondEntry() = withDb { db ->
         seedSale(db, "cash-duplicate", "CASH")
 

@@ -292,8 +292,17 @@ internal object RemoteEnvelopeEvidenceApplier {
                 userId = item.getString("user_id"), createdAt = item.getLong("created_at")
             )
             require(shift.branchId == branchId) { "Cash shift belongs to another branch" }
-            require(database.userDao().getUserByIdInBusiness(shift.userId, businessId) != null) {
-                "Cash shift user is missing or belongs to another business"
+            val cloudOwner = database.cloudStaffIdentityDao().findIdentity(
+                localUserId = shift.userId,
+                businessId = businessId,
+                branchId = branchId
+            )
+            val localOwner = database.userDao().getUserByIdInBusiness(shift.userId, businessId)
+            // A cash-shift owner is historical identity evidence, not authorization
+            // for a new command. Preserve shifts after staff revocation/removal;
+            // the envelope actor's authorization is checked separately.
+            require(localOwner != null || cloudOwner != null) {
+                "Cash shift user is missing or belongs to another business/branch"
             }
             val existing = database.cashShiftDao().getShiftById(shift.id)
             if (existing == null) database.cashShiftDao().insertShift(shift)

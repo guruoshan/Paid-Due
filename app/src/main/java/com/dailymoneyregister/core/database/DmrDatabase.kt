@@ -10,6 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.dailymoneyregister.core.database.security.FinancialImmutabilityCallback
 import com.dailymoneyregister.core.database.dao.BusinessBranchDao
 import com.dailymoneyregister.core.database.dao.CloudStaffIdentityDao
+import com.dailymoneyregister.core.database.dao.InboundEnvelopeAuditDao
 import com.dailymoneyregister.core.database.dao.CashShiftDao
 import com.dailymoneyregister.core.database.dao.CustomerDao
 import com.dailymoneyregister.core.database.dao.DocumentMediaDao
@@ -23,6 +24,7 @@ import com.dailymoneyregister.core.database.dao.UserDao
 import com.dailymoneyregister.core.database.entity.AmountCorrectionEventEntity
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
+import com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.CashShiftEntity
 import com.dailymoneyregister.core.database.entity.CashShiftEventEntity
@@ -66,6 +68,7 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
         HumanIdentityEntity::class,
         UserBranchMembershipEntity::class,
         CloudStaffIdentityEntity::class,
+        InboundEnvelopeAuditEventEntity::class,
         CustomerEntity::class,
         CustomerIdAliasEntity::class,
         ProductEntity::class,
@@ -96,7 +99,7 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
         CreditRepaymentEntity::class,
         CreditRepaymentAllocationEntity::class
     ],
-    version = 15,
+    version = 18,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -105,6 +108,7 @@ abstract class DmrDatabase : RoomDatabase() {
     abstract fun businessBranchDao(): BusinessBranchDao
     abstract fun userDao(): UserDao
     abstract fun cloudStaffIdentityDao(): CloudStaffIdentityDao
+    abstract fun inboundEnvelopeAuditDao(): InboundEnvelopeAuditDao
     abstract fun operationDao(): OperationDao
     abstract fun financialSyncOutboxDao(): FinancialSyncOutboxDao
     abstract fun transactionDao(): TransactionDao
@@ -664,6 +668,77 @@ abstract class DmrDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Cash-shift ownership can be represented by a cloud-only staff identity.
+                // Preserve all rows and the branch FK; remove only the user_accounts FK.
+                // Dropping a parent table can cascade-delete child events. Snapshot the
+                // existing event rows and temporarily remove their immutability guards so
+                // SQLite can rebuild the parent without losing authoritative event history.
+                db.execSQL("CREATE TEMP TABLE cash_shift_events_migration_backup AS SELECT * FROM cash_shift_events")
+                db.execSQL("DROP TRIGGER IF EXISTS immutable_cash_shift_events_no_update")
+                db.execSQL("DROP TRIGGER IF EXISTS immutable_cash_shift_events_no_delete")
+                db.execSQL("DROP TRIGGER IF EXISTS immutable_cash_shift_events_no_replace")
+
+                db.execSQL("""
+                    CREATE TABLE cash_shifts_new (
+                        id TEXT NOT NULL,
+                        branch_id TEXT NOT NULL,
+                        user_id TEXT NOT NULL,
+                        created_at INTEGER NOT NULL,
+                        PRIMARY KEY(id),
+                        FOREIGN KEY(branch_id) REFERENCES branches(id) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO cash_shifts_new (id, branch_id, user_id, created_at)
+                    SELECT id, branch_id, user_id, created_at FROM cash_shifts
+                """.trimIndent())
+                db.execSQL("DROP TABLE cash_shifts")
+                db.execSQL("ALTER TABLE cash_shifts_new RENAME TO cash_shifts")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_cash_shifts_branch_id ON cash_shifts (branch_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_cash_shifts_user_id ON cash_shifts (user_id)")
+                db.execSQL("""
+                    INSERT INTO cash_shift_events
+                    (id, shift_id, operation_id, type, amount_minor, occurred_at, actor_user_id)
+                    SELECT id, shift_id, operation_id, type, amount_minor, occurred_at, actor_user_id
+                    FROM cash_shift_events_migration_backup
+                """.trimIndent())
+                db.execSQL("DROP TABLE cash_shift_events_migration_backup")
+                FinancialImmutabilityCallback.installGuards(db)
+            }
+        }
+
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Persist the display label needed for offline cashier filtering.
+                // This is identity metadata only; no financial rows are modified.
+                db.execSQL("ALTER TABLE cloud_staff_identities ADD COLUMN display_name TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS inbound_envelope_audit_events (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        operation_id TEXT NOT NULL,
+                        business_id TEXT NOT NULL,
+                        branch_id TEXT,
+                        operation_type TEXT NOT NULL,
+                        received_at_iso TEXT NOT NULL,
+                        canonical_sha256 TEXT,
+                        event_type TEXT NOT NULL,
+                        reason TEXT NOT NULL,
+                        occurred_at INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_inbound_envelope_audit_events_operation_id_occurred_at ON inbound_envelope_audit_events (operation_id, occurred_at)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_inbound_envelope_audit_events_business_id_branch_id_occurred_at ON inbound_envelope_audit_events (business_id, branch_id, occurred_at)")
+                FinancialImmutabilityCallback.installGuards(db)
+            }
+        }
+
         val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
@@ -722,7 +797,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
                             .addCallback(FinancialImmutabilityCallback)
                             .build()
                     } catch (e: Exception) {
@@ -748,7 +823,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()

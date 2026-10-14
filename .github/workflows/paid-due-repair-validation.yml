@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/backend-compatibility-audit-2026-10
+      - fix/cash-shift-cloud-owner
   pull_request:
 
 permissions:
@@ -17,10 +18,12 @@ jobs:
   android-build-and-unit-tests:
     if: github.event_name != 'pull_request' || github.base_ref != 'main'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -41,10 +44,127 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
+      - name: Export authentic Room schemas 14, 15, 16, 17 and 18
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          schema_dir="app/schemas/com.dailymoneyregister.core.database.DmrDatabase"
+          git worktree add /tmp/paid-due-schema-v14 main
+          chmod +x /tmp/paid-due-schema-v14/gradlew
+          (cd /tmp/paid-due-schema-v14 && ./gradlew --no-daemon :app:kspDebugKotlin)
+          test -s "/tmp/paid-due-schema-v14/$schema_dir/14.json"
+          mkdir -p "$schema_dir"
+          cp "/tmp/paid-due-schema-v14/$schema_dir/14.json" "$schema_dir/14.json"
+          git worktree add /tmp/paid-due-schema-v15 "$BASE_SHA"
+          chmod +x /tmp/paid-due-schema-v15/gradlew
+          (cd /tmp/paid-due-schema-v15 && ./gradlew --no-daemon :app:kspDebugKotlin)
+          test -s "/tmp/paid-due-schema-v15/$schema_dir/15.json"
+          mkdir -p "$schema_dir"
+          cp "/tmp/paid-due-schema-v15/$schema_dir/15.json" "$schema_dir/15.json"
+          ./gradlew --no-daemon :app:kspDebugKotlin
+          test -s "$schema_dir/16.json"
+          test -s "$schema_dir/17.json"
+          test -s "$schema_dir/18.json"
+          python3 -m json.tool "$schema_dir/14.json" >/dev/null
+          python3 -m json.tool "$schema_dir/15.json" >/dev/null
+          python3 -m json.tool "$schema_dir/16.json" >/dev/null
+          python3 -m json.tool "$schema_dir/17.json" >/dev/null
+          python3 -m json.tool "$schema_dir/18.json" >/dev/null
+          mkdir -p "$RUNNER_TEMP/room-schema-exports"
+          cp "$schema_dir/14.json" "$RUNNER_TEMP/room-schema-exports/14.json"
+          cp "$schema_dir/15.json" "$RUNNER_TEMP/room-schema-exports/15.json"
+          cp "$schema_dir/16.json" "$RUNNER_TEMP/room-schema-exports/16.json"
+          cp "$schema_dir/17.json" "$RUNNER_TEMP/room-schema-exports/17.json"
+          cp "$schema_dir/18.json" "$RUNNER_TEMP/room-schema-exports/18.json"
+
+      - name: Upload authentic Room schema exports
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-schema-14-15-16-17-18
+          path: |
+            ${{ runner.temp }}/room-schema-exports/14.json
+            ${{ runner.temp }}/room-schema-exports/15.json
+            ${{ runner.temp }}/room-schema-exports/16.json
+            ${{ runner.temp }}/room-schema-exports/17.json
+            ${{ runner.temp }}/room-schema-exports/18.json
+          if-no-files-found: error
+
       - name: Build debug APK and run unit tests
         run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
+
+      - name: Restore schema assets after Gradle output cleanup
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          schema_dir="app/schemas/com.dailymoneyregister.core.database.DmrDatabase"
+          mkdir -p "$schema_dir"
+          cp "$RUNNER_TEMP/room-schema-exports/14.json" "$schema_dir/14.json"
+          cp "$RUNNER_TEMP/room-schema-exports/15.json" "$schema_dir/15.json"
+          cp "$RUNNER_TEMP/room-schema-exports/16.json" "$schema_dir/16.json"
+          cp "$RUNNER_TEMP/room-schema-exports/17.json" "$schema_dir/17.json"
+          cp "$RUNNER_TEMP/room-schema-exports/18.json" "$schema_dir/18.json"
+
+      - name: Compile Android instrumentation tests
+        run: ./gradlew --no-daemon :app:compileDebugAndroidTestKotlin
 
       - name: Run unit tests with inbound apply explicitly enabled
         env:
           PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES: "true"
         run: ./gradlew --no-daemon :app:testDebugUnitTest
+
+      - name: Run Android instrumentation tests on API 35 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
+          script: ./gradlew --no-daemon :app:connectedDebugAndroidTest
+
+
+  commit-room-schemas:
+    needs: android-build-and-unit-tests
+    if: always() && github.event_name == 'pull_request' && github.actor == 'guruoshan' && github.head_ref == 'fix/cash-shift-cloud-owner'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Download authentic schema exports
+        uses: actions/download-artifact@v4
+        with:
+          name: room-schema-14-15-16-17-18
+          path: ${{ runner.temp }}/room-schema-exports
+
+      - name: Commit generated Room schemas
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          schema_dir="app/schemas/com.dailymoneyregister.core.database.DmrDatabase"
+          mkdir -p "$schema_dir"
+          cp "$RUNNER_TEMP/room-schema-exports/14.json" "$schema_dir/14.json"
+          cp "$RUNNER_TEMP/room-schema-exports/15.json" "$schema_dir/15.json"
+          cp "$RUNNER_TEMP/room-schema-exports/16.json" "$schema_dir/16.json"
+          cp "$RUNNER_TEMP/room-schema-exports/17.json" "$schema_dir/17.json"
+          cp "$RUNNER_TEMP/room-schema-exports/18.json" "$schema_dir/18.json"
+          git add "$schema_dir/14.json" "$schema_dir/15.json" "$schema_dir/16.json" "$schema_dir/17.json" "$schema_dir/18.json"
+          if git diff --cached --quiet; then
+            echo "Authentic Room schemas are already committed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(database): export authentic Room schemas 14, 15, 16, 17 and 18"
+          git push origin "HEAD:$HEAD_BRANCH"

@@ -152,7 +152,7 @@ class FinancialSyncEncryptedMigrationG2Test {
             )
 
             // STEP 3: Open the encrypted v12 database through
-            // the current Room v15 schema with the full migration chain and callback.
+            // the current Room v18 schema with the full migration chain and callback.
             System.loadLibrary("sqlcipher")
 
             migrated = Room.databaseBuilder(
@@ -163,7 +163,7 @@ class FinancialSyncEncryptedMigrationG2Test {
                 .openHelperFactory(
                     SupportOpenHelperFactory(passphrase.copyOf())
                 )
-                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14, DmrDatabase.MIGRATION_14_15)
+                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14, DmrDatabase.MIGRATION_14_15, DmrDatabase.MIGRATION_15_16, DmrDatabase.MIGRATION_16_17, DmrDatabase.MIGRATION_17_18)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()
@@ -172,7 +172,7 @@ class FinancialSyncEncryptedMigrationG2Test {
 
             sql.query("PRAGMA user_version").use {
                 assertTrue(it.moveToFirst())
-                assertEquals(15, it.getInt(0))
+                assertEquals(18, it.getInt(0))
             }
 
             // STEP 4: Financial evidence must be unchanged.

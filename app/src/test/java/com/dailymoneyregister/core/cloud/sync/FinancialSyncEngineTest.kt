@@ -4,9 +4,11 @@ import androidx.room.withTransaction
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.dao.ExpenseDao
 import com.dailymoneyregister.core.database.dao.FinancialSyncOutboxDao
+import com.dailymoneyregister.core.database.dao.InboundEnvelopeAuditDao
 import com.dailymoneyregister.core.database.dao.OperationDao
 import com.dailymoneyregister.core.database.dao.TransactionDao
 import com.dailymoneyregister.core.database.entity.FinancialSyncOutboxEntity
+import com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
 import com.dailymoneyregister.core.model.enums.OperationStatus
@@ -30,6 +32,8 @@ class FinancialSyncEngineTest {
     private val operationDao = mockk<OperationDao>()
     private val transactionDao = mockk<TransactionDao>()
     private val expenseDao = mockk<ExpenseDao>()
+    private val inboundAuditDao = mockk<InboundEnvelopeAuditDao>()
+    private val openAuditRejections = mutableSetOf<String>()
     private val businessBranchDao = mockk<com.dailymoneyregister.core.database.dao.BusinessBranchDao>()
     private val userDao = mockk<com.dailymoneyregister.core.database.dao.UserDao>()
     private val remoteRepo = mockk<RemoteFinancialSyncRepository>()
@@ -99,6 +103,18 @@ class FinancialSyncEngineTest {
         mockkStatic("androidx.room.RoomDatabaseKt")
         coEvery { db.withTransaction(any<suspend () -> Any>()) } coAnswers {
             firstArg<suspend () -> Any>().invoke()
+        }
+        every { db.inboundEnvelopeAuditDao() } returns inboundAuditDao
+        coEvery { inboundAuditDao.hasRejection(any()) } coAnswers {
+            firstArg<String>() in openAuditRejections
+        }
+        coEvery { inboundAuditDao.append(any()) } coAnswers {
+            val event = firstArg<InboundEnvelopeAuditEventEntity>()
+            when (event.eventType) {
+                "REJECTED" -> openAuditRejections.add(event.operationId)
+                "RECOVERED" -> openAuditRejections.remove(event.operationId)
+            }
+            Unit
         }
     }
 
@@ -319,6 +335,16 @@ class FinancialSyncEngineTest {
         assertEquals(1, recovered)
         assertEquals(listOf(poisonId, validId, poisonId, validId), inboundApplier.appliedOperationIds)
         assertEquals(validId, cursors.values.singleOrNull()?.operationId)
+        coVerify(exactly = 1) {
+            inboundAuditDao.append(match {
+                it.operationId == poisonId && it.eventType == "REJECTED"
+            })
+        }
+        coVerify(exactly = 1) {
+            inboundAuditDao.append(match {
+                it.operationId == poisonId && it.eventType == "RECOVERED"
+            })
+        }
     }
 
     @Test
