@@ -3,16 +3,24 @@ name: Android signed release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      confirm_release:
+        description: "Confirm all release blockers are closed and approve publishing the signed APK/AAB."
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 concurrency:
   group: android-release-main-install-ready
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   release:
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm_release == true
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
