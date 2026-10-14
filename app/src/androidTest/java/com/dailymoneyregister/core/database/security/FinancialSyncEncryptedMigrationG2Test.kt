@@ -24,7 +24,7 @@ class FinancialSyncEncryptedMigrationG2Test {
     )
 
     @Test
-    fun encryptedVersion12CashSaleSurvivesVersion14Migration() {
+    fun encryptedVersion12CashSaleSurvivesVersion15Migration() {
         val context: Context =
             InstrumentationRegistry.getInstrumentation().targetContext
 
@@ -163,7 +163,7 @@ class FinancialSyncEncryptedMigrationG2Test {
                 .openHelperFactory(
                     SupportOpenHelperFactory(passphrase.copyOf())
                 )
-                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14)
+                .addMigrations(DmrDatabase.MIGRATION_12_13, DmrDatabase.MIGRATION_13_14, DmrDatabase.MIGRATION_14_15)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()
@@ -172,7 +172,7 @@ class FinancialSyncEncryptedMigrationG2Test {
 
             sql.query("PRAGMA user_version").use {
                 assertTrue(it.moveToFirst())
-                assertEquals(14, it.getInt(0))
+                assertEquals(15, it.getInt(0))
             }
 
             // STEP 4: Financial evidence must be unchanged.
