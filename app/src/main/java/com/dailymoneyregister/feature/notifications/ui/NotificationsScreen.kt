@@ -325,6 +325,10 @@ private fun ClosingReport(report: JsonObject) {
         ReportAmount(report, "Online sales", "online_sales_minor", currencySymbol, decimals)
         ReportAmount(report, "Credit sales", "credit_given_minor", currencySymbol, decimals)
         ReportAmount(report, "Coupon payments", "coupon_used_minor", currencySymbol, decimals)
+        ReportAmount(report, "Coupon top-ups", "coupon_top_up_minor", currencySymbol, decimals)
+        ReportAmount(report, "Coupons issued", "coupon_issued_minor", currencySymbol, decimals)
+        ReportAmount(report, "Cash coupon funding", "cash_coupon_funding_minor", currencySymbol, decimals)
+        ReportAmount(report, "Online coupon funding", "online_coupon_funding_minor", currencySymbol, decimals)
         ReportAmount(report, "Expected cash", "expected_cash_minor", currencySymbol, decimals)
         ReportAmount(report, "Counted cash", "counted_cash_minor", currencySymbol, decimals)
         val difference = report["difference_minor"]?.jsonPrimitive?.longOrNull ?: 0L
@@ -343,7 +347,11 @@ private fun ClosingReport(report: JsonObject) {
         ReportAmount(report, "Credit repayments (online)", "online_credit_repayments_minor", currencySymbol, decimals)
         ReportAmount(report, "Coupon refunds credited", "coupon_refund_credits_minor", currencySymbol, decimals)
         ReportAmount(report, "Cash expenses", "cash_expenses_minor", currencySymbol, decimals)
-        Text("Sales: ${report["sales_count"]?.jsonPrimitive?.contentOrNull ?: "0"} · Refunds: ${report["refund_count"]?.jsonPrimitive?.contentOrNull ?: "0"} · Voids: ${report["void_count"]?.jsonPrimitive?.contentOrNull ?: "0"}")
+        ReportAmount(report, "Online expenses", "online_expenses_minor", currencySymbol, decimals)
+        ReportAmount(report, "Coupon credit repayments", "coupon_credit_repayments_minor", currencySymbol, decimals)
+        ReportAmount(report, "Cash lifecycle adjustments", "cash_lifecycle_adjustment_minor", currencySymbol, decimals)
+        ReportAmount(report, "Online lifecycle adjustments", "online_lifecycle_adjustment_minor", currencySymbol, decimals)
+        Text("Sales: ${report["sales_count"]?.jsonPrimitive?.contentOrNull ?: "0"} · Refunds: ${report["refund_count"]?.jsonPrimitive?.contentOrNull ?: "0"} · Voids: ${report["void_count"]?.jsonPrimitive?.contentOrNull ?: "0"} · Corrections: ${report["correction_count"]?.jsonPrimitive?.contentOrNull ?: "0"} · Payment changes: ${report["payment_method_change_count"]?.jsonPrimitive?.contentOrNull ?: "0"} · Operations: ${report["operation_count"]?.jsonPrimitive?.contentOrNull ?: "0"}")
         Divider()
     }
 }
