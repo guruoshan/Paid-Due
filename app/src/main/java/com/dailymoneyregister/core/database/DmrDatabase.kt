@@ -1,6 +1,7 @@
 package com.dailymoneyregister.core.database
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -670,12 +671,38 @@ abstract class DmrDatabase : RoomDatabase() {
 
         val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                fun tableExists(table: String): Boolean =
+                    db.query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='$table' UNION ALL SELECT 1 FROM sqlite_temp_master WHERE type='table' AND name='$table' LIMIT 1")
+                        .use { it.moveToFirst() }
+
+                fun scalar(sql: String): Long =
+                    db.query(sql).use { cursor ->
+                        if (cursor.moveToFirst()) cursor.getLong(0) else -1L
+                    }
+
+                fun snapshot(phase: String) {
+                    val hasEvents = tableExists("cash_shift_events")
+                    val hasBackup = tableExists("cash_shift_events_migration_backup")
+                    val eventCount = if (hasEvents) scalar("SELECT COUNT(*) FROM cash_shift_events") else -1L
+                    val backupCount = if (hasBackup) scalar("SELECT COUNT(*) FROM cash_shift_events_migration_backup") else -1L
+                    val duplicateBackupIds = if (hasBackup) scalar("SELECT COUNT(*) FROM (SELECT id FROM cash_shift_events_migration_backup GROUP BY id HAVING COUNT(*) > 1)") else -1L
+                    val duplicateDestinationIds = if (hasEvents) scalar("SELECT COUNT(*) FROM (SELECT id FROM cash_shift_events GROUP BY id HAVING COUNT(*) > 1)") else -1L
+                    val overlapIds = if (hasEvents && hasBackup) scalar("SELECT COUNT(*) FROM (SELECT DISTINCT b.id FROM cash_shift_events_migration_backup b INNER JOIN cash_shift_events e ON e.id = b.id)") else -1L
+                    val foreignKeys = scalar("PRAGMA foreign_keys")
+                    android.util.Log.e(
+                        "CashShiftMigrationDiag",
+                        "phase=$phase event_count=$eventCount backup_count=$backupCount duplicate_backup_ids=$duplicateBackupIds duplicate_destination_ids=$duplicateDestinationIds overlap_ids=$overlapIds foreign_keys=$foreignKeys"
+                    )
+                }
+
+                snapshot("A_BEFORE_SNAPSHOT")
                 // Cash-shift ownership can be represented by a cloud-only staff identity.
                 // Preserve all rows and the branch FK; remove only the user_accounts FK.
                 // Dropping a parent table can cascade-delete child events. Snapshot the
                 // existing event rows and temporarily remove their immutability guards so
                 // SQLite can rebuild the parent without losing authoritative event history.
                 db.execSQL("CREATE TEMP TABLE cash_shift_events_migration_backup AS SELECT * FROM cash_shift_events")
+                snapshot("B_AFTER_SNAPSHOT")
                 db.execSQL("DROP TRIGGER IF EXISTS immutable_cash_shift_events_no_update")
                 db.execSQL("DROP TRIGGER IF EXISTS immutable_cash_shift_events_no_delete")
                 db.execSQL("DROP TRIGGER IF EXISTS immutable_cash_shift_events_no_replace")
@@ -698,12 +725,21 @@ abstract class DmrDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE cash_shifts_new RENAME TO cash_shifts")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_cash_shifts_branch_id ON cash_shifts (branch_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_cash_shifts_user_id ON cash_shifts (user_id)")
+                snapshot("C_AFTER_CASH_SHIFTS_REBUILD")
+                snapshot("D_IMMEDIATELY_BEFORE_RESTORE")
+                try {
                 db.execSQL("""
                     INSERT INTO cash_shift_events
                     (id, shift_id, operation_id, type, amount_minor, occurred_at, actor_user_id)
                     SELECT id, shift_id, operation_id, type, amount_minor, occurred_at, actor_user_id
                     FROM cash_shift_events_migration_backup
                 """.trimIndent())
+                } catch (failure: Throwable) {
+                    snapshot("E_AFTER_RESTORE_FAILURE")
+                    android.util.Log.e("CashShiftMigrationDiag", "restore failed", failure)
+                    throw failure
+                }
+                snapshot("E_AFTER_RESTORE_SUCCESS")
                 db.execSQL("DROP TABLE cash_shift_events_migration_backup")
                 FinancialImmutabilityCallback.installGuards(db)
             }
