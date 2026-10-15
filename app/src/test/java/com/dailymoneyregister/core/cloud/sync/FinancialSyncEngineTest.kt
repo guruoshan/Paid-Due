@@ -7,14 +7,22 @@ import com.dailymoneyregister.core.database.dao.FinancialSyncOutboxDao
 import com.dailymoneyregister.core.database.dao.InboundEnvelopeAuditDao
 import com.dailymoneyregister.core.database.dao.OperationDao
 import com.dailymoneyregister.core.database.dao.TransactionDao
+import com.dailymoneyregister.core.database.entity.BranchEntity
+import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.FinancialSyncOutboxEntity
 import com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
+import com.dailymoneyregister.core.database.entity.UserAccountEntity
+import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
+import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.OperationStatus
 import com.dailymoneyregister.core.model.enums.OperationType
 import com.dailymoneyregister.core.model.enums.SubjectType
 import com.dailymoneyregister.core.model.enums.TransactionType
+import com.dailymoneyregister.core.model.enums.UserRole
+import com.dailymoneyregister.core.security.ActiveSession
+import com.dailymoneyregister.core.security.SessionManager
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
@@ -25,7 +33,10 @@ import org.junit.Test
 
 class FinancialSyncEngineTest {
     @Before fun enableInboundForTests() { InboundApplicationGate.testOverride = true }
-    @After fun resetInboundForTests() { InboundApplicationGate.testOverride = null }
+    @After fun resetInboundForTests() {
+        InboundApplicationGate.testOverride = null
+        SessionManager.clearSession()
+    }
 
     private val db = mockk<DmrDatabase>()
     private val outboxDao = mockk<FinancialSyncOutboxDao>()
@@ -128,7 +139,14 @@ class FinancialSyncEngineTest {
 
         coEvery { outboxDao.classifyExistingRows() } returns 0
         coEvery { outboxDao.resetStaleInFlight() } returns 0
-        coEvery { outboxDao.getPendingUpload(any()) } returns listOf(outboxItem)
+        coEvery { outboxDao.getPendingUpload(any()) } returns listOf(
+            outboxItem,
+            outboxItem.copy(
+                operationId = "other-actor-op",
+                transactionId = "other-actor-tx",
+                actorUserId = "other-user"
+            )
+        )
         coEvery { outboxDao.getStatusCounts() } returns emptyList()
         coEvery { outboxDao.updateStatus(any(), any(), any()) } returns 1
         coEvery { outboxDao.deleteAcknowledged(any()) } returns 1
@@ -137,22 +155,48 @@ class FinancialSyncEngineTest {
         coEvery { transactionDao.getItemsForTransaction(txId) } returns emptyList()
         coEvery { transactionDao.getSettlementsForOperation(opId) } returns emptyList()
         coEvery { expenseDao.getExpenseByOperationId(opId) } returns null
-        coEvery { businessBranchDao.getBranchById("branch-1") } returns
-            com.dailymoneyregister.core.database.entity.BranchEntity(
-                id = "branch-1",
-                businessId = "biz-1",
-                name = "Main",
-                code = "MAIN",
-                countryCode = "AE",
-                currencyCode = "AED",
-                currencyDecimalPlaces = 2,
-                currencySymbol = "AED",
-                timezoneId = "Asia/Dubai",
-                taxRoundingMode = com.dailymoneyregister.core.model.tax.TaxRoundingMode.HALF_UP,
-                defaultTaxRateBps = 0,
-                createdAt = 1L,
-                updatedAt = 1L
+        val branch = BranchEntity(
+            id = "branch-1",
+            businessId = "biz-1",
+            name = "Main",
+            code = "MAIN",
+            countryCode = "AE",
+            currencyCode = "AED",
+            currencyDecimalPlaces = 2,
+            currencySymbol = "AED",
+            timezoneId = "Asia/Dubai",
+            taxRoundingMode = com.dailymoneyregister.core.model.tax.TaxRoundingMode.HALF_UP,
+            defaultTaxRateBps = 0,
+            createdAt = 1L,
+            updatedAt = 1L
+        )
+        coEvery { businessBranchDao.getBranchById("branch-1") } returns branch
+
+        SessionManager.setSession(
+            ActiveSession(
+                business = BusinessEntity("biz-1", "Shop", 1L, 1L),
+                branch = branch,
+                user = UserAccountEntity(
+                    id = "user-1",
+                    businessId = "biz-1",
+                    displayName = "Admin",
+                    username = "admin",
+                    role = UserRole.ADMIN,
+                    authType = AuthType.PIN,
+                    credentialHash = "test-hash",
+                    credentialSalt = null,
+                    createdAt = 1L,
+                    updatedAt = 1L
+                ),
+                membership = UserBranchMembershipEntity(
+                    id = "membership-1",
+                    userId = "user-1",
+                    branchId = "branch-1",
+                    role = UserRole.ADMIN,
+                    createdAt = 1L
+                )
             )
+        )
 
         coEvery { remoteRepo.uploadEnvelope(any(), any(), any(), any()) } answers {
             val env = firstArg<FinancialEnvelopeCodec.EncodedEnvelope>()
@@ -163,7 +207,8 @@ class FinancialSyncEngineTest {
 
         assertEquals(1, count)
         coVerify { outboxDao.updateStatus(opId, "IN_FLIGHT") }
-        coVerify { remoteRepo.uploadEnvelope(any(), "membership-1", "Asia/Dubai", any()) }
+        coVerify(exactly = 1) { remoteRepo.uploadEnvelope(any(), "membership-1", "Asia/Dubai", any()) }
+        coVerify(exactly = 0) { operationDao.getOperationById("other-actor-op") }
         coVerify { outboxDao.deleteAcknowledged(opId) }
     }
 
