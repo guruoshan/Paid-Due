@@ -207,6 +207,15 @@ class FinancialSyncOutboxV13Test {
             assertTrue(it.moveToFirst())
             assertEquals("QUEUED", it.getString(0))
         }
+
+        // Startup reconciliation must preserve queued work for cloud-only staff.
+        db.financialSyncOutboxDao().classifyExistingRows()
+        sql.query(
+            "SELECT status FROM financial_sync_outbox WHERE operation_id='cloud-shift-open'"
+        ).use {
+            assertTrue(it.moveToFirst())
+            assertEquals("QUEUED", it.getString(0))
+        }
     }
 
     @Test
