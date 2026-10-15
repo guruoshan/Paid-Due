@@ -311,6 +311,13 @@ class FinancialSyncEngine @Inject constructor(
         val session = SessionManager.currentSession.value
         val sessionBusinessId = session?.business?.id ?: businessId
         val sessionBranchId = session?.membership?.branchId
+        // The authenticated Admin download RPC returns envelopes for every branch
+        // the Admin is authorized to access in this business. A single active-branch
+        // filter here would reject valid envelopes from the Admin's other branches
+        // and hold the durable cursor behind them. Cashier downloads are server-scoped
+        // to their own branch, so retain the strict local branch check for cashiers.
+        val materializationBranchScope =
+            if (session?.user?.role == UserRole.ADMIN) null else sessionBranchId
 
         // Staff identity must be available before any financial envelope is materialized.
         // Failure is visible in logs and the actor remains fail-closed in the materializer.
@@ -422,7 +429,7 @@ class FinancialSyncEngine @Inject constructor(
                         database = database,
                         envelope = envelope,
                         sessionBusinessId = sessionBusinessId,
-                        sessionBranchId = sessionBranchId
+                        sessionBranchId = materializationBranchScope
                     )
                 } catch (error: Exception) {
                     InboundProcessResult.Rejected(
