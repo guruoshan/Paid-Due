@@ -13,7 +13,7 @@ class FinancialSyncOperationPolicyTest {
             FinancialSyncOperationPolicy.initialState(UserRole.CASHIER, OperationType.RECORD_SALE)
         )
         assertEquals(
-            FinancialSyncDeliveryState.NOT_SYNCABLE_YET,
+            FinancialSyncDeliveryState.QUEUED,
             FinancialSyncOperationPolicy.initialState(UserRole.CASHIER, OperationType.RECORD_EXPENSE)
         )
         assertEquals(
