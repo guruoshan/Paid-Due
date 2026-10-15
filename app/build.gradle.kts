@@ -142,7 +142,10 @@ android {
         resources {
             // JUnit 5 test dependencies contribute duplicate license metadata to
             // the instrumentation APK; this metadata is not runtime code.
-            excludes += "META-INF/LICENSE.md"
+            excludes += setOf(
+                "META-INF/LICENSE.md",
+                "META-INF/LICENSE-notice.md"
+            )
         }
     }
 
