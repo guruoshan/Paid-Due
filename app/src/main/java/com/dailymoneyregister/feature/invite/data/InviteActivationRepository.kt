@@ -291,14 +291,8 @@ class InviteActivationRepository @Inject constructor(
                 return true
             }
 
-            // A local identity may be reused only after every local membership
-            // is inactive. Do not let a fresh invite reset an active cashier PIN.
-            if (userDao.getMembershipsForUser(existingUser.id).isNotEmpty()) {
-                // The current local membership table is a projection without a
-                // reliable server removal marker. A disabled user is the local
-                // removal tombstone; the server independently enforces that no
-                // active cloud memberships remain before reactivation.
-            }
+            // The disabled local user is the removal tombstone. The server
+            // independently rejects reactivation if any cloud membership is active.
             return false
         }
 
