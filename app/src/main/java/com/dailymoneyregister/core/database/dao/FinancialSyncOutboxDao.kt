@@ -53,6 +53,24 @@ interface FinancialSyncOutboxDao {
 
     @Query(
         """
+        SELECT * FROM financial_sync_outbox
+        WHERE status IN ('QUEUED', 'WAITING_RETRY')
+          AND business_id = :businessId
+          AND branch_id = :branchId
+          AND actor_user_id = :actorUserId
+        ORDER BY occurred_at ASC, operation_id ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun getPendingUploadForActor(
+        businessId: String,
+        branchId: String,
+        actorUserId: String,
+        limit: Int
+    ): List<FinancialSyncOutboxEntity>
+
+    @Query(
+        """
         SELECT COUNT(*) FROM financial_sync_outbox
         WHERE status = 'QUEUED'
         """
