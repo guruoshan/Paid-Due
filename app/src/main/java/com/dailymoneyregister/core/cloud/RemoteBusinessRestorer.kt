@@ -159,7 +159,13 @@ class RemoteBusinessRestorer @Inject constructor(
                 "Phone already belongs to another local identity"
             }
             val existingUser = userDao.getUserById(remoteUserId)
-            require(existingUser == null) { "Cashier user already exists; refusing credential overwrite" }
+            require(
+                existingUser == null ||
+                    (existingUser.businessId == remoteBusinessId &&
+                        existingUser.identityId == remoteUserId &&
+                        existingUser.role == UserRole.CASHIER &&
+                        existingUser.authType == AuthType.PIN)
+            ) { "Cashier user conflicts with authenticated cloud identity" }
             val existingIdentity = userDao.getHumanIdentityById(remoteUserId)
             require(existingIdentity == null || existingIdentity.canonicalPhone == phone) {
                 "Cashier identity conflict"
@@ -428,7 +434,15 @@ class RemoteBusinessRestorer @Inject constructor(
             val existingPhoneOwner = if (canonicalPhone == null) null else userDao.getHumanIdentityByPhone(canonicalPhone)
             require(existingPhoneOwner == null || existingPhoneOwner.id == userId) { "Identity already linked to a different user" }
             val localUser = userDao.getUserById(userId)
-            require(localUser == null) { "User already exists; no credential replacement permitted" }
+            require(
+                localUser == null ||
+                    (role == UserRole.CASHIER &&
+                        authType == AuthType.PIN &&
+                        localUser.businessId == businessId &&
+                        localUser.identityId == userId &&
+                        localUser.role == UserRole.CASHIER &&
+                        localUser.authType == AuthType.PIN)
+            ) { "Existing user conflicts with authenticated cloud identity" }
             val localIdentity = userDao.getHumanIdentityById(userId)
             require(localIdentity == null || localIdentity.canonicalPhone == canonicalPhone) { "Identity phone conflict" }
             val currentBusiness = businessBranchDao.getFirstBusiness()
@@ -476,51 +490,74 @@ class RemoteBusinessRestorer @Inject constructor(
                             updatedAt = activatedAtMillis
                         )
                     )
+                } else if (!existingIdentity.isActive || existingIdentity.displayName != displayName) {
+                    userDao.updateHumanIdentity(
+                        existingIdentity.copy(
+                            displayName = displayName,
+                            isActive = true,
+                            updatedAt = activatedAtMillis
+                        )
+                    )
                 }
             }
 
             val existingUser = userDao.getUserById(userId)
-            val user = existingUser ?: UserAccountEntity(
-                id = userId,
-                identityId = userId,
-                businessId = businessId,
-                displayName = displayName,
-                username = username,
-                role = role,
-                authType = authType,
-                credentialHash = credentialHash,
-                credentialSalt = credentialSalt,
-                languageCode = "en",
-                isActive = true,
-                createdAt = activatedAtMillis,
-                updatedAt = activatedAtMillis
-            ).also { userDao.insertUser(it) }
+            val user = if (existingUser == null) {
+                UserAccountEntity(
+                    id = userId,
+                    identityId = userId,
+                    businessId = businessId,
+                    displayName = displayName,
+                    username = username,
+                    role = role,
+                    authType = authType,
+                    credentialHash = credentialHash,
+                    credentialSalt = credentialSalt,
+                    languageCode = "en",
+                    isActive = true,
+                    createdAt = activatedAtMillis,
+                    updatedAt = activatedAtMillis
+                ).also { userDao.insertUser(it) }
+            } else {
+                val refreshed = existingUser.copy(
+                    displayName = displayName,
+                    username = username,
+                    credentialHash = credentialHash,
+                    credentialSalt = credentialSalt,
+                    isActive = true,
+                    mustChangePin = false,
+                    updatedAt = activatedAtMillis
+                )
+                userDao.updateUser(refreshed)
+                refreshed
+            }
 
             val existingMembership = userDao.getMembership(userId, branchId)
+            val refreshedMembership = UserBranchMembershipEntity(
+                id = membershipId,
+                userId = userId,
+                branchId = branchId,
+                role = role,
+                canCreateSale = permissions["CREATE_SALE"] ?: false,
+                canAcceptCash = permissions["ACCEPT_CASH"] ?: false,
+                canAcceptOnline = permissions["ACCEPT_ONLINE"] ?: false,
+                canCreateCreditSale = permissions["CREATE_CREDIT_SALE"] ?: false,
+                canUseCoupon = permissions["USE_COUPON"] ?: false,
+                canIssueInvoice = permissions["ISSUE_INVOICE"] ?: false,
+                canIssueReceipt = permissions["ISSUE_RECEIPT"] ?: false,
+                canRefund = permissions["REFUND"] ?: false,
+                canVoid = permissions["VOID"] ?: false,
+                canCorrectAmount = permissions["CORRECT_AMOUNT"] ?: false,
+                canChangePaymentMethod = permissions["CHANGE_PAYMENT_METHOD"] ?: false,
+                canViewBroadHistory = permissions["VIEW_BROAD_HISTORY"] ?: false,
+                canManageProducts = permissions["MANAGE_PRODUCTS"] ?: false,
+                canViewReports = permissions["VIEW_REPORTS"] ?: false,
+                createdAt = existingMembership?.createdAt ?: activatedAtMillis
+            )
             if (existingMembership == null) {
-                userDao.insertMembership(
-                    UserBranchMembershipEntity(
-                        id = membershipId,
-                        userId = userId,
-                        branchId = branchId,
-                        role = role,
-                        canCreateSale = permissions["CREATE_SALE"] ?: false,
-                        canAcceptCash = permissions["ACCEPT_CASH"] ?: false,
-                        canAcceptOnline = permissions["ACCEPT_ONLINE"] ?: false,
-                        canCreateCreditSale = permissions["CREATE_CREDIT_SALE"] ?: false,
-                        canUseCoupon = permissions["USE_COUPON"] ?: false,
-                        canIssueInvoice = permissions["ISSUE_INVOICE"] ?: false,
-                        canIssueReceipt = permissions["ISSUE_RECEIPT"] ?: false,
-                        canRefund = permissions["REFUND"] ?: false,
-                        canVoid = permissions["VOID"] ?: false,
-                        canCorrectAmount = permissions["CORRECT_AMOUNT"] ?: false,
-                        canChangePaymentMethod = permissions["CHANGE_PAYMENT_METHOD"] ?: false,
-                        canViewBroadHistory = permissions["VIEW_BROAD_HISTORY"] ?: false,
-                        canManageProducts = permissions["MANAGE_PRODUCTS"] ?: false,
-                        canViewReports = permissions["VIEW_REPORTS"] ?: false,
-                        createdAt = activatedAtMillis
-                    )
-                )
+                userDao.insertMembership(refreshedMembership)
+            } else {
+                userDao.updateMembership(refreshedMembership)
             }
 
             RemoteBusinessRestorationResult.Success(businessId, branchId, userId)
