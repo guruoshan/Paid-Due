@@ -562,7 +562,7 @@ class AuthRepository @Inject constructor(
             com.dailymoneyregister.core.cloud.sync.CashierCloudSession
                 .tokenFor(membership.id) == null && identifier.canonicalPhone != null
         ) {
-            runCatching {
+            val cloudAuthenticated = runCatching {
                 com.dailymoneyregister.core.cloud.sync.CashierCloudSession.authenticate(
                     canonicalPhone = identifier.canonicalPhone,
                     pin = pin,
@@ -570,10 +570,52 @@ class AuthRepository @Inject constructor(
                 )
             }.onFailure {
                 android.util.Log.w("PaidDueFinancialSync", "CASHIER_CLOUD_AUTH_RETRY_FAILED")
+            }.getOrDefault(false)
+
+            if (!cloudAuthenticated) {
+                // A web-accepted re-invitation creates a new authoritative membership ID.
+                // Authenticate without assuming the stale local ID, then reconcile only
+                // after the server confirms the same business and branch.
+                when (
+                    val recovery = remoteBusinessRestorer.restoreCashierIfEmpty(
+                        username,
+                        pin,
+                        branch.countryCode
+                    )
+                ) {
+                    is RemoteBusinessRestorationResult.Success -> {
+                        if (
+                            recovery.businessId == business.id &&
+                            recovery.branchId == branch.id
+                        ) {
+                            val refreshedUser = userDao.getUserById(recovery.userId)
+                            val refreshedMembership = userDao.getMembership(
+                                recovery.userId,
+                                branch.id
+                            )
+                            if (
+                                refreshedUser != null &&
+                                refreshedUser.role == UserRole.CASHIER &&
+                                refreshedUser.isActive &&
+                                refreshedMembership != null &&
+                                com.dailymoneyregister.core.cloud.sync.CashierCloudSession
+                                    .tokenFor(refreshedMembership.id) != null
+                            ) {
+                                SessionManager.setSession(
+                                    session.copy(
+                                        user = refreshedUser,
+                                        membership = refreshedMembership
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    is RemoteBusinessRestorationResult.Failed -> Unit
+                }
             }
         }
 
-        SessionManager.setSession(session)
+        SessionManager.setSession(SessionManager.currentSession.value ?: session)
 
         trustedSessionStore.save(
             businessId = session.business.id,
