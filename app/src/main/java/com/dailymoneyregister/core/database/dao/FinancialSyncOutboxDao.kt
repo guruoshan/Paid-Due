@@ -164,7 +164,13 @@ interface FinancialSyncOutboxDao {
                         'RECORD_EXPENSE',
                         'OPEN_CASH_SHIFT', 'COUNT_CASH_SHIFT', 'CLOSE_CASH_SHIFT'
                     )
-                 ) THEN status
+                 ) THEN CASE
+                    WHEN status = 'NOT_SYNCABLE_YET'
+                     AND operation_id IN (
+                        SELECT id FROM operations WHERE operation_type = 'RECORD_EXPENSE'
+                     ) THEN 'QUEUED'
+                    ELSE status
+                 END
             WHEN (
                 (
                     SELECT role FROM user_accounts
