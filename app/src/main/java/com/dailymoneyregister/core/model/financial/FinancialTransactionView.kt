@@ -223,15 +223,6 @@ object FinancialReadModelResolver {
             }
         }
 
-        if (paymentChanges.isNotEmpty()) {
-            val reclassifiedOperationIds = reclassifications.map { it.operationId }.toSet()
-            paymentChanges.forEach { change ->
-                check(change.operationId in reclassifiedOperationIds) {
-                    "Payment-method change ${change.id} has no authoritative reclassification settlements for transaction ${transaction.id}."
-                }
-            }
-        }
-
         reclassifications
             .groupBy { it.operationId }
             .toList()
