@@ -164,6 +164,53 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -no-snapshot-load -no-snapshot-save -gpu swiftshader_indirect
           script: ./gradlew --no-daemon :app:connectedDebugAndroidTest
 
+      - name: Print instrumentation XML reports and failing tests
+        if: always()
+        shell: bash
+        timeout-minutes: 3
+        run: |
+          set +e
+          echo '=== XML report paths: find app/build -name "*.xml" ==='
+          find app/build -type f -name '*.xml' -print 2>&1 | tee "$RUNNER_TEMP/android-test-xml-paths.txt"
+          echo '=== TEST-* report paths: find app/build -name "TEST-*" ==='
+          find app/build -type f -name 'TEST-*' -print 2>&1 | tee "$RUNNER_TEMP/android-test-testfile-paths.txt"
+          echo '=== Instrumentation failures, class, method and stack traces ==='
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          files = sorted(set(glob.glob('app/build/**/*.xml', recursive=True)))
+          found = False
+          for path in files:
+              try:
+                  root = ET.parse(path).getroot()
+              except (ET.ParseError, OSError):
+                  continue
+              if root.tag not in ('testsuite', 'testsuites'):
+                  continue
+              suites = [root] if root.tag == 'testsuite' else list(root.iter('testsuite'))
+              for suite in suites:
+                  for case in suite.findall('testcase'):
+                      failures = [x for x in list(case) if x.tag in ('failure', 'error')]
+                      if not failures:
+                          continue
+                      found = True
+                      classname = case.attrib.get('classname', '<unknown class>')
+                      name = case.attrib.get('name', '<unknown method>')
+                      print(f'FAILING TEST: {classname}#{name}')
+                      print(f'REPORT: {path}')
+                      for failure in failures:
+                          print(f'EXCEPTION: {failure.attrib.get("type", "<unknown type>")}: {failure.attrib.get("message", "<no message>")}')
+                          print('STACK TRACE:')
+                          print((failure.text or '<stack trace absent>').strip())
+                          print('---')
+          if not found:
+              print('No failed testcase entries found in XML reports currently present.')
+          PY
+          echo '=== XML and TEST-* report counts ==='
+          printf 'XML files: '; find app/build -type f -name '*.xml' 2>/dev/null | wc -l
+          printf 'TEST-* files: '; find app/build -type f -name 'TEST-*' 2>/dev/null | wc -l
+
       - name: Collect emulator and instrumentation diagnostics
         if: always()
         shell: bash
@@ -181,9 +228,9 @@ jobs:
             echo '--- AVD configuration ---'
             ls -la "$HOME/.android/avd"
           } > "$out/emulator-state.txt" 2>&1
-          adb logcat -b all -d -v threadtime > "$out/logcat.txt" 2>&1
-          adb shell getprop > "$out/device-properties.txt" 2>&1
-          find "$HOME/.android" "$RUNNER_TEMP" -maxdepth 5 -type f \( -iname '*emulator*.log' -o -iname '*adb*.log' \) -print -exec tail -n 200 {} \; > "$out/emulator-log-tail.txt" 2>&1
+          timeout 45s adb logcat -b all -d -v threadtime > "$out/logcat.txt" 2>&1 || echo "WARNING: adb logcat timed out or failed" >> "$out/collection-warnings.txt"
+          timeout 20s adb shell getprop > "$out/device-properties.txt" 2>&1 || echo "WARNING: adb getprop timed out or failed" >> "$out/collection-warnings.txt"
+          timeout 30s find "$HOME/.android" "$RUNNER_TEMP" -maxdepth 5 -type f \( -iname '*emulator*.log' -o -iname '*adb*.log' \) -print -exec timeout 5s tail -n 200 {} \; > "$out/emulator-log-tail.txt" 2>&1 || echo "WARNING: emulator log scan timed out or failed" >> "$out/collection-warnings.txt"
           echo "--- Diagnostics written to $out ---"
           ls -lah "$out"
 
@@ -196,6 +243,10 @@ jobs:
             app/build/reports/androidTests/connected/debug/
             app/build/outputs/androidTest-results/
             app/build/test-results/
+            app/build/**/*.xml
+            app/build/**/TEST-*
+            ${{ runner.temp }}/android-test-xml-paths.txt
+            ${{ runner.temp }}/android-test-testfile-paths.txt
             ${{ runner.temp }}/paid-due-emulator-diagnostics/
             ${{ runner.temp }}/paid-due-emulator.log
           if-no-files-found: warn
