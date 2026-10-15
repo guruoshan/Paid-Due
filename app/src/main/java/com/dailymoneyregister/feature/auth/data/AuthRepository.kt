@@ -454,33 +454,59 @@ class AuthRepository @Inject constructor(
             }
         }
 
-        if (!user.isActive) {
-            return AuthResult.InvalidCredentials(
-                "Invalid username or PIN"
-            )
+        var isValid = user.isActive && PinHasher.verifyPin(
+            pin,
+            user.credentialSalt ?: "",
+            user.credentialHash
+        )
+
+        // A cashier may have accepted a fresh invite on the web landing page.
+        // The cloud PIN and membership can then be newer than this device's local
+        // projection. Only a successful cloud authentication can authorize the
+        // local credential/permission refresh; never overwrite from an unverified PIN.
+        if (!isValid && identifier.canonicalPhone != null) {
+            when (
+                val recovery = remoteBusinessRestorer.restoreCashierIfEmpty(
+                    username,
+                    pin,
+                    branch.countryCode
+                )
+            ) {
+                is RemoteBusinessRestorationResult.Success -> {
+                    if (
+                        recovery.businessId != business.id ||
+                        recovery.branchId != branch.id
+                    ) {
+                        return AuthResult.Error(
+                            "Cashier belongs to a different business or branch"
+                        )
+                    }
+                    user = userDao.getUserById(recovery.userId)
+                    if (
+                        user == null ||
+                        user.role != UserRole.CASHIER ||
+                        user.authType != AuthType.PIN
+                    ) {
+                        return AuthResult.Error(
+                            "Cloud cashier account could not be reconciled safely"
+                        )
+                    }
+                    isValid = user.isActive && PinHasher.verifyPin(
+                        pin,
+                        user.credentialSalt ?: "",
+                        user.credentialHash
+                    )
+                }
+                is RemoteBusinessRestorationResult.Failed -> Unit
+            }
         }
 
-        val isValid =
-            PinHasher.verifyPin(
-                pin,
-                user.credentialSalt ?: "",
-                user.credentialHash
-            )
-
-        if (!isValid) {
-            val lockoutSeconds =
-                pinThrottler.recordFailure(
-                failureKey
-                )
-
+        if (user == null || !user.isActive || !isValid) {
+            val lockoutSeconds = pinThrottler.recordFailure(failureKey)
             return if (lockoutSeconds > 0L) {
-                AuthResult.LockedOut(
-                    lockoutSeconds
-                )
+                AuthResult.LockedOut(lockoutSeconds)
             } else {
-                AuthResult.InvalidCredentials(
-                    "Invalid username or PIN"
-                )
+                AuthResult.InvalidCredentials("Invalid username or PIN")
             }
         }
 
