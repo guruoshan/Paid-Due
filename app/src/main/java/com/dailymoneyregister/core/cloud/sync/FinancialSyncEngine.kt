@@ -195,13 +195,12 @@ class FinancialSyncEngine @Inject constructor(
         // currently signed-in membership. The server receipt binds the envelope
         // to this membership, so cross-actor upload would corrupt actor attribution
         // and cause the receiving device to reject the acknowledged envelope.
-        val pendingList = outboxDao.getPendingUpload(50)
-            .filter {
-                it.businessId == activeSession.business.id &&
-                    it.branchId == activeSession.branch.id &&
-                    it.actorUserId == activeSession.user.id
-            }
-            .filter { now >= (retryBackoffStore.nextRetryAt(it.operationId) ?: Long.MIN_VALUE) }
+        val pendingList = outboxDao.getPendingUploadForActor(
+            businessId = activeSession.business.id,
+            branchId = activeSession.branch.id,
+            actorUserId = activeSession.user.id,
+            limit = 50
+        ).filter { now >= (retryBackoffStore.nextRetryAt(it.operationId) ?: Long.MIN_VALUE) }
         
         val statusCounts = outboxDao.getStatusCounts()
         val countsStr = statusCounts.joinToString(", ") { "${it.operationType}[${it.status}]=${it.count}" }
