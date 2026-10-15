@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/backend-compatibility-audit-2026-10
+      - fix/cash-shift-cloud-owner
   pull_request:
 
 permissions:
@@ -15,12 +16,13 @@ concurrency:
 
 jobs:
   android-build-and-unit-tests:
-    if: github.event_name != 'pull_request' || github.base_ref != 'main'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -41,10 +43,265 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
+      - name: Export authentic Room schemas 14, 15, 16, 17 and 18
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          schema_dir="app/schemas/com.dailymoneyregister.core.database.DmrDatabase"
+          git worktree add /tmp/paid-due-schema-v14 main
+          chmod +x /tmp/paid-due-schema-v14/gradlew
+          (cd /tmp/paid-due-schema-v14 && ./gradlew --no-daemon :app:kspDebugKotlin)
+          test -s "/tmp/paid-due-schema-v14/$schema_dir/14.json"
+          mkdir -p "$schema_dir"
+          cp "/tmp/paid-due-schema-v14/$schema_dir/14.json" "$schema_dir/14.json"
+          git worktree add /tmp/paid-due-schema-v15 "$BASE_SHA"
+          chmod +x /tmp/paid-due-schema-v15/gradlew
+          (cd /tmp/paid-due-schema-v15 && ./gradlew --no-daemon :app:kspDebugKotlin)
+          test -s "/tmp/paid-due-schema-v15/$schema_dir/15.json"
+          mkdir -p "$schema_dir"
+          cp "/tmp/paid-due-schema-v15/$schema_dir/15.json" "$schema_dir/15.json"
+          ./gradlew --no-daemon :app:kspDebugKotlin
+          test -s "$schema_dir/16.json"
+          test -s "$schema_dir/17.json"
+          test -s "$schema_dir/18.json"
+          python3 -m json.tool "$schema_dir/14.json" >/dev/null
+          python3 -m json.tool "$schema_dir/15.json" >/dev/null
+          python3 -m json.tool "$schema_dir/16.json" >/dev/null
+          python3 -m json.tool "$schema_dir/17.json" >/dev/null
+          python3 -m json.tool "$schema_dir/18.json" >/dev/null
+          mkdir -p "$RUNNER_TEMP/room-schema-exports"
+          cp "$schema_dir/14.json" "$RUNNER_TEMP/room-schema-exports/14.json"
+          cp "$schema_dir/15.json" "$RUNNER_TEMP/room-schema-exports/15.json"
+          cp "$schema_dir/16.json" "$RUNNER_TEMP/room-schema-exports/16.json"
+          cp "$schema_dir/17.json" "$RUNNER_TEMP/room-schema-exports/17.json"
+          cp "$schema_dir/18.json" "$RUNNER_TEMP/room-schema-exports/18.json"
+
+      - name: Upload authentic Room schema exports
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-schema-14-15-16-17-18
+          path: |
+            ${{ runner.temp }}/room-schema-exports/14.json
+            ${{ runner.temp }}/room-schema-exports/15.json
+            ${{ runner.temp }}/room-schema-exports/16.json
+            ${{ runner.temp }}/room-schema-exports/17.json
+            ${{ runner.temp }}/room-schema-exports/18.json
+          if-no-files-found: error
+
       - name: Build debug APK and run unit tests
         run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
+
+      - name: Print complete unit-test failure details
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          echo '--- JUnit XML test reports (includes exception messages and stack traces) ---'
+          find app/build/test-results -type f -name '*.xml' -print -exec cat {} \; 2>/dev/null
+          echo '--- Gradle test report files ---'
+          find app/build/reports/tests -type f -maxdepth 5 -print 2>/dev/null
+
+      - name: Upload complete unit-test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: financial-sync-test-diagnostics
+          path: |
+            app/build/test-results/testDebugUnitTest/
+            app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: warn
+
+      - name: Restore schema assets after Gradle output cleanup
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          schema_dir="app/schemas/com.dailymoneyregister.core.database.DmrDatabase"
+          mkdir -p "$schema_dir"
+          cp "$RUNNER_TEMP/room-schema-exports/14.json" "$schema_dir/14.json"
+          cp "$RUNNER_TEMP/room-schema-exports/15.json" "$schema_dir/15.json"
+          cp "$RUNNER_TEMP/room-schema-exports/16.json" "$schema_dir/16.json"
+          cp "$RUNNER_TEMP/room-schema-exports/17.json" "$schema_dir/17.json"
+          cp "$RUNNER_TEMP/room-schema-exports/18.json" "$schema_dir/18.json"
+
+      - name: Compile Android instrumentation tests
+        run: ./gradlew --no-daemon :app:compileDebugAndroidTestKotlin
 
       - name: Run unit tests with inbound apply explicitly enabled
         env:
           PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES: "true"
         run: ./gradlew --no-daemon :app:testDebugUnitTest
+
+      - name: Enable KVM access for the GitHub-hosted emulator
+        run: |
+          set -euo pipefail
+          if [ -e /dev/kvm ]; then
+            echo 'KVM device detected; configure runner permissions for hardware acceleration.'
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+            ls -l /dev/kvm
+          else
+            echo 'WARNING: /dev/kvm is not available; emulator will use the action auto-detection fallback.'
+          fi
+
+      - name: Run Android instrumentation tests on API 35 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          cores: 2
+          ram-size: 2048M
+          heap-size: 512M
+          force-avd-creation: true
+          emulator-boot-timeout: 600
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -no-snapshot-load -no-snapshot-save -gpu swiftshader_indirect
+          script: ./gradlew --no-daemon :app:connectedDebugAndroidTest
+
+      - name: Print instrumentation XML reports and failing tests
+        if: always()
+        shell: bash
+        timeout-minutes: 3
+        run: |
+          set +e
+          echo '=== XML report paths: find app/build -name "*.xml" ==='
+          find app/build -type f -name '*.xml' -print 2>&1 | tee "$RUNNER_TEMP/android-test-xml-paths.txt"
+          echo '=== TEST-* report paths: find app/build -name "TEST-*" ==='
+          find app/build -type f -name 'TEST-*' -print 2>&1 | tee "$RUNNER_TEMP/android-test-testfile-paths.txt"
+          echo '=== Instrumentation failures, class, method and stack traces ==='
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          files = sorted(set(glob.glob('app/build/**/*.xml', recursive=True)))
+          found = False
+          for path in files:
+              try:
+                  root = ET.parse(path).getroot()
+              except (ET.ParseError, OSError):
+                  continue
+              if root.tag not in ('testsuite', 'testsuites'):
+                  continue
+              suites = [root] if root.tag == 'testsuite' else list(root.iter('testsuite'))
+              for suite in suites:
+                  for case in suite.findall('testcase'):
+                      failures = [x for x in list(case) if x.tag in ('failure', 'error')]
+                      if not failures:
+                          continue
+                      found = True
+                      classname = case.attrib.get('classname', '<unknown class>')
+                      name = case.attrib.get('name', '<unknown method>')
+                      print(f'FAILING TEST: {classname}#{name}')
+                      print(f'REPORT: {path}')
+                      for failure in failures:
+                          print(f'EXCEPTION: {failure.attrib.get("type", "<unknown type>")}: {failure.attrib.get("message", "<no message>")}')
+                          print('STACK TRACE:')
+                          print((failure.text or '<stack trace absent>').strip())
+                          print('---')
+          if not found:
+              print('No failed testcase entries found in XML reports currently present.')
+          PY
+          echo '=== XML and TEST-* report counts ==='
+          printf 'XML files: '; find app/build -type f -name '*.xml' 2>/dev/null | wc -l
+          printf 'TEST-* files: '; find app/build -type f -name 'TEST-*' 2>/dev/null | wc -l
+
+      - name: Collect emulator and instrumentation diagnostics
+        if: always()
+        shell: bash
+        timeout-minutes: 3
+        run: |
+          set +e
+          out="$RUNNER_TEMP/paid-due-emulator-diagnostics"
+          mkdir -p "$out"
+
+          echo '--- ADB devices (10s limit) ---' > "$out/emulator-state.txt"
+          timeout 10s adb devices -l >> "$out/emulator-state.txt" 2>&1 || echo "WARNING: adb devices timed out or failed" >> "$out/collection-warnings.txt"
+
+          echo '--- Emulator processes (10s limit) ---' >> "$out/emulator-state.txt"
+          timeout 10s bash -c "ps -ef | grep -E '[e]mulator|[q]emu-system'" >> "$out/emulator-state.txt" 2>&1 || echo "WARNING: emulator process listing timed out or failed" >> "$out/collection-warnings.txt"
+
+          echo '--- KVM state (10s limit) ---' >> "$out/emulator-state.txt"
+          timeout 10s ls -l /dev/kvm >> "$out/emulator-state.txt" 2>&1 || echo "WARNING: KVM inspection timed out or failed" >> "$out/collection-warnings.txt"
+
+          timeout 30s adb logcat -b all -d -v threadtime > "$out/logcat.txt" 2>&1 || echo "WARNING: adb logcat timed out or failed" >> "$out/collection-warnings.txt"
+          timeout 15s adb shell getprop > "$out/device-properties.txt" 2>&1 || echo "WARNING: adb shell getprop timed out or failed" >> "$out/collection-warnings.txt"
+
+          echo '--- Targeted Android test report files ---' > "$out/android-test-report-files.txt"
+          for dir in app/build/reports/androidTests app/build/outputs/androidTest-results app/build/test-results; do
+            echo "### $dir" >> "$out/android-test-report-files.txt"
+            if [ -d "$dir" ]; then
+              timeout 20s find "$dir" -maxdepth 6 -type f -print >> "$out/android-test-report-files.txt" 2>&1 || echo "WARNING: listing $dir timed out or failed" >> "$out/collection-warnings.txt"
+            else
+              echo "Directory not present" >> "$out/android-test-report-files.txt"
+            fi
+          done
+
+          echo "--- Diagnostics collection finished ---"
+          ls -lah "$out"
+          exit 0
+
+      - name: Upload instrumentation, migration, emulator, and logcat diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumentation-diagnostics-${{ github.run_id }}
+          path: |
+            app/build/reports/androidTests/connected/debug/
+            app/build/outputs/androidTest-results/
+            app/build/test-results/
+            app/build/**/*.xml
+            app/build/**/TEST-*
+            ${{ runner.temp }}/android-test-xml-paths.txt
+            ${{ runner.temp }}/android-test-testfile-paths.txt
+            ${{ runner.temp }}/paid-due-emulator-diagnostics/
+            ${{ runner.temp }}/paid-due-emulator.log
+          if-no-files-found: warn
+          retention-days: 14
+
+
+  commit-room-schemas:
+    needs: android-build-and-unit-tests
+    if: needs.android-build-and-unit-tests.result == 'success' && github.event_name == 'pull_request' && github.actor == 'guruoshan' && github.head_ref == 'fix/cash-shift-cloud-owner'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Download authentic schema exports
+        uses: actions/download-artifact@v4
+        with:
+          name: room-schema-14-15-16-17-18
+          path: ${{ runner.temp }}/room-schema-exports
+
+      - name: Commit generated Room schemas
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          schema_dir="app/schemas/com.dailymoneyregister.core.database.DmrDatabase"
+          mkdir -p "$schema_dir"
+          cp "$RUNNER_TEMP/room-schema-exports/14.json" "$schema_dir/14.json"
+          cp "$RUNNER_TEMP/room-schema-exports/15.json" "$schema_dir/15.json"
+          cp "$RUNNER_TEMP/room-schema-exports/16.json" "$schema_dir/16.json"
+          cp "$RUNNER_TEMP/room-schema-exports/17.json" "$schema_dir/17.json"
+          cp "$RUNNER_TEMP/room-schema-exports/18.json" "$schema_dir/18.json"
+          git add "$schema_dir/14.json" "$schema_dir/15.json" "$schema_dir/16.json" "$schema_dir/17.json" "$schema_dir/18.json"
+          if git diff --cached --quiet; then
+            echo "Authentic Room schemas are already committed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(database): export authentic Room schemas 14, 15, 16, 17 and 18"
+          git push origin "HEAD:$HEAD_BRANCH"

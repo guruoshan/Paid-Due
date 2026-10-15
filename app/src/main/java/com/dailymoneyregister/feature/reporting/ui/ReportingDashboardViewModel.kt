@@ -2,6 +2,8 @@ package com.dailymoneyregister.feature.reporting.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dailymoneyregister.core.cloud.sync.FinancialSyncScheduler
+import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.feature.reporting.data.ReportingReadRepository
 import com.dailymoneyregister.feature.reporting.domain.ReportingPeriodPreset
@@ -10,6 +12,7 @@ import com.dailymoneyregister.feature.reporting.domain.ReportingScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,7 +27,9 @@ data class ReportingDashboardUiState(
 
 @HiltViewModel
 class ReportingDashboardViewModel @Inject constructor(
-    private val repository: ReportingReadRepository
+    private val repository: ReportingReadRepository,
+    private val database: DmrDatabase,
+    private val syncScheduler: FinancialSyncScheduler
 ) : ViewModel() {
 
     private val _uiState =
@@ -35,15 +40,41 @@ class ReportingDashboardViewModel @Inject constructor(
     val uiState: StateFlow<ReportingDashboardUiState> =
         _uiState.asStateFlow()
 
+    private var loadJob: Job? = null
+
     init {
-        load()
+        // Refresh whenever inbound sync or a local financial command commits to Room.
+        viewModelScope.launch {
+            database.invalidationTracker.createFlow(
+                "transactions",
+                "transaction_items",
+                "settlement_entries",
+                "refund_events",
+                "void_events",
+                "amount_correction_events",
+                "payment_method_change_events",
+                "credit_repayments",
+                "credit_ledger_events",
+                "coupon_ledger_events",
+                "coupon_wallets",
+                "expenses",
+                "expense_events",
+                "operations",
+                "cash_shift_events"
+            ).collect {
+                load()
+            }
+        }
+        syncScheduler.triggerSync()
     }
 
     fun retry() {
+        syncScheduler.triggerSync()
         load()
     }
 
     private fun load() {
+        loadJob?.cancel()
         val session =
             SessionManager.currentSession.value
 
@@ -61,7 +92,7 @@ class ReportingDashboardViewModel @Inject constructor(
                 isLoading = true
             )
 
-        viewModelScope.launch {
+        loadJob = viewModelScope.launch {
             try {
                 val period =
                     ReportingPeriodResolver.resolve(

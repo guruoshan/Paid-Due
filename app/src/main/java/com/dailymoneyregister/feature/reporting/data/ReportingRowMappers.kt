@@ -52,7 +52,8 @@ import com.dailymoneyregister.feature.reporting.domain.VoidReportRow
 internal data class ReportingLookups(
     val branchesById: Map<String, BranchEntity>,
     val usersById: Map<String, UserAccountEntity>,
-    val customersById: Map<String, CustomerEntity>
+    val customersById: Map<String, CustomerEntity>,
+    val cashierNamesById: Map<String, String> = emptyMap()
 ) {
 
     fun branch(branchId: String): ReportBranch =
@@ -64,7 +65,7 @@ internal data class ReportingLookups(
     fun cashier(userId: String): ReportCashier =
         ReportCashier(
             userId = userId,
-            displayName = usersById[userId]?.displayName
+            displayName = cashierNamesById[userId] ?: usersById[userId]?.displayName
         )
 
     /** Optional person: transactions do not enforce a customer FK. */

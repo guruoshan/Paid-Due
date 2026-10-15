@@ -43,5 +43,8 @@ data class CloudStaffIdentityEntity(
     val isRemoved: Boolean,
 
     @ColumnInfo(name = "updated_at")
-    val updatedAt: Long
+    val updatedAt: Long,
+
+    @ColumnInfo(name = "display_name", defaultValue = "''")
+    val displayName: String = ""
 )

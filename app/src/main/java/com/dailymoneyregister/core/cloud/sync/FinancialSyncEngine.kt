@@ -36,21 +36,33 @@ class FinancialSyncEngine @Inject constructor(
     private var outboxInitialized = false
     private val lastInboundRejectionLogAt = mutableMapOf<String, Long>()
 
-    private fun cursorKey(businessId: String, adminAccountId: String): String =
-        "inbound_cursor_${businessId}_$adminAccountId"
+    private fun cursorKey(
+        businessId: String,
+        accountId: String,
+        branchScopeId: String?
+    ): String = buildString {
+        append("inbound_cursor_").append(businessId).append("_").append(accountId)
+        if (!branchScopeId.isNullOrBlank()) append("_branch_").append(branchScopeId)
+    }
 
     private suspend fun getStoredCursor(
         businessId: String,
-        adminAccountId: String
+        accountId: String,
+        branchScopeId: String?
     ): VersionedInboundCursor? {
+        val activeSession = SessionManager.currentSession.value
+        val activeSessionOwnsCursor =
+            activeSession?.business?.id == businessId &&
+                activeSession.user.id == accountId
         if (
             database.businessBranchDao().getBusinessById(businessId) == null ||
-            database.userDao().getUserByIdInBusiness(adminAccountId, businessId) == null
+            (!activeSessionOwnsCursor &&
+                database.userDao().getUserByIdInBusiness(accountId, businessId) == null)
         ) {
-            clearStoredCursor(businessId, adminAccountId)
+            clearStoredCursor(businessId, accountId, branchScopeId)
             return null
         }
-        val key = cursorKey(businessId, adminAccountId)
+        val key = cursorKey(businessId, accountId, branchScopeId)
         val prefs = context?.getSharedPreferences("dmr_inbound_cursors", Context.MODE_PRIVATE)
         if (prefs == null) {
             return inMemoryCursors[key]
@@ -61,11 +73,12 @@ class FinancialSyncEngine @Inject constructor(
 
     private fun saveStoredCursor(
         businessId: String,
-        adminAccountId: String,
+        accountId: String,
+        branchScopeId: String?,
         receivedAtIso: String,
         operationId: String
     ) {
-        val key = cursorKey(businessId, adminAccountId)
+        val key = cursorKey(businessId, accountId, branchScopeId)
         val prefs = context?.getSharedPreferences("dmr_inbound_cursors", Context.MODE_PRIVATE)
         if (prefs == null) {
             inMemoryCursors[key] = VersionedInboundCursor(
@@ -89,8 +102,12 @@ class FinancialSyncEngine @Inject constructor(
             .commit()
     }
 
-    fun clearStoredCursor(businessId: String, adminAccountId: String) {
-        val key = cursorKey(businessId, adminAccountId)
+    fun clearStoredCursor(
+        businessId: String,
+        accountId: String,
+        branchScopeId: String? = null
+    ) {
+        val key = cursorKey(businessId, accountId, branchScopeId)
         inMemoryCursors.remove(key)
         context?.getSharedPreferences("dmr_inbound_cursors", Context.MODE_PRIVATE)
             ?.edit()?.remove(key)?.commit()
@@ -106,20 +123,35 @@ class FinancialSyncEngine @Inject constructor(
         val transactionDao = database.transactionDao()
         val expenseDao = database.expenseDao()
 
-        if (!outboxInitialized) {
-            outboxDao.classifyExistingRows()
-            outboxDao.resetStaleInFlight()
-            outboxInitialized = true
+        val activeSession = SessionManager.currentSession.value
+            ?: run {
+                Log.w("PaidDueFinancialSync", "OUTBOUND_SESSION_REQUIRED")
+                return@withLock 0
+            }
+        if (
+            activeSession.membership?.id != actorMembershipId ||
+            activeSession.user.role != role
+        ) {
+            Log.w("PaidDueFinancialSync", "OUTBOUND_SESSION_SCOPE_MISMATCH")
+            return@withLock 0
         }
 
-        val activeSession = SessionManager.currentSession.value
-        if (activeSession?.user?.role == UserRole.CASHIER) {
+        if (activeSession.user.role == UserRole.CASHIER) {
+            // Refresh the authoritative cloud identity before startup reconciliation.
+            // Otherwise a first-sync cloud-only cashier can be misclassified as
+            // NOT_APPLICABLE simply because the local identity cache is still empty.
             val refreshed = runCatching {
                 staffIdentitySync.refreshCashierPermissions(activeSession)
             }.onFailure { error ->
                 Log.w("PaidDueFinancialSync", "CASHIER_PERMISSION_REFRESH_DEFERRED", error)
             }.getOrDefault(false)
             if (!refreshed) return@withLock 0
+        }
+
+        if (!outboxInitialized) {
+            outboxDao.classifyExistingRows()
+            outboxDao.resetStaleInFlight()
+            outboxInitialized = true
         }
         if (
             role == UserRole.ADMIN &&
@@ -159,8 +191,16 @@ class FinancialSyncEngine @Inject constructor(
         }
 
         val now = System.currentTimeMillis()
-        val pendingList = outboxDao.getPendingUpload(50)
-            .filter { now >= (retryBackoffStore.nextRetryAt(it.operationId) ?: Long.MIN_VALUE) }
+        // Never upload another user's or another branch's operation under the
+        // currently signed-in membership. The server receipt binds the envelope
+        // to this membership, so cross-actor upload would corrupt actor attribution
+        // and cause the receiving device to reject the acknowledged envelope.
+        val pendingList = outboxDao.getPendingUploadForActor(
+            businessId = activeSession.business.id,
+            branchId = activeSession.branch.id,
+            actorUserId = activeSession.user.id,
+            limit = 50
+        ).filter { now >= (retryBackoffStore.nextRetryAt(it.operationId) ?: Long.MIN_VALUE) }
         
         val statusCounts = outboxDao.getStatusCounts()
         val countsStr = statusCounts.joinToString(", ") { "${it.operationType}[${it.status}]=${it.count}" }
@@ -287,6 +327,13 @@ class FinancialSyncEngine @Inject constructor(
         val session = SessionManager.currentSession.value
         val sessionBusinessId = session?.business?.id ?: businessId
         val sessionBranchId = session?.membership?.branchId
+        // The authenticated Admin download RPC returns envelopes for every branch
+        // the Admin is authorized to access in this business. A single active-branch
+        // filter here would reject valid envelopes from the Admin's other branches
+        // and hold the durable cursor behind them. Cashier downloads are server-scoped
+        // to their own branch, so retain the strict local branch check for cashiers.
+        val materializationBranchScope =
+            if (session?.user?.role == UserRole.ADMIN) null else sessionBranchId
 
         // Staff identity must be available before any financial envelope is materialized.
         // Failure is visible in logs and the actor remains fail-closed in the materializer.
@@ -303,7 +350,12 @@ class FinancialSyncEngine @Inject constructor(
             if (!identitySyncSucceeded) return@withLock 0
         }
 
-        val storedCursor = getStoredCursor(businessId, adminAccountId)
+        // Cashier downloads are scoped to one branch and may have no local
+        // user_accounts row. Keep their cursor branch-specific and trust the
+        // matching active session for local cursor ownership.
+        val cursorBranchScopeId =
+            if (session?.user?.role == UserRole.CASHIER) sessionBranchId else null
+        val storedCursor = getStoredCursor(businessId, adminAccountId, cursorBranchScopeId)
         var currentAfterReceivedAt: String? = storedCursor?.let {
             java.time.Instant.parse(it.receivedAtIso).minusSeconds(5).toString()
         }
@@ -358,9 +410,11 @@ class FinancialSyncEngine @Inject constructor(
                         businessId,
                         envelope.operationId
                     )
-                    reportInboundRejection(
-                        envelope.operationId,
-                        "Inbound application is not enabled for operation ${envelope.operationType}; deferred"
+                    quarantineInboundEnvelope(
+                        envelope = envelope,
+                        businessId = businessId,
+                        sessionBranchId = sessionBranchId,
+                        reason = "Inbound application is not enabled for operation ${envelope.operationType}; deferred"
                     )
                     unresolvedEnvelopeSeen = true
                     pageLastProcessedEnvelope = envelope
@@ -376,9 +430,11 @@ class FinancialSyncEngine @Inject constructor(
                     remoteDigest.isNullOrBlank() ||
                     !remoteDigest.equals(calculatedDigest, ignoreCase = true)
                 ) {
-                    reportInboundRejection(
-                        envelope.operationId,
-                        if (remoteDigest.isNullOrBlank()) {
+                    quarantineInboundEnvelope(
+                        envelope = envelope,
+                        businessId = businessId,
+                        sessionBranchId = sessionBranchId,
+                        reason = if (remoteDigest.isNullOrBlank()) {
                             "Remote envelope is missing canonical_sha256"
                         } else {
                             "Remote canonical_sha256 does not match canonical_text"
@@ -394,7 +450,7 @@ class FinancialSyncEngine @Inject constructor(
                         database = database,
                         envelope = envelope,
                         sessionBusinessId = sessionBusinessId,
-                        sessionBranchId = sessionBranchId
+                        sessionBranchId = materializationBranchScope
                     )
                 } catch (error: Exception) {
                     InboundProcessResult.Rejected(
@@ -404,12 +460,14 @@ class FinancialSyncEngine @Inject constructor(
 
                 when (result) {
                     is InboundProcessResult.Applied -> {
+                        appendRecoveryIfPreviouslyRejected(envelope, businessId, sessionBranchId)
                         totalApplied++
                         clearInboundRejection(envelope.operationId, businessId)
                         if (!unresolvedEnvelopeSeen) durableCursorCandidate = cursorFor(envelope)
                         pageLastProcessedEnvelope = envelope
                     }
                     is InboundProcessResult.Skipped -> {
+                        appendRecoveryIfPreviouslyRejected(envelope, businessId, sessionBranchId)
                         totalSkipped++
                         clearInboundRejection(envelope.operationId, businessId)
                         if (!unresolvedEnvelopeSeen) durableCursorCandidate = cursorFor(envelope)
@@ -422,16 +480,23 @@ class FinancialSyncEngine @Inject constructor(
                             businessId,
                             envelope.operationId
                         )
-                        reportInboundRejection(
-                            envelope.operationId,
-                            "Unsupported inbound operation ${result.operationType}; deferred"
+                        quarantineInboundEnvelope(
+                            envelope = envelope,
+                            businessId = businessId,
+                            sessionBranchId = sessionBranchId,
+                            reason = "Unsupported inbound operation ${result.operationType}; deferred"
                         )
                         unresolvedEnvelopeSeen = true
                         pageLastProcessedEnvelope = envelope
                         continue
                     }
                     is InboundProcessResult.Rejected -> {
-                        reportInboundRejection(envelope.operationId, result.reason)
+                        quarantineInboundEnvelope(
+                            envelope = envelope,
+                            businessId = businessId,
+                            sessionBranchId = sessionBranchId,
+                            reason = result.reason
+                        )
                         unresolvedEnvelopeSeen = true
                         pageLastProcessedEnvelope = envelope
                         continue
@@ -454,7 +519,8 @@ class FinancialSyncEngine @Inject constructor(
         durableCursorCandidate?.let { candidate ->
             saveStoredCursor(
                 businessId = businessId,
-                adminAccountId = adminAccountId,
+                accountId = adminAccountId,
+                branchScopeId = cursorBranchScopeId,
                 receivedAtIso = candidate.receivedAtIso,
                 operationId = candidate.operationId
             )
@@ -486,6 +552,60 @@ class FinancialSyncEngine @Inject constructor(
             FinancialSyncStatus.clearVisibleProblem()
         }
         FinancialSyncStatus.clearUnsupported(context, businessId, operationId)
+    }
+
+    /**
+     * Persist rejection evidence before returning control to the sync loop. Repeated
+     * attempts for the same unresolved operation do not create unbounded duplicate
+     * audit rows; a RECOVERED event closes the current rejection state.
+     */
+    private suspend fun quarantineInboundEnvelope(
+        envelope: RemoteEnvelopeV2,
+        businessId: String,
+        sessionBranchId: String?,
+        reason: String
+    ) {
+        val auditDao = database.inboundEnvelopeAuditDao()
+        if (!auditDao.hasRejection(envelope.operationId)) {
+            auditDao.append(
+                com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity(
+                    id = java.util.UUID.randomUUID().toString(),
+                    operationId = envelope.operationId,
+                    businessId = businessId,
+                    branchId = envelope.branchId ?: sessionBranchId,
+                    operationType = envelope.operationType,
+                    receivedAtIso = envelope.receivedAtIso,
+                    canonicalSha256 = envelope.canonicalSha256,
+                    eventType = "REJECTED",
+                    reason = reason,
+                    occurredAt = System.currentTimeMillis()
+                )
+            )
+        }
+        reportInboundRejection(envelope.operationId, reason)
+    }
+
+    private suspend fun appendRecoveryIfPreviouslyRejected(
+        envelope: RemoteEnvelopeV2,
+        businessId: String,
+        sessionBranchId: String?
+    ) {
+        val auditDao = database.inboundEnvelopeAuditDao()
+        if (!auditDao.hasRejection(envelope.operationId)) return
+        auditDao.append(
+            com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity(
+                id = java.util.UUID.randomUUID().toString(),
+                operationId = envelope.operationId,
+                businessId = businessId,
+                branchId = envelope.branchId ?: sessionBranchId,
+                operationType = envelope.operationType,
+                receivedAtIso = envelope.receivedAtIso,
+                canonicalSha256 = envelope.canonicalSha256,
+                eventType = "RECOVERED",
+                reason = "Envelope was successfully applied or verified as a duplicate after prior rejection.",
+                occurredAt = System.currentTimeMillis()
+            )
+        )
     }
 
     private fun reportInboundRejection(operationId: String, reason: String) {

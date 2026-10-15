@@ -42,6 +42,7 @@ class ReportingViewModel @Inject constructor(
         _uiState.asStateFlow()
 
     private var loadJob: Job? = null
+    private var filterOptionsJob: Job? = null
 
     init {
         syncScheduler.triggerSync()
@@ -115,14 +116,42 @@ class ReportingViewModel @Inject constructor(
             return
         }
 
+        val branch = _uiState.value.branchOptions.firstOrNull { it.id == branchId }
+            ?: return
+        val session = SessionManager.currentSession.value ?: return
+        loadJob?.cancel()
+        filterOptionsJob?.cancel()
         _uiState.value =
             _uiState.value.copy(
                 selectedBranchId = branchId,
                 selectedCashierId = null,
+                cashierOptions = emptyList(),
+                isLoading = true,
                 error = null
             )
-
-        load()
+        filterOptionsJob = viewModelScope.launch {
+            try {
+                val options = filterOptionsRepository.load(
+                    businessId = session.business.id,
+                    currencyCode = branch.currencyCode,
+                    branchId = branchId
+                )
+                _uiState.value = _uiState.value.copy(
+                    cashierOptions = options.cashiers,
+                    isLoading = false,
+                    error = null
+                )
+                load()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    cashierOptions = emptyList(),
+                    isLoading = false,
+                    error = ReportingUiError.LOAD_FAILED
+                )
+            }
+        }
     }
 
     fun selectCashier(
@@ -218,10 +247,9 @@ class ReportingViewModel @Inject constructor(
                 try {
                     val options =
                         filterOptionsRepository.load(
-                            businessId =
-                                session.business.id,
-                            currencyCode =
-                                session.branch.currencyCode
+                            businessId = session.business.id,
+                            currencyCode = session.branch.currencyCode,
+                            branchId = session.branch.id
                         )
 
                     val selectedBranch =

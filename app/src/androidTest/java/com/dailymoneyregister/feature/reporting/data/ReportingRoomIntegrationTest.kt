@@ -7,12 +7,17 @@ import com.dailymoneyregister.AndroidTestDatabaseFactory
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
+import com.dailymoneyregister.core.database.entity.CashShiftEntity
+import com.dailymoneyregister.core.database.entity.CashShiftEventEntity
+import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
+import com.dailymoneyregister.core.database.entity.PaymentMethodChangeEventEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
 import com.dailymoneyregister.core.model.enums.AuthType
+import com.dailymoneyregister.core.model.enums.CashShiftEventType
 import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.OperationStatus
@@ -25,6 +30,7 @@ import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.feature.reporting.domain.ReportingPeriod
 import com.dailymoneyregister.feature.reporting.domain.ReportingScope
+import com.dailymoneyregister.feature.reporting.domain.SaleReportRow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -101,6 +107,23 @@ class ReportingRoomIntegrationTest {
     @Test
     fun persistedSaleFlowsThroughRoomRepositoryIntoAuthoritativeSummary() = runBlocking {
         val occurredAt = 1_500L
+        val cloudCashierId = "reporting-phase3b-cloud-cashier"
+        database.cloudStaffIdentityDao().upsertAll(
+            listOf(
+                CloudStaffIdentityEntity(
+                    membershipId = "reporting-phase3b-cloud-membership",
+                    localUserId = cloudCashierId,
+                    businessId = business.id,
+                    branchId = branch.id,
+                    role = "CASHIER",
+                    permissionsJson = "{}",
+                    isActive = true,
+                    isRemoved = false,
+                    updatedAt = 1L,
+                    displayName = "Cloud Cashier"
+                )
+            )
+        )
         val transactionId = "reporting-phase3b-sale"
         val operationId = "reporting-phase3b-sale-op"
 
@@ -119,7 +142,7 @@ class ReportingRoomIntegrationTest {
                 grandTotalMinor = 1_250L,
                 currencyCode = branch.currencyCode,
                 currencyDecimalPlaces = branch.currencyDecimalPlaces,
-                createdByUserId = admin.id,
+                createdByUserId = cloudCashierId,
                 deviceId = "reporting-phase3b-device",
                 createdAt = occurredAt,
                 description = null,
@@ -136,7 +159,7 @@ class ReportingRoomIntegrationTest {
                 subjectType = SubjectType.TRANSACTION,
                 subjectId = transactionId,
                 transactionId = transactionId,
-                actorUserId = admin.id,
+                actorUserId = cloudCashierId,
                 deviceId = "reporting-phase3b-device",
                 occurredAt = occurredAt,
                 requestFingerprint = "reporting-phase3b-sale-fingerprint",
@@ -160,7 +183,50 @@ class ReportingRoomIntegrationTest {
                 currencyCode = branch.currencyCode,
                 confirmationType = ConfirmationType.CASHIER_CONFIRMED,
                 occurredAt = occurredAt,
-                actorUserId = admin.id
+                actorUserId = cloudCashierId
+            )
+        )
+
+        // A close lifecycle operation has no transaction or settlement and must
+        // never increase sale counts or cash-sales totals.
+        val shiftId = "reporting-phase3b-shift"
+        val closeOperationId = "reporting-phase3b-close-op"
+        database.operationDao().insertOperation(
+            OperationEntity(
+                id = closeOperationId,
+                businessId = business.id,
+                branchId = branch.id,
+                operationType = OperationType.CLOSE_CASH_SHIFT,
+                subjectType = SubjectType.CASH_SHIFT,
+                subjectId = shiftId,
+                transactionId = null,
+                cashShiftId = shiftId,
+                actorUserId = cloudCashierId,
+                deviceId = "reporting-phase3b-device",
+                occurredAt = 1_800L,
+                requestFingerprint = "reporting-phase3b-close-fingerprint",
+                commandSchemaVersion = 1,
+                intentPayload = "{}",
+                status = OperationStatus.SUCCEEDED
+            )
+        )
+        database.cashShiftDao().insertShift(
+            CashShiftEntity(
+                id = shiftId,
+                branchId = branch.id,
+                userId = cloudCashierId,
+                createdAt = 1_400L
+            )
+        )
+        database.cashShiftDao().insertShiftEvent(
+            CashShiftEventEntity(
+                id = "$closeOperationId:CLOSED",
+                shiftId = shiftId,
+                operationId = closeOperationId,
+                type = CashShiftEventType.CLOSED,
+                amountMinor = 0L,
+                occurredAt = 1_800L,
+                actorUserId = cloudCashierId
             )
         )
 
@@ -196,6 +262,171 @@ class ReportingRoomIntegrationTest {
         assertEquals(0L, result.summary.onlineSalesCollected.amount)
         assertEquals(0L, result.summary.creditSalesOriginated.amount)
         assertEquals(1, result.summary.counts.sales)
+        assertEquals("Cloud Cashier", (result.rows.single() as SaleReportRow).cashier.displayName)
+
+        // A payment-method change is a reclassification of the existing sale,
+        // not a second sale. The current snapshot must move the tender from cash
+        // to online while keeping the sale count and net sales unchanged.
+        val paymentChangeOperationId = "reporting-phase3b-payment-change-op"
+        database.operationDao().insertOperation(
+            OperationEntity(
+                id = paymentChangeOperationId,
+                businessId = business.id,
+                branchId = branch.id,
+                operationType = OperationType.RECORD_PAYMENT_METHOD_CHANGE,
+                subjectType = SubjectType.TRANSACTION,
+                subjectId = transactionId,
+                transactionId = transactionId,
+                actorUserId = cloudCashierId,
+                deviceId = "reporting-phase3b-device",
+                occurredAt = 1_600L,
+                requestFingerprint = "reporting-phase3b-payment-change-fingerprint",
+                commandSchemaVersion = 1,
+                intentPayload = "{}",
+                status = OperationStatus.SUCCEEDED
+            )
+        )
+        database.transactionDao().insertPaymentMethodChange(
+            PaymentMethodChangeEventEntity(
+                id = "reporting-phase3b-payment-change-event",
+                transactionId = transactionId,
+                operationId = paymentChangeOperationId,
+                previousMethod = PaymentCategory.CASH,
+                previousChannel = PaymentChannel.CASH_TENDER,
+                newMethod = PaymentCategory.ONLINE,
+                newChannel = PaymentChannel.MANUAL_QR,
+                reason = "Corrected tender",
+                actorUserId = cloudCashierId,
+                occurredAt = 1_600L
+            )
+        )
+        database.transactionDao().insertSettlement(
+            SettlementEntryEntity(
+                id = "reporting-phase3b-payment-change-cash",
+                operationId = paymentChangeOperationId,
+                subjectType = SubjectType.TRANSACTION,
+                subjectId = transactionId,
+                transactionId = transactionId,
+                entryPurpose = EntryPurpose.PAYMENT_METHOD_RECLASSIFICATION,
+                category = PaymentCategory.CASH,
+                channel = PaymentChannel.CASH_TENDER,
+                amountSignedMinor = -1_250L,
+                currencyCode = branch.currencyCode,
+                confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                occurredAt = 1_600L,
+                actorUserId = cloudCashierId
+            )
+        )
+        database.transactionDao().insertSettlement(
+            SettlementEntryEntity(
+                id = "reporting-phase3b-payment-change-online",
+                operationId = paymentChangeOperationId,
+                subjectType = SubjectType.TRANSACTION,
+                subjectId = transactionId,
+                transactionId = transactionId,
+                entryPurpose = EntryPurpose.PAYMENT_METHOD_RECLASSIFICATION,
+                category = PaymentCategory.ONLINE,
+                channel = PaymentChannel.MANUAL_QR,
+                amountSignedMinor = 1_250L,
+                currencyCode = branch.currencyCode,
+                confirmationType = ConfirmationType.PROVIDER_APPROVED,
+                occurredAt = 1_600L,
+                actorUserId = cloudCashierId
+            )
+        )
+
+        val afterPaymentChange = repository.read(
+            ReportingScope(
+                businessId = business.id,
+                branchId = branch.id,
+                cashierUserId = null,
+                currencyCode = branch.currencyCode,
+                period = ReportingPeriod(
+                    fromInclusive = 1_000L,
+                    toExclusive = 2_000L
+                )
+            )
+        )
+        assertEquals(2, afterPaymentChange.rows.size)
+        assertEquals(1_250L, afterPaymentChange.summary.periodSaleInflow.amount)
+        assertEquals(1_250L, afterPaymentChange.summary.periodNetSalesActivity.amount)
+        assertEquals(0L, afterPaymentChange.summary.cashSalesCollected.amount)
+        assertEquals(1_250L, afterPaymentChange.summary.onlineSalesCollected.amount)
+        assertEquals(1, afterPaymentChange.summary.counts.sales)
+
+        val options = ReportingFilterOptionsRepository(database).load(business.id, branch.currencyCode)
+        assertTrue(options.cashiers.any { it.id == cloudCashierId && it.displayName == "Cloud Cashier" })
+
+        val filtered = repository.read(
+            ReportingScope(
+                businessId = business.id,
+                branchId = branch.id,
+                cashierUserId = cloudCashierId,
+                currencyCode = branch.currencyCode,
+                period = ReportingPeriod(1_000L, 2_000L)
+            )
+        )
+        assertEquals(2, filtered.rows.size)
+        assertEquals(1, filtered.summary.counts.sales)
+        assertEquals(0L, filtered.summary.cashSalesCollected.amount)
+        assertEquals(1_250L, filtered.summary.onlineSalesCollected.amount)
+    }
+
+    @Test
+    fun cashierFilterOptionsOnlyIncludeCashiersFromSelectedBranch() = runBlocking {
+        val otherBranch = BranchEntity(
+            id = "reporting-phase3b-other-branch",
+            businessId = business.id,
+            name = "Other",
+            code = "OTHER",
+            countryCode = "OM",
+            currencyCode = branch.currencyCode,
+            currencyDecimalPlaces = branch.currencyDecimalPlaces,
+            currencySymbol = branch.currencySymbol,
+            timezoneId = branch.timezoneId,
+            createdAt = 1L,
+            updatedAt = 1L
+        )
+        database.businessBranchDao().insertBranch(otherBranch)
+        database.cloudStaffIdentityDao().upsertAll(
+            listOf(
+                CloudStaffIdentityEntity(
+                    membershipId = "reporting-phase3b-main-membership",
+                    localUserId = "reporting-phase3b-cloud-cashier",
+                    businessId = business.id,
+                    branchId = branch.id,
+                    role = "CASHIER",
+                    permissionsJson = "{}",
+                    isActive = true,
+                    isRemoved = false,
+                    updatedAt = 1L,
+                    displayName = "Cloud Cashier"
+                ),
+                CloudStaffIdentityEntity(
+                    membershipId = "reporting-phase3b-other-membership",
+                    localUserId = "reporting-phase3b-other-cashier",
+                    businessId = business.id,
+                    branchId = otherBranch.id,
+                    role = "CASHIER",
+                    permissionsJson = "{}",
+                    isActive = true,
+                    isRemoved = false,
+                    updatedAt = 1L,
+                    displayName = "Other Branch Cashier"
+                )
+            )
+        )
+
+        val options = ReportingFilterOptionsRepository(database)
+            .load(business.id, branch.currencyCode, branch.id)
+
+        assertTrue(options.cashiers.any {
+            it.id == "reporting-phase3b-cloud-cashier" &&
+                it.displayName == "Cloud Cashier"
+        })
+        assertTrue(options.cashiers.none {
+            it.id == "reporting-phase3b-other-cashier"
+        })
     }
 
     @Test

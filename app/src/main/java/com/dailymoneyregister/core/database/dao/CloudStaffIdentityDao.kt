@@ -16,7 +16,6 @@ interface CloudStaffIdentityDao {
         WHERE local_user_id = :localUserId
           AND business_id = :businessId
           AND branch_id = :branchId
-          AND role = 'CASHIER'
         LIMIT 1
     """)
     suspend fun findIdentity(

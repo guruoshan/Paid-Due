@@ -53,11 +53,35 @@ class RoomReportingReadRepository(
 
         val cashierKnown: Boolean? =
             if (session != null && scope.cashierUserId != null) {
-                database.userDao()
-                    .getUserByIdInBusiness(
+                val cloudIdentities = if (scope.branchId != null) {
+                    listOfNotNull(
+                        database.cloudStaffIdentityDao().findIdentity(
+                            localUserId = scope.cashierUserId,
+                            businessId = session.business.id,
+                            branchId = scope.branchId
+                        )
+                    )
+                } else {
+                    database.businessBranchDao()
+                        .getBranchesByBusinessId(session.business.id)
+                        .mapNotNull { branch ->
+                            database.cloudStaffIdentityDao().findIdentity(
+                                localUserId = scope.cashierUserId,
+                                businessId = session.business.id,
+                                branchId = branch.id
+                            )
+                        }
+                }
+                if (cloudIdentities.isNotEmpty()) {
+                    cloudIdentities.any {
+                        it.role == "CASHIER" && it.isActive && !it.isRemoved
+                    }
+                } else {
+                    database.userDao().getUserByIdInBusiness(
                         userId = scope.cashierUserId,
                         businessId = session.business.id
-                    ) != null
+                    )?.isActive == true
+                }
             } else {
                 null
             }
@@ -232,10 +256,19 @@ class RoomReportingReadRepository(
             reportingDao.getUsersByIdsInBusiness(businessId, ids)
         }.associateBy { it.id }
 
+        val cloudCashierNamesById = access.branchIds.distinct()
+            .flatMap { database.cloudStaffIdentityDao().listForBranch(businessId, it) }
+            .filter {
+                it.role == "CASHIER" && it.isActive && !it.isRemoved &&
+                    it.displayName.isNotBlank()
+            }
+            .associate { it.localUserId to it.displayName }
+
         val lookups = ReportingLookups(
             branchesById = access.branchesById,
             usersById = usersById,
-            customersById = customersById
+            customersById = customersById,
+            cashierNamesById = cloudCashierNamesById
         )
 
         // ---- 7. Ordered ledgers for balance evidence ----------------------

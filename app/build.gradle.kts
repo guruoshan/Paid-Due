@@ -38,8 +38,8 @@ fun buildConfigString(value: String): String =
         .replace("\\", "\\\\")
         .replace("\"", "\\\"") + "\""
 android {
-    // Inbound application is enabled for the release-safe RECORD_SALE vertical slice.
-    // The operation gate keeps every other release operation type fail-closed.
+    // Release inbound application is enabled by default; InboundApplicationGate
+    // limits release materialization to operation types with verified evidence handlers.
     val inboundApplyOverride = providers.gradleProperty("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES")
         .orElse(providers.environmentVariable("PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES"))
         .orNull
@@ -61,13 +61,13 @@ android {
         testInstrumentationRunner = "com.dailymoneyregister.HiltTestRunner"
         val paidDueSupabaseUrl =
             paidDueConfig("PAID_DUE_SUPABASE_URL").trim()
-                .ifBlank { "https://ttvdpgxqvvtjnxxfkoui.supabase.co" }
+                .ifBlank { "https://example.supabase.co" }
 
         // Publishable/anon keys are public client configuration, not secrets.
         // Keep overrides available for local/staging builds.
         val paidDueSupabasePublishableKey =
             paidDueConfig("PAID_DUE_SUPABASE_PUBLISHABLE_KEY").trim()
-                .ifBlank { "sb_publishable_6IHSTMfMOmK2ecB58U7tjA_CWJwDyZt" }
+                .ifBlank { "sb_publishable_build_test_only" }
 
         check(paidDueSupabaseUrl.startsWith("https://")) {
             "PAID_DUE_SUPABASE_URL must be configured as HTTPS."
@@ -104,7 +104,7 @@ android {
                     )
                 )
                 .orElse(
-                    "https://ttvdpgxqvvtjnxxfkoui.supabase.co/functions/v1/api"
+                    "https://example.supabase.co/functions/v1/api"
                 )
                 .get()
                 .trim()
@@ -135,6 +135,17 @@ android {
                 keyAlias = paidDueReleaseKeyAlias
                 keyPassword = paidDueReleaseKeyPassword
             }
+        }
+    }
+
+    packaging {
+        resources {
+            // JUnit 5 test dependencies contribute duplicate license metadata to
+            // the instrumentation APK; this metadata is not runtime code.
+            excludes += setOf(
+                "META-INF/LICENSE.md",
+                "META-INF/LICENSE-notice.md"
+            )
         }
     }
 
@@ -241,6 +252,7 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.mockk.android)
     androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.hilt.android.testing)
     androidTestUtil(libs.androidx.test.orchestrator)

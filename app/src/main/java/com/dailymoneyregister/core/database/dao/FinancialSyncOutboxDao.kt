@@ -53,6 +53,24 @@ interface FinancialSyncOutboxDao {
 
     @Query(
         """
+        SELECT * FROM financial_sync_outbox
+        WHERE status IN ('QUEUED', 'WAITING_RETRY')
+          AND business_id = :businessId
+          AND branch_id = :branchId
+          AND actor_user_id = :actorUserId
+        ORDER BY occurred_at ASC, operation_id ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun getPendingUploadForActor(
+        businessId: String,
+        branchId: String,
+        actorUserId: String,
+        limit: Int
+    ): List<FinancialSyncOutboxEntity>
+
+    @Query(
+        """
         SELECT COUNT(*) FROM financial_sync_outbox
         WHERE status = 'QUEUED'
         """
@@ -111,7 +129,10 @@ interface FinancialSyncOutboxDao {
         """
         UPDATE financial_sync_outbox
         SET status = CASE
-            WHEN (SELECT role FROM user_accounts WHERE id = actor_user_id) = 'ADMIN'
+            WHEN (
+                SELECT role FROM user_accounts
+                WHERE id = financial_sync_outbox.actor_user_id
+            ) = 'ADMIN'
                  AND operation_id IN (
                     SELECT id FROM operations WHERE operation_type IN (
                         'RECORD_SALE', 'RECORD_CREDIT_REPAYMENT', 'RECORD_COUPON_PURCHASE',
@@ -120,7 +141,22 @@ interface FinancialSyncOutboxDao {
                         'RECORD_EXPENSE_VOID', 'OPEN_CASH_SHIFT', 'COUNT_CASH_SHIFT', 'CLOSE_CASH_SHIFT'
                     )
                  ) THEN status
-            WHEN (SELECT role FROM user_accounts WHERE id = actor_user_id) = 'CASHIER'
+            WHEN (
+                (
+                    SELECT role FROM user_accounts
+                    WHERE id = financial_sync_outbox.actor_user_id
+                ) = 'CASHIER'
+                OR EXISTS (
+                    SELECT 1
+                    FROM cloud_staff_identities csi
+                    WHERE csi.local_user_id = financial_sync_outbox.actor_user_id
+                      AND csi.business_id = financial_sync_outbox.business_id
+                      AND csi.branch_id = financial_sync_outbox.branch_id
+                      AND csi.role = 'CASHIER'
+                      AND csi.is_active = 1
+                      AND csi.is_removed = 0
+                )
+            )
                  AND operation_id IN (
                     SELECT id FROM operations WHERE operation_type IN (
                         'RECORD_SALE', 'RECORD_CREDIT_REPAYMENT', 'RECORD_COUPON_PURCHASE',
@@ -128,7 +164,22 @@ interface FinancialSyncOutboxDao {
                         'OPEN_CASH_SHIFT', 'COUNT_CASH_SHIFT', 'CLOSE_CASH_SHIFT'
                     )
                  ) THEN status
-            WHEN (SELECT role FROM user_accounts WHERE id = actor_user_id) = 'CASHIER'
+            WHEN (
+                (
+                    SELECT role FROM user_accounts
+                    WHERE id = financial_sync_outbox.actor_user_id
+                ) = 'CASHIER'
+                OR EXISTS (
+                    SELECT 1
+                    FROM cloud_staff_identities csi
+                    WHERE csi.local_user_id = financial_sync_outbox.actor_user_id
+                      AND csi.business_id = financial_sync_outbox.business_id
+                      AND csi.branch_id = financial_sync_outbox.branch_id
+                      AND csi.role = 'CASHIER'
+                      AND csi.is_active = 1
+                      AND csi.is_removed = 0
+                )
+            )
                  AND operation_id IN (
                     SELECT id FROM operations WHERE operation_type IN (
                         'RECORD_EXPENSE', 'RECORD_EXPENSE_CORRECTION', 'RECORD_EXPENSE_VOID'

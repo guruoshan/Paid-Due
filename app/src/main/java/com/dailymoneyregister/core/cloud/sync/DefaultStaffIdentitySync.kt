@@ -35,7 +35,8 @@ class DefaultStaffIdentitySync @Inject constructor(
                     }.toString(),
                     isActive = remote.isActive,
                     isRemoved = remote.isRemoved,
-                    updatedAt = System.currentTimeMillis()
+                    updatedAt = System.currentTimeMillis(),
+                    displayName = remote.displayName
                 )
             }
         if (rows.isNotEmpty()) database.cloudStaffIdentityDao().upsertAll(rows)

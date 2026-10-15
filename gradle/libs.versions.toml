@@ -68,6 +68,7 @@ libphonenumber = { group = "com.googlecode.libphonenumber", name = "libphonenumb
 
 # Testing
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+mockk-android = { group = "io.mockk", name = "mockk-android", version.ref = "mockk" }
 
 [plugins]
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
