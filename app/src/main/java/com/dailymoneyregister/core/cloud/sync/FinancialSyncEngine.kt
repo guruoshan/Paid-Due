@@ -106,20 +106,23 @@ class FinancialSyncEngine @Inject constructor(
         val transactionDao = database.transactionDao()
         val expenseDao = database.expenseDao()
 
-        if (!outboxInitialized) {
-            outboxDao.classifyExistingRows()
-            outboxDao.resetStaleInFlight()
-            outboxInitialized = true
-        }
-
         val activeSession = SessionManager.currentSession.value
         if (activeSession?.user?.role == UserRole.CASHIER) {
+            // Refresh the authoritative cloud identity before startup reconciliation.
+            // Otherwise a first-sync cloud-only cashier can be misclassified as
+            // NOT_APPLICABLE simply because the local identity cache is still empty.
             val refreshed = runCatching {
                 staffIdentitySync.refreshCashierPermissions(activeSession)
             }.onFailure { error ->
                 Log.w("PaidDueFinancialSync", "CASHIER_PERMISSION_REFRESH_DEFERRED", error)
             }.getOrDefault(false)
             if (!refreshed) return@withLock 0
+        }
+
+        if (!outboxInitialized) {
+            outboxDao.classifyExistingRows()
+            outboxDao.resetStaleInFlight()
+            outboxInitialized = true
         }
         if (
             role == UserRole.ADMIN &&
