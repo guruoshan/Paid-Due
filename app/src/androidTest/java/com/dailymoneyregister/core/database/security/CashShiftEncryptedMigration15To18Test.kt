@@ -1,6 +1,7 @@
 package com.dailymoneyregister.core.database.security
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -33,6 +34,7 @@ class CashShiftEncryptedMigration15To18Test {
         context.deleteDatabase(name)
 
         try {
+            Log.e("CashShiftMigrationDiag", "TEST_START test=encryptedPopulatedVersion15PreservesCashShiftEventsOutboxAndAuditSchema database=$name")
             // Use the authentic Room-exported v15 schema as the source database.
             val old = migrationHelper.createDatabase(name, 15)
             old.execSQL(
@@ -148,6 +150,7 @@ class CashShiftEncryptedMigration15To18Test {
                 .build()
 
             val sql = migrated.openHelper.writableDatabase
+            Log.e("CashShiftMigrationDiag", "TEST_MIGRATION_COMPLETE user_version=${scalarLong(sql, "PRAGMA user_version")}")
             sql.query("PRAGMA user_version").use {
                 assertTrue(it.moveToFirst())
                 assertEquals(18, it.getInt(0))
