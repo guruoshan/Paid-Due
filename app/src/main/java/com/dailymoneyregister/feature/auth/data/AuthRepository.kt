@@ -307,7 +307,7 @@ class AuthRepository @Inject constructor(
             }
         }
 
-        clearSuccessfulLoginThrottle(business.id, identifier, user)
+        clearSuccessfulLoginThrottle(business.id, identifier, verifiedUser)
 
         val membership =
             userDao.getMembership(
@@ -510,9 +510,12 @@ class AuthRepository @Inject constructor(
             }
         }
 
+        val verifiedUser = user
+            ?: return AuthResult.InvalidCredentials("Invalid username or PIN")
+
         val authenticatedUser =
             upgradeCashierCredentialIfNeeded(
-                user = user,
+                user = verifiedUser,
                 pin = pin
             )
 
