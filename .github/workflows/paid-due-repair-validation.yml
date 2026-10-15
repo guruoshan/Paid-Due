@@ -3,6 +3,7 @@ name: Paid-Due repair branch validation
 on:
   push:
     branches:
+      - main
       - fix/backend-compatibility-audit-2026-10
       - fix/cash-shift-cloud-owner
   pull_request:
