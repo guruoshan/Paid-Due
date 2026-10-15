@@ -95,6 +95,26 @@ jobs:
       - name: Build debug APK and run unit tests
         run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
 
+      - name: Print complete unit-test failure details
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          echo '--- JUnit XML test reports (includes exception messages and stack traces) ---'
+          find app/build/test-results -type f -name '*.xml' -print -exec cat {} \\; 2>/dev/null
+          echo '--- Gradle test report files ---'
+          find app/build/reports/tests -type f -maxdepth 5 -print 2>/dev/null
+
+      - name: Upload complete unit-test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: financial-sync-test-diagnostics
+          path: |
+            app/build/test-results/testDebugUnitTest/
+            app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: warn
+
       - name: Restore schema assets after Gradle output cleanup
         if: github.event_name == 'pull_request'
         run: |
