@@ -180,7 +180,7 @@ class CloudOnlyCashShiftOwnerTest {
         )
         RemoteEnvelopeEvidenceApplier.apply(
             database = database,
-            evidence = evidence(id, eventType),
+            evidence = evidence(id, eventType = eventType),
             operationId = operationId,
             businessId = businessId,
             branchId = branchId,
