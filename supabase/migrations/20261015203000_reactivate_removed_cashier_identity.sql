@@ -54,12 +54,18 @@ BEGIN
   END IF;
 
   v_existing_block := substring(v_definition FROM v_start FOR v_end - v_start);
-  v_return_start := strpos(v_existing_block, E'\n        return query');
-  v_return_end := strpos(v_existing_block, E'\n        return;\n    end if;') + length(E'\n        return;');
-  IF v_return_start = 0 OR v_return_end <= v_return_start THEN
-    RAISE EXCEPTION 'Could not isolate existing phone-conflict response; migration aborted';
+  v_return_start := strpos(v_existing_block, '        return query');
+  IF v_return_start = 0 THEN
+    RAISE EXCEPTION 'Could not locate existing phone-conflict query; migration aborted';
   END IF;
-  v_return_block := substring(v_existing_block FROM v_return_start + 1 FOR v_return_end - v_return_start);
+  v_return_end := strpos(substring(v_existing_block FROM v_return_start), '        return;');
+  IF v_return_end = 0 THEN
+    RAISE EXCEPTION 'Could not locate existing phone-conflict return; migration aborted';
+  END IF;
+  v_return_block := substring(
+    v_existing_block FROM v_return_start
+    FOR v_return_end + length('        return;') - 1
+  );
 
   v_new_block :=
     '    if found then' || E'\n' ||
