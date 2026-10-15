@@ -107,7 +107,19 @@ class FinancialSyncEngine @Inject constructor(
         val expenseDao = database.expenseDao()
 
         val activeSession = SessionManager.currentSession.value
-        if (activeSession?.user?.role == UserRole.CASHIER) {
+            ?: run {
+                Log.w("PaidDueFinancialSync", "OUTBOUND_SESSION_REQUIRED")
+                return@withLock 0
+            }
+        if (
+            activeSession.membership?.id != actorMembershipId ||
+            activeSession.user.role != role
+        ) {
+            Log.w("PaidDueFinancialSync", "OUTBOUND_SESSION_SCOPE_MISMATCH")
+            return@withLock 0
+        }
+
+        if (activeSession.user.role == UserRole.CASHIER) {
             // Refresh the authoritative cloud identity before startup reconciliation.
             // Otherwise a first-sync cloud-only cashier can be misclassified as
             // NOT_APPLICABLE simply because the local identity cache is still empty.
@@ -162,7 +174,16 @@ class FinancialSyncEngine @Inject constructor(
         }
 
         val now = System.currentTimeMillis()
+        // Never upload another user's or another branch's operation under the
+        // currently signed-in membership. The server receipt binds the envelope
+        // to this membership, so cross-actor upload would corrupt actor attribution
+        // and cause the receiving device to reject the acknowledged envelope.
         val pendingList = outboxDao.getPendingUpload(50)
+            .filter {
+                it.businessId == activeSession.business.id &&
+                    it.branchId == activeSession.branch.id &&
+                    it.actorUserId == activeSession.user.id
+            }
             .filter { now >= (retryBackoffStore.nextRetryAt(it.operationId) ?: Long.MIN_VALUE) }
         
         val statusCounts = outboxDao.getStatusCounts()
