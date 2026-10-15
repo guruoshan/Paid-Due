@@ -347,7 +347,7 @@ class ReportingRoomIntegrationTest {
                 )
             )
         )
-        assertEquals(1, afterPaymentChange.rows.size)
+        assertEquals(2, afterPaymentChange.rows.size)
         assertEquals(1_250L, afterPaymentChange.summary.periodSaleInflow.amount)
         assertEquals(1_250L, afterPaymentChange.summary.periodNetSalesActivity.amount)
         assertEquals(0L, afterPaymentChange.summary.cashSalesCollected.amount)
@@ -366,7 +366,7 @@ class ReportingRoomIntegrationTest {
                 period = ReportingPeriod(1_000L, 2_000L)
             )
         )
-        assertEquals(1, filtered.rows.size)
+        assertEquals(2, filtered.rows.size)
         assertEquals(1, filtered.summary.counts.sales)
         assertEquals(0L, filtered.summary.cashSalesCollected.amount)
         assertEquals(1_250L, filtered.summary.onlineSalesCollected.amount)
@@ -390,6 +390,18 @@ class ReportingRoomIntegrationTest {
         database.businessBranchDao().insertBranch(otherBranch)
         database.cloudStaffIdentityDao().upsertAll(
             listOf(
+                CloudStaffIdentityEntity(
+                    membershipId = "reporting-phase3b-main-membership",
+                    localUserId = "reporting-phase3b-cloud-cashier",
+                    businessId = business.id,
+                    branchId = branch.id,
+                    role = "CASHIER",
+                    permissionsJson = "{}",
+                    isActive = true,
+                    isRemoved = false,
+                    updatedAt = 1L,
+                    displayName = "Cloud Cashier"
+                ),
                 CloudStaffIdentityEntity(
                     membershipId = "reporting-phase3b-other-membership",
                     localUserId = "reporting-phase3b-other-cashier",
