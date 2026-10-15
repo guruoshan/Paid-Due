@@ -214,25 +214,37 @@ jobs:
       - name: Collect emulator and instrumentation diagnostics
         if: always()
         shell: bash
+        timeout-minutes: 3
         run: |
           set +e
           out="$RUNNER_TEMP/paid-due-emulator-diagnostics"
           mkdir -p "$out"
-          {
-            echo '--- ADB devices ---'
-            adb devices -l
-            echo '--- Emulator processes ---'
-            ps -ef | grep -E '[e]mulator|[q]emu-system'
-            echo '--- KVM state ---'
-            ls -l /dev/kvm
-            echo '--- AVD configuration ---'
-            ls -la "$HOME/.android/avd"
-          } > "$out/emulator-state.txt" 2>&1
-          timeout 45s adb logcat -b all -d -v threadtime > "$out/logcat.txt" 2>&1 || echo "WARNING: adb logcat timed out or failed" >> "$out/collection-warnings.txt"
-          timeout 20s adb shell getprop > "$out/device-properties.txt" 2>&1 || echo "WARNING: adb getprop timed out or failed" >> "$out/collection-warnings.txt"
-          timeout 30s find "$HOME/.android" "$RUNNER_TEMP" -maxdepth 5 -type f \( -iname '*emulator*.log' -o -iname '*adb*.log' \) -print -exec timeout 5s tail -n 200 {} \; > "$out/emulator-log-tail.txt" 2>&1 || echo "WARNING: emulator log scan timed out or failed" >> "$out/collection-warnings.txt"
-          echo "--- Diagnostics written to $out ---"
+
+          echo '--- ADB devices (10s limit) ---' > "$out/emulator-state.txt"
+          timeout 10s adb devices -l >> "$out/emulator-state.txt" 2>&1 || echo "WARNING: adb devices timed out or failed" >> "$out/collection-warnings.txt"
+
+          echo '--- Emulator processes (10s limit) ---' >> "$out/emulator-state.txt"
+          timeout 10s bash -c "ps -ef | grep -E '[e]mulator|[q]emu-system'" >> "$out/emulator-state.txt" 2>&1 || echo "WARNING: emulator process listing timed out or failed" >> "$out/collection-warnings.txt"
+
+          echo '--- KVM state (10s limit) ---' >> "$out/emulator-state.txt"
+          timeout 10s ls -l /dev/kvm >> "$out/emulator-state.txt" 2>&1 || echo "WARNING: KVM inspection timed out or failed" >> "$out/collection-warnings.txt"
+
+          timeout 30s adb logcat -b all -d -v threadtime > "$out/logcat.txt" 2>&1 || echo "WARNING: adb logcat timed out or failed" >> "$out/collection-warnings.txt"
+          timeout 15s adb shell getprop > "$out/device-properties.txt" 2>&1 || echo "WARNING: adb shell getprop timed out or failed" >> "$out/collection-warnings.txt"
+
+          echo '--- Targeted Android test report files ---' > "$out/android-test-report-files.txt"
+          for dir in app/build/reports/androidTests app/build/outputs/androidTest-results app/build/test-results; do
+            echo "### $dir" >> "$out/android-test-report-files.txt"
+            if [ -d "$dir" ]; then
+              timeout 20s find "$dir" -maxdepth 6 -type f -print >> "$out/android-test-report-files.txt" 2>&1 || echo "WARNING: listing $dir timed out or failed" >> "$out/collection-warnings.txt"
+            else
+              echo "Directory not present" >> "$out/android-test-report-files.txt"
+            fi
+          done
+
+          echo "--- Diagnostics collection finished ---"
           ls -lah "$out"
+          exit 0
 
       - name: Upload instrumentation, migration, emulator, and logcat diagnostics
         if: always()
