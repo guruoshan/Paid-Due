@@ -342,11 +342,11 @@ begin
 
 
     -- --------------------------------------------------------------
-    -- DO NOT SILENTLY REUSE / RESET AN EXISTING STAFF CREDENTIAL
+    -- REACTIVATE ONLY A FULLY REMOVED IDENTITY
     --
-    -- Multi-business Cashier identity can be designed separately.
-    -- For this activation phase we fail closed rather than changing
-    -- somebody else's existing PIN.
+    -- An identity with any active membership is never reset by an invite.
+    -- A fully removed identity is reused so history remains linked, while
+    -- the new membership's permissions come only from the fresh invitation.
     -- --------------------------------------------------------------
 
     select s.*
