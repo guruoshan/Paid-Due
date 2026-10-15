@@ -209,7 +209,7 @@ class FinancialSyncOutboxV13Test {
         }
 
         // Startup reconciliation must preserve queued work for cloud-only staff.
-        db.financialSyncOutboxDao().classifyExistingRows()
+        runBlocking { db.financialSyncOutboxDao().classifyExistingRows() }
         sql.query(
             "SELECT status FROM financial_sync_outbox WHERE operation_id='cloud-shift-open'"
         ).use {
