@@ -232,17 +232,33 @@ object FinancialReadModelResolver {
             }
         }
 
-        reclassifications.forEach { settlement ->
-            val identity = settlement.category to settlement.channel
-            val adjusted = Math.addExact(
-                fundingAmountsByIdentity[identity] ?: 0L,
-                settlement.amountSignedMinor
+        reclassifications
+            .groupBy { it.operationId }
+            .toList()
+            .sortedWith(
+                compareBy<Pair<String, List<com.dailymoneyregister.core.database.entity.SettlementEntryEntity>>> {
+                    it.second.minOf { entry -> entry.occurredAt }
+                }.thenBy { it.first }
             )
-            check(adjusted >= 0L) {
-                "Payment-method reclassification makes tender negative for transaction ${transaction.id}."
+            .forEach { (_, entries) ->
+                // Apply each operation atomically per tender identity. The
+                // database row order must not affect whether valid evidence
+                // appears to pass through a transient negative balance.
+                entries.groupBy { it.category to it.channel }
+                    .forEach { (identity, identityEntries) ->
+                        val delta = identityEntries.fold(0L) { total, entry ->
+                            Math.addExact(total, entry.amountSignedMinor)
+                        }
+                        val adjusted = Math.addExact(
+                            fundingAmountsByIdentity[identity] ?: 0L,
+                            delta
+                        )
+                        check(adjusted >= 0L) {
+                            "Payment-method reclassification makes tender negative for transaction ${transaction.id}."
+                        }
+                        fundingAmountsByIdentity[identity] = adjusted
+                    }
             }
-            fundingAmountsByIdentity[identity] = adjusted
-        }
 
         val fundingBreakdown = fundingAmountsByIdentity
             .filterValues { it > 0L }
