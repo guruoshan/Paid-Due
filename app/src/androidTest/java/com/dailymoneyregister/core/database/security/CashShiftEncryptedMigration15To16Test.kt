@@ -91,8 +91,27 @@ class CashShiftEncryptedMigration15To16Test {
             )
             old.execSQL(
                 """
+                INSERT INTO operations (
+                    id, business_id, branch_id, operation_type, subject_type,
+                    subject_id, actor_user_id, device_id, occurred_at,
+                    request_fingerprint, command_schema_version, intent_payload, status
+                ) VALUES (
+                    'shift-count-op', 'shift-business', 'shift-branch',
+                    'COUNT_CASH_SHIFT', 'CASH_SHIFT', 'shift-2', 'shift-cashier',
+                    'shift-device', 200, 'shift-count-fingerprint', 1, '{}', 'SUCCEEDED'
+                )
+                """.trimIndent()
+            )
+            old.execSQL(
+                """
                 INSERT INTO cash_shifts (id, branch_id, user_id, created_at)
                 VALUES ('shift-1', 'shift-branch', 'shift-cashier', 100)
+                """.trimIndent()
+            )
+            old.execSQL(
+                """
+                INSERT INTO cash_shifts (id, branch_id, user_id, created_at)
+                VALUES ('shift-2', 'shift-branch', 'shift-cashier', 200)
                 """.trimIndent()
             )
             old.execSQL(
@@ -107,6 +126,16 @@ class CashShiftEncryptedMigration15To16Test {
             )
             old.execSQL(
                 """
+                INSERT INTO cash_shift_events (
+                    id, shift_id, operation_id, type, amount_minor, occurred_at, actor_user_id
+                ) VALUES (
+                    'shift-event-2', 'shift-2', 'shift-count-op', 'COUNTED',
+                    500, 200, 'shift-cashier'
+                )
+                """.trimIndent()
+            )
+            old.execSQL(
+                """
                 INSERT INTO financial_sync_outbox (
                     operation_id, business_id, branch_id, transaction_id, actor_user_id,
                     device_id, request_fingerprint, command_schema_version, occurred_at,
@@ -115,6 +144,19 @@ class CashShiftEncryptedMigration15To16Test {
                     'shift-open-op', 'shift-business', 'shift-branch', 'shift-1',
                     'shift-cashier', 'shift-device', 'shift-open-fingerprint', 1, 100,
                     'QUEUED', 2
+                )
+                """.trimIndent()
+            )
+            old.execSQL(
+                """
+                INSERT INTO financial_sync_outbox (
+                    operation_id, business_id, branch_id, transaction_id, actor_user_id,
+                    device_id, request_fingerprint, command_schema_version, occurred_at,
+                    status, attempt_count
+                ) VALUES (
+                    'shift-count-op', 'shift-business', 'shift-branch', 'shift-2',
+                    'shift-cashier', 'shift-device', 'shift-count-fingerprint', 1, 200,
+                    'QUEUED', 3
                 )
                 """.trimIndent()
             )
@@ -152,13 +194,16 @@ class CashShiftEncryptedMigration15To16Test {
                 assertTrue(it.moveToFirst())
                 assertEquals(16, it.getInt(0))
             }
-            assertEquals(1L, scalarLong(sql, "SELECT COUNT(*) FROM cash_shifts"))
-            assertEquals(1L, scalarLong(sql, "SELECT COUNT(*) FROM cash_shift_events"))
-            assertEquals(1L, scalarLong(sql, "SELECT COUNT(*) FROM financial_sync_outbox"))
-            assertEquals("shift-1", scalarString(sql, "SELECT id FROM cash_shifts"))
-            assertEquals("shift-event-1", scalarString(sql, "SELECT id FROM cash_shift_events"))
-            assertEquals("QUEUED", scalarString(sql, "SELECT status FROM financial_sync_outbox"))
-            assertEquals(2L, scalarLong(sql, "SELECT attempt_count FROM financial_sync_outbox"))
+            assertEquals(2L, scalarLong(sql, "SELECT COUNT(*) FROM cash_shifts"))
+            assertEquals(2L, scalarLong(sql, "SELECT COUNT(*) FROM cash_shift_events"))
+            assertEquals(2L, scalarLong(sql, "SELECT COUNT(*) FROM financial_sync_outbox"))
+            assertEquals(1L, scalarLong(sql, "SELECT COUNT(*) FROM cash_shifts WHERE id='shift-1' AND branch_id='shift-branch' AND user_id='shift-cashier'"))
+            assertEquals(1L, scalarLong(sql, "SELECT COUNT(*) FROM cash_shifts WHERE id='shift-2' AND branch_id='shift-branch' AND user_id='shift-cashier'"))
+            assertEquals(1L, scalarLong(sql, "SELECT COUNT(*) FROM cash_shift_events WHERE id='shift-event-1' AND shift_id='shift-1'"))
+            assertEquals(1L, scalarLong(sql, "SELECT COUNT(*) FROM cash_shift_events WHERE id='shift-event-2' AND shift_id='shift-2'"))
+            assertEquals(2L, scalarLong(sql, "SELECT COUNT(*) FROM financial_sync_outbox WHERE status='QUEUED'"))
+            assertEquals(2L, scalarLong(sql, "SELECT attempt_count FROM financial_sync_outbox WHERE operation_id='shift-open-op'"))
+            assertEquals(3L, scalarLong(sql, "SELECT attempt_count FROM financial_sync_outbox WHERE operation_id='shift-count-op'"))
 
             // Both Room indexes survive the parent-table rebuild.
             assertEquals(1L, scalarLong(
@@ -220,8 +265,10 @@ class CashShiftEncryptedMigration15To16Test {
 
             // Rejected mutations must not damage authoritative or synchronization evidence.
             assertEquals(100L, scalarLong(sql, "SELECT created_at FROM cash_shifts WHERE id='shift-1'"))
+            assertEquals(200L, scalarLong(sql, "SELECT created_at FROM cash_shifts WHERE id='shift-2'"))
+            assertEquals(500L, scalarLong(sql, "SELECT amount_minor FROM cash_shift_events WHERE id='shift-event-2'"))
             assertEquals(2500L, scalarLong(sql, "SELECT amount_minor FROM cash_shift_events WHERE id='shift-event-1'"))
-            assertEquals(1L, scalarLong(sql, "SELECT COUNT(*) FROM financial_sync_outbox"))
+            assertEquals(2L, scalarLong(sql, "SELECT COUNT(*) FROM financial_sync_outbox"))
         } finally {
             migrated?.close()
             passphrase.fill(0)
