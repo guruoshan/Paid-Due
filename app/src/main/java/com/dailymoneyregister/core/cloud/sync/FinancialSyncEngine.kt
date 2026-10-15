@@ -36,21 +36,33 @@ class FinancialSyncEngine @Inject constructor(
     private var outboxInitialized = false
     private val lastInboundRejectionLogAt = mutableMapOf<String, Long>()
 
-    private fun cursorKey(businessId: String, adminAccountId: String): String =
-        "inbound_cursor_${businessId}_$adminAccountId"
+    private fun cursorKey(
+        businessId: String,
+        accountId: String,
+        branchScopeId: String?
+    ): String = buildString {
+        append("inbound_cursor_").append(businessId).append("_").append(accountId)
+        if (!branchScopeId.isNullOrBlank()) append("_branch_").append(branchScopeId)
+    }
 
     private suspend fun getStoredCursor(
         businessId: String,
-        adminAccountId: String
+        accountId: String,
+        branchScopeId: String?
     ): VersionedInboundCursor? {
+        val activeSession = SessionManager.currentSession.value
+        val activeSessionOwnsCursor =
+            activeSession?.business?.id == businessId &&
+                activeSession.user.id == accountId
         if (
             database.businessBranchDao().getBusinessById(businessId) == null ||
-            database.userDao().getUserByIdInBusiness(adminAccountId, businessId) == null
+            (!activeSessionOwnsCursor &&
+                database.userDao().getUserByIdInBusiness(accountId, businessId) == null)
         ) {
-            clearStoredCursor(businessId, adminAccountId)
+            clearStoredCursor(businessId, accountId, branchScopeId)
             return null
         }
-        val key = cursorKey(businessId, adminAccountId)
+        val key = cursorKey(businessId, accountId, branchScopeId)
         val prefs = context?.getSharedPreferences("dmr_inbound_cursors", Context.MODE_PRIVATE)
         if (prefs == null) {
             return inMemoryCursors[key]
@@ -61,11 +73,12 @@ class FinancialSyncEngine @Inject constructor(
 
     private fun saveStoredCursor(
         businessId: String,
-        adminAccountId: String,
+        accountId: String,
+        branchScopeId: String?,
         receivedAtIso: String,
         operationId: String
     ) {
-        val key = cursorKey(businessId, adminAccountId)
+        val key = cursorKey(businessId, accountId, branchScopeId)
         val prefs = context?.getSharedPreferences("dmr_inbound_cursors", Context.MODE_PRIVATE)
         if (prefs == null) {
             inMemoryCursors[key] = VersionedInboundCursor(
@@ -89,8 +102,12 @@ class FinancialSyncEngine @Inject constructor(
             .commit()
     }
 
-    fun clearStoredCursor(businessId: String, adminAccountId: String) {
-        val key = cursorKey(businessId, adminAccountId)
+    fun clearStoredCursor(
+        businessId: String,
+        accountId: String,
+        branchScopeId: String? = null
+    ) {
+        val key = cursorKey(businessId, accountId, branchScopeId)
         inMemoryCursors.remove(key)
         context?.getSharedPreferences("dmr_inbound_cursors", Context.MODE_PRIVATE)
             ?.edit()?.remove(key)?.commit()
@@ -334,7 +351,12 @@ class FinancialSyncEngine @Inject constructor(
             if (!identitySyncSucceeded) return@withLock 0
         }
 
-        val storedCursor = getStoredCursor(businessId, adminAccountId)
+        // Cashier downloads are scoped to one branch and may have no local
+        // user_accounts row. Keep their cursor branch-specific and trust the
+        // matching active session for local cursor ownership.
+        val cursorBranchScopeId =
+            if (session?.user?.role == UserRole.CASHIER) sessionBranchId else null
+        val storedCursor = getStoredCursor(businessId, adminAccountId, cursorBranchScopeId)
         var currentAfterReceivedAt: String? = storedCursor?.let {
             java.time.Instant.parse(it.receivedAtIso).minusSeconds(5).toString()
         }
@@ -498,7 +520,8 @@ class FinancialSyncEngine @Inject constructor(
         durableCursorCandidate?.let { candidate ->
             saveStoredCursor(
                 businessId = businessId,
-                adminAccountId = adminAccountId,
+                accountId = adminAccountId,
+                branchScopeId = cursorBranchScopeId,
                 receivedAtIso = candidate.receivedAtIso,
                 operationId = candidate.operationId
             )
