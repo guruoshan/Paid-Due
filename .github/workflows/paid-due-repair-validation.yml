@@ -183,7 +183,7 @@ jobs:
           } > "$out/emulator-state.txt" 2>&1
           adb logcat -b all -d -v threadtime > "$out/logcat.txt" 2>&1
           adb shell getprop > "$out/device-properties.txt" 2>&1
-          find "$HOME/.android" "$RUNNER_TEMP" -maxdepth 5 -type f \\( -iname '*emulator*.log' -o -iname '*adb*.log' \\) -print -exec tail -n 200 {} \; > "$out/emulator-log-tail.txt" 2>&1
+          find "$HOME/.android" "$RUNNER_TEMP" -maxdepth 5 -type f \( -iname '*emulator*.log' -o -iname '*adb*.log' \) -print -exec tail -n 200 {} \; > "$out/emulator-log-tail.txt" 2>&1
           echo "--- Diagnostics written to $out ---"
           ls -lah "$out"
 
