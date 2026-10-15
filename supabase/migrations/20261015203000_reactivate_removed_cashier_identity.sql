@@ -85,8 +85,10 @@ BEGIN
   v_definition := replace(v_definition, v_ids_old, v_ids_new);
 
   v_insert_start := strpos(v_definition, '    insert into private.staff_identities (');
-  v_insert_end := strpos(v_definition,
-    '    -- --------------------------------------------------------------' || E'\n    -- CASHIER MEMBERSHIP', v_insert_start);
+  v_insert_end := v_insert_start - 1 + strpos(
+    substring(v_definition FROM v_insert_start),
+    '    -- --------------------------------------------------------------' || E'\n    -- CASHIER MEMBERSHIP'
+  );
   IF v_insert_start = 0 OR v_insert_end = 0 OR v_insert_end <= v_insert_start THEN
     RAISE EXCEPTION 'Could not locate staff identity insertion block; migration aborted';
   END IF;
