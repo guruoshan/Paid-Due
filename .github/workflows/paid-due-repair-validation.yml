@@ -89,6 +89,6 @@ jobs:
           ls -l /dev/kvm || true
           echo '--- AVD configuration ---'
           ls -la "$HOME/.android/avd" || true
-          find "$HOME/.android" "$RUNNER_TEMP" -maxdepth 4 -type f -iname '*emulator*.log' -print -exec tail -n 100 {} \\; 2>/dev/null || true
-          find "$HOME/.android" "$RUNNER_TEMP" -maxdepth 4 -type f -iname '*adb*.log' -print -exec tail -n 100 {} \\; 2>/dev/null || true
+          find "$HOME/.android" "$RUNNER_TEMP" -maxdepth 4 -type f -iname '*emulator*.log' -print 2>/dev/null || true
+          find "$HOME/.android" "$RUNNER_TEMP" -maxdepth 4 -type f -iname '*adb*.log' -print 2>/dev/null || true
 
