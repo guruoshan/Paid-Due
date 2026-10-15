@@ -122,31 +122,6 @@ interface FinancialSyncOutboxDao {
         actorUserId: String
     ): Int
 
-    @Query(
-        """
-        UPDATE financial_sync_outbox
-        SET status = 'QUEUED'
-        WHERE status = 'NOT_SYNCABLE_YET'
-          AND operation_id IN (
-              SELECT id FROM operations WHERE operation_type = 'RECORD_EXPENSE'
-          )
-          AND (
-              (SELECT role FROM user_accounts WHERE id = financial_sync_outbox.actor_user_id) = 'CASHIER'
-              OR EXISTS (
-                  SELECT 1 FROM cloud_staff_identities csi
-                  WHERE csi.local_user_id = financial_sync_outbox.actor_user_id
-                    AND csi.business_id = financial_sync_outbox.business_id
-                    AND csi.branch_id = financial_sync_outbox.branch_id
-                    AND csi.role = 'CASHIER'
-                    AND csi.is_active = 1
-                    AND csi.is_removed = 0
-              )
-          )
-        """
-    )
-    /** Re-queues only policy-blocked cashier expense creates; integrity failures remain untouched. */
-    suspend fun requeuePreviouslyBlockedCashierExpenses(): Int
-
     @Query("UPDATE financial_sync_outbox SET status = 'WAITING_RETRY' WHERE status = 'IN_FLIGHT'")
     suspend fun resetStaleInFlight(): Int
 
@@ -165,7 +140,13 @@ interface FinancialSyncOutboxDao {
                         'RECORD_REFUND', 'RECORD_EXPENSE', 'RECORD_EXPENSE_CORRECTION',
                         'RECORD_EXPENSE_VOID', 'OPEN_CASH_SHIFT', 'COUNT_CASH_SHIFT', 'CLOSE_CASH_SHIFT'
                     )
-                 ) THEN status
+                 ) THEN CASE
+                    WHEN status = 'NOT_SYNCABLE_YET'
+                     AND operation_id IN (
+                        SELECT id FROM operations WHERE operation_type = 'RECORD_EXPENSE'
+                     ) THEN 'QUEUED'
+                    ELSE status
+                 END
             WHEN (
                 (
                     SELECT role FROM user_accounts
@@ -213,7 +194,7 @@ interface FinancialSyncOutboxDao {
                  ) THEN 'NOT_SYNCABLE_YET'
             ELSE 'NOT_APPLICABLE'
         END
-        WHERE status IN ('QUEUED', 'WAITING_RETRY', 'IN_FLIGHT')
+        WHERE status IN ('QUEUED', 'WAITING_RETRY', 'IN_FLIGHT', 'NOT_SYNCABLE_YET')
         """
     )
     /** One-time startup cleanup: marks legacy rows by delivery state; never deletes operations or evidence. */
