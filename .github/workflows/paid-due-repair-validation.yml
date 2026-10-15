@@ -48,3 +48,46 @@ jobs:
         env:
           PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES: "true"
         run: ./gradlew --no-daemon :app:testDebugUnitTest
+      
+      - name: Compile Android instrumentation tests
+        run: ./gradlew --no-daemon :app:compileDebugAndroidTestKotlin
+
+      - name: Enable KVM access for the GitHub-hosted emulator
+        run: |
+          set -euo pipefail
+          if [ -e /dev/kvm ]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+            ls -l /dev/kvm
+          else
+            echo 'WARNING: /dev/kvm is not available; emulator may use software acceleration.'
+          fi
+
+      - name: Run Android instrumentation tests on API 35 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          cores: 2
+          ram-size: 2048M
+          heap-size: 512M
+          force-avd-creation: true
+          emulator-boot-timeout: 600
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -no-snapshot-load -no-snapshot-save -gpu swiftshader_indirect
+          script: ./gradlew --no-daemon :app:connectedDebugAndroidTest
+
+      - name: Collect emulator diagnostics after instrumentation failure
+        if: failure()
+        run: |
+          echo '--- ADB device state ---'
+          adb devices -l || true
+          echo '--- KVM state ---'
+          ls -l /dev/kvm || true
+          echo '--- AVD configuration ---'
+          ls -la "$HOME/.android/avd" || true
+          find "$HOME/.android" "$RUNNER_TEMP" -maxdepth 4 -type f \\( -iname '*emulator*.log' -o -iname '*adb*.log' \\) -print -exec tail -n 100 {} \\; 2>/dev/null || true
+
