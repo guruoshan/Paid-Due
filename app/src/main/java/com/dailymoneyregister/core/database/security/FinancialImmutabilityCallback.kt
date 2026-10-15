@@ -23,6 +23,7 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
         "credit_ledger_events",
         "coupon_ledger_events",
         "coupon_authorized_user_events",
+        "cash_shifts",
         "cash_shift_events",
         "expenses",
         "expense_events"

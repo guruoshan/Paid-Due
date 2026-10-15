@@ -96,7 +96,7 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
         CreditRepaymentEntity::class,
         CreditRepaymentAllocationEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -684,6 +684,48 @@ abstract class DmrDatabase : RoomDatabase() {
             }
         }
 
+val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Cash-shift ownership can be represented by a cloud-only staff identity.
+                // Preserve all rows and the branch FK; remove only the user_accounts FK.
+                // Dropping a parent table can cascade-delete child events. Snapshot the
+                // existing event rows and temporarily remove their immutability guards so
+                // SQLite can rebuild the parent without losing authoritative event history.
+                db.execSQL("CREATE TEMP TABLE cash_shift_events_migration_backup AS SELECT * FROM cash_shift_events")
+                db.execSQL("DROP TRIGGER IF EXISTS immutable_cash_shift_events_no_update")
+                db.execSQL("DROP TRIGGER IF EXISTS immutable_cash_shift_events_no_delete")
+                db.execSQL("DROP TRIGGER IF EXISTS immutable_cash_shift_events_no_replace")
+
+                db.execSQL("""
+                    CREATE TABLE cash_shifts_new (
+                        id TEXT NOT NULL,
+                        branch_id TEXT NOT NULL,
+                        user_id TEXT NOT NULL,
+                        created_at INTEGER NOT NULL,
+                        PRIMARY KEY(id),
+                        FOREIGN KEY(branch_id) REFERENCES branches(id) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO cash_shifts_new (id, branch_id, user_id, created_at)
+                    SELECT id, branch_id, user_id, created_at FROM cash_shifts
+                """.trimIndent())
+                db.execSQL("DROP TABLE cash_shifts")
+                db.execSQL("ALTER TABLE cash_shifts_new RENAME TO cash_shifts")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_cash_shifts_branch_id ON cash_shifts (branch_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_cash_shifts_user_id ON cash_shifts (user_id)")
+                db.execSQL("""
+                    INSERT INTO cash_shift_events
+                    (id, shift_id, operation_id, type, amount_minor, occurred_at, actor_user_id)
+                    SELECT id, shift_id, operation_id, type, amount_minor, occurred_at, actor_user_id
+                    FROM cash_shift_events_migration_backup
+                """.trimIndent())
+                db.execSQL("DROP TABLE cash_shift_events_migration_backup")
+                FinancialImmutabilityCallback.installGuards(db)
+            }
+        }
+
+
         @Volatile
 
         private var INSTANCE: DmrDatabase? = null
@@ -722,7 +764,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                             .addCallback(FinancialImmutabilityCallback)
                             .build()
                     } catch (e: Exception) {
@@ -748,7 +790,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()

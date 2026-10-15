@@ -21,12 +21,6 @@ import com.dailymoneyregister.core.model.enums.CashShiftEventType
             childColumns = ["branch_id"],
             onDelete = ForeignKey.RESTRICT
         ),
-        ForeignKey(
-            entity = UserAccountEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["user_id"],
-            onDelete = ForeignKey.RESTRICT
-        )
     ],
     indices = [
         Index(value = ["branch_id"]),

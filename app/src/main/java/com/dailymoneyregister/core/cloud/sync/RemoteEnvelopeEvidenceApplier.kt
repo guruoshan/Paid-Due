@@ -292,8 +292,14 @@ internal object RemoteEnvelopeEvidenceApplier {
                 userId = item.getString("user_id"), createdAt = item.getLong("created_at")
             )
             require(shift.branchId == branchId) { "Cash shift belongs to another branch" }
-            require(database.userDao().getUserByIdInBusiness(shift.userId, businessId) != null) {
-                "Cash shift user is missing or belongs to another business"
+            val localOwner = database.userDao().getUserByIdInBusiness(shift.userId, businessId)
+            val cloudOwner = database.cloudStaffIdentityDao().findIdentity(
+                localUserId = shift.userId,
+                businessId = businessId,
+                branchId = branchId
+            )
+            require(localOwner != null || (cloudOwner?.isActive == true && !cloudOwner.isRemoved)) {
+                "Cash shift user is missing, revoked, or belongs to another business/branch"
             }
             val existing = database.cashShiftDao().getShiftById(shift.id)
             if (existing == null) database.cashShiftDao().insertShift(shift)
