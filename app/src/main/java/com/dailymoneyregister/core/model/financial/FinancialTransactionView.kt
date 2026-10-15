@@ -194,11 +194,73 @@ object FinancialReadModelResolver {
                 .distinct()
                 .toList()
 
-        val fundingBreakdown = record.settlements.filter {
-            it.entryPurpose == fundingPurpose && it.amountSignedMinor > 0
-        }.groupBy { it.category to it.channel }.map { (identity, entries) ->
-            FinancialFundingPart(identity.first, identity.second,
-                entries.fold(0L) { total, entry -> Math.addExact(total, entry.amountSignedMinor) })
+        // Start from the original sale-funding evidence, then apply each
+        // persisted payment-method reclassification as a signed delta. Reporting
+        // must reflect the current tender snapshot without counting a reclass as
+        // another sale or discarding its immutable audit evidence.
+        val fundingAmountsByIdentity = linkedMapOf<Pair<PaymentCategory, PaymentChannel>, Long>()
+        record.settlements
+            .filter {
+                it.entryPurpose == fundingPurpose && it.amountSignedMinor > 0L
+            }
+            .forEach { settlement ->
+                val identity = settlement.category to settlement.channel
+                fundingAmountsByIdentity[identity] = Math.addExact(
+                    fundingAmountsByIdentity[identity] ?: 0L,
+                    settlement.amountSignedMinor
+                )
+            }
+
+        val reclassifications = record.settlements.filter {
+            it.entryPurpose == EntryPurpose.PAYMENT_METHOD_RECLASSIFICATION
+        }
+        reclassifications.groupBy { it.operationId }.forEach { (operationId, entries) ->
+            val operationDelta = entries.fold(0L) { total, entry ->
+                Math.addExact(total, entry.amountSignedMinor)
+            }
+            check(operationDelta == 0L) {
+                "Payment-method reclassification $operationId is not balanced for transaction ${transaction.id}."
+            }
+        }
+
+        if (paymentChanges.isNotEmpty()) {
+            val reclassifiedOperationIds = reclassifications.map { it.operationId }.toSet()
+            paymentChanges.forEach { change ->
+                check(change.operationId in reclassifiedOperationIds) {
+                    "Payment-method change ${change.id} has no authoritative reclassification settlements for transaction ${transaction.id}."
+                }
+            }
+        }
+
+        reclassifications.forEach { settlement ->
+            val identity = settlement.category to settlement.channel
+            val adjusted = Math.addExact(
+                fundingAmountsByIdentity[identity] ?: 0L,
+                settlement.amountSignedMinor
+            )
+            check(adjusted >= 0L) {
+                "Payment-method reclassification makes tender negative for transaction ${transaction.id}."
+            }
+            fundingAmountsByIdentity[identity] = adjusted
+        }
+
+        val fundingBreakdown = fundingAmountsByIdentity
+            .filterValues { it > 0L }
+            .map { (identity, amount) ->
+                FinancialFundingPart(identity.first, identity.second, amount)
+            }
+
+        if (reclassifications.isNotEmpty()) {
+            val originalFundingTotal = record.settlements
+                .filter {
+                    it.entryPurpose == fundingPurpose && it.amountSignedMinor > 0L
+                }
+                .fold(0L) { total, entry -> Math.addExact(total, entry.amountSignedMinor) }
+            val currentFundingTotal = fundingBreakdown
+                .fold(0L) { total, part -> Math.addExact(total, part.amountMinor) }
+            check(currentFundingTotal == originalFundingTotal) {
+                "Payment-method reclassification changed total sale funding for transaction ${transaction.id}."
+            }
         }
         val couponSplit = saleFundingIdentities.size == 2 &&
             saleFundingIdentities.contains(PaymentCategory.COUPON to PaymentChannel.COUPON_WALLET) &&
