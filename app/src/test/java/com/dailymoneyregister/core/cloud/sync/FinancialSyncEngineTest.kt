@@ -141,6 +141,9 @@ class FinancialSyncEngineTest {
         coEvery { outboxDao.classifyExistingRows() } returns 0
         coEvery { outboxDao.resetStaleInFlight() } returns 0
         coEvery {
+            outboxDao.countAuthRequiredForActor("biz-1", "branch-1", "user-1")
+        } returns 0
+        coEvery {
             outboxDao.getPendingUploadForActor(any(), any(), any(), any())
         } returns listOf(outboxItem)
         coEvery { outboxDao.getStatusCounts() } returns emptyList()
