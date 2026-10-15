@@ -101,7 +101,7 @@ jobs:
         run: |
           set +e
           echo '--- JUnit XML test reports (includes exception messages and stack traces) ---'
-          find app/build/test-results -type f -name '*.xml' -print -exec cat {} \\; 2>/dev/null
+          find app/build/test-results -type f -name '*.xml' -print -exec cat {} \; 2>/dev/null
           echo '--- Gradle test report files ---'
           find app/build/reports/tests -type f -maxdepth 5 -print 2>/dev/null
 
@@ -164,17 +164,42 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -no-snapshot-load -no-snapshot-save -gpu swiftshader_indirect
           script: ./gradlew --no-daemon :app:connectedDebugAndroidTest
 
-      - name: Collect emulator diagnostics after instrumentation failure
-        if: failure()
+      - name: Collect emulator and instrumentation diagnostics
+        if: always()
+        shell: bash
         run: |
-          echo '--- ADB device state ---'
-          adb devices -l || true
-          echo '--- KVM state ---'
-          ls -l /dev/kvm || true
-          echo '--- AVD configuration ---'
-          ls -la "$HOME/.android/avd" || true
-          echo '--- Android emulator logs, if present ---'
-          find "$HOME/.android" "$RUNNER_TEMP" -maxdepth 4 -type f \\( -iname '*emulator*.log' -o -iname '*adb*.log' \\) -print -exec tail -n 100 {} \\; 2>/dev/null || true
+          set +e
+          out="$RUNNER_TEMP/paid-due-emulator-diagnostics"
+          mkdir -p "$out"
+          {
+            echo '--- ADB devices ---'
+            adb devices -l
+            echo '--- Emulator processes ---'
+            ps -ef | grep -E '[e]mulator|[q]emu-system'
+            echo '--- KVM state ---'
+            ls -l /dev/kvm
+            echo '--- AVD configuration ---'
+            ls -la "$HOME/.android/avd"
+          } > "$out/emulator-state.txt" 2>&1
+          adb logcat -b all -d -v threadtime > "$out/logcat.txt" 2>&1
+          adb shell getprop > "$out/device-properties.txt" 2>&1
+          find "$HOME/.android" "$RUNNER_TEMP" -maxdepth 5 -type f \\( -iname '*emulator*.log' -o -iname '*adb*.log' \\) -print -exec tail -n 200 {} \; > "$out/emulator-log-tail.txt" 2>&1
+          echo "--- Diagnostics written to $out ---"
+          ls -lah "$out"
+
+      - name: Upload instrumentation, migration, emulator, and logcat diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumentation-diagnostics-${{ github.run_id }}
+          path: |
+            app/build/reports/androidTests/connected/debug/
+            app/build/outputs/androidTest-results/
+            app/build/test-results/
+            ${{ runner.temp }}/paid-due-emulator-diagnostics/
+            ${{ runner.temp }}/paid-due-emulator.log
+          if-no-files-found: warn
+          retention-days: 14
 
 
   commit-room-schemas:
