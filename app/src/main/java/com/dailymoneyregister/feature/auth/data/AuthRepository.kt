@@ -558,6 +558,7 @@ class AuthRepository @Inject constructor(
 
         // Cashier cloud authentication is required for remote sync.
         // Local/offline PIN authentication remains unchanged.
+        var sessionToUse = session
         if (
             com.dailymoneyregister.core.cloud.sync.CashierCloudSession
                 .tokenFor(membership.id) == null && identifier.canonicalPhone != null
@@ -601,11 +602,9 @@ class AuthRepository @Inject constructor(
                                 com.dailymoneyregister.core.cloud.sync.CashierCloudSession
                                     .tokenFor(refreshedMembership.id) != null
                             ) {
-                                SessionManager.setSession(
-                                    session.copy(
-                                        user = refreshedUser,
-                                        membership = refreshedMembership
-                                    )
+                                sessionToUse = session.copy(
+                                    user = refreshedUser,
+                                    membership = refreshedMembership
                                 )
                             }
                         }
@@ -615,7 +614,7 @@ class AuthRepository @Inject constructor(
             }
         }
 
-        SessionManager.setSession(SessionManager.currentSession.value ?: session)
+        SessionManager.setSession(sessionToUse)
 
         trustedSessionStore.save(
             businessId = session.business.id,
