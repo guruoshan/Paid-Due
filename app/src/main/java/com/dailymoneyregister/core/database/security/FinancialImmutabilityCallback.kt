@@ -181,6 +181,7 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
                                     'RECORD_SALE', 'RECORD_CREDIT_REPAYMENT',
                                     'RECORD_COUPON_PURCHASE', 'RECORD_REFUND', 'RECORD_VOID',
                                     'RECORD_AMOUNT_CORRECTION', 'RECORD_PAYMENT_METHOD_CHANGE',
+                                    'RECORD_EXPENSE',
                                     'OPEN_CASH_SHIFT', 'COUNT_CASH_SHIFT', 'CLOSE_CASH_SHIFT'
                                 ) THEN 'QUEUED'
                                 WHEN (
@@ -190,7 +191,7 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
                                     )
                                     $cloudCashierActorPredicate
                                 ) AND NEW.operation_type IN (
-                                    'RECORD_EXPENSE', 'RECORD_EXPENSE_CORRECTION', 'RECORD_EXPENSE_VOID'
+                                    'RECORD_EXPENSE_CORRECTION', 'RECORD_EXPENSE_VOID'
                                 ) THEN 'NOT_SYNCABLE_YET'
                                 ELSE 'NOT_APPLICABLE'
                             END,
