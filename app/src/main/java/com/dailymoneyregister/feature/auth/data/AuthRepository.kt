@@ -307,7 +307,7 @@ class AuthRepository @Inject constructor(
             }
         }
 
-        clearSuccessfulLoginThrottle(business.id, identifier, verifiedUser)
+        clearSuccessfulLoginThrottle(business.id, identifier, authenticatedUser)
 
         val membership =
             userDao.getMembership(
