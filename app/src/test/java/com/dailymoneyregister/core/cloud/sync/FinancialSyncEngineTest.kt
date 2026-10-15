@@ -140,7 +140,9 @@ class FinancialSyncEngineTest {
 
         coEvery { outboxDao.classifyExistingRows() } returns 0
         coEvery { outboxDao.resetStaleInFlight() } returns 0
-        coEvery { outboxDao.getPendingUpload(any()) } returns listOf(
+        coEvery {
+            outboxDao.getPendingUploadForActor(any(), any(), any(), any())
+        } returns listOf(
             outboxItem,
             outboxItem.copy(
                 operationId = "other-actor-op",
