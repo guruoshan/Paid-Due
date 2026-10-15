@@ -698,6 +698,12 @@ abstract class DmrDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE cash_shifts_new RENAME TO cash_shifts")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_cash_shifts_branch_id ON cash_shifts (branch_id)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_cash_shifts_user_id ON cash_shifts (user_id)")
+                // The child table may still contain its original rows when foreign-key
+                // enforcement is disabled during migration. Clear that destination only
+                // after removing immutability guards, then restore the complete snapshot
+                // exactly once. This preserves event history while avoiding primary-key
+                // collisions between surviving destination rows and the backup.
+                db.execSQL("DELETE FROM cash_shift_events")
                 db.execSQL("""
                     INSERT INTO cash_shift_events
                     (id, shift_id, operation_id, type, amount_minor, occurred_at, actor_user_id)
