@@ -142,14 +142,7 @@ class FinancialSyncEngineTest {
         coEvery { outboxDao.resetStaleInFlight() } returns 0
         coEvery {
             outboxDao.getPendingUploadForActor(any(), any(), any(), any())
-        } returns listOf(
-            outboxItem,
-            outboxItem.copy(
-                operationId = "other-actor-op",
-                transactionId = "other-actor-tx",
-                actorUserId = "other-user"
-            )
-        )
+        } returns listOf(outboxItem)
         coEvery { outboxDao.getStatusCounts() } returns emptyList()
         coEvery { outboxDao.updateStatus(any(), any(), any()) } returns 1
         coEvery { outboxDao.deleteAcknowledged(any()) } returns 1
@@ -210,8 +203,10 @@ class FinancialSyncEngineTest {
 
         assertEquals(1, count)
         coVerify { outboxDao.updateStatus(opId, "IN_FLIGHT") }
+        coVerify(exactly = 1) {
+            outboxDao.getPendingUploadForActor("biz-1", "branch-1", "user-1", 50)
+        }
         coVerify(exactly = 1) { remoteRepo.uploadEnvelope(any(), "membership-1", "Asia/Dubai", any()) }
-        coVerify(exactly = 0) { operationDao.getOperationById("other-actor-op") }
         coVerify { outboxDao.deleteAcknowledged(opId) }
     }
 
