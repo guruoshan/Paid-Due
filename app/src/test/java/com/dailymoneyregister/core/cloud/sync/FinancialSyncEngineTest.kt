@@ -105,6 +105,7 @@ class FinancialSyncEngineTest {
 
     @Before
     fun setUp() {
+        SessionManager.clearSession()
         mockkStatic(android.util.Log::class)
         every { android.util.Log.i(any(), any()) } returns 0
         every { android.util.Log.w(any(), any<String>()) } returns 0
