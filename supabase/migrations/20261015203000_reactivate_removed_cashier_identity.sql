@@ -30,6 +30,8 @@ $old$;
       v_activated_at := now();
     END IF;
 $new$;
+  v_ids_start integer;
+  v_ids_end integer;
   v_insert_start integer;
   v_insert_end integer;
   v_insert_block text;
@@ -91,10 +93,19 @@ BEGIN
   v_definition := substring(v_definition FROM 1 FOR v_start - 1)
     || v_new_block || substring(v_definition FROM v_end);
 
-  IF strpos(v_definition, v_ids_old) = 0 THEN
+  v_ids_start := strpos(v_definition, '    v_staff_identity_id := gen_random_uuid();');
+  IF v_ids_start = 0 THEN
     RAISE EXCEPTION 'Could not locate authoritative ID generation block; migration aborted';
   END IF;
-  v_definition := replace(v_definition, v_ids_old, v_ids_new);
+  v_ids_end := v_ids_start - 1
+    + strpos(substring(v_definition FROM v_ids_start), '    v_activated_at := now();')
+    + length('    v_activated_at := now();');
+  IF v_ids_end < v_ids_start THEN
+    RAISE EXCEPTION 'Could not locate end of authoritative ID generation block; migration aborted';
+  END IF;
+  v_definition := substring(v_definition FROM 1 FOR v_ids_start - 1)
+    || v_ids_new
+    || substring(v_definition FROM v_ids_end + 1);
 
   v_insert_start := strpos(v_definition, '    insert into private.staff_identities (');
   v_insert_end := v_insert_start - 1 + strpos(
