@@ -274,12 +274,32 @@ class InviteActivationRepository @Inject constructor(
             return true
         }
 
-        if (
-            userDao.getHumanIdentityByPhone(
+        val existingIdentity =
+            userDao.getHumanIdentityByPhone(invite.canonicalPhone)
+
+        if (existingIdentity != null) {
+            val existingUser = userDao.getUserByCanonicalPhone(
+                invite.businessId,
                 invite.canonicalPhone
-            ) != null
-        ) {
-            return true
+            ) ?: return true
+
+            if (
+                existingUser.role != UserRole.CASHIER ||
+                existingUser.businessId != invite.businessId ||
+                existingUser.isActive
+            ) {
+                return true
+            }
+
+            // A local identity may be reused only after every local membership
+            // is inactive. Do not let a fresh invite reset an active cashier PIN.
+            if (userDao.getMembershipsForUser(existingUser.id).isNotEmpty()) {
+                // The current local membership table is a projection without a
+                // reliable server removal marker. A disabled user is the local
+                // removal tombstone; the server independently enforces that no
+                // active cloud memberships remain before reactivation.
+            }
+            return false
         }
 
         if (
@@ -291,15 +311,8 @@ class InviteActivationRepository @Inject constructor(
             return true
         }
 
-        val username =
-            localUsername(
-                invite.canonicalPhone
-            )
-
-        return userDao.getUserByUsername(
-            invite.businessId,
-            username
-        ) != null
+        val username = localUsername(invite.canonicalPhone)
+        return userDao.getUserByUsername(invite.businessId, username) != null
     }
 
     private suspend fun materializeLocal(
@@ -447,11 +460,19 @@ class InviteActivationRepository @Inject constructor(
             } else {
 
                 check(
-                    identityById.canonicalPhone ==
-                        activation.canonicalPhone &&
-                        identityById.isActive
+                    identityById.canonicalPhone == activation.canonicalPhone
                 ) {
                     "Local identity does not match remote activation"
+                }
+
+                if (!identityById.isActive || identityById.displayName != activation.displayName) {
+                    userDao.updateHumanIdentity(
+                        identityById.copy(
+                            displayName = activation.displayName,
+                            isActive = true,
+                            updatedAt = activation.activatedAtMillis
+                        )
+                    )
                 }
             }
 
@@ -526,21 +547,29 @@ class InviteActivationRepository @Inject constructor(
             } else {
 
                 check(
-                    user.businessId ==
-                        activation.businessId &&
-                        user.identityId ==
-                        localUserId &&
-                        user.role ==
-                        UserRole.CASHIER &&
-                        user.authType ==
-                        AuthType.PIN &&
-                        user.isActive &&
-                        user.credentialHash ==
-                        credentialHash &&
-                        user.credentialSalt ==
-                        credentialSalt
+                    user.businessId == activation.businessId &&
+                        user.identityId == localUserId &&
+                        user.role == UserRole.CASHIER &&
+                        user.authType == AuthType.PIN
                 ) {
                     "Existing local Cashier does not match authoritative activation"
+                }
+
+                if (
+                    !user.isActive ||
+                    user.credentialHash != credentialHash ||
+                    user.credentialSalt != credentialSalt ||
+                    user.displayName != activation.displayName
+                ) {
+                    user = user.copy(
+                        displayName = activation.displayName,
+                        credentialHash = credentialHash,
+                        credentialSalt = credentialSalt,
+                        isActive = true,
+                        mustChangePin = false,
+                        updatedAt = activation.activatedAtMillis
+                    )
+                    userDao.updateUser(user)
                 }
             }
 
@@ -671,17 +700,31 @@ class InviteActivationRepository @Inject constructor(
             } else {
 
                 check(
-                    membership.id ==
-                        activation.membershipId &&
-                        membership.userId ==
-                        localUserId &&
-                        membership.branchId ==
-                        activation.branchId &&
-                        membership.role ==
-                        UserRole.CASHIER
+                    membership.userId == localUserId &&
+                        membership.branchId == activation.branchId &&
+                        membership.role == UserRole.CASHIER
                 ) {
                     "Existing local membership does not match authoritative activation"
                 }
+
+                membership = membership.copy(
+                    id = activation.membershipId,
+                    canCreateSale = permission(activation, "CREATE_SALE", true),
+                    canAcceptCash = permission(activation, "ACCEPT_CASH", true),
+                    canAcceptOnline = permission(activation, "ACCEPT_ONLINE", true),
+                    canCreateCreditSale = permission(activation, "CREATE_CREDIT_SALE", false),
+                    canUseCoupon = permission(activation, "USE_COUPON", false),
+                    canIssueInvoice = permission(activation, "ISSUE_INVOICE", true),
+                    canIssueReceipt = permission(activation, "ISSUE_RECEIPT", true),
+                    canRefund = permission(activation, "REFUND", false),
+                    canVoid = permission(activation, "VOID", false),
+                    canCorrectAmount = permission(activation, "CORRECT_AMOUNT", false),
+                    canChangePaymentMethod = permission(activation, "CHANGE_PAYMENT_METHOD", false),
+                    canViewBroadHistory = permission(activation, "VIEW_BROAD_HISTORY", false),
+                    canManageProducts = permission(activation, "MANAGE_PRODUCTS", false),
+                    canViewReports = permission(activation, "VIEW_REPORTS", false)
+                )
+                userDao.updateMembership(membership)
             }
 
             ActiveSession(
