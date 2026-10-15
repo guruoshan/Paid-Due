@@ -17,7 +17,7 @@ BEGIN
   v_definition := pg_catalog.pg_get_functiondef(
     'public.ingest_cashier_financial_envelope(text,text,text,text,text,text,integer,timestamptz,text,date,text,text,jsonb)'::regprocedure
   );
-  IF pg_catalog.position(v_old IN v_definition) = 0 THEN
+  IF pg_catalog.strpos(v_definition, v_old) = 0 THEN
     RAISE EXCEPTION 'Expected expense-ingest authorization anchor not found; refusing unsafe patch';
   END IF;
   v_definition := pg_catalog.replace(v_definition, v_old, v_new);
@@ -65,7 +65,7 @@ DECLARE
   END;$new$;
 BEGIN
   v_definition := pg_catalog.pg_get_functiondef('private.notify_admins_of_confirmed_day_close()'::regprocedure);
-  IF pg_catalog.position(v_old IN v_definition) = 0 THEN
+  IF pg_catalog.strpos(v_definition, v_old) = 0 THEN
     RAISE EXCEPTION 'Expected day-close notification body anchor not found; refusing unsafe patch';
   END IF;
   v_definition := pg_catalog.replace(v_definition, v_old, v_new);
