@@ -16,7 +16,6 @@ concurrency:
 
 jobs:
   android-build-and-unit-tests:
-    if: github.event_name != 'pull_request' || github.base_ref != 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -267,7 +266,7 @@ jobs:
 
   commit-room-schemas:
     needs: android-build-and-unit-tests
-    if: always() && github.event_name == 'pull_request' && github.actor == 'guruoshan' && github.head_ref == 'fix/cash-shift-cloud-owner'
+    if: needs.android-build-and-unit-tests.result == 'success' && github.event_name == 'pull_request' && github.actor == 'guruoshan' && github.head_ref == 'fix/cash-shift-cloud-owner'
     runs-on: ubuntu-latest
     permissions:
       contents: write
