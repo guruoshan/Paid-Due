@@ -8,6 +8,9 @@ DECLARE
   v_definition text;
   v_start integer;
   v_end integer;
+  v_marker integer;
+  v_prefix text;
+  v_if_anchor text := '    if found then';
   v_return_start integer;
   v_return_end integer;
   v_existing_block text;
@@ -39,11 +42,14 @@ BEGIN
     E'\r\n', E'\n'
   );
 
-  v_start := strpos(v_definition,
-    '    if found then' || E'\n\n        return query\n        select\n            ''PHONE_ALREADY_REGISTERED''::text,');
-  v_end := strpos(v_definition,
-    '    -- --------------------------------------------------------------' || E'\n    -- AUTHORITATIVE IDS');
-  IF v_start = 0 OR v_end = 0 OR v_end <= v_start THEN
+  v_marker := strpos(v_definition, '''PHONE_ALREADY_REGISTERED''::text,');
+  IF v_marker = 0 THEN
+    RAISE EXCEPTION 'Could not locate existing phone-conflict response; migration aborted';
+  END IF;
+  v_prefix := substring(v_definition FROM 1 FOR v_marker);
+  v_start := length(v_prefix) - strpos(reverse(v_prefix), reverse(v_if_anchor)) - length(v_if_anchor) + 2;
+  v_end := strpos(v_definition, '    v_staff_identity_id := gen_random_uuid();');
+  IF v_start <= 0 OR v_end = 0 OR v_end <= v_start THEN
     RAISE EXCEPTION 'Could not locate existing phone-conflict activation block; migration aborted';
   END IF;
 
