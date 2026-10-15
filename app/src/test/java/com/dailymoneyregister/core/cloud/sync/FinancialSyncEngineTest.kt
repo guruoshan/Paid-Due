@@ -295,6 +295,76 @@ class FinancialSyncEngineTest {
     }
 
     @Test
+    fun adminInboundAcceptsEnvelopesFromOtherAuthorizedBranches() = runTest {
+        coEvery { db.businessBranchDao() } returns businessBranchDao
+        coEvery { db.userDao() } returns userDao
+        coEvery { businessBranchDao.getBusinessById("biz-1") } returns mockk()
+        coEvery { userDao.getUserByIdInBusiness("test-admin", "biz-1") } returns mockk()
+
+        val activeBranch = BranchEntity(
+            id = "active-branch",
+            businessId = "biz-1",
+            name = "Main",
+            code = "MAIN",
+            countryCode = "OM",
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat",
+            taxRoundingMode = com.dailymoneyregister.core.model.tax.TaxRoundingMode.HALF_UP,
+            defaultTaxRateBps = 0,
+            createdAt = 1L,
+            updatedAt = 1L
+        )
+        SessionManager.setSession(
+            ActiveSession(
+                business = BusinessEntity("biz-1", "Shop", 1L, 1L),
+                branch = activeBranch,
+                user = UserAccountEntity(
+                    id = "test-admin",
+                    businessId = "biz-1",
+                    displayName = "Admin",
+                    username = "admin",
+                    role = UserRole.ADMIN,
+                    authType = AuthType.PIN,
+                    credentialHash = "test-hash",
+                    credentialSalt = null,
+                    createdAt = 1L,
+                    updatedAt = 1L
+                ),
+                membership = UserBranchMembershipEntity(
+                    id = "admin-membership",
+                    userId = "test-admin",
+                    branchId = "active-branch",
+                    role = UserRole.ADMIN,
+                    createdAt = 1L
+                )
+            )
+        )
+
+        val payload = JSONObject()
+            .put("operation_id", opId)
+            .put("business_id", "biz-1")
+        val canonical = payload.toString()
+        val remoteEnvelope = RemoteEnvelopeV2(
+            operationId = opId,
+            businessId = "biz-1",
+            branchId = "other-authorized-branch",
+            operationType = "RECORD_SALE",
+            occurredAtIso = "2026-10-09T10:00:00Z",
+            receivedAtIso = "2026-10-09T10:00:01Z",
+            canonicalText = canonical,
+            payloadJson = payload,
+            canonicalSha256 = com.dailymoneyregister.core.command.CommandFingerprint.sha256(canonical)
+        )
+        coEvery { remoteRepo.fetchRemoteEnvelopesV2("biz-1", null, null, any()) } returns listOf(remoteEnvelope)
+        inboundApplier.result = InboundProcessResult.Applied
+
+        assertEquals(1, engine.syncInbound("biz-1", "test-admin"))
+        assertEquals(listOf<String?>(null), inboundApplier.appliedBranchScopes)
+    }
+
+    @Test
     fun syncInboundRejectsMissingOrMismatchedRemoteDigestBeforeApplying() = runTest {
         coEvery { db.businessBranchDao() } returns businessBranchDao
         coEvery { db.userDao() } returns userDao
@@ -412,6 +482,7 @@ class FinancialSyncEngineTest {
         var result: InboundProcessResult = InboundProcessResult.Skipped
         var resultFor: (RemoteEnvelopeV2) -> InboundProcessResult = { result }
         val appliedOperationIds = mutableListOf<String>()
+        val appliedBranchScopes = mutableListOf<String?>()
 
         override suspend fun apply(
             database: DmrDatabase,
@@ -420,6 +491,7 @@ class FinancialSyncEngineTest {
             sessionBranchId: String?
         ): InboundProcessResult {
             appliedOperationIds += envelope.operationId
+            appliedBranchScopes += sessionBranchId
             return resultFor(envelope)
         }
     }
