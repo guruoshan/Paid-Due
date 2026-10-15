@@ -24,7 +24,7 @@ class CashShiftEncryptedMigration15To16Test {
     )
 
     @Test
-    fun encryptedPopulatedVersion15PreservesCashShiftEventsOutboxAndAuditSchema() {
+    fun encryptedPopulatedVersion15PreservesCashShiftEventsAndOutbox() {
         val context: Context =
             InstrumentationRegistry.getInstrumentation().targetContext
         val name = "boardlock_cash_shift_v15_to_v16_encrypted.db"
