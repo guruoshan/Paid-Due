@@ -61,13 +61,13 @@ android {
         testInstrumentationRunner = "com.dailymoneyregister.HiltTestRunner"
         val paidDueSupabaseUrl =
             paidDueConfig("PAID_DUE_SUPABASE_URL").trim()
-                .ifBlank { "https://ttvdpgxqvvtjnxxfkoui.supabase.co" }
+                .ifBlank { "https://example.supabase.co" }
 
         // Publishable/anon keys are public client configuration, not secrets.
         // Keep overrides available for local/staging builds.
         val paidDueSupabasePublishableKey =
             paidDueConfig("PAID_DUE_SUPABASE_PUBLISHABLE_KEY").trim()
-                .ifBlank { "sb_publishable_6IHSTMfMOmK2ecB58U7tjA_CWJwDyZt" }
+                .ifBlank { "sb_publishable_build_test_only" }
 
         check(paidDueSupabaseUrl.startsWith("https://")) {
             "PAID_DUE_SUPABASE_URL must be configured as HTTPS."
@@ -104,7 +104,7 @@ android {
                     )
                 )
                 .orElse(
-                    "https://ttvdpgxqvvtjnxxfkoui.supabase.co/functions/v1/api"
+                    "https://example.supabase.co/functions/v1/api"
                 )
                 .get()
                 .trim()
