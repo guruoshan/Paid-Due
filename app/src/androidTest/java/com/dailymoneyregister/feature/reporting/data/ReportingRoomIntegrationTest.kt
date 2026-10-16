@@ -142,7 +142,7 @@ class ReportingRoomIntegrationTest {
                 grandTotalMinor = 1_250L,
                 currencyCode = branch.currencyCode,
                 currencyDecimalPlaces = branch.currencyDecimalPlaces,
-                createdByUserId = cloudCashierId,
+                createdByUserId = admin.id,
                 deviceId = "reporting-phase3b-device",
                 createdAt = occurredAt,
                 description = null,
