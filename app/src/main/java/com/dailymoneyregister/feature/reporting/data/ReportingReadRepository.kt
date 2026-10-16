@@ -201,8 +201,25 @@ class RoomReportingReadRepository(
 
         // ---- 5. Operations + settlements + coupon evidence ----------------
 
+        // A sale's actor is the immutable originating operation actor, not
+        // necessarily TransactionEntity.createdByUserId. Older/imported rows can
+        // retain a creator ID that differs from the operation actor. Reporting's
+        // cashier filter must follow the authoritative operation attribution.
+        val saleOperationIds = saleRecords.flatMap { record ->
+            val fundingOperationIds = record.settlements
+                .filter { it.entryPurpose.name == "SALE_FUNDING" }
+                .map { it.operationId }
+            if (fundingOperationIds.isNotEmpty()) {
+                fundingOperationIds
+            } else {
+                saleCreditEvents[record.transaction.id].orEmpty()
+                    .filter { it.type.name == "OBLIGATION" && it.amountSignedMinor > 0L }
+                    .map { it.operationId }
+            }
+        }
+
         val operationsById = loadChunked(
-            repayments.map { it.operationId } + couponEvents.map { it.operationId }
+            saleOperationIds + repayments.map { it.operationId } + couponEvents.map { it.operationId }
         ) {
             reportingDao.getOperationsByIds(it)
         }.associateBy { it.id }
