@@ -46,6 +46,18 @@ All four stored `RECORD_EXPENSE` envelopes also passed checks for matching opera
 
 The live `ingest_cashier_financial_envelope` function's `RECORD_EXPENSE` case checks `can_accept_cash` / `can_accept_online`, but does not check `can_create_expense`. The active cashier memberships inspected had `can_create_expense = false`. This is a separate authorization-policy mismatch. No staff permission was silently granted and no server permission policy was changed as part of the inbound fix. Resolve the intended cashier expense permission through the Admin permission workflow before changing the server gate.
 
+## Recent Transactions versus shared History
+
+Requirement: Recent Transactions is installation-local; History and Reports remain branch-scoped shared financial views across Admin and cashier installations.
+
+### Fix on main
+
+- Recent now observes successful operation IDs whose immutable `device_id` matches this installation and filters its presentation rows by those operation IDs.
+- Inbound records remain in the same authoritative Room financial tables. The History query is deliberately unchanged and has no device filter; Reports are not filtered by installation.
+- Filtering is by operation, not by the transaction's creator, so a locally performed refund/correction against a transaction originally created on another device can appear in local Recent without copying the original sale into Recent.
+- A regression test creates an expense with another installation's device ID and verifies it is absent from Recent while the authoritative expense remains persisted for History/Reports.
+- No financial rows are deleted and no Supabase schema/function changes are required for this presentation-scope correction.
+
 ## Verification
 
 Regression tests were added for both defects. CI verification and signed-release status must be confirmed from the GitHub Actions run associated with the `[build-apk]` commit; source changes alone are not proof of a successful release or physical-device sync. After installation, verify an expense created on a cashier device appears exactly once on Admin and that filtering Reports to that cashier excludes other cashiers' sales and totals.
