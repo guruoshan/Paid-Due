@@ -6,6 +6,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import com.dailymoneyregister.core.model.financial.FinancialTransactionView
 import com.dailymoneyregister.core.model.financial.FinancialReadModelResolver
@@ -73,7 +74,8 @@ import javax.inject.Inject
  * observeLocalDayStarts() remains the existing package-level helper.
  */
 internal class RecentFinancialActivityReadRepository(
-    private val database: DmrDatabase
+    private val database: DmrDatabase,
+    private val localDeviceId: String? = null
 ) {
     private val transactionDao =
         database.transactionDao()
@@ -118,7 +120,17 @@ internal class RecentFinancialActivityReadRepository(
                 .atStartOfDay(zoneId)
                 .toInstant()
                 .toEpochMilli()
-            combine(
+            val localOperationIdsFlow =
+                localDeviceId?.let { deviceId ->
+                    database.operationDao().observeSucceededOperationIdsForDevice(
+                        branchId = branchId,
+                        deviceId = deviceId,
+                        fromInclusive = startOfDayMillis,
+                        toExclusive = nextStartOfDayMillis
+                    )
+                } ?: flowOf(emptyList())
+
+            val financialInputs = combine(
                 transactionDao.observeTodayFinancialRecords(
                     branchId,
                     startOfDayMillis,
@@ -137,7 +149,12 @@ internal class RecentFinancialActivityReadRepository(
                 )
             ) { records, repayments, expenses ->
                 Triple(records, repayments, expenses)
-            }.map { (records, repayments, expenses) ->
+            }
+
+            combine(financialInputs, localOperationIdsFlow) { inputs, operationIds ->
+                inputs to operationIds.toSet()
+            }.map { (inputs, localOperationIds) ->
+                val (records, repayments, expenses) = inputs
 
                 val unresolvedTransactionActivities =
                     records.flatMap { record ->
@@ -262,12 +279,28 @@ internal class RecentFinancialActivityReadRepository(
                                 projection.displayReference
                         )
                     }
-                (
+                val allActivities =
                     transactionActivities +
                         repaymentActivities +
                         expenseActivities
-                )
-                    .sortedWith(
+
+                // Recent Transactions is device-local presentation. Inbound
+                // financial evidence remains in Room and therefore remains in
+                // shared History/Reports, but only operations authored by this
+                // installation are shown in this panel.
+                val visibleActivities =
+                    if (localDeviceId == null) {
+                        // Compatibility for isolated repository tests that do
+                        // not provide an installation identity.
+                        allActivities
+                    } else {
+                        allActivities.filter { activity ->
+                            activity.operationId != null &&
+                                activity.operationId in localOperationIds
+                        }
+                    }
+
+                visibleActivities.sortedWith(
                         compareByDescending<RecentFinancialActivity> {
                             it.occurredAt
                         }.thenByDescending {
