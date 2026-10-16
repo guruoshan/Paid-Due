@@ -220,7 +220,7 @@ class ExpenseCode2ProjectionIntegrationTest {
     }
 
     @Test
-    fun expenseCreatedOnAnotherDeviceIsHiddenFromRecentButRemainsInFinancialHistorySource() =
+    fun deviceLocalRecentExcludesRemoteDeviceExpenseAndPreservesSharedFinancialEvidence() =
         runBlocking {
             val remoteCommand = command(
                 suffix = "other-device",
