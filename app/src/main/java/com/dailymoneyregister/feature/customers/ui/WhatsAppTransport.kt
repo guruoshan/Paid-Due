@@ -1,7 +1,6 @@
 package com.dailymoneyregister.feature.customers.ui
 
 import android.app.Activity
-import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -58,8 +57,7 @@ object WhatsAppTransport {
     ): Intent = Intent(Intent.ACTION_SEND).apply {
         type = prepared.attachment?.mimeType ?: "text/plain"
         putExtra(Intent.EXTRA_TEXT, prepared.text)
-        // Keep this on the exact intent sent to WhatsApp, including image/PDF
-        // attachments. WhatsApp uses this extra to target a conversation.
+        // Keep the recipient on the same send intent as any receipt attachment.
         putExtra("jid", requireNotNull(recipientJid(prepared.recipientPhone)))
 
         prepared.attachment?.let { attachment ->
@@ -67,23 +65,22 @@ object WhatsAppTransport {
             attachment.subject?.takeIf(String::isNotBlank)?.let {
                 putExtra(Intent.EXTRA_SUBJECT, it)
             }
-            clipData = ClipData.newUri(
-                context.contentResolver,
-                attachment.subject ?: "WhatsApp attachment",
-                attachment.contentUri
-            )
+            // EXTRA_STREAM + URI grant is sufficient. Android copies the stream
+            // URI into ClipData when starting the activity. Setting ClipData
+            // separately can make some WhatsApp versions treat the image as a
+            // generic media share (Status) instead of the target conversation.
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     }
 
     /**
      * WhatsApp JIDs require an international phone number containing 7–15
-     * digits (country code included), without '+' or formatting characters.
+     * ASCII digits (country code included), without '+' or formatting chars.
      * Reject missing/obviously invalid values rather than opening a generic
      * WhatsApp media composer that can land on Status.
      */
     internal fun recipientJid(phone: String): String? {
-        val digits = phone.filter(Char::isDigit)
+        val digits = phone.filter { it in '0'..'9' }
         if (digits.length !in 7..15) return null
         return "$digits$WHATSAPP_JID_SUFFIX"
     }
