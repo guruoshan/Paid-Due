@@ -1109,7 +1109,7 @@ object RemoteEnvelopeMaterializer {
                 operationType = opType,
                 subjectType = if (txId != null) SubjectType.valueOf(txType) else SubjectType.TRANSACTION,
                 subjectId = txId ?: opId,
-                transactionId = txId,
+                transactionId = if (txType == "EXPENSE") null else txId,
                 actorUserId = actorUserId,
                 deviceId = deviceId,
                 occurredAt = occurredAt,
