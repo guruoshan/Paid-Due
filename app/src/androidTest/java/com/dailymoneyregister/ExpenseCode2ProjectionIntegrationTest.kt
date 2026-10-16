@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dailymoneyregister.core.command.CommandExecutor
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.device.DeviceIdentityProvider
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -40,6 +42,7 @@ class ExpenseCode2ProjectionIntegrationTest {
 
     private lateinit var database: DmrDatabase
     private lateinit var repository: RegisterRepository
+    private lateinit var deviceIdentityProvider: DeviceIdentityProvider
 
     private val business =
         BusinessEntity(
@@ -101,10 +104,15 @@ class ExpenseCode2ProjectionIntegrationTest {
                 ApplicationProvider.getApplicationContext()
             )
 
+        deviceIdentityProvider = DeviceIdentityProvider(
+            ApplicationProvider.getApplicationContext()
+        )
+
         repository =
             RegisterRepository(
                 database,
-                CommandExecutor(database)
+                CommandExecutor(database),
+                deviceIdentityProvider
             )
 
         database.businessBranchDao()
@@ -152,7 +160,8 @@ class ExpenseCode2ProjectionIntegrationTest {
                 PaymentChannel.MANUAL_QR
             },
         occurredAt: Long =
-            System.currentTimeMillis()
+            System.currentTimeMillis(),
+        deviceId: String = deviceIdentityProvider.deviceId
     ): ExpenseCommand =
         ExpenseCommand(
             operationId =
@@ -192,7 +201,7 @@ class ExpenseCode2ProjectionIntegrationTest {
             recurrenceId =
                 null,
             deviceId =
-                "expense-code2-device",
+                deviceId,
             occurredAt =
                 occurredAt
         )
@@ -209,6 +218,31 @@ class ExpenseCode2ProjectionIntegrationTest {
             result is CommandResult.Success
         )
     }
+
+    @Test
+    fun expenseCreatedOnAnotherDeviceIsHiddenFromRecentButRemainsInFinancialHistorySource() =
+        runBlocking {
+            val remoteCommand = command(
+                suffix = "other-device",
+                amountMinor = 8_250L,
+                deviceId = "another-physical-installation"
+            )
+            execute(remoteCommand)
+
+            val recent = repository.observeTodayTransactions(
+                branchId = branch.id,
+                timezoneId = branch.timezoneId
+            ).first()
+
+            assertFalse(
+                "Another device's expense must not appear in this device's Recent Transactions.",
+                recent.any { it.sourceReference == remoteCommand.expenseId }
+            )
+            assertNotNull(
+                "The shared financial record must remain persisted for History and Reports.",
+                database.expenseDao().getExpenseById(remoteCommand.expenseId)
+            )
+        }
 
     @Test
     fun recentExpenseAppearsExactlyOnceWithoutFakeTransactionId() =
