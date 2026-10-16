@@ -162,6 +162,11 @@ class RemoteEnvelopeMaterializerTest {
         assertEquals(null, storedOperation?.transactionId)
         coVerify(exactly = 1) { expenseDao.insertExpense(any()) }
         coVerify(exactly = 1) { operationDao.insertOperationIfAbsent(any()) }
+        coVerifyOrder {
+            operationDao.insertOperationIfAbsent(any())
+            transactionDao.insertSettlements(any())
+        }
+        coVerify(exactly = 0) { operationDao.markSucceededIfPending(any(), any(), any(), any()) }
         coVerify(exactly = 1) {
             transactionDao.insertSettlements(match { settlements ->
                 settlements.size == 1 &&
