@@ -15,6 +15,7 @@ No financial transaction/envelope rows were deleted or overwritten.
 - Persist the inbound expense and its operation inside the same Room transaction.
 - Insert the operation first, as `SUCCEEDED`, then insert its settlement(s); this satisfies the operation foreign key.
 - Keep expense operations' `transaction_id` null. The expense ID remains the operation subject/result reference, not a transaction ID.
+- Keep the expense outflow settlement's `transaction_id` null as well. `settlement_entries` has foreign keys to both `operations.id` and `transactions.id`; an expense ID is not a transaction row.
 - Do not perform a local `PENDING -> SUCCEEDED` transition for downloaded evidence. That transition can activate the local outbound outbox trigger and re-enqueue remote evidence.
 - Add regression assertions for operation-before-settlement ordering, no outbound status transition, and null expense transaction linkage.
 
