@@ -258,7 +258,7 @@ internal object ReportingRowMappers {
             occurredAt = tx.createdAt,
             currencyCode = tx.currencyCode,
             branch = lookups.branch(tx.branchId),
-            cashier = lookups.cashier(tx.createdByUserId),
+            cashier = lookups.cashier(actorUserId?.takeIf { it.isNotBlank() } ?: tx.createdByUserId),
             person = lookups.person(tx.customerId),
             subtotal = MoneyMinorUnits(tx.subtotalMinor),
             taxAmount = MoneyMinorUnits(tx.taxAmountMinor),
