@@ -190,7 +190,8 @@ internal object ReportingRowMappers {
         record: TransactionFinancialRecord,
         items: List<TransactionItemEntity>,
         creditEvents: List<CreditLedgerEventEntity>,
-        lookups: ReportingLookups
+        lookups: ReportingLookups,
+        actorUserId: String? = null
     ): SaleReportRow {
 
         val tx = record.transaction
