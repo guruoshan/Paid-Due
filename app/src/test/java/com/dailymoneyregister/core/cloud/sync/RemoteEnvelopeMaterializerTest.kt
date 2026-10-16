@@ -172,7 +172,8 @@ class RemoteEnvelopeMaterializerTest {
             transactionDao.insertSettlements(match { settlements ->
                 settlements.size == 1 &&
                     settlements.single().entryPurpose.name == "EXPENSE_OUTFLOW" &&
-                    settlements.single().amountSignedMinor == -1_000L
+                    settlements.single().amountSignedMinor == -1_000L &&
+                    settlements.single().transactionId == null
             })
         }
         coVerify(exactly = 0) { userDao.getUserByIdInBusiness(actorUserId, businessId) }
