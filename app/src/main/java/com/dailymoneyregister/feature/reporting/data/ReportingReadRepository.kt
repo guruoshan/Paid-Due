@@ -306,12 +306,24 @@ class RoomReportingReadRepository(
 
         for (record in saleRecords) {
             val tx = record.transaction
+            val fundingOperationIds = record.settlements
+                .filter { it.entryPurpose.name == "SALE_FUNDING" }
+                .map { it.operationId }
+                .distinct()
+            val saleOperationId = fundingOperationIds.singleOrNull()
+                ?: saleCreditEvents[tx.id].orEmpty()
+                    .filter { it.type.name == "OBLIGATION" && it.amountSignedMinor > 0L }
+                    .map { it.operationId }
+                    .distinct()
+                    .singleOrNull()
+            val authoritativeActorUserId = saleOperationId?.let { operationsById[it]?.actorUserId }
             rows += guarded("sale ${tx.id}") {
                 ReportingRowMappers.mapSale(
                     record = record,
                     items = saleItems[tx.id].orEmpty(),
                     creditEvents = saleCreditEvents[tx.id].orEmpty(),
-                    lookups = lookups
+                    lookups = lookups,
+                    actorUserId = authoritativeActorUserId
                 )
             }
         }
