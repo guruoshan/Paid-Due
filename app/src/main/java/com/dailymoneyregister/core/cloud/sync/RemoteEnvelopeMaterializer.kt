@@ -509,64 +509,7 @@ object RemoteEnvelopeMaterializer {
                 }
             }
 
-            // 3. Expense
-            if (jsonPayload.has("expense") && !jsonPayload.isNull("expense")) {
-                val eJson = jsonPayload.getJSONObject("expense")
-                val eId = eJson.getString("id")
-                txId = eId
-                txType = "EXPENSE"
-                if (expenseDao.getExpenseById(eId) == null) {
-                    val eEntity = ExpenseEntity(
-                        id = eId,
-                        operationId = eJson.getString("operation_id"),
-                        businessId = eJson.getString("business_id"),
-                        branchId = eJson.getString("branch_id"),
-                        cashShiftId = eJson.optString("cash_shift_id").ifBlank { null },
-                        actorUserId = eJson.getString("actor_user_id"),
-                        payeeId = eJson.optString("payee_id").ifBlank { null },
-                        payeeNameSnapshot = eJson.getString("payee_name_snapshot"),
-                        payeePhoneSnapshot = eJson.optString("payee_phone_snapshot").ifBlank { null },
-                        payeeAccountSnapshot = eJson.optString("payee_account_snapshot").ifBlank { null },
-                        category = eJson.getString("category"),
-                        amountMinor = eJson.getLong("amount_minor"),
-                        paymentCategory = eJson.getString("payment_category"),
-                        currencyCode = eJson.getString("currency_code"),
-                        reference = eJson.optString("reference").ifBlank { null },
-                        note = eJson.optString("note").ifBlank { null },
-                        recurrenceId = eJson.optString("recurrence_id").ifBlank { null },
-                        occurredAt = eJson.getLong("occurred_at"),
-                        createdAt = eJson.getLong("created_at")
-                    )
-                    expenseDao.insertExpense(eEntity)
-                }
-            }
-
-            // 4. Operation Entity
-            val opEntity = OperationEntity(
-                id = opId,
-                businessId = businessId,
-                branchId = branchId,
-                operationType = opType,
-                subjectType = if (txId != null) SubjectType.valueOf(txType) else SubjectType.TRANSACTION,
-                subjectId = txId ?: opId,
-                transactionId = if (txType == "EXPENSE") null else txId,
-                actorUserId = actorUserId,
-                deviceId = deviceId,
-                occurredAt = occurredAt,
-                requestFingerprint = requestFingerprint,
-                commandSchemaVersion = schemaVer,
-                intentPayload = intentPayload,
-                status = OperationStatus.SUCCEEDED,
-                resultReferenceType = txType,
-                resultReferenceId = txId ?: opId
-            )
-
-            // Insert inbound evidence directly as SUCCEEDED. The local outbox
-            // trigger watches PENDING -> SUCCEEDED updates; downloaded evidence
-            // must not be re-enqueued as a new outbound operation.
-            operationDao.insertOperationIfAbsent(opEntity)
-
-            // 5. Settlements (after operation insert; settlement_entries has an operation FK)
+            // 3. Settlements
             val settlementsList = mutableListOf<SettlementEntryEntity>()
             for (i in 0 until settlementsArray.length()) {
                 val sJson = settlementsArray.getJSONObject(i)
@@ -1091,7 +1034,63 @@ object RemoteEnvelopeMaterializer {
                 }
             }
 
-            // 3. Settlements
+            // 3. Expense
+            if (jsonPayload.has("expense") && !jsonPayload.isNull("expense")) {
+                val eJson = jsonPayload.getJSONObject("expense")
+                val eId = eJson.getString("id")
+                txId = eId
+                txType = "EXPENSE"
+                if (expenseDao.getExpenseById(eId) == null) {
+                    val eEntity = ExpenseEntity(
+                        id = eId,
+                        operationId = eJson.getString("operation_id"),
+                        businessId = eJson.getString("business_id"),
+                        branchId = eJson.getString("branch_id"),
+                        cashShiftId = eJson.optString("cash_shift_id").ifBlank { null },
+                        actorUserId = eJson.getString("actor_user_id"),
+                        payeeId = eJson.optString("payee_id").ifBlank { null },
+                        payeeNameSnapshot = eJson.getString("payee_name_snapshot"),
+                        payeePhoneSnapshot = eJson.optString("payee_phone_snapshot").ifBlank { null },
+                        payeeAccountSnapshot = eJson.optString("payee_account_snapshot").ifBlank { null },
+                        category = eJson.getString("category"),
+                        amountMinor = eJson.getLong("amount_minor"),
+                        paymentCategory = eJson.getString("payment_category"),
+                        currencyCode = eJson.getString("currency_code"),
+                        reference = eJson.optString("reference").ifBlank { null },
+                        note = eJson.optString("note").ifBlank { null },
+                        recurrenceId = eJson.optString("recurrence_id").ifBlank { null },
+                        occurredAt = eJson.getLong("occurred_at"),
+                        createdAt = eJson.getLong("created_at")
+                    )
+                    expenseDao.insertExpense(eEntity)
+                }
+            }
+
+            // 4. Operation Entity
+            val opEntity = OperationEntity(
+                id = opId,
+                businessId = businessId,
+                branchId = branchId,
+                operationType = opType,
+                subjectType = if (txId != null) SubjectType.valueOf(txType) else SubjectType.TRANSACTION,
+                subjectId = txId ?: opId,
+                transactionId = if (txType == "EXPENSE") null else txId,
+                actorUserId = actorUserId,
+                deviceId = deviceId,
+                occurredAt = occurredAt,
+                requestFingerprint = requestFingerprint,
+                commandSchemaVersion = schemaVer,
+                intentPayload = intentPayload,
+                status = OperationStatus.SUCCEEDED,
+                resultReferenceType = txType,
+                resultReferenceId = txId ?: opId
+            )
+
+            // Insert downloaded evidence as already succeeded. Avoid the local
+            // PENDING -> SUCCEEDED transition that can enqueue it for upload.
+            operationDao.insertOperationIfAbsent(opEntity)
+
+            // 5. Settlements (insert after owning operation; settlement_entries has an operation foreign key)
             if (jsonPayload.has("settlements") && !jsonPayload.isNull("settlements")) {
                 val settlementsArray = jsonPayload.getJSONArray("settlements")
                 val settlementsList = mutableListOf<SettlementEntryEntity>()
