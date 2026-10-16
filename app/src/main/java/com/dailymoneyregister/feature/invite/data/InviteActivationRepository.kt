@@ -222,6 +222,24 @@ class InviteActivationRepository @Inject constructor(
                         return ActivationResult.Failed
                     }
 
+                // Remote invite activation creates the authoritative cashier membership,
+                // but it does not create a cashier_sync_sessions token. Without this second
+                // authenticated step, the local session appears active while metadata refresh
+                // and financial upload/download fail closed. Keep recovery evidence until the
+                // cloud session is durably established so an exact activation retry can recover.
+                val cloudAuthenticated = try {
+                    com.dailymoneyregister.core.cloud.sync.CashierCloudSession.authenticate(
+                        canonicalPhone = canonicalPhone,
+                        pin = pin,
+                        expectedMembershipId = remoteResult.activation.membershipId
+                    )
+                } catch (_: Exception) {
+                    false
+                }
+                if (!cloudAuthenticated) {
+                    return ActivationResult.Failed
+                }
+
                 try {
                     trustedSessionStore.save(
                         businessId =
