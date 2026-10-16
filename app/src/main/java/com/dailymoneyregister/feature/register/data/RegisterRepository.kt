@@ -21,6 +21,7 @@ import com.dailymoneyregister.core.command.CommandRequiresReconciliationExceptio
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.command.OperationCommand
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.device.DeviceIdentityProvider
 import com.dailymoneyregister.core.database.entity.CashShiftEntity
 import com.dailymoneyregister.core.database.entity.CashShiftEventEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
@@ -143,7 +144,8 @@ data class CouponSaleCustomerWallet(
 
 class RegisterRepository @Inject constructor(
     private val database: DmrDatabase,
-    private val commandExecutor: CommandExecutor
+    private val commandExecutor: CommandExecutor,
+    private val deviceIdentityProvider: DeviceIdentityProvider? = null
 ) {
     private val transactionDao = database.transactionDao()
     private val ledgerDao = database.ledgerDao()
@@ -557,7 +559,11 @@ class RegisterRepository @Inject constructor(
 
     private val couponWalletReadRepository = CouponWalletReadRepository(database)
     private val registerShiftReportReadRepository = RegisterShiftReportReadRepository(database, ::readRegisterShift)
-    private val recentFinancialActivityReadRepository = RecentFinancialActivityReadRepository(database)
+    private val recentFinancialActivityReadRepository =
+        RecentFinancialActivityReadRepository(
+            database = database,
+            localDeviceId = deviceIdentityProvider?.deviceId
+        )
 
     suspend fun getCouponWalletDetails(customerId: String, currencyCode: String): CouponWalletDetails? = couponWalletReadRepository.getCouponWalletDetails(customerId, currencyCode)
 
