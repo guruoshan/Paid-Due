@@ -57,7 +57,7 @@ class CashierMetadataSynchronizer @Inject constructor(
                 SessionManager.clearSession()
                 return@withContext false
             }
-        val url = BuildConfig.PAID_DUE_SUPABASE_URL.trimEnd('/') + "/functions/v1/api/api/staff/metadata"
+        val url = BuildConfig.PAID_DUE_SUPABASE_URL.trimEnd('/') + "/functions/v1/api/staff/metadata"
         require(url.startsWith("https://")) { "Supabase endpoint configuration is invalid." }
         val connection = URL(url).openConnection() as HttpURLConnection
         try {
