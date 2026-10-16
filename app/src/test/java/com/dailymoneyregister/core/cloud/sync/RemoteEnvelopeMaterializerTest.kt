@@ -159,6 +159,7 @@ class RemoteEnvelopeMaterializerTest {
 
         assertEquals(InboundProcessResult.Applied, result)
         assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
+        assertEquals(null, storedOperation?.transactionId)
         coVerify(exactly = 1) { expenseDao.insertExpense(any()) }
         coVerify(exactly = 1) { operationDao.insertOperationIfAbsent(any()) }
         coVerify(exactly = 1) {
