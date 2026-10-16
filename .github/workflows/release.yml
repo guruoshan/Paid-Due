@@ -16,7 +16,8 @@ permissions:
 
 concurrency:
   group: android-release-main-install-ready
-  cancel-in-progress: true
+  # Preserve an in-progress signed release when unrelated main commits arrive.
+  cancel-in-progress: false
 
 jobs:
   release:
