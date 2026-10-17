@@ -188,7 +188,9 @@ class AuthRepository @Inject constructor(
     ): AuthResult {
 
         var business = businessBranchDao.getFirstBusiness()
+        var ownerRestorationAttempted = false
         if (business == null) {
+            ownerRestorationAttempted = true
             val restoreResult = remoteBusinessRestorer.restoreAdminIfEmpty(username, passwordPlain)
             if (restoreResult is com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult.Failed) {
                 return AuthResult.Error(restoreResult.message)
@@ -206,13 +208,37 @@ class AuthRepository @Inject constructor(
             ?: return AuthResult.Error("No branch found for business")
         val identifier = normalizeLoginIdentifier("ADMIN", username, business.id, branch)
         var remainingLockout = pinThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
-        val user = resolveLoginLookup(identifier, business.id)
+        var user = resolveLoginLookup(identifier, business.id)
         val accountKey = user?.let { accountThrottleKey(business.id, it.id) }
         val accountRemaining = accountKey?.let {
             pinThrottler.getRemainingLockoutSeconds(it)
         } ?: 0L
         remainingLockout = maxOf(remainingLockout, accountRemaining)
         if (remainingLockout > 0L) return AuthResult.LockedOut(remainingLockout)
+
+        /*
+         * An existing business without a local owner account is a normal
+         * state on a device that previously had only a staff session.
+         * Restore the owner only from an authenticated cloud identity that
+         * matches this exact business and branch; never reset local data.
+         */
+        if (user == null && !ownerRestorationAttempted) {
+            val restored = withTimeoutOrNull(3_500L) {
+                remoteBusinessRestorer.restoreAdminIfEmpty(username, passwordPlain)
+            }
+            if (
+                restored is com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult.Success &&
+                restored.businessId == business.id &&
+                restored.branchId == branch.id
+            ) {
+                user = resolveLoginLookup(identifier, business.id)
+            } else if (restored is com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult.Failed) {
+                android.util.Log.w(
+                    "PaidDueAuth",
+                    "OWNER_RESTORATION_ON_EXISTING_DEVICE_FAILED"
+                )
+            }
+        }
 
         val failureKey = resolvedFailureKey(business.id, identifier, user)
 
