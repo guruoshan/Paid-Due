@@ -12,10 +12,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -23,6 +19,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dailymoneyregister.R
 
+/**
+ * Owner-only onboarding entry point.
+ *
+ * This screen deliberately offers no employee/cashier account type. Existing
+ * local financial records are not changed by this navigation-level policy.
+ */
 @Composable
 fun SignUpRoleScreen(
     onBusinessAdmin: () -> Unit,
@@ -30,29 +32,12 @@ fun SignUpRoleScreen(
     onGoToLogin: () -> Unit,
     onBack: () -> Unit
 ) {
-    var showEmployeeInfo by remember { mutableStateOf(false) }
-
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        if (showEmployeeInfo) {
-            Text(
-                text = stringResource(R.string.employee_invite_info),
-                fontSize = 20.sp,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-            OutlinedButton(
-                onClick = { showEmployeeInfo = false },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(stringResource(R.string.back))
-            }
-            return@Column
-        }
-
         Text(
-            text = stringResource(R.string.choose_account_type),
+            text = stringResource(R.string.sign_up),
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 20.dp)
@@ -71,11 +56,6 @@ fun SignUpRoleScreen(
                 Text(stringResource(R.string.go_to_login))
             }
         }
-        RoleCard(
-            title = stringResource(R.string.employee),
-            onClick = { showEmployeeInfo = true },
-            modifier = Modifier.padding(top = 12.dp)
-        )
         OutlinedButton(
             onClick = onBack,
             modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
