@@ -410,7 +410,6 @@ class ReportingRoomIntegrationTest {
                 ReportingScope(
                     businessId = business.id,
                     branchId = branch.id,
-                    cashierUserId = null,
                     currencyCode = branch.currencyCode,
                     period = ReportingPeriod(1_000L, 2_000L)
                 )
