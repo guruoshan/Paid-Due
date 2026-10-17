@@ -9,12 +9,11 @@ import com.dailymoneyregister.core.model.money.MoneyMinorUnits
  *
  * This is read-model input only and never financial truth.
  * Repository security must validate this scope against the authenticated
- * business, permitted branches and cashier/report permissions.
+ * business and permitted branches.
  */
 data class ReportingScope(
     val businessId: String,
     val branchId: String?,
-    val cashierUserId: String?,
     val currencyCode: String,
     val period: ReportingPeriod
 ) {
