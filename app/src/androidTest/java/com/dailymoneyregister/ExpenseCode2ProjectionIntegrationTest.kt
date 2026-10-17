@@ -101,11 +101,11 @@ class ExpenseCode2ProjectionIntegrationTest {
 
         database =
             DmrDatabase.createInMemory(
-                ApplicationProvider.getApplicationContext()
+                ApplicationProvider.getApplicationContext<android.content.Context>()
             )
 
         deviceIdentityProvider = DeviceIdentityProvider(
-            ApplicationProvider.getApplicationContext()
+            ApplicationProvider.getApplicationContext<android.content.Context>()
         )
 
         repository =
