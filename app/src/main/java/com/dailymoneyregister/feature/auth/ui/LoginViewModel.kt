@@ -5,6 +5,7 @@ import com.dailymoneyregister.core.ui.UiText
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailymoneyregister.core.security.ActiveSession
+import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.feature.auth.data.AuthRepository
 import com.dailymoneyregister.feature.auth.data.AuthResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -79,7 +80,7 @@ class LoginViewModel @Inject constructor(
 
             when (result) {
                 is AuthResult.Success -> {
-                    if (result.session.user.role.name != "ADMIN") {
+                    if (result.session.user.role != UserRole.ADMIN) {
                         _uiState.value = _uiState.value.copy(
                             password = "",
                             errorMessage = UiText.Dynamic("Only the business owner account can sign in.")
