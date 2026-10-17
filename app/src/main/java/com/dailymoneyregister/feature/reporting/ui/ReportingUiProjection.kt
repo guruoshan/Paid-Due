@@ -29,7 +29,6 @@ data class ReportingRowUiModel(
     val customerPhone: String?,
     val customerId: String?,
     val branchName: String?,
-    val cashierName: String?,
     val occurredAtText: String,
     val paymentText: String?,
     val reasonText: String?
@@ -174,8 +173,6 @@ object ReportingUiProjection {
                     row.person?.id,
                 branchName =
                     row.branch.name,
-                cashierName =
-                    row.cashier.displayName,
                 occurredAtText =
                     formatOccurredAt(
                         row.occurredAt,
