@@ -194,10 +194,7 @@ fun ReportingScreen(
 
             ReportingScopeSelectors(
                 state = state,
-                onBranch =
-                    viewModel::selectBranch,
-                onCashier =
-                    viewModel::selectCashier
+                onBranch = viewModel::selectBranch
             )
 
             ReportingActivityFilters(
@@ -343,131 +340,33 @@ private fun periodLabel(
 @Composable
 private fun ReportingScopeSelectors(
     state: ReportingUiState,
-    onBranch: (String) -> Unit,
-    onCashier: (String?) -> Unit
+    onBranch: (String) -> Unit
 ) {
-    var branchExpanded by
-        remember {
-            mutableStateOf(false)
+    var branchExpanded by remember { mutableStateOf(false) }
+    val selectedBranch = state.branchOptions.firstOrNull {
+        it.id == state.selectedBranchId
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        TextButton(onClick = { branchExpanded = true }) {
+            Text(
+                selectedBranch?.name
+                    ?: stringResource(R.string.reporting_branch)
+            )
         }
 
-    var cashierExpanded by
-        remember {
-            mutableStateOf(false)
-        }
-
-    val selectedBranch =
-        state.branchOptions
-            .firstOrNull {
-                it.id ==
-                    state.selectedBranchId
-            }
-
-    val selectedCashier =
-        state.cashierOptions
-            .firstOrNull {
-                it.id ==
-                    state.selectedCashierId
-            }
-
-    Row(
-        modifier =
-            Modifier.fillMaxWidth(),
-        horizontalArrangement =
-            Arrangement.spacedBy(8.dp)
-    ) {
-        Column(
-            modifier =
-                Modifier.weight(1f)
+        DropdownMenu(
+            expanded = branchExpanded,
+            onDismissRequest = { branchExpanded = false }
         ) {
-            TextButton(
-                onClick = {
-                    branchExpanded = true
-                }
-            ) {
-                Text(
-                    selectedBranch?.name
-                        ?: stringResource(
-                            R.string.reporting_branch
-                        )
-                )
-            }
-
-            DropdownMenu(
-                expanded = branchExpanded,
-                onDismissRequest = {
-                    branchExpanded = false
-                }
-            ) {
-                state.branchOptions
-                    .forEach { branch ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    branch.name
-                                )
-                            },
-                            onClick = {
-                                branchExpanded = false
-                                onBranch(branch.id)
-                            }
-                        )
-                    }
-            }
-        }
-
-        Column(
-            modifier =
-                Modifier.weight(1f)
-        ) {
-            TextButton(
-                onClick = {
-                    cashierExpanded = true
-                }
-            ) {
-                Text(
-                    selectedCashier
-                        ?.displayName
-                        ?: stringResource(
-                            R.string.reporting_all_cashiers
-                        )
-                )
-            }
-
-            DropdownMenu(
-                expanded = cashierExpanded,
-                onDismissRequest = {
-                    cashierExpanded = false
-                }
-            ) {
+            state.branchOptions.forEach { branch ->
                 DropdownMenuItem(
-                    text = {
-                        Text(
-                            stringResource(
-                                R.string.reporting_all_cashiers
-                            )
-                        )
-                    },
+                    text = { Text(branch.name) },
                     onClick = {
-                        cashierExpanded = false
-                        onCashier(null)
+                        branchExpanded = false
+                        onBranch(branch.id)
                     }
                 )
-
-                state.cashierOptions
-                    .forEach { cashier ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    cashier.displayName
-                                )
-                            },
-                            onClick = {
-                                cashierExpanded = false
-                                onCashier(cashier.id)
-                            }
-                        )
-                    }
             }
         }
     }
@@ -822,7 +721,6 @@ private fun ReportingRowCard(
                     listOfNotNull(
                         row.occurredAtText,
                         row.branchName,
-                        row.cashierName
                     ).joinToString(" · "),
                 style =
                     MaterialTheme.typography.bodySmall,
