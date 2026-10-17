@@ -11,8 +11,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -30,8 +28,6 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
-
-    private var pendingInviteToken by mutableStateOf<String?>(null)
 
     @Inject
     lateinit var supabase: SupabaseClient
@@ -60,8 +56,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         supabase.handleDeeplinks(intent)
-        com.dailymoneyregister.core.cloud.sync.CashierCloudSession.initialize(applicationContext)
-        if (savedInstanceState == null) captureInviteToken(intent)
         financialSyncScheduler.startAutoSync()
 
         setContent {
@@ -91,8 +85,6 @@ class MainActivity : AppCompatActivity() {
                             startupRecoveryCoordinator = startupRecoveryCoordinator,
                             trustedSessionStore = trustedSessionStore,
                             trustedSessionRestorer = trustedSessionRestorer,
-                            pendingInviteToken = pendingInviteToken,
-                            onInviteHandled = { pendingInviteToken = null }
                         )
                     }
                 }
@@ -104,14 +96,6 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         supabase.handleDeeplinks(intent)
-        captureInviteToken(intent)
     }
 
-    private fun captureInviteToken(intent: Intent?) {
-        val data = intent?.data ?: return
-        if (data.scheme == "paiddue" && data.host == "invite") {
-            pendingInviteToken = data.getQueryParameter("t")?.takeIf { it.isNotBlank() }
-        }
-    }
 }
-
