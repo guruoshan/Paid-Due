@@ -111,7 +111,7 @@ class AuthRepository @Inject constructor(
         val canonicalPhone = runCatching {
             PhoneNumberNormalizer.normalize(username, branch.countryCode)
         }.getOrNull()
-        val cleanUsername = username.trim()
+        val cleanUsername = if (mode == "ADMIN") username.trim().lowercase() else username.trim()
         val preResolutionKey = preResolutionThrottleKey(
             mode = mode,
             businessId = businessId,
