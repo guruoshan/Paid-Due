@@ -12,8 +12,7 @@ enum class ReportingDenyReason {
     BUSINESS_MISMATCH,
     BRANCH_NOT_IN_BUSINESS,
     NO_BRANCH_IN_SCOPE,
-    CURRENCY_MISMATCH,
-    UNKNOWN_CASHIER
+    CURRENCY_MISMATCH
 }
 
 class ReportingAccessDeniedException(
@@ -51,15 +50,13 @@ data class ReportingAccess(
  *  - When no branch is requested, ALL business branches with the requested
  *    currency are included. Branches in other currencies are excluded, never
  *    converted or mixed.
- *  - A requested cashier filter must be a user of the same business.
  */
 object ReportingAccessValidator {
 
     fun validate(
         session: ActiveSession?,
         scope: ReportingScope,
-        businessBranches: List<BranchEntity>,
-        requestedCashierKnownInBusiness: Boolean?
+        businessBranches: List<BranchEntity>
     ): ReportingAccess {
 
         val active = session ?: deny(ReportingDenyReason.NO_ACTIVE_SESSION)
@@ -97,9 +94,6 @@ object ReportingAccessValidator {
             deny(ReportingDenyReason.NO_BRANCH_IN_SCOPE)
         }
 
-        if (scope.cashierUserId != null && requestedCashierKnownInBusiness != true) {
-            deny(ReportingDenyReason.UNKNOWN_CASHIER)
-        }
 
         return ReportingAccess(
             businessId = scope.businessId,
