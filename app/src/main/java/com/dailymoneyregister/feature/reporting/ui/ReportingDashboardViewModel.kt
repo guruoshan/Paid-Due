@@ -109,8 +109,6 @@ class ReportingDashboardViewModel @Inject constructor(
                                 session.business.id,
                             branchId =
                                 session.branch.id,
-                            cashierUserId =
-                                null,
                             currencyCode =
                                 session.branch.currencyCode,
                             period =
