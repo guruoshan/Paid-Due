@@ -164,18 +164,7 @@ fun DmrApp(
 
         startDestination =
             if (restoredSession != null) {
-
-                when {
-                    restoredSession.user.role == UserRole.ADMIN ->
-                        Routes.ADMIN_HUB
-
-                    restoredSession.requiresPinChange ->
-                        Routes.CHANGE_PIN
-
-                    else ->
-                        Routes.REGISTER
-                }
-
+                Routes.ADMIN_HUB
             } else {
 
                 val isComplete =
