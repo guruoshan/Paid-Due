@@ -190,8 +190,7 @@ class ReportingViewModel @Inject constructor(
                     val options =
                         filterOptionsRepository.load(
                             businessId = session.business.id,
-                            currencyCode = session.branch.currencyCode,
-                            branchId = session.branch.id
+                            currencyCode = session.branch.currencyCode
                         )
 
                     val selectedBranch =
