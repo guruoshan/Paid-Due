@@ -143,7 +143,6 @@ class ReportingViewModel @Inject constructor(
                 throw cancelled
             } catch (_: Exception) {
                 _uiState.value = _uiState.value.copy(
-                    cashierOptions = emptyList(),
                     isLoading = false,
                     error = ReportingUiError.LOAD_FAILED
                 )
@@ -267,8 +266,6 @@ class ReportingViewModel @Inject constructor(
                     _uiState.value =
                         _uiState.value.copy(
                             branchOptions = branches,
-                            cashierOptions =
-                                options.cashiers,
                             selectedBranchId =
                                 selectedBranch.id,
                             isLoading = false,
