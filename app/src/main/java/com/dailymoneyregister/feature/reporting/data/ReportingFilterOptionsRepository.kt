@@ -21,8 +21,7 @@ class ReportingFilterOptionsRepository @Inject constructor(
 ) {
     suspend fun load(
         businessId: String,
-        currencyCode: String,
-        branchId: String? = null
+        currencyCode: String
     ): ReportingFilterOptions {
 
         val branches =
