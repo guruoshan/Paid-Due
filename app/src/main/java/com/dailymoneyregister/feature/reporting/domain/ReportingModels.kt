@@ -689,8 +689,7 @@ data class ReportingFilter(
         ReportActivityFilter.ALL,
     val payment: ReportPaymentFilter =
         ReportPaymentFilter.ALL,
-    val branchId: String? = null,
-    val cashierUserId: String? = null
+    val branchId: String? = null
 ) {
     val normalizedQuery: String
         get() = query.trim()
