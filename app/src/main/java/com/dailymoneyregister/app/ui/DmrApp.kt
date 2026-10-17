@@ -1,6 +1,5 @@
 package com.dailymoneyregister.app.ui
 
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,8 +28,6 @@ import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.core.security.TrustedSessionRestorer
 import com.dailymoneyregister.core.startup.StartupRecoveryCoordinator
-import com.dailymoneyregister.feature.admin.ui.CashierManagementScreen
-import com.dailymoneyregister.feature.admin.ui.CashierManagementViewModel
 import com.dailymoneyregister.feature.notifications.ui.NotificationsScreen
 import com.dailymoneyregister.feature.auth.ui.LoginScreen
 import com.dailymoneyregister.feature.auth.ui.LoginViewModel
@@ -39,8 +36,6 @@ import com.dailymoneyregister.feature.auth.ui.ChangePinViewModel
 import com.dailymoneyregister.feature.onboarding.ui.LanguagePickerScreen
 import com.dailymoneyregister.feature.onboarding.ui.SignUpRoleScreen
 import com.dailymoneyregister.feature.onboarding.ui.WelcomeScreen
-import com.dailymoneyregister.feature.invite.ui.InviteActivateScreen
-import com.dailymoneyregister.feature.invite.ui.InviteActivateViewModel
 import com.dailymoneyregister.feature.customers.ui.CustomerDetailScreen
 import com.dailymoneyregister.feature.customers.ui.CustomerDetailScreenActions
 import com.dailymoneyregister.feature.customers.ui.CustomerDetailViewModel
@@ -67,16 +62,12 @@ object Routes {
     const val LOGIN = "login"
     const val CHANGE_PIN = "change_pin"
     const val ADMIN_HUB = "admin_hub"
-    const val CASHIER_HUB = "cashier_hub"
     const val REGISTER = "register"
-    const val MANAGE_CASHIERS = "manage_cashiers"
     const val SETTINGS = "settings"
     const val REPORTS = "reports"
     const val CUSTOMERS = "customers"
     const val CUSTOMER_DETAIL = "customers/{customerId}"
-    const val INVITE_ACTIVATE = "invite_activate/{token}"
     const val NOTIFICATIONS = "notifications"
-    const val NOTIFICATION_PERMISSION_REQUEST = "notifications/request/{permissionKey}"
 }
 
 @Composable
@@ -87,8 +78,6 @@ fun DmrApp(
     startupRecoveryCoordinator: StartupRecoveryCoordinator,
     trustedSessionStore: TrustedSessionStore,
     trustedSessionRestorer: TrustedSessionRestorer,
-    pendingInviteToken: String? = null,
-    onInviteHandled: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
@@ -163,13 +152,18 @@ fun DmrApp(
             return@LaunchedEffect
         }
         /*
-         * A previously trusted Cashier session is valid local device
-         * authority even when this device never performed Admin setup.
-         *
-         * This is required for employee-only devices.
+         * Owner-only product mode. Existing local cashier sessions are
+         * not deleted; they are signed out of the active UI. Historical
+         * operations and actor IDs remain untouched in Room.
          */
-        val restoredSession =
-            trustedSessionRestorer.restore()
+        val restoredCandidate = trustedSessionRestorer.restore()
+        val restoredSession = restoredCandidate?.takeIf {
+            it.user.role == UserRole.ADMIN
+        }
+        if (restoredCandidate != null && restoredSession == null) {
+            trustedSessionStore.clear()
+            SessionManager.clearSession()
+        }
 
         startDestination =
             if (restoredSession != null) {
@@ -227,7 +221,7 @@ fun DmrApp(
     /*
      * Fail closed.
      *
-     * If startup recovery could not be completed, the cashier is not
+     * If startup recovery could not be completed, the owner is not
      * allowed into the register. The user can retry the recovery pass.
      */
     startupRecoveryError?.let { errorMessage ->
@@ -281,26 +275,6 @@ fun DmrApp(
             WelcomeScreen(
                 onLogin = { navController.navigate(Routes.LOGIN) },
                 onSignUp = { navController.navigate(Routes.SIGNUP_ROLE) }
-            )
-        }
-
-        composable(
-            route = Routes.INVITE_ACTIVATE,
-            arguments = listOf(navArgument("token") { type = NavType.StringType })
-        ) {
-            val viewModel: InviteActivateViewModel = hiltViewModel()
-            InviteActivateScreen(
-                viewModel = viewModel,
-                onActivated = {
-                    navController.navigate(Routes.REGISTER) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
-                onBack = {
-                    navController.navigate(Routes.WELCOME) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                }
             )
         }
 
@@ -396,9 +370,6 @@ fun DmrApp(
                 onNavigateToRegister = {
                     navController.navigate(Routes.REGISTER)
                 },
-                onNavigateToCashierManagement = {
-                    navController.navigate(Routes.MANAGE_CASHIERS)
-                },
                 onNavigateToCustomers = {
                     navController.navigate(Routes.CUSTOMERS)
                 },
@@ -438,29 +409,6 @@ fun DmrApp(
 
         composable(Routes.NOTIFICATIONS) {
             NotificationsScreen(onNavigateBack = { navController.popBackStack() })
-        }
-
-        composable(
-            route = Routes.NOTIFICATION_PERMISSION_REQUEST,
-            arguments = listOf(navArgument("permissionKey") { type = NavType.StringType })
-        ) { entry ->
-            NotificationsScreen(
-                onNavigateBack = { navController.popBackStack() },
-                requestPermission = entry.arguments?.getString("permissionKey")
-            )
-        }
-
-        composable(Routes.MANAGE_CASHIERS) {
-
-            val cashierViewModel: CashierManagementViewModel =
-                hiltViewModel()
-
-            CashierManagementScreen(
-                viewModel = cashierViewModel,
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
         }
 
         composable(Routes.REPORTS) {
@@ -562,14 +510,4 @@ fun DmrApp(
         }
     }
 
-    LaunchedEffect(pendingInviteToken) {
-        pendingInviteToken?.takeIf { it.isNotBlank() }?.let { token ->
-            navController.navigate("invite_activate/${Uri.encode(token)}") {
-                launchSingleTop = true
-            }
-            onInviteHandled()
-        }
-    }
 }
-
-
