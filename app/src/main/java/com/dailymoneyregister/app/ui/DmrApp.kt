@@ -31,6 +31,8 @@ import com.dailymoneyregister.core.startup.StartupRecoveryCoordinator
 import com.dailymoneyregister.feature.notifications.ui.NotificationsScreen
 import com.dailymoneyregister.feature.auth.ui.LoginScreen
 import com.dailymoneyregister.feature.auth.ui.LoginViewModel
+import com.dailymoneyregister.feature.auth.ui.ChangePinScreen
+import com.dailymoneyregister.feature.auth.ui.ChangePinViewModel
 import com.dailymoneyregister.feature.onboarding.ui.LanguagePickerScreen
 import com.dailymoneyregister.feature.onboarding.ui.SignUpRoleScreen
 import com.dailymoneyregister.feature.onboarding.ui.WelcomeScreen
@@ -58,6 +60,7 @@ object Routes {
     const val SIGNUP_ROLE = "signup_role"
     const val SETUP = "setup"
     const val LOGIN = "login"
+    const val CHANGE_PIN = "change_pin"
     const val ADMIN_HUB = "admin_hub"
     const val REGISTER = "register"
     const val SETTINGS = "settings"
@@ -149,22 +152,19 @@ fun DmrApp(
             return@LaunchedEffect
         }
         /*
-         * Owner-only product mode. Existing local cashier sessions are
-         * not deleted; they are signed out of the active UI. Historical
-         * operations and actor IDs remain untouched in Room.
+         * Owner-only login is active for new sessions. Keep an already trusted
+         * legacy cashier session during transition so its encrypted sync token
+         * can drain the existing outbox; never clear financial data or actor IDs.
          */
-        val restoredCandidate = trustedSessionRestorer.restore()
-        val restoredSession = restoredCandidate?.takeIf {
-            it.user.role == UserRole.ADMIN
-        }
-        if (restoredCandidate != null && restoredSession == null) {
-            trustedSessionStore.clear()
-            SessionManager.clearSession()
-        }
+        val restoredSession = trustedSessionRestorer.restore()
 
         startDestination =
             if (restoredSession != null) {
-                Routes.ADMIN_HUB
+                when {
+                    restoredSession.user.role == UserRole.ADMIN -> Routes.ADMIN_HUB
+                    restoredSession.requiresPinChange -> Routes.CHANGE_PIN
+                    else -> Routes.REGISTER
+                }
             } else {
 
                 val isComplete =
@@ -333,6 +333,18 @@ fun DmrApp(
                             "Only the business owner account can sign in.",
                             Toast.LENGTH_LONG
                         ).show()
+                    }
+                }
+            )
+        }
+
+        composable(Routes.CHANGE_PIN) {
+            val changePinViewModel: ChangePinViewModel = hiltViewModel()
+            ChangePinScreen(
+                viewModel = changePinViewModel,
+                onSuccess = {
+                    navController.navigate(Routes.REGISTER) {
+                        popUpTo(Routes.CHANGE_PIN) { inclusive = true }
                     }
                 }
             )
