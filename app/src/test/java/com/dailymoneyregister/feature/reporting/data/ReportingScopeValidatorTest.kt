@@ -65,12 +65,10 @@ class ReportingScopeValidatorTest {
     private fun scope(
         businessId: String = "business",
         branchId: String? = null,
-        cashierUserId: String? = null,
         currency: String = "OMR"
     ) = ReportingScope(
         businessId = businessId,
         branchId = branchId,
-        cashierUserId = cashierUserId,
         currencyCode = currency,
         period = ReportingPeriod(fromInclusive = 100L, toExclusive = 200L)
     )
@@ -89,7 +87,7 @@ class ReportingScopeValidatorTest {
     @Test
     fun noSessionIsDenied() {
         assertDenied(ReportingDenyReason.NO_ACTIVE_SESSION) {
-            ReportingAccessValidator.validate(null, scope(), allBranches, null)
+            ReportingAccessValidator.validate(null, scope(), allBranches)
         }
     }
 
@@ -103,7 +101,7 @@ class ReportingScopeValidatorTest {
         )
 
         assertDenied(ReportingDenyReason.NOT_PERMITTED) {
-            ReportingAccessValidator.validate(cashierSession, scope(), allBranches, null)
+            ReportingAccessValidator.validate(cashierSession, scope(), allBranches)
         }
     }
 
@@ -113,8 +111,7 @@ class ReportingScopeValidatorTest {
             ReportingAccessValidator.validate(
                 session(requiresPinChange = true),
                 scope(),
-                allBranches,
-                null
+                allBranches
             )
         }
     }
@@ -180,28 +177,5 @@ class ReportingScopeValidatorTest {
         }
     }
 
-    @Test
-    fun unknownCashierFilterIsDenied() {
-        assertDenied(ReportingDenyReason.UNKNOWN_CASHIER) {
-            ReportingAccessValidator.validate(
-                session(),
-                scope(cashierUserId = "ghost"),
-                allBranches,
-                false
-            )
-        }
-    }
 
-    @Test
-    fun adminWithKnownCashierAndSingleBranchIsGranted() {
-        val access = ReportingAccessValidator.validate(
-            session(),
-            scope(branchId = "b2", cashierUserId = "cashier"),
-            allBranches,
-            true
-        )
-
-        assertEquals(listOf("b2"), access.branchIds)
-        assertEquals("business", access.businessId)
-    }
 }
