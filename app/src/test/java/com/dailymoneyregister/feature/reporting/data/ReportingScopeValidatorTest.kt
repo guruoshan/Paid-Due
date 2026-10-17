@@ -154,8 +154,7 @@ class ReportingScopeValidatorTest {
         val access = ReportingAccessValidator.validate(
             session(),
             scope(),
-            allBranches,
-            null
+            allBranches
         )
 
         assertEquals(listOf("b1", "b2"), access.branchIds)
