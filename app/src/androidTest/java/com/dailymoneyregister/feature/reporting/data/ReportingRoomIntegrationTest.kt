@@ -367,6 +367,14 @@ class ReportingRoomIntegrationTest {
     }
 
     @Test
+    fun reportingFilterOptionsReturnBusinessBranchesOnly() = runBlocking {
+        val options = ReportingFilterOptionsRepository(database)
+            .load(business.id, branch.currencyCode)
+
+        assertEquals(listOf(branch.id), options.branches.map { it.id })
+    }
+
+    @Test
     fun cashierRemainsDeniedEvenWhenLegacyCanViewReportsIsTrue() = runBlocking {
         val cashier = UserAccountEntity(
             id = "reporting-phase3b-cashier",
