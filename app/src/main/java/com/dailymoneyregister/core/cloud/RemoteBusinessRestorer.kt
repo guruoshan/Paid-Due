@@ -300,15 +300,12 @@ class RemoteBusinessRestorer @Inject constructor(
         usernameOrEmail: String,
         passwordPlain: String
     ): RemoteBusinessRestorationResult {
+        // If a local business already exists (for example, on a device that
+        // previously used a staff login), still authenticate the owner against
+        // Supabase and restore the owner identity only when cloud tenant IDs
+        // exactly match the local business and branch. Existing local data is
+        // never replaced or cleared.
         val existingFirst = businessBranchDao.getFirstBusiness()
-        if (existingFirst != null) {
-            val branch = businessBranchDao.getFirstBranch(existingFirst.id)
-            return RemoteBusinessRestorationResult.Success(
-                businessId = existingFirst.id,
-                branchId = branch?.id ?: "",
-                userId = ""
-            )
-        }
 
         // BOARDLOCK: phone login requires a real authenticated
         // server session. Never trust an anonymous restoration RPC.
@@ -339,6 +336,15 @@ class RemoteBusinessRestorer @Inject constructor(
 
             val row = rpcRows?.singleOrNull()
                 ?: return RemoteBusinessRestorationResult.Failed("No cloud business found for Admin")
+
+            if (existingFirst != null) {
+                val localBranch = businessBranchDao.getFirstBranch(existingFirst.id)
+                if (existingFirst.id != row.businessId || localBranch?.id != row.branchId) {
+                    return RemoteBusinessRestorationResult.Failed(
+                        "Authenticated owner does not match this device's existing business"
+                    )
+                }
+            }
 
             val salt = row.credentialSalt ?: PasswordHasher.generateSalt()
             val hash = row.credentialHash ?: PasswordHasher.hashPassword(passwordPlain, salt)
