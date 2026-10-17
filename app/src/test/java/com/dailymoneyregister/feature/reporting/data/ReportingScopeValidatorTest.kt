@@ -122,8 +122,7 @@ class ReportingScopeValidatorTest {
             ReportingAccessValidator.validate(
                 session(),
                 scope(businessId = "other"),
-                allBranches,
-                null
+                allBranches
             )
         }
     }
@@ -134,8 +133,7 @@ class ReportingScopeValidatorTest {
             ReportingAccessValidator.validate(
                 session(),
                 scope(branchId = "b9"),
-                allBranches,
-                null
+                allBranches
             )
         }
     }
@@ -146,8 +144,7 @@ class ReportingScopeValidatorTest {
             ReportingAccessValidator.validate(
                 session(),
                 scope(branchId = "b3", currency = "OMR"),
-                allBranches,
-                null
+                allBranches
             )
         }
     }
@@ -171,8 +168,7 @@ class ReportingScopeValidatorTest {
             ReportingAccessValidator.validate(
                 session(),
                 scope(currency = "USD"),
-                allBranches,
-                null
+                allBranches
             )
         }
     }
