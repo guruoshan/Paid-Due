@@ -56,6 +56,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         supabase.handleDeeplinks(intent)
+        // Keep encrypted legacy sync credentials available until old outboxes are drained.
+        com.dailymoneyregister.core.cloud.sync.CashierCloudSession.initialize(applicationContext)
         financialSyncScheduler.startAutoSync()
 
         setContent {
