@@ -2,7 +2,6 @@ package com.dailymoneyregister.feature.auth.ui
 
 import com.dailymoneyregister.R
 import com.dailymoneyregister.core.ui.UiText
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailymoneyregister.core.security.ActiveSession
@@ -17,16 +16,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class LoginMode {
-    ADMIN,
-    CASHIER
-}
-
 data class LoginUiState(
-    val mode: LoginMode = LoginMode.CASHIER,
     val username: String = "",
     val password: String = "",
-    val pin: String = "", // 6 digits
     val isExecuting: Boolean = false,
     val lockoutSecondsRemaining: Long = 0L,
     val errorMessage: UiText? = null
@@ -43,20 +35,6 @@ class LoginViewModel @Inject constructor(
     private var countdownJob: Job? = null
     private var lockoutQueryJob: Job? = null
 
-    fun toggleMode() {
-        val nextMode = if (_uiState.value.mode == LoginMode.CASHIER) LoginMode.ADMIN else LoginMode.CASHIER
-        val currentUsername = _uiState.value.username
-        clearLockoutState()
-        _uiState.value = _uiState.value.copy(
-            mode = nextMode,
-            password = "",
-            pin = "",
-            errorMessage = null,
-            lockoutSecondsRemaining = 0L
-        )
-        if (currentUsername.isNotBlank()) checkLockout(currentUsername)
-    }
-
     fun onUsernameChanged(username: String) {
         clearLockoutState()
         _uiState.value = _uiState.value.copy(
@@ -71,33 +49,11 @@ class LoginViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(password = password, errorMessage = null)
     }
 
-    fun onPinDigitEntered(digit: Char) {
-        if (_uiState.value.lockoutSecondsRemaining > 0L) return
-        val currentPin = _uiState.value.pin
-        if (currentPin.length < 6) {
-            val newPin = currentPin + digit
-            _uiState.value = _uiState.value.copy(pin = newPin, errorMessage = null)
-        }
-    }
-
-    fun onPinBackspace() {
-        val currentPin = _uiState.value.pin
-        if (currentPin.isNotEmpty()) {
-            _uiState.value = _uiState.value.copy(pin = currentPin.dropLast(1), errorMessage = null)
-        }
-    }
-
-    fun onPinClear() {
-        _uiState.value = _uiState.value.copy(pin = "", errorMessage = null)
-    }
-
     private fun checkLockout(username: String) {
         lockoutQueryJob?.cancel()
-        val queryMode = _uiState.value.mode
-        val mode = if (queryMode == LoginMode.ADMIN) "ADMIN" else "CASHIER"
         lockoutQueryJob = viewModelScope.launch {
-            val remaining = authRepository.getLoginLockoutRemaining(mode, username)
-            val isLatest = _uiState.value.username == username && _uiState.value.mode == queryMode
+            val remaining = authRepository.getLoginLockoutRemaining("ADMIN", username)
+            val isLatest = _uiState.value.username == username
             if (isLatest && remaining > 0L) {
                 startLockoutCountdown(remaining)
             } else if (isLatest) {
@@ -107,33 +63,35 @@ class LoginViewModel @Inject constructor(
     }
 
     fun executeLogin(onSuccess: (ActiveSession) -> Unit) {
-        val s = _uiState.value
-        LoginInputValidator.error(s.mode, s.username, s.password)?.let { error ->
-            _uiState.value = s.copy(errorMessage = UiText.Dynamic(error))
+        val state = _uiState.value
+        LoginInputValidator.error(state.username, state.password)?.let { error ->
+            _uiState.value = state.copy(errorMessage = UiText.Dynamic(error))
             return
         }
 
         lockoutQueryJob?.cancel()
         lockoutQueryJob = null
-        _uiState.value = s.copy(isExecuting = true, errorMessage = null)
+        _uiState.value = state.copy(isExecuting = true, errorMessage = null)
 
         viewModelScope.launch {
-            val result = if (s.mode == LoginMode.ADMIN) {
-                authRepository.loginAdmin(s.username, s.password)
-            } else {
-                authRepository.loginCashier(s.username, s.pin)
-            }
-
+            val result = authRepository.loginAdmin(state.username, state.password)
             _uiState.value = _uiState.value.copy(isExecuting = false)
 
             when (result) {
                 is AuthResult.Success -> {
-                    onSuccess(result.session)
+                    if (result.session.user.role.name != "ADMIN") {
+                        _uiState.value = _uiState.value.copy(
+                            password = "",
+                            errorMessage = UiText.Dynamic("Only the business owner account can sign in.")
+                        )
+                    } else {
+                        onSuccess(result.session)
+                    }
                 }
                 is AuthResult.InvalidCredentials -> {
                     _uiState.value = _uiState.value.copy(
-                        errorMessage = UiText.Dynamic(result.message),
-                        pin = ""
+                        password = "",
+                        errorMessage = UiText.Dynamic(result.message)
                     )
                 }
                 is AuthResult.LockedOut -> {
@@ -150,7 +108,6 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-
     private fun clearLockoutState() {
         lockoutQueryJob?.cancel()
         countdownJob?.cancel()
@@ -166,8 +123,11 @@ class LoginViewModel @Inject constructor(
         countdownJob?.cancel()
         _uiState.value = _uiState.value.copy(
             lockoutSecondsRemaining = seconds,
-            pin = "",
-            errorMessage = UiText.Plural(R.plurals.locked_out_msg, seconds.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt(), listOf(seconds))
+            errorMessage = UiText.Plural(
+                R.plurals.locked_out_msg,
+                seconds.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt(),
+                listOf(seconds)
+            )
         )
 
         countdownJob = viewModelScope.launch {
