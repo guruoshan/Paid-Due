@@ -5,14 +5,20 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class LoginInputValidatorTest {
-    @Test fun `admin requires email and password`() {
-        assertEquals("Enter a valid email address", LoginInputValidator.error(LoginMode.ADMIN, "+96890000000", "secret"))
-        assertEquals("Password is required", LoginInputValidator.error(LoginMode.ADMIN, "admin@example.com", ""))
-        assertNull(LoginInputValidator.error(LoginMode.ADMIN, "admin@example.com", "secret"))
-    }
-
-    @Test fun `cashier keeps mobile identifier flow independent`() {
-        assertNull(LoginInputValidator.error(LoginMode.CASHIER, "+96890000000", ""))
-        assertEquals("Mobile number is required", LoginInputValidator.error(LoginMode.CASHIER, "", ""))
+    @Test
+    fun `owner login requires a valid email and password`() {
+        assertEquals(
+            "Email address is required",
+            LoginInputValidator.error("", "secret")
+        )
+        assertEquals(
+            "Enter a valid email address",
+            LoginInputValidator.error("+96890000000", "secret")
+        )
+        assertEquals(
+            "Password is required",
+            LoginInputValidator.error("owner@example.com", "")
+        )
+        assertNull(LoginInputValidator.error("owner@example.com", "secret"))
     }
 }
