@@ -31,8 +31,6 @@ import com.dailymoneyregister.core.startup.StartupRecoveryCoordinator
 import com.dailymoneyregister.feature.notifications.ui.NotificationsScreen
 import com.dailymoneyregister.feature.auth.ui.LoginScreen
 import com.dailymoneyregister.feature.auth.ui.LoginViewModel
-import com.dailymoneyregister.feature.auth.ui.ChangePinScreen
-import com.dailymoneyregister.feature.auth.ui.ChangePinViewModel
 import com.dailymoneyregister.feature.onboarding.ui.LanguagePickerScreen
 import com.dailymoneyregister.feature.onboarding.ui.SignUpRoleScreen
 import com.dailymoneyregister.feature.onboarding.ui.WelcomeScreen
@@ -60,7 +58,6 @@ object Routes {
     const val SIGNUP_ROLE = "signup_role"
     const val SETUP = "setup"
     const val LOGIN = "login"
-    const val CHANGE_PIN = "change_pin"
     const val ADMIN_HUB = "admin_hub"
     const val REGISTER = "register"
     const val SETTINGS = "settings"
@@ -334,31 +331,19 @@ fun DmrApp(
             LoginScreen(
                 viewModel = loginViewModel,
                 onLoginSuccess = { session ->
-                    val destination =
-                        if (session.user.role == UserRole.ADMIN) {
-                            Routes.ADMIN_HUB
-                        } else if (session.requiresPinChange) {
-                            Routes.CHANGE_PIN
-                        } else {
-                            Routes.REGISTER
+                    if (session.user.role == UserRole.ADMIN) {
+                        navController.navigate(Routes.ADMIN_HUB) {
+                            popUpTo(0) { inclusive = true }
                         }
-
-                    navController.navigate(destination) {
-                        popUpTo(0) {
-                            inclusive = true
-                        }
-                    }
-                }
-            )
-        }
-
-        composable(Routes.CHANGE_PIN) {
-            val changePinViewModel: ChangePinViewModel = hiltViewModel()
-            ChangePinScreen(
-                viewModel = changePinViewModel,
-                onSuccess = {
-                    navController.navigate(Routes.REGISTER) {
-                        popUpTo(Routes.CHANGE_PIN) { inclusive = true }
+                    } else {
+                        // Defense in depth: owner login must never admit a legacy staff session.
+                        trustedSessionStore.clear()
+                        SessionManager.clearSession()
+                        Toast.makeText(
+                            context,
+                            "Only the business owner account can sign in.",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                 }
             )
