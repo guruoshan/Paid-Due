@@ -280,6 +280,12 @@ class ReportingRowMappersTest {
     fun voidedSaleHasVoidedLifecycleStatus() {
         val record = TransactionFinancialRecord(
             transaction = tx(),
+            settlements = listOf(
+                settlement(
+                    "s-sale", "op-sale", EntryPurpose.SALE_FUNDING,
+                    PaymentCategory.CASH, PaymentChannel.CASH_TENDER, 1000L
+                )
+            ),
             voidEvents = listOf(
                 VoidEventEntity(
                     id = "v1",
@@ -477,7 +483,15 @@ class ReportingRowMappersTest {
             operation = operation("op-buy", OperationType.RECORD_COUPON_PURCHASE, "SELL|wallet-1|800"),
             wallet = wallet,
             tx = null,
-            settlements = emptyList(),
+            settlements = listOf(
+                settlement(
+                    "s-buy", "op-buy", EntryPurpose.COUPON_PURCHASE_FUNDING,
+                    PaymentCategory.CASH, PaymentChannel.CASH_TENDER, 800L,
+                    transactionId = null,
+                    subjectType = SubjectType.COUPON_WALLET,
+                    subjectId = "wallet-1"
+                )
+            ),
             resultingBalance = null,
             lookups = lookups
         )
