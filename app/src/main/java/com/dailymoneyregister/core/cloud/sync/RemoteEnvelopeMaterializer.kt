@@ -1,7 +1,9 @@
 package com.dailymoneyregister.core.cloud.sync
 
 import androidx.room.withTransaction
+import com.dailymoneyregister.core.command.CommandFingerprint
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
@@ -44,6 +46,12 @@ object RemoteEnvelopeMaterializer {
         val opTypeStr = envelope.operationType
 
         val jsonPayload = envelope.payloadJson
+        val envelopeDigest = envelope.canonicalSha256
+            ?.takeIf { it.isNotBlank() }
+            ?: return InboundProcessResult.Rejected("Canonical envelope digest is missing")
+        if (!envelopeDigest.equals(CommandFingerprint.sha256(envelope.canonicalText), ignoreCase = true)) {
+            return InboundProcessResult.Rejected("Canonical envelope digest does not match canonical text")
+        }
 
         // Verify the canonical text and separately returned JSONB payload are
         // semantically identical (object key order is irrelevant). The current
@@ -102,7 +110,6 @@ object RemoteEnvelopeMaterializer {
         // checks intentionally precede duplicate handling.
         val incomingFingerprint = jsonPayload.optString("request_fingerprint")
         val existingOp = database.operationDao().getOperationById(opId)
-        var replayDetected = existingOp?.status == OperationStatus.SUCCEEDED
         if (existingOp != null && (
                 existingOp.businessId != envelope.businessId ||
                     existingOp.branchId != branchId ||
@@ -114,6 +121,21 @@ object RemoteEnvelopeMaterializer {
                 "Operation ID collision: existing operation identity does not match inbound envelope"
             )
         }
+        val appliedDigest = database.inboundEnvelopeAuditDao().appliedDigest(opId)
+        if (appliedDigest != null) {
+            if (!appliedDigest.equals(envelopeDigest, ignoreCase = true)) {
+                return InboundProcessResult.Rejected(
+                    "Operation ID replay conflicts with the previously applied canonical digest"
+                )
+            }
+            if (existingOp?.status != OperationStatus.SUCCEEDED) {
+                return InboundProcessResult.Rejected(
+                    "Applied digest receipt exists without a succeeded local operation"
+                )
+            }
+            return InboundProcessResult.Skipped
+        }
+        var replayDetected = existingOp?.status == OperationStatus.SUCCEEDED
 
         // Expense creation already has a canonical expense snapshot and a Room
         // entity. Route only RECORD_EXPENSE through the generic atomic writer after
@@ -143,7 +165,7 @@ object RemoteEnvelopeMaterializer {
             ) {
                 return InboundProcessResult.Rejected("Expense branch or currency does not match the active business")
             }
-            return materializeEnvelope(database, jsonPayload)
+            return materializeEnvelope(database, jsonPayload, envelope, branchId)
         }
 
         // Transaction-linked operations share the immutable original transaction
@@ -609,7 +631,9 @@ object RemoteEnvelopeMaterializer {
                 "Inbound sale could not be finalized with the matching request fingerprint"
             }
 
-            if (replayDetected) InboundProcessResult.Skipped else InboundProcessResult.Applied
+            val result = if (replayDetected) InboundProcessResult.Skipped else InboundProcessResult.Applied
+            recordAppliedReceipt(database, envelope, branchId)
+            result
         }
     }
 
@@ -949,7 +973,9 @@ object RemoteEnvelopeMaterializer {
                 check(finalized == 1 || operationDao.isOperationSucceeded(envelope.operationId)) {
                     "Inbound non-transaction operation could not be finalized"
                 }
-                if (replayDetected) InboundProcessResult.Skipped else InboundProcessResult.Applied
+                val result = if (replayDetected) InboundProcessResult.Skipped else InboundProcessResult.Applied
+                recordAppliedReceipt(database, envelope, branchId)
+                result
             }
         } catch (error: Exception) {
             InboundProcessResult.Rejected(
@@ -960,7 +986,9 @@ object RemoteEnvelopeMaterializer {
 
     private suspend fun materializeEnvelope(
         database: DmrDatabase,
-        jsonPayload: JSONObject
+        jsonPayload: JSONObject,
+        envelope: RemoteEnvelopeV2,
+        branchId: String
     ): InboundProcessResult {
         val opId = jsonPayload.getString("operation_id")
         val businessId = jsonPayload.getString("business_id")
@@ -1203,7 +1231,44 @@ object RemoteEnvelopeMaterializer {
                 "Inbound operation was not persisted as succeeded"
             }
 
-            if (replayDetected) InboundProcessResult.Skipped else InboundProcessResult.Applied
+            val result = if (replayDetected) InboundProcessResult.Skipped else InboundProcessResult.Applied
+            recordAppliedReceipt(database, envelope, branchId)
+            result
+        }
+    }
+
+    private suspend fun recordAppliedReceipt(
+        database: DmrDatabase,
+        envelope: RemoteEnvelopeV2,
+        branchId: String
+    ) {
+        val digest = envelope.canonicalSha256
+            ?.takeIf { it.isNotBlank() }
+            ?: error("Cannot persist an applied receipt without a canonical digest")
+        val dao = database.inboundEnvelopeAuditDao()
+        val existingDigest = dao.appliedDigest(envelope.operationId)
+        if (existingDigest != null) {
+            check(existingDigest.equals(digest, ignoreCase = true)) {
+                "Applied receipt digest conflicts for operation ${envelope.operationId}"
+            }
+            return
+        }
+        dao.appendAppliedIfAbsent(
+            InboundEnvelopeAuditEventEntity(
+                id = "inbound-applied:${envelope.operationId}",
+                operationId = envelope.operationId,
+                businessId = envelope.businessId,
+                branchId = branchId,
+                operationType = envelope.operationType,
+                receivedAtIso = envelope.receivedAtIso,
+                canonicalSha256 = digest,
+                eventType = "APPLIED",
+                reason = "Canonical digest verified; operation evidence committed atomically",
+                occurredAt = System.currentTimeMillis()
+            )
+        )
+        check(dao.appliedDigest(envelope.operationId)?.equals(digest, ignoreCase = true) == true) {
+            "Applied receipt could not be durably verified for operation ${envelope.operationId}"
         }
     }
 }
