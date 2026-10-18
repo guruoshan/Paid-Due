@@ -360,8 +360,30 @@ object RemoteEnvelopeMaterializer {
                     return InboundProcessResult.Rejected("Refund event amount does not match its signed outflow settlements")
                 }
             }
-            "RECORD_VOID" -> if (settlementSum != -grandTotalMinor) {
-                return InboundProcessResult.Rejected("Void reversal settlements do not reverse the original transaction total")
+            "RECORD_VOID" -> {
+                // A void reverses only the currently reversible remainder, not
+                // necessarily the original sale total (prior refunds/corrections
+                // may already have reduced it). Replays are validated against the
+                // persisted event/settlement snapshots inside the atomic writer.
+                if (existingOp?.status != OperationStatus.SUCCEEDED) {
+                    val originalRecord = database.transactionDao()
+                        .getFinancialRecordsByIds(listOf(tJson.getString("id")))
+                        .singleOrNull()
+                        ?: return InboundProcessResult.Rejected(
+                            "Void cannot be applied before its original transaction evidence exists"
+                        )
+                    val currentView = com.dailymoneyregister.core.model.financial.FinancialReadModelResolver
+                        .resolve(originalRecord)
+                    val reversibleMinor = Math.subtractExact(
+                        currentView.currentAmount.amount,
+                        currentView.refundedAmount.amount
+                    )
+                    if (reversibleMinor <= 0L || settlementSum != Math.negateExact(reversibleMinor)) {
+                        return InboundProcessResult.Rejected(
+                            "Void reversal settlements do not equal the remaining reversible amount"
+                        )
+                    }
+                }
             }
             "RECORD_AMOUNT_CORRECTION" -> {
                 val event = financialEvidence.optJSONArray("amount_correction_events")?.optJSONObject(0)
