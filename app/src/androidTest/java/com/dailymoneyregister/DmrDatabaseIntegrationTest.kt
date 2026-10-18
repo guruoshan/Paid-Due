@@ -44,6 +44,7 @@ import com.dailymoneyregister.feature.admin.data.CreateCashierParams
 import com.dailymoneyregister.feature.auth.data.AuthRepository
 import com.dailymoneyregister.feature.auth.data.AuthResult
 import com.dailymoneyregister.feature.register.data.CashSaleCommand
+import com.dailymoneyregister.feature.register.data.CreditSaleCommand
 import com.dailymoneyregister.feature.register.data.RegisterRepository
 import com.dailymoneyregister.feature.register.domain.DraftState
 import com.dailymoneyregister.feature.setup.data.SetupParams
@@ -1639,6 +1640,25 @@ class DmrDatabaseIntegrationTest {
         )
         assertTrue("Fixture sale should succeed: " + saleResult, saleResult is CommandResult.Success)
         val customer = database.customerDao().getCustomerByPhone(setup.businessId.value, phone)!!
+
+        val creditOperationId = OperationId.generate()
+        val creditTransactionId = TransactionId.generate()
+        val creditSaleResult = registerRepository.executeCreditSale(
+            CreditSaleCommand(
+                operationId = creditOperationId,
+                businessId = setup.businessId.value,
+                branchId = branch.id,
+                actorUserId = admin.id,
+                transactionIdVal = creditTransactionId,
+                customerPhone = phone,
+                customerName = "Excel Export Customer",
+                draftState = DraftState(manualAmount = MoneyMinorUnits(5000L)),
+                currencyCode = branch.currencyCode,
+                currencyDecimalPlaces = branch.currencyDecimalPlaces,
+                deviceId = "customer-export-credit-test-device"
+            )
+        )
+        assertTrue("Fixture credit sale should succeed: " + creditSaleResult, creditSaleResult is CommandResult.Success)
         SessionManager.setSession(ActiveSession(business = business, branch = branch, user = admin, membership = null))
 
         val exportResult = CustomerExcelExporter(context, database).export()
@@ -1649,6 +1669,7 @@ class DmrDatabaseIntegrationTest {
             var directoryXml = ""
             var summaryXml = ""
             var historyXml = ""
+            var creditReconciliationXml = ""
             context.contentResolver.openInputStream(uri)!!.use { input ->
                 ZipInputStream(input).use { zip ->
                     while (true) {
@@ -1659,6 +1680,7 @@ class DmrDatabaseIntegrationTest {
                             "xl/worksheets/sheet1.xml" -> directoryXml = entryText
                             "xl/worksheets/sheet2.xml" -> summaryXml = entryText
                             "xl/worksheets/sheet3.xml" -> historyXml = entryText
+                            "xl/worksheets/sheet4.xml" -> creditReconciliationXml = entryText
                         }
                     }
                 }
@@ -1666,8 +1688,11 @@ class DmrDatabaseIntegrationTest {
             assertTrue("Workbook should contain credit reconciliation sheet", workbookXml.contains("Credit Reconciliation"))
             assertTrue("Workbook should contain coupon reconciliation sheet", workbookXml.contains("Coupon Reconciliation"))
             assertTrue("Directory should retain the exact customer ID", directoryXml.contains(customer.id))
-            assertTrue("Summary should show OMR sale as 12.345", summaryXml.contains("12.345"))
-            assertTrue("History should retain the source transaction ID", historyXml.contains(transactionId.value))
+            assertTrue("Summary should show total OMR sales of 17.345", summaryXml.contains("17.345"))
+            assertTrue("Summary should show credit sale value of 5.000", summaryXml.contains("5.000"))
+            assertTrue("History should retain the cash-sale transaction ID", historyXml.contains(transactionId.value))
+            assertTrue("History should retain the credit-sale transaction ID", historyXml.contains(creditTransactionId.value))
+            assertTrue("Credit control should reconcile funding and ledger obligation", creditReconciliationXml.contains("PASS"))
         } finally {
             context.contentResolver.delete(uri, null, null)
             SessionManager.clearSession()
