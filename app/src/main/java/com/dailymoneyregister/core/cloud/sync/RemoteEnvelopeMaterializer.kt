@@ -1000,7 +1000,6 @@ object RemoteEnvelopeMaterializer {
     ): InboundProcessResult {
         val opId = jsonPayload.getString("operation_id")
         val businessId = jsonPayload.getString("business_id")
-        val branchId = jsonPayload.optString("branch_id").ifBlank { null }
         val actorUserId = jsonPayload.getString("actor_user_id")
         val deviceId = jsonPayload.getString("device_id")
         val opTypeStr = jsonPayload.getString("operation_type")
