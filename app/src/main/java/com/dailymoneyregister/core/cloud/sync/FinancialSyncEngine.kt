@@ -19,18 +19,14 @@ class FinancialSyncEngine @Inject constructor(
     private val database: DmrDatabase,
     private val remoteSyncRepository: RemoteFinancialSyncRepository,
     private val inboundEnvelopeApplier: InboundEnvelopeApplier,
-    @ApplicationContext private val context: Context? = null
+    @ApplicationContext private val context: Context? = null,
+    private val staffIdentitySync: StaffIdentitySync
 ) {
-    // Owner-only mode must not instantiate the cashier identity/metadata sync service.
-    // Keep its implementation and legacy guarded branches in source, but inject no
-    // cashier runtime dependency into the active financial sync engine.
-    private val staffIdentitySync: StaffIdentitySync = StaffIdentitySync.NoOp
-
     constructor(
         database: DmrDatabase,
         remoteSyncRepository: RemoteFinancialSyncRepository,
         inboundEnvelopeApplier: InboundEnvelopeApplier = MaterializingInboundEnvelopeApplier()
-    ) : this(database, remoteSyncRepository, inboundEnvelopeApplier, null)
+    ) : this(database, remoteSyncRepository, inboundEnvelopeApplier, null, StaffIdentitySync.NoOp)
 
     private val inMemoryCursors = mutableMapOf<String, VersionedInboundCursor>()
     private val syncMutex = Mutex()
@@ -139,8 +135,8 @@ class FinancialSyncEngine @Inject constructor(
             Log.w("PaidDueFinancialSync", "OUTBOUND_SESSION_SCOPE_MISMATCH")
             return@withLock 0
         }
-        if (role != UserRole.ADMIN || activeSession.user.role != UserRole.ADMIN) {
-            Log.i("PaidDueFinancialSync", "OUTBOUND_SKIPPED_NON_OWNER_SESSION")
+        if (role !in setOf(UserRole.ADMIN, UserRole.CASHIER)) {
+            Log.w("PaidDueFinancialSync", "OUTBOUND_UNSUPPORTED_ROLE role=$role")
             return@withLock 0
         }
 
@@ -333,15 +329,24 @@ class FinancialSyncEngine @Inject constructor(
         adminAccountId: String
     ): Int = syncMutex.withLock {
         val session = SessionManager.currentSession.value
-        if (session?.user?.role != UserRole.ADMIN) {
-            Log.i("PaidDueFinancialSync", "INBOUND_SKIPPED_NON_OWNER_SESSION")
+        if (session == null || session.user.role !in setOf(UserRole.ADMIN, UserRole.CASHIER)) {
+            Log.i("PaidDueFinancialSync", "INBOUND_SESSION_NOT_AUTHORIZED")
+            return@withLock 0
+        }
+        if (session.business.id != businessId || session.user.id != adminAccountId) {
+            Log.w("PaidDueFinancialSync", "INBOUND_SESSION_SCOPE_MISMATCH")
             return@withLock 0
         }
         val sessionBusinessId = session.business.id
         val sessionBranchId = session.membership?.branchId
-        // Owner download is business-scoped across every authorized branch.
-        // Cashier identity-directory refresh is deliberately not launched in owner-only mode.
-        val materializationBranchScope: String? = null
+        if (session.user.role == UserRole.CASHIER && sessionBranchId != session.branch.id) {
+            Log.w("PaidDueFinancialSync", "INBOUND_CASHIER_BRANCH_SCOPE_MISMATCH")
+            return@withLock 0
+        }
+        // Admin sessions materialize across authorized business branches; cashier
+        // sessions are strictly restricted to the active membership branch.
+        val materializationBranchScope: String? =
+            if (session.user.role == UserRole.CASHIER) sessionBranchId else null
 
         // Cashier downloads are scoped to one branch and may have no local
         // user_accounts row. Keep their cursor branch-specific and trust the
