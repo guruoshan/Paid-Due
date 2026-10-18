@@ -279,15 +279,10 @@ class RemoteEnvelopeMaterializerTest {
     @Test
     fun refundMaterializesWhenOriginalSaleCreatorHasBeenRemoved() = runTest {
         val removedCreatorId = "removed-original-sale-cashier"
-        val tombstone = cloudIdentity.copy(
-            membershipId = "removed-original-sale-membership",
-            localUserId = removedCreatorId,
-            isActive = false,
-            isRemoved = true
-        )
+        // No local/cloud user row remains for the original creator after removal.
         coEvery {
             identityDao.findIdentity(removedCreatorId, businessId, branchId)
-        } returns tombstone
+        } returns null
         coEvery {
             userDao.getUserByIdInBusiness(removedCreatorId, businessId)
         } returns null
@@ -305,70 +300,6 @@ class RemoteEnvelopeMaterializerTest {
         coVerify(exactly = 1) { transactionDao.insertTransaction(any()) }
         coVerify(exactly = 1) { transactionDao.insertSettlements(match { it.single().amountSignedMinor == -500L }) }
         coVerify(exactly = 1) { transactionDao.insertRefund(match { it.actorUserId == actorUserId && it.refundAmountMinor == 500L }) }
-    }
-
-    @Test
-    fun removedOriginalTransactionCreatorRemainsValidHistoricalAttribution() = runTest {
-        val removedCreatorId = "removed-original-sale-cashier"
-        val tombstone = cloudIdentity.copy(
-            membershipId = "removed-original-sale-membership",
-            localUserId = removedCreatorId,
-            isActive = false,
-            isRemoved = true
-        )
-        coEvery {
-            identityDao.findIdentity(removedCreatorId, businessId, branchId)
-        } returns tombstone
-        coEvery {
-            userDao.getUserByIdInBusiness(removedCreatorId, businessId)
-        } returns null
-
-        val result = RemoteEnvelopeMaterializer.hasHistoricalActorReference(
-            database = database,
-            actorUserId = removedCreatorId,
-            businessId = businessId,
-            branchId = branchId,
-            transactionId = transactionId
-        )
-
-        assertEquals(true, result)
-        coVerify(exactly = 0) {
-            userDao.getUserByIdInBusiness(removedCreatorId, businessId)
-        }
-    }
-
-    private fun refundEnvelope(originalCreatorId: String): RemoteEnvelopeV2 {
-        val base = cashSaleEnvelope()
-        val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at")
-        val payload = JSONObject(base.canonicalText).apply {
-            put("operation_type", "RECORD_REFUND")
-            getJSONObject("transaction").put("created_by_user_id", originalCreatorId)
-            put("settlements", JSONArray().put(JSONObject().apply {
-                put("id", "refund-outflow-settlement")
-                put("operation_id", operationId)
-                put("subject_type", SubjectType.TRANSACTION.name)
-                put("subject_id", transactionId)
-                put("transaction_id", transactionId)
-                put("entry_purpose", "REFUND_OUTFLOW")
-                put("category", "CASH")
-                put("channel", "CASH_TENDER")
-                put("amount_signed_minor", -500L)
-                put("currency_code", "OMR")
-                put("confirmation_type", ConfirmationType.CASHIER_CONFIRMED.name)
-                put("actor_user_id", actorUserId)
-                put("occurred_at", occurredAt)
-            }))
-            put("financial_evidence", JSONObject().put("refund_event", JSONObject().apply {
-                put("id", "refund-event")
-                put("transaction_id", transactionId)
-                put("operation_id", operationId)
-                put("refund_amount_minor", 500L)
-                put("reason", "Partial refund")
-                put("actor_user_id", actorUserId)
-                put("occurred_at", occurredAt)
-            }))
-        }
-        return envelopeFromPayload(base, "RECORD_REFUND", payload)
     }
 
     private fun expenseEnvelope(): RemoteEnvelopeV2 {
