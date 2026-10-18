@@ -33,12 +33,8 @@ class DebugSessionBootstrapper @Inject constructor(
         val business = businessDao.getFirstBusiness() ?: return false
         val branch = businessDao.getFirstBranch(business.id) ?: return false
 
-        val cashier = userDao
-            .getCashiers(business.id)
-            .firstOrNull { it.isActive && userDao.getMembership(it.id, branch.id) != null }
-
-        val user = cashier
-            ?: userDao.getFirstAdmin(business.id)?.takeIf { it.isActive }
+        // Debug convenience must follow the active app's admin-only login policy.
+        val user = userDao.getFirstAdmin(business.id)?.takeIf { it.isActive }
             ?: return false
 
         val membership = userDao.getMembership(user.id, branch.id) ?: return false
