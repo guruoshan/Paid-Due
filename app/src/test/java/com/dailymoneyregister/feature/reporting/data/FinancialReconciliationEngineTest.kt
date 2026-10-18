@@ -12,6 +12,7 @@ import com.dailymoneyregister.feature.reporting.domain.FinancialReconciliationEn
 import com.dailymoneyregister.feature.reporting.domain.PaymentMethodChangeReportRow
 import com.dailymoneyregister.feature.reporting.domain.ReportBranch
 import com.dailymoneyregister.feature.reporting.domain.ReportCashier
+import com.dailymoneyregister.feature.reporting.domain.ReportingCloudOperation
 import com.dailymoneyregister.feature.reporting.domain.ReportingReconciliationStatus
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -39,6 +40,17 @@ class FinancialReconciliationEngineTest {
         status = status
     )
 
+    private fun cloud(operation: OperationEntity) = ReportingCloudOperation(
+        operationId = operation.id,
+        businessId = operation.businessId,
+        branchId = operation.branchId.orEmpty(),
+        operationType = operation.operationType.name,
+        occurredAtMillis = operation.occurredAt,
+        actorUserId = operation.actorUserId,
+        requestFingerprint = operation.requestFingerprint,
+        canonicalSha256 = "verified-test-digest"
+    )
+
     private fun row(operationId: String = "op-1", stableId: String = "change-1") =
         PaymentMethodChangeReportRow(
             stableId = stableId,
@@ -60,8 +72,10 @@ class FinancialReconciliationEngineTest {
 
     @Test
     fun completeRequiresVerifiedCloudInventoryAndExactIdentityCoverage() {
+        val local = listOf(operation())
         val result = FinancialReconciliationEngine.reconcile(
-            operations = listOf(operation()),
+            localOperations = local,
+            cloudOperations = local.map(::cloud),
             rows = listOf(row()),
             cloudInventoryVerified = true
         )
@@ -74,10 +88,13 @@ class FinancialReconciliationEngineTest {
 
     @Test
     fun localOnlyInventoryCannotClaimComplete() {
+        val local = listOf(operation())
         val result = FinancialReconciliationEngine.reconcile(
-            operations = listOf(operation()),
+            localOperations = local,
+            cloudOperations = emptyList(),
             rows = listOf(row()),
-            cloudInventoryVerified = false
+            cloudInventoryVerified = false,
+            cloudInventoryFailureReason = "test offline"
         )
 
         assertEquals(ReportingReconciliationStatus.REQUIRES_REVIEW, result.status)
@@ -86,8 +103,10 @@ class FinancialReconciliationEngineTest {
 
     @Test
     fun missingReportRowIsIncompleteWhenCloudInventoryIsVerified() {
+        val local = listOf(operation())
         val result = FinancialReconciliationEngine.reconcile(
-            operations = listOf(operation()),
+            localOperations = local,
+            cloudOperations = local.map(::cloud),
             rows = emptyList(),
             cloudInventoryVerified = true
         )
@@ -99,7 +118,8 @@ class FinancialReconciliationEngineTest {
     @Test
     fun rowWithoutMatchingAuthoritativeOperationRequiresReview() {
         val result = FinancialReconciliationEngine.reconcile(
-            operations = emptyList(),
+            localOperations = emptyList(),
+            cloudOperations = emptyList(),
             rows = listOf(row()),
             cloudInventoryVerified = true
         )
@@ -110,8 +130,10 @@ class FinancialReconciliationEngineTest {
 
     @Test
     fun cashShiftIsExplicitlyExcludedFromTransactionDetailCoverage() {
+        val local = listOf(operation(type = OperationType.OPEN_CASH_SHIFT))
         val result = FinancialReconciliationEngine.reconcile(
-            operations = listOf(operation(type = OperationType.OPEN_CASH_SHIFT)),
+            localOperations = local,
+            cloudOperations = local.map(::cloud),
             rows = emptyList(),
             cloudInventoryVerified = true
         )
@@ -134,8 +156,10 @@ class FinancialReconciliationEngineTest {
         )
         val detailRows = financialOperations.map { row(operationId = it.id, stableId = "detail-${it.id}") }
 
+        val local = financialOperations + cashShiftOperations
         val result = FinancialReconciliationEngine.reconcile(
-            operations = financialOperations + cashShiftOperations,
+            localOperations = local,
+            cloudOperations = local.map(::cloud),
             rows = detailRows,
             cloudInventoryVerified = true
         )
@@ -150,8 +174,10 @@ class FinancialReconciliationEngineTest {
 
     @Test
     fun duplicateReportRowIdentityRequiresReview() {
+        val local = listOf(operation())
         val result = FinancialReconciliationEngine.reconcile(
-            operations = listOf(operation()),
+            localOperations = local,
+            cloudOperations = local.map(::cloud),
             rows = listOf(row(), row()),
             cloudInventoryVerified = true
         )
