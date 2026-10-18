@@ -208,6 +208,28 @@ internal object ReportingRowMappers {
                 channel = it.channel,
                 amount = MoneyMinorUnits(it.amountMinor)
             )
+        }.ifEmpty {
+            // A credit obligation is the unpaid tender component, not a collection.
+            // Represent it as CREDIT so the sale total remains fully classified without
+            // fabricating a cash/card settlement.
+            val obligationMinor = record.creditLedgerEvents
+                .filter {
+                    it.transactionId == tx.id &&
+                        it.type == CreditLedgerType.OBLIGATION &&
+                        it.amountSignedMinor > 0L
+                }
+                .fold(0L) { total, event -> Math.addExact(total, event.amountSignedMinor) }
+            if (obligationMinor > 0L) {
+                listOf(
+                    ReportPaymentPart(
+                        category = PaymentCategory.CREDIT,
+                        channel = PaymentChannel.CREDIT,
+                        amount = MoneyMinorUnits(obligationMinor)
+                    )
+                )
+            } else {
+                emptyList()
+            }
         }
 
         val obligations = creditEvents.filter {
