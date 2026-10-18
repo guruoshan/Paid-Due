@@ -1,7 +1,10 @@
 package com.dailymoneyregister.feature.reporting.data
 
 import androidx.room.withTransaction
+import com.dailymoneyregister.core.cloud.sync.RemoteFinancialSyncRepository
+import com.dailymoneyregister.core.command.CommandFingerprint
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
 import com.dailymoneyregister.core.database.readmodel.TransactionFinancialRecord
 import com.dailymoneyregister.core.model.financial.FinancialReadModelResolver
@@ -37,7 +40,8 @@ interface ReportingReadRepository {
 class RoomReportingReadRepository(
     private val database: DmrDatabase,
     private val sessionProvider: () -> ActiveSession? =
-        { SessionManager.currentSession.value }
+        { SessionManager.currentSession.value },
+    private val remoteSyncRepository: RemoteFinancialSyncRepository? = null
 ) : ReportingReadRepository {
 
     override suspend fun read(scope: ReportingScope): ReportingReadModel {
@@ -95,7 +99,7 @@ class RoomReportingReadRepository(
             requestedCashierKnownInBusiness = cashierKnown
         )
 
-        return try {
+        val localProjection = try {
             database.withTransaction {
                 readInside(scope, access)
             }
@@ -119,12 +123,35 @@ class RoomReportingReadRepository(
                 e
             )
         }
+
+        val (localReadModel, localOperations) = localProjection
+        val cloudInventory = try {
+            fetchCloudInventory(scope, access)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            CloudInventoryRead(
+                operations = emptyList(),
+                verified = false,
+                failureReason = e.message ?: e::class.java.simpleName
+            )
+        }
+
+        return localReadModel.copy(
+            reconciliation = FinancialReconciliationEngine.reconcile(
+                localOperations = localOperations,
+                cloudOperations = cloudInventory.operations,
+                rows = localReadModel.rows,
+                cloudInventoryVerified = cloudInventory.verified,
+                cloudInventoryFailureReason = cloudInventory.failureReason
+            )
+        )
     }
 
     private suspend fun readInside(
         scope: ReportingScope,
         access: ReportingAccess
-    ): ReportingReadModel {
+    ): Pair<ReportingReadModel, List<OperationEntity>> {
 
         val reportingDao = database.reportingReadDao()
         val transactionDao = database.transactionDao()
@@ -493,21 +520,12 @@ class RoomReportingReadRepository(
                 .thenByDescending { it.stableId }
         )
 
-        val reconciliation = FinancialReconciliationEngine.reconcile(
-            operations = operationsInScope,
-            rows = ordered,
-            // The current read repository is Room-only. Until the corresponding
-            // cloud inventory is fetched and reconciled for this exact scope,
-            // cross-device completeness must remain unverified.
-            cloudInventoryVerified = false
-        )
-
         return ReportingReadModel(
             scope = scope,
             summary = ReportingAggregator.build(ordered),
             rows = ordered,
-            reconciliation = reconciliation
-        )
+            reconciliation = ReportingReconciliation.unverified()
+        ) to operationsInScope
     }
 
     // ------------------------------------------------------------------
@@ -537,6 +555,108 @@ class RoomReportingReadRepository(
         @Suppress("UNUSED_PARAMETER") businessId: String,
         loader: suspend (List<String>) -> List<T>
     ): List<T> = loadChunked(ids, loader)
+
+    private data class CloudInventoryRead(
+        val operations: List<com.dailymoneyregister.feature.reporting.domain.ReportingCloudOperation>,
+        val verified: Boolean,
+        val failureReason: String? = null
+    )
+
+    /**
+     * Full server-side scoped inventory scan. The snapshot is considered verified
+     * only when pagination reaches the end, every canonical digest validates, and
+     * no operation identity repeats.
+     */
+    private suspend fun fetchCloudInventory(
+        scope: ReportingScope,
+        access: ReportingAccess
+    ): CloudInventoryRead {
+        val remote = remoteSyncRepository
+            ?: return CloudInventoryRead(
+                emptyList(),
+                false,
+                "Cloud inventory provider is not configured."
+            )
+        val operations = mutableListOf<com.dailymoneyregister.feature.reporting.domain.ReportingCloudOperation>()
+        val seen = mutableMapOf<String, String>()
+        var afterReceivedAt: String? = null
+        var afterOperationId: String? = null
+        var pageCount = 0
+        val pageLimit = 100
+
+        while (true) {
+            check(pageCount < 10_000) {
+                "Cloud inventory pagination exceeded the safety limit."
+            }
+            val page = remote.fetchFinancialReportingInventoryPage(
+                businessId = access.businessId,
+                branchIds = access.branchIds,
+                fromInclusiveMillis = scope.period.fromInclusive,
+                toExclusiveMillis = scope.period.toExclusive,
+                actorUserId = scope.cashierUserId,
+                afterReceivedAt = afterReceivedAt,
+                afterOperationId = afterOperationId,
+                limit = pageLimit
+            )
+            pageCount++
+            if (page.isEmpty()) break
+
+            page.forEach { envelope ->
+                check(envelope.businessId == access.businessId) {
+                    "Cloud inventory returned an envelope for another business."
+                }
+                check(envelope.branchId in access.branchIds) {
+                    "Cloud inventory returned an envelope outside the requested branch scope."
+                }
+                val occurredAt = java.time.Instant.parse(envelope.occurredAtIso).toEpochMilli()
+                check(occurredAt >= scope.period.fromInclusive && occurredAt < scope.period.toExclusive) {
+                    "Cloud inventory returned an envelope outside the requested time range."
+                }
+                if (!scope.cashierUserId.isNullOrBlank()) {
+                    check(envelope.payloadJson.optString("actor_user_id") == scope.cashierUserId) {
+                        "Cloud inventory returned an envelope outside the requested cashier scope."
+                    }
+                }
+                val digest = envelope.canonicalSha256
+                check(!digest.isNullOrBlank() &&
+                    digest.equals(CommandFingerprint.sha256(envelope.canonicalText), ignoreCase = true)
+                ) {
+                    "Cloud inventory digest is missing or inconsistent for operation ${envelope.operationId}."
+                }
+                check(envelope.payloadJson.optString("operation_id") == envelope.operationId &&
+                    envelope.payloadJson.optString("business_id") == envelope.businessId &&
+                    envelope.payloadJson.optString("branch_id") == envelope.branchId &&
+                    envelope.payloadJson.optString("operation_type") == envelope.operationType
+                ) {
+                    "Cloud inventory payload metadata conflicts for operation ${envelope.operationId}."
+                }
+                val previousDigest = seen.putIfAbsent(envelope.operationId, digest)
+                check(previousDigest == null) {
+                    "Cloud inventory contains duplicate operation identity ${envelope.operationId}."
+                }
+                operations += com.dailymoneyregister.feature.reporting.domain.ReportingCloudOperation(
+                    operationId = envelope.operationId,
+                    businessId = envelope.businessId,
+                    branchId = envelope.branchId.orEmpty(),
+                    operationType = envelope.operationType,
+                    occurredAtMillis = occurredAt,
+                    actorUserId = envelope.payloadJson.optString("actor_user_id").ifBlank { null },
+                    requestFingerprint = envelope.payloadJson.optString("request_fingerprint").ifBlank { null },
+                    canonicalSha256 = digest
+                )
+            }
+
+            if (page.size < pageLimit) break
+            val last = page.last()
+            check(last.receivedAtIso != afterReceivedAt || last.operationId != afterOperationId) {
+                "Cloud inventory cursor did not advance."
+            }
+            afterReceivedAt = last.receivedAtIso
+            afterOperationId = last.operationId
+        }
+
+        return CloudInventoryRead(operations = operations, verified = true)
+    }
 
     private fun validateLifecycleEvidence(record: TransactionFinancialRecord) {
         val view = FinancialReadModelResolver.resolve(record)
