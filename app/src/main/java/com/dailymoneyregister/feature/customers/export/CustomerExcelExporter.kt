@@ -29,7 +29,7 @@ class CustomerExcelExporter @Inject constructor(
             val businessId = SessionManager.currentSession.value?.business?.id ?: error("No active business session")
             val db = database.openHelper.readableDatabase
             data class Customer(val id: String, val name: String, val phone: String, val updated: Long)
-            data class Activity(val date: Long, val branch: String, val name: String, val phone: String, val type: String, val ref: String, val amount: Double, val paymentMethod: String)
+            data class Activity(val date: Long, val branch: String, val name: String, val phone: String, val type: String, val ref: String, val amount: Double, val paymentMethod: String, val creditAmount: Double = 0.0)
             val customers = linkedMapOf<String, Customer>()
             db.query("SELECT id,name,canonical_phone,updated_at FROM customers WHERE business_id=? AND TRIM(canonical_phone)<>'' ORDER BY updated_at DESC", arrayOf(businessId)).use { c ->
                 while (c.moveToNext()) {
@@ -51,7 +51,9 @@ class CustomerExcelExporter @Inject constructor(
                     val key = phone.filter { it.isDigit() }.ifEmpty { phone }
                     val customer = customers[key] ?: continue
                     val amount = c.getLong(3).toDouble() / Math.pow(10.0,c.getInt(4).toDouble())
-                    activity.add(Activity(c.getLong(5),branches[c.getString(0)].orEmpty(),customer.name,customer.phone,c.getString(1),c.getString(6),amount,paymentMethodForTransaction(db,c.getString(10),c.getString(1))))
+                    val creditAmount = creditAmountForTransaction(db,c.getString(10),c.getInt(4))
+                    val type = if (c.getString(1) == "SALE" && creditAmount > 0.0) "CREDIT_SALE" else c.getString(1)
+                    activity.add(Activity(c.getLong(5),branches[c.getString(0)].orEmpty(),customer.name,customer.phone,type,c.getString(6),amount,paymentMethodForTransaction(db,c.getString(10),c.getString(1)),creditAmount))
                 }
             }
             // Include repayments and issued invoices as first-class history events.
@@ -110,11 +112,11 @@ class CustomerExcelExporter @Inject constructor(
                 val repaid = rows.filter { it.type.contains("REPAY",true) }
                 val refunds = rows.filter { it.type.contains("REFUND",true) }
                 val invoices = try { db.query("SELECT COUNT(*) FROM documents WHERE customer_id=? AND document_type='INVOICE'",arrayOf(customer.id)).use { q -> if(q.moveToFirst()) q.getInt(0) else 0 } } catch (_:Exception) { 0 }
-                listOf(customer.name,customer.phone,fmt(rows.minOfOrNull { it.date }),fmt(rows.maxOfOrNull { it.date }),rows.size,sales.sumOf { it.amount },credit.sumOf { it.amount },repaid.sumOf { it.amount },credit.sumOf { it.amount }-repaid.sumOf { it.amount },invoices,refunds.size,if(rows.isEmpty()) "No recorded transaction" else "Active")
+                listOf(customer.name,customer.phone,fmt(rows.minOfOrNull { it.date }),fmt(rows.maxOfOrNull { it.date }),rows.size,sales.sumOf { it.amount },rows.sumOf { it.creditAmount },repaid.sumOf { it.amount },rows.sumOf { it.creditAmount }-repaid.sumOf { it.amount },invoices,refunds.size,if(rows.isEmpty()) "No recorded transaction" else "Active")
             }
             val summary = customers.values.map { customer ->
                 val rows = groups[customer.phone.filter { it.isDigit() }.ifEmpty { customer.phone }].orEmpty()
-                listOf(customer.name,customer.phone,rows.count { it.type.contains("SALE",true) },rows.filter { it.type.contains("SALE",true) }.sumOf { it.amount },rows.filter { it.type.contains("CREDIT",true) }.sumOf { it.amount },rows.filter { it.type.contains("REPAY",true) }.sumOf { it.amount },rows.filter { it.type.contains("REFUND",true) }.sumOf { it.amount },rows.filter { it.type.contains("COUPON",true) }.sumOf { it.amount },rows.filter { it.type.contains("CREDIT",true) }.sumOf { it.amount }-rows.filter { it.type.contains("REPAY",true) }.sumOf { it.amount },rows.sumOf { it.amount })
+                listOf(customer.name,customer.phone,rows.count { it.type.contains("SALE",true) },rows.filter { it.type.contains("SALE",true) }.sumOf { it.amount },rows.filter { it.type == "CREDIT_SALE" }.sumOf { it.creditAmount },rows.filter { it.type.contains("REPAY",true) }.sumOf { it.amount },rows.filter { it.type.contains("REFUND",true) }.sumOf { it.amount },rows.filter { it.type.contains("COUPON",true) }.sumOf { it.amount },rows.sumOf { it.creditAmount }-rows.filter { it.type.contains("REPAY",true) }.sumOf { it.amount },rows.sumOf { it.amount })
             }
             val history = activity.map { listOf(fmt(it.date),SimpleDateFormat("HH:mm:ss",Locale.US).format(Date(it.date)),it.branch,it.name,it.phone,it.type,it.ref,it.amount,it.paymentMethod,"Recorded") }
             val day = SimpleDateFormat("yyyy_MM_dd",Locale.US).format(Date())
@@ -143,6 +145,16 @@ class CustomerExcelExporter @Inject constructor(
     fun open(uri: Uri) {
         val intent = Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri,"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK) }
         runCatching { context.startActivity(intent) }
+    }
+
+    private fun creditAmountForTransaction(db: android.database.sqlite.SQLiteDatabase, transactionId: String, decimalPlaces: Int): Double {
+        // Credit exposure is the signed CREDIT tender balance after any
+        // authoritative payment-method reclassification events.
+        val amountMinor = db.query(
+            "SELECT COALESCE(SUM(amount_signed_minor),0) FROM settlement_entries WHERE transaction_id=? AND category='CREDIT' AND entry_purpose IN ('SALE_FUNDING','PAYMENT_METHOD_RECLASSIFICATION')",
+            arrayOf(transactionId)
+        ).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else 0L }
+        return amountMinor.coerceAtLeast(0L).toDouble() / Math.pow(10.0, decimalPlaces.toDouble())
     }
 
     private fun paymentMethodForTransaction(db: android.database.sqlite.SQLiteDatabase, transactionId: String, transactionType: String): String {
