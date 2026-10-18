@@ -76,15 +76,24 @@ class RemoteFinancialSyncRepository @Inject constructor(
             com.dailymoneyregister.core.security.SessionManager
                 .currentSession.value
 
-        if (currentSession?.user?.role != com.dailymoneyregister.core.model.enums.UserRole.ADMIN) {
-            android.util.Log.w("PaidDueFinancialSync", "UPLOAD_BLOCKED_NON_OWNER_SESSION operation=${envelope.operationId}")
+        if (
+            currentSession == null ||
+            currentSession.user.role !in setOf(
+                com.dailymoneyregister.core.model.enums.UserRole.ADMIN,
+                com.dailymoneyregister.core.model.enums.UserRole.CASHIER
+            ) ||
+            currentSession.membership?.id != actorMembershipId ||
+            currentSession.business.id != envelope.businessId ||
+            currentSession.branch.id != envelope.branchId
+        ) {
+            android.util.Log.w(
+                "PaidDueFinancialSync",
+                "UPLOAD_BLOCKED_SESSION_SCOPE_MISMATCH operation=${envelope.operationId}"
+            )
             return FinancialSyncReceipt.Unauthorized(envelope.operationId)
         }
 
-        if (
-            currentSession?.user?.role ==
-            com.dailymoneyregister.core.model.enums.UserRole.CASHIER
-        ) {
+        if (currentSession.user.role == com.dailymoneyregister.core.model.enums.UserRole.CASHIER) {
             return try {
                 val payload = JSONObject()
                     .put("p_business_id", envelope.businessId)
@@ -277,12 +286,22 @@ class RemoteFinancialSyncRepository @Inject constructor(
         }
 
         val activeSession = SessionManager.currentSession.value
-        if (activeSession?.user?.role != com.dailymoneyregister.core.model.enums.UserRole.ADMIN) {
-            throw SecurityException("OWNER_SESSION_REQUIRED")
+        if (
+            activeSession == null ||
+            activeSession.user.role !in setOf(
+                com.dailymoneyregister.core.model.enums.UserRole.ADMIN,
+                com.dailymoneyregister.core.model.enums.UserRole.CASHIER
+            ) ||
+            activeSession.business.id != businessId
+        ) {
+            throw SecurityException("AUTHORIZED_FINANCIAL_SESSION_REQUIRED")
         }
-        if (activeSession?.user?.role == com.dailymoneyregister.core.model.enums.UserRole.CASHIER) {
+        if (activeSession.user.role == com.dailymoneyregister.core.model.enums.UserRole.CASHIER) {
             val cashierMembershipId = activeSession.membership?.id
                 ?: throw SecurityException("CASHIER_MEMBERSHIP_REQUIRED")
+            if (activeSession.membership.branchId != activeSession.branch.id) {
+                throw SecurityException("CASHIER_BRANCH_SCOPE_MISMATCH")
+            }
             if (CashierCloudSession.tokenFor(cashierMembershipId) == null) {
                 // Do not fall through to the Admin Supabase RPC with a publishable key.
                 throw SecurityException("CASHIER_CLOUD_SESSION_REQUIRED")
