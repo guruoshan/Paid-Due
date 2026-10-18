@@ -1095,25 +1095,28 @@ object RemoteEnvelopeMaterializer {
                         )
                     )
                 }
-                if (itemsList.isNotEmpty()) {
-                    check(itemsList.map { it.id }.distinct().size == itemsList.size) {
-                        "Transaction contains duplicate item IDs"
-                    }
-                    val existingItems = txId?.let {
-                        transactionDao.getItemsForTransaction(it).associateBy { item -> item.id }
-                    } ?: emptyMap()
-                    for (incoming in itemsList) {
-                        val existing = existingItems[incoming.id]
-                        if (existing != null) {
-                            check(existing == incoming) {
-                                "Existing immutable transaction item differs from replayed envelope"
-                            }
+                check(itemsList.map { it.id }.distinct().size == itemsList.size) {
+                    "Transaction contains duplicate item IDs"
+                }
+                val existingItems = txId?.let {
+                    transactionDao.getItemsForTransaction(it).associateBy { item -> item.id }
+                } ?: emptyMap()
+                for (incoming in itemsList) {
+                    val existing = existingItems[incoming.id]
+                    if (existing != null) {
+                        check(existing == incoming) {
+                            "Existing immutable transaction item differs from replayed envelope"
                         }
                     }
-                    val newItems = itemsList.filter { it.id !in existingItems }
-                    if (newItems.isNotEmpty()) {
-                        transactionDao.insertTransactionItems(newItems)
+                }
+                if (replayDetected) {
+                    check(existingItems.keys == itemsList.map { it.id }.toSet()) {
+                        "Replay item identity set differs from the already materialized transaction"
                     }
+                }
+                val newItems = itemsList.filter { it.id !in existingItems }
+                if (newItems.isNotEmpty()) {
+                    transactionDao.insertTransactionItems(newItems)
                 }
             }
 
@@ -1214,6 +1217,11 @@ object RemoteEnvelopeMaterializer {
                         check(existing == incoming) {
                             "Existing immutable settlement differs from replayed envelope"
                         }
+                    }
+                }
+                if (replayDetected) {
+                    check(existingSettlements.keys == settlementsList.map { it.id }.toSet()) {
+                        "Replay settlement identity set differs from the already materialized expense operation"
                     }
                 }
                 val newSettlements = settlementsList.filter { it.id !in existingSettlements }
