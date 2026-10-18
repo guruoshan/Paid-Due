@@ -38,6 +38,7 @@ import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.feature.admin.data.CashierManagementRepository
+import com.dailymoneyregister.feature.customers.data.CreditRepaymentCommand
 import com.dailymoneyregister.feature.customers.export.CustomerExcelExporter
 import com.dailymoneyregister.feature.admin.data.CashierPermissionsConfig
 import com.dailymoneyregister.feature.admin.data.CreateCashierParams
@@ -1659,6 +1660,22 @@ class DmrDatabaseIntegrationTest {
             )
         )
         assertTrue("Fixture credit sale should succeed: " + creditSaleResult, creditSaleResult is CommandResult.Success)
+        val repaymentResult = registerRepository.executeCreditRepayment(
+            CreditRepaymentCommand(
+                operationId = OperationId.generate(),
+                businessId = setup.businessId.value,
+                branchId = branch.id,
+                actorUserId = admin.id,
+                repaymentId = "customer-export-repayment-" + java.util.UUID.randomUUID(),
+                customerId = customer.id,
+                amountMinor = 2000L,
+                currencyCode = branch.currencyCode,
+                paymentCategory = PaymentCategory.CASH,
+                paymentChannel = PaymentChannel.CASH_TENDER,
+                deviceId = "customer-export-repayment-test-device"
+            )
+        )
+        assertTrue("Fixture credit repayment should succeed: " + repaymentResult, repaymentResult is CommandResult.Success)
         SessionManager.setSession(ActiveSession(business = business, branch = branch, user = admin, membership = null))
 
         val exportResult = CustomerExcelExporter(context, database).export()
@@ -1690,6 +1707,8 @@ class DmrDatabaseIntegrationTest {
             assertTrue("Directory should retain the exact customer ID", directoryXml.contains(customer.id))
             assertTrue("Summary should show total OMR sales of 17.345", summaryXml.contains("17.345"))
             assertTrue("Summary should show credit sale value of 5.000", summaryXml.contains("5.000"))
+            assertTrue("Summary should show credit repayment collection of 2.000", summaryXml.contains("2.000"))
+            assertTrue("Summary should show ledger outstanding credit of 3.000 after repayment", summaryXml.contains("3.000"))
             assertTrue("History should retain the cash-sale transaction ID", historyXml.contains(transactionId.value))
             assertTrue("History should retain the credit-sale transaction ID", historyXml.contains(creditTransactionId.value))
             assertTrue("Credit control should reconcile funding and ledger obligation", creditReconciliationXml.contains("PASS"))
