@@ -757,9 +757,9 @@ private fun ReportingRowCard(
             if (isDarkTheme) Color(0xFFBDBDBD) else Color(0xFF616161)
     }
     val typeLabel = when (row.activityType) {
-        ReportActivityType.SALE,
-        ReportActivityType.COUPON_PURCHASE,
-        ReportActivityType.COUPON_TOP_UP -> "SALE"
+        ReportActivityType.SALE -> "SALE"
+        ReportActivityType.COUPON_PURCHASE -> "COUPON SALE"
+        ReportActivityType.COUPON_TOP_UP -> "COUPON TOP-UP"
         ReportActivityType.CREDIT_SALE,
         ReportActivityType.CREDIT_REPAYMENT,
         ReportActivityType.COUPON_CREDIT_REPAYMENT -> "CREDIT"
@@ -783,7 +783,7 @@ private fun ReportingRowCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    modifier = Modifier.width(112.dp).height(24.dp),
+                    modifier = Modifier.widthIn(min = 112.dp, max = 180.dp).heightIn(min = 24.dp),
                     color = flowColor.copy(alpha = if (isDarkTheme) 0.20f else 0.12f),
                     contentColor = flowColor,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
@@ -795,7 +795,9 @@ private fun ReportingRowCard(
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.labelSmall,
                             textAlign = TextAlign.Center,
-                            maxLines = 1
+                            maxLines = 2,
+                            softWrap = true,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
