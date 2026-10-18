@@ -143,11 +143,7 @@ object RemoteEnvelopeMaterializer {
             ) {
                 return InboundProcessResult.Rejected("Expense branch or currency does not match the active business")
             }
-            return if (materializeEnvelope(database, jsonPayload)) {
-                InboundProcessResult.Applied
-            } else {
-                InboundProcessResult.Rejected("Expense envelope could not be materialized")
-            }
+            return materializeEnvelope(database, jsonPayload)
         }
 
         // Transaction-linked operations share the immutable original transaction
@@ -933,7 +929,7 @@ object RemoteEnvelopeMaterializer {
     private suspend fun materializeEnvelope(
         database: DmrDatabase,
         jsonPayload: JSONObject
-    ): Boolean {
+    ): InboundProcessResult {
         val opId = jsonPayload.getString("operation_id")
         val businessId = jsonPayload.getString("business_id")
         val branchId = jsonPayload.optString("branch_id").ifBlank { null }
@@ -946,9 +942,10 @@ object RemoteEnvelopeMaterializer {
         val intentPayload = jsonPayload.optString("intent_payload", "{}")
 
         val opType = runCatching { OperationType.valueOf(opTypeStr) }.getOrElse {
-            return false
+            return InboundProcessResult.UnsupportedYet(opTypeStr)
         }
 
+        var replayDetected = false
         return database.withTransaction {
             CustomerIdentityReconciler.reconcileEvidenceCustomers(
                 database, businessId,
@@ -959,19 +956,18 @@ object RemoteEnvelopeMaterializer {
             val expenseDao = database.expenseDao()
 
             val existingOp = operationDao.getOperationById(opId)
-            if (existingOp != null) {
-                if (
+            if (existingOp != null && (
                     existingOp.businessId != businessId ||
-                    existingOp.branchId != branchId ||
-                    existingOp.operationType != opType ||
-                    existingOp.requestFingerprint != requestFingerprint
-                ) {
-                    return@withTransaction false
-                }
-                if (existingOp.status == OperationStatus.SUCCEEDED) {
-                    return@withTransaction true // Same immutable operation already materialized
-                }
+                        existingOp.branchId != branchId ||
+                        existingOp.operationType != opType ||
+                        existingOp.requestFingerprint != requestFingerprint
+                )
+            ) {
+                return@withTransaction InboundProcessResult.Rejected(
+                    "Operation ID collision: existing expense/operation identity differs from the envelope"
+                )
             }
+            replayDetected = existingOp?.status == OperationStatus.SUCCEEDED
 
             var txId: String? = null
             var txType = "TRANSACTION"
@@ -1002,8 +998,13 @@ object RemoteEnvelopeMaterializer {
                     description = tJson.optString("description").ifBlank { null },
                     displayRef = tJson.getString("display_ref")
                 )
-                if (transactionDao.getTransactionById(txId) == null) {
+                val existingTransaction = transactionDao.getTransactionById(txId)
+                if (existingTransaction == null) {
                     transactionDao.insertTransaction(tEntity)
+                } else {
+                    check(existingTransaction == tEntity) {
+                        "Existing immutable transaction differs from replayed envelope"
+                    }
                 }
             }
 
@@ -1031,8 +1032,21 @@ object RemoteEnvelopeMaterializer {
                     )
                 }
                 if (itemsList.isNotEmpty()) {
-                    val existingItemIds = txId?.let { transactionDao.getItemsForTransaction(it).map { it.id }.toSet() } ?: emptySet()
-                    val newItems = itemsList.filter { it.id !in existingItemIds }
+                    check(itemsList.map { it.id }.distinct().size == itemsList.size) {
+                        "Transaction contains duplicate item IDs"
+                    }
+                    val existingItems = txId?.let {
+                        transactionDao.getItemsForTransaction(it).associateBy { item -> item.id }
+                    } ?: emptyMap()
+                    for (incoming in itemsList) {
+                        val existing = existingItems[incoming.id]
+                        if (existing != null) {
+                            check(existing == incoming) {
+                                "Existing immutable transaction item differs from replayed envelope"
+                            }
+                        }
+                    }
+                    val newItems = itemsList.filter { it.id !in existingItems }
                     if (newItems.isNotEmpty()) {
                         transactionDao.insertTransactionItems(newItems)
                     }
@@ -1045,29 +1059,34 @@ object RemoteEnvelopeMaterializer {
                 val eId = eJson.getString("id")
                 txId = eId
                 txType = "EXPENSE"
-                if (expenseDao.getExpenseById(eId) == null) {
-                    val eEntity = ExpenseEntity(
-                        id = eId,
-                        operationId = eJson.getString("operation_id"),
-                        businessId = eJson.getString("business_id"),
-                        branchId = eJson.getString("branch_id"),
-                        cashShiftId = eJson.optString("cash_shift_id").ifBlank { null },
-                        actorUserId = eJson.getString("actor_user_id"),
-                        payeeId = eJson.optString("payee_id").ifBlank { null },
-                        payeeNameSnapshot = eJson.getString("payee_name_snapshot"),
-                        payeePhoneSnapshot = eJson.optString("payee_phone_snapshot").ifBlank { null },
-                        payeeAccountSnapshot = eJson.optString("payee_account_snapshot").ifBlank { null },
-                        category = eJson.getString("category"),
-                        amountMinor = eJson.getLong("amount_minor"),
-                        paymentCategory = eJson.getString("payment_category"),
-                        currencyCode = eJson.getString("currency_code"),
-                        reference = eJson.optString("reference").ifBlank { null },
-                        note = eJson.optString("note").ifBlank { null },
-                        recurrenceId = eJson.optString("recurrence_id").ifBlank { null },
-                        occurredAt = eJson.getLong("occurred_at"),
-                        createdAt = eJson.getLong("created_at")
-                    )
+                val eEntity = ExpenseEntity(
+                    id = eId,
+                    operationId = eJson.getString("operation_id"),
+                    businessId = eJson.getString("business_id"),
+                    branchId = eJson.getString("branch_id"),
+                    cashShiftId = eJson.optString("cash_shift_id").ifBlank { null },
+                    actorUserId = eJson.getString("actor_user_id"),
+                    payeeId = eJson.optString("payee_id").ifBlank { null },
+                    payeeNameSnapshot = eJson.getString("payee_name_snapshot"),
+                    payeePhoneSnapshot = eJson.optString("payee_phone_snapshot").ifBlank { null },
+                    payeeAccountSnapshot = eJson.optString("payee_account_snapshot").ifBlank { null },
+                    category = eJson.getString("category"),
+                    amountMinor = eJson.getLong("amount_minor"),
+                    paymentCategory = eJson.getString("payment_category"),
+                    currencyCode = eJson.getString("currency_code"),
+                    reference = eJson.optString("reference").ifBlank { null },
+                    note = eJson.optString("note").ifBlank { null },
+                    recurrenceId = eJson.optString("recurrence_id").ifBlank { null },
+                    occurredAt = eJson.getLong("occurred_at"),
+                    createdAt = eJson.getLong("created_at")
+                )
+                val existingExpense = expenseDao.getExpenseById(eId)
+                if (existingExpense == null) {
                     expenseDao.insertExpense(eEntity)
+                } else {
+                    check(existingExpense == eEntity) {
+                        "Existing immutable expense differs from replayed envelope"
+                    }
                 }
             }
 
@@ -1121,12 +1140,21 @@ object RemoteEnvelopeMaterializer {
                         )
                     )
                 }
-                if (settlementsList.isNotEmpty()) {
-                    val existingSettlements = transactionDao.getSettlementsForOperation(opId).map { it.id }.toSet()
-                    val newSettlements = settlementsList.filter { it.id !in existingSettlements }
-                    if (newSettlements.isNotEmpty()) {
-                        transactionDao.insertSettlements(newSettlements)
+                check(settlementsList.map { it.id }.distinct().size == settlementsList.size) {
+                    "Expense envelope contains duplicate settlement IDs"
+                }
+                val existingSettlements = transactionDao.getSettlementsForOperation(opId).associateBy { it.id }
+                for (incoming in settlementsList) {
+                    val existing = existingSettlements[incoming.id]
+                    if (existing != null) {
+                        check(existing == incoming) {
+                            "Existing immutable settlement differs from replayed envelope"
+                        }
                     }
+                }
+                val newSettlements = settlementsList.filter { it.id !in existingSettlements }
+                if (newSettlements.isNotEmpty()) {
+                    transactionDao.insertSettlements(newSettlements)
                 }
             }
 
@@ -1143,7 +1171,7 @@ object RemoteEnvelopeMaterializer {
                 "Inbound operation was not persisted as succeeded"
             }
 
-            true
+            if (replayDetected) InboundProcessResult.Skipped else InboundProcessResult.Applied
         }
     }
 }
