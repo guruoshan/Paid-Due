@@ -626,6 +626,14 @@ class RoomReportingReadRepository(
                 check(digest.equals(CommandFingerprint.sha256(envelope.canonicalText), ignoreCase = true)) {
                     "Cloud inventory digest is inconsistent for operation ${envelope.operationId}."
                 }
+                check(org.json.JSONObject(envelope.canonicalText).similar(envelope.payloadJson)) {
+                    "Cloud canonical text and payload JSON differ for operation ${envelope.operationId}."
+                }
+                val actorUserId = envelope.payloadJson.optString("actor_user_id").ifBlank { null }
+                val requestFingerprint = envelope.payloadJson.optString("request_fingerprint").ifBlank { null }
+                check(!actorUserId.isNullOrBlank() && !requestFingerprint.isNullOrBlank()) {
+                    "Cloud inventory operation ${envelope.operationId} lacks actor or request fingerprint evidence."
+                }
                 check(envelope.payloadJson.optString("operation_id") == envelope.operationId &&
                     envelope.payloadJson.optString("business_id") == envelope.businessId &&
                     envelope.payloadJson.optString("branch_id") == envelope.branchId &&
@@ -644,8 +652,8 @@ class RoomReportingReadRepository(
                     branchId = envelopeBranchId,
                     operationType = envelope.operationType,
                     occurredAtMillis = occurredAt,
-                    actorUserId = envelope.payloadJson.optString("actor_user_id").ifBlank { null },
-                    requestFingerprint = envelope.payloadJson.optString("request_fingerprint").ifBlank { null },
+                    actorUserId = actorUserId,
+                    requestFingerprint = requestFingerprint,
                     canonicalSha256 = digest
                 )
             }
