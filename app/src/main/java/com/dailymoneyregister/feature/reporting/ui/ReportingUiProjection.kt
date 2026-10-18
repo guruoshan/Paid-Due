@@ -156,8 +156,8 @@ object ReportingUiProjection {
                 activityType = row.activityType,
                 amountText =
                     amount?.let {
-                        val magnitude = formatMoney(
-                            MoneyMinorUnits(Math.abs(it.amount)),
+                        val magnitude = formatMagnitude(
+                            it,
                             decimalPlaces,
                             currencySymbol
                         )
@@ -419,13 +419,25 @@ object ReportingUiProjection {
         }
     }
 
+    private fun formatMagnitude(
+        value: MoneyMinorUnits,
+        decimalPlaces: Int,
+        currencySymbol: String
+    ): String {
+        require(decimalPlaces >= 0)
+        val number = BigDecimal.valueOf(value.amount, decimalPlaces)
+            .abs()
+            .toPlainString()
+        return if (currencySymbol.isBlank()) number else "$currencySymbol $number"
+    }
+
     private fun formatSignedMoney(
         value: MoneyMinorUnits,
         decimalPlaces: Int,
         currencySymbol: String
     ): String {
-        val magnitude = formatMoney(
-            MoneyMinorUnits(Math.abs(value.amount)),
+        val magnitude = formatMagnitude(
+            value,
             decimalPlaces,
             currencySymbol
         )
