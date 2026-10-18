@@ -2,6 +2,7 @@ package com.dailymoneyregister.feature.register.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import com.dailymoneyregister.R
 import com.dailymoneyregister.core.cloud.sync.InboundIncompleteBanner
 import com.dailymoneyregister.core.model.currency.CurrencyConfig
@@ -261,6 +263,9 @@ private fun HistoryExpenseCard(
                 )
             )
 
+    val isDarkTheme = isSystemInDarkTheme()
+    val expenseFlowColor =
+        if (isDarkTheme) Color(0xFFEF9A9A) else Color(0xFFD32F2F)
     val payment =
         historyPaymentCategoryLabel(
             expense.paymentCategory
@@ -285,28 +290,39 @@ private fun HistoryExpenseCard(
         ) {
 
             Surface(
-                color = Color(0xFFD32F2F).copy(alpha = 0.12f),
-                contentColor = Color(0xFFD32F2F),
+                modifier = Modifier.width(112.dp).height(24.dp),
+                color = expenseFlowColor.copy(alpha = if (isDarkTheme) 0.20f else 0.12f),
+                contentColor = expenseFlowColor,
                 shape = RoundedCornerShape(6.dp)
             ) {
-                Text(
-                    text = "EXPENSE",
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.labelSmall
-                )
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    Text(
+                        text = "EXPENSE",
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        maxLines = 1
+                    )
+                }
             }
 
             Text(
                 text = "- ${com.dailymoneyregister.core.model.money.MoneyMinorUnits(kotlin.math.abs(expense.signedEffect.amount)).formatDisplay(currency)}",
                 fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFFD32F2F),
-                style = MaterialTheme.typography.headlineSmall
+                color = expenseFlowColor,
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 2
             )
 
             Text(
                 text = "Ref: ${expense.displayReference}",
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = "Time: $timestamp",
@@ -325,7 +341,7 @@ private fun HistoryExpenseCard(
                 }
                 ?.let { name ->
 
-                    Text(name)
+                    Text(name, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
 
             expense.payeePhone
@@ -366,8 +382,9 @@ private fun HistoryExpenseCard(
 
                     Text(
                         text = note,
-                        style =
-                            MaterialTheme.typography.bodySmall
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
         }
@@ -423,29 +440,48 @@ private fun HistoryTransactionCard(
             }
 
             Surface(
-                color = Color(0xFF1565C0).copy(alpha = 0.12f),
-                contentColor = Color(0xFF1565C0),
+                modifier = Modifier.width(112.dp).height(24.dp),
+                color = (if (isSystemInDarkTheme()) Color(0xFF90CAF9) else Color(0xFF1565C0))
+                    .copy(alpha = if (isSystemInDarkTheme()) 0.20f else 0.12f),
+                contentColor = if (isSystemInDarkTheme()) Color(0xFF90CAF9) else Color(0xFF1565C0),
                 shape = RoundedCornerShape(6.dp)
             ) {
-                Text(
-                    text = transactionTypeLabel,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.labelSmall
-                )
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    Text(
+                        text = transactionTypeLabel,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        maxLines = 1
+                    )
+                }
             }
 
+            val signedAmount = historyDisplayedAmount(financial).amount
+            val amountMagnitude = com.dailymoneyregister.core.model.money.MoneyMinorUnits(
+                kotlin.math.abs(signedAmount)
+            ).formatDisplay(currency)
+            val amountColor = if (isSystemInDarkTheme()) Color(0xFF90CAF9) else Color(0xFF1565C0)
             Text(
-                text = "+ ${historyDisplayedAmount(financial).formatDisplay(currency).removePrefix("+").trim()}",
+                text = (if (signedAmount < 0L) "- " else "+ ") + amountMagnitude,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFF1565C0),
-                style = MaterialTheme.typography.headlineSmall
+                color = if (signedAmount < 0L) {
+                    if (isSystemInDarkTheme()) Color(0xFFEF9A9A) else Color(0xFFD32F2F)
+                } else amountColor,
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 2
             )
 
             Text(
                 text = "Ref: ${financial.displayRef}",
                 fontWeight = FontWeight.SemiBold,
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = "Time: $timestamp",
@@ -463,7 +499,7 @@ private fun HistoryTransactionCard(
                     it.isNotBlank()
                 }
                 ?.let {
-                    Text(it)
+                    Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
 
             row.canonicalPhone
