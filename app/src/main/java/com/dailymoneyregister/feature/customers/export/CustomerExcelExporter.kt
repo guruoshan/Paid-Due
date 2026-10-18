@@ -265,7 +265,8 @@ class CustomerExcelExporter @Inject constructor(
                 val refundMinor = refunds.sumOf { kotlin.math.abs(it.amountMinor ?: 0L) }
                 val couponMinor = couponPurchases.sumOf { it.amountMinor ?: 0L }
                 val ledger = ledgerByKey[key] ?: Ledger()
-                val variance = ledger.obligations - creditFundingMinor
+                val allSaleCreditFundingMinor = rows.filter { it.type == "SALE" }.sumOf { it.creditMinor }
+                val variance = ledger.obligations - allSaleCreditFundingMinor
                 listOf(
                     customer.id, customer.name, customer.phone, key.currency, sales.size,
                     money(salesMinor, decimals), money(creditFundingMinor, decimals),
@@ -289,7 +290,7 @@ class CustomerExcelExporter @Inject constructor(
                 val customer = customers[key.customerId] ?: error("Missing customer in credit reconciliation")
                 val ledger = ledgerByKey[key] ?: Ledger()
                 val rows = activities.filter { it.customerId == key.customerId && it.currency == key.currency }
-                val funding = rows.filter { it.type == "SALE" && it.status == "Recorded" }.sumOf { it.creditMinor }
+                val funding = rows.filter { it.type == "SALE" }.sumOf { it.creditMinor }
                 val decimals = decimalsByCurrency[key.currency]
                     ?: com.dailymoneyregister.core.model.currency.CurrencyRegistry.findByCode(key.currency).decimalPlaces
                 listOf(
@@ -306,9 +307,9 @@ class CustomerExcelExporter @Inject constructor(
             val bytes = xlsx(
                 listOf(
                     listOf("Customer Directory", listOf("Customer ID", "Customer Name", "Phone Number", "First Activity Date", "Last Activity Date", "Recorded Activity Rows", "Invoice Count", "Valid Sale Count", "Refund Count", "Status"), directory),
-                    listOf("Customer Financial Summary", listOf("Customer ID", "Customer Name", "Phone Number", "Currency", "Valid Sale Count", "Sales Value", "Credit Sales Funding", "Credit Repaid (Collections)", "Refund Value", "Coupon Purchases", "Net Sales After Refunds", "Credit Ledger Obligations", "Credit Ledger Repayments", "Credit Ledger Adjustments", "Outstanding Credit (Authoritative Ledger)", "Obligation Variance (Ledger - Sale Funding)", "Reconciliation Status"), summary),
+                    listOf("Customer Financial Summary", listOf("Customer ID", "Customer Name", "Phone Number", "Currency", "Valid Sale Count", "Sales Value", "Credit Sales Funding", "Credit Repaid (Collections)", "Refund Value", "Coupon Purchases", "Net Sales After Refunds", "Credit Ledger Obligations", "Credit Ledger Repayments", "Credit Ledger Adjustments", "Outstanding Credit (Authoritative Ledger)", "Obligation Variance (Ledger - All Sale Funding)", "Reconciliation Status"), summary),
                     listOf("Full Transaction History", listOf("Date", "Time", "Branch", "Customer ID", "Customer Name", "Phone Number", "Event Type", "Reference Number", "Currency", "Amount (refunds negative)", "Payment Method", "Status"), history),
-                    listOf("Credit Reconciliation", listOf("Customer ID", "Customer Name", "Currency", "Sale Credit Funding", "Ledger Obligations", "Obligation Variance", "Ledger Repayments", "Ledger Adjustments", "Outstanding Credit Ledger Balance", "Control Status"), reconciliation)
+                    listOf("Credit Reconciliation", listOf("Customer ID", "Customer Name", "Currency", "Sale Credit Funding (including voided originals)", "Ledger Obligations", "Obligation Variance", "Ledger Repayments", "Ledger Adjustments", "Outstanding Credit Ledger Balance", "Control Status"), reconciliation)
                 )
             )
             val values = ContentValues().apply {
