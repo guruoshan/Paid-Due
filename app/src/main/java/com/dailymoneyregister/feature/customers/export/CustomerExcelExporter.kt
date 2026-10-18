@@ -275,9 +275,11 @@ class CustomerExcelExporter @Inject constructor(
 
             val invoiceCounts = mutableMapOf<String, Int>()
             db.query(
-                "SELECT d.customer_id,COUNT(*) FROM documents d JOIN operations o ON o.id=d.operation_id " +
-                    "WHERE o.business_id=? AND d.document_type='INVOICE' AND d.customer_id IS NOT NULL GROUP BY d.customer_id",
-                arrayOf(businessId)
+                "SELECT d.customer_id,COUNT(*) FROM documents d " +
+                    "JOIN operations o ON o.id=d.operation_id AND o.business_id=? " +
+                    "JOIN customers c ON c.id=d.customer_id AND c.business_id=? " +
+                    "WHERE d.document_type='INVOICE' AND d.customer_id IS NOT NULL GROUP BY d.customer_id",
+                arrayOf(businessId, businessId)
             ).use { c -> while (c.moveToNext()) invoiceCounts[c.getString(0)] = c.getInt(1) }
 
             val byCustomer = activities.groupBy { it.customerId }
@@ -384,7 +386,7 @@ class CustomerExcelExporter @Inject constructor(
 
             val day = SimpleDateFormat("yyyy_MM_dd", Locale.US).format(Date())
             val filename = "Customer_Financial_Reconciliation_" + day + ".xlsx"
-            val bytes = xlsx(
+            val bytes = CustomerExcelWorkbook.build(
                 listOf(
                     listOf("Customer Directory", listOf("Customer ID", "Customer Name", "Phone Number", "First Activity Date", "Last Activity Date", "Recorded Activity Rows", "Invoice Count", "Valid Sale Count", "Refund Count", "Status"), directory),
                     listOf("Customer Financial Summary", listOf("Customer ID", "Customer Name", "Phone Number", "Currency", "Valid Sale Count", "Sales Value", "Credit Sales Funding", "Credit Repaid (Collections)", "Sale Refund Value", "Coupon Purchase Refund Value", "Coupon Purchases", "Net Sales After Sale Refunds", "Credit Ledger Obligations", "Credit Ledger Repayments", "Credit Ledger Adjustments", "Outstanding Credit (Authoritative Ledger)", "Obligation Variance (Ledger - All Sale Funding)", "Reconciliation Status"), summary),
@@ -487,10 +489,13 @@ class CustomerExcelExporter @Inject constructor(
     }
 
     private fun fmt(value: Long?): String = value?.let { SimpleDateFormat("yyyy-MM-dd",Locale.US).format(Date(it)) }.orEmpty()
+}
+
+internal object CustomerExcelWorkbook {
     private fun esc(s: String): String = s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;").replace("'","&apos;")
     private fun col(number: Int): String { var n=number; var out=""; while(n>0){ val r=(n-1)%26; out=(('A'.code+r).toChar())+out; n=(n-1)/26 }; return out }
 
-    private fun xlsx(sheets: List<List<Any?>>): ByteArray {
+    fun build(sheets: List<List<Any?>>): ByteArray {
         val out=ByteArrayOutputStream()
         ZipOutputStream(out).use { z ->
             fun put(path:String, text:String){ z.putNextEntry(ZipEntry(path)); z.write(text.toByteArray(Charsets.UTF_8)); z.closeEntry() }
