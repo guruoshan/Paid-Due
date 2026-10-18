@@ -316,8 +316,14 @@ class CustomerExcelExporter @Inject constructor(
                     val ledger = ledgerByKey.getOrPut(Key(customerId, currency)) { Ledger() }
                     val amount = c.getLong(3)
                     when (c.getString(2)) {
-                        "OBLIGATION" -> ledger.obligations = Math.addExact(ledger.obligations, amount)
-                        "REPAYMENT" -> ledger.repaymentsSigned = Math.addExact(ledger.repaymentsSigned, amount)
+                        "OBLIGATION" -> {
+                            require(amount > 0L) { "Credit obligation must be positive for event " + c.getString(8) }
+                            ledger.obligations = Math.addExact(ledger.obligations, amount)
+                        }
+                        "REPAYMENT" -> {
+                            require(amount < 0L) { "Credit repayment ledger movement must be negative for event " + c.getString(8) }
+                            ledger.repaymentsSigned = Math.addExact(ledger.repaymentsSigned, amount)
+                        }
                         "ADJUSTMENT" -> {
                             ledger.adjustments = Math.addExact(ledger.adjustments, amount)
                             val customer = customers[customerId] ?: error("Missing customer for credit adjustment")
@@ -377,9 +383,17 @@ class CustomerExcelExporter @Inject constructor(
                         com.dailymoneyregister.core.model.currency.CurrencyRegistry.findByCode(eventCurrency).decimalPlaces
                     }
                     registerCurrency(eventCurrency, decimals)
+                    val eventAmount = c.getLong(4)
+                    when (c.getString(3)) {
+                        "PURCHASE", "PROMOTION_BONUS", "REFUND_CREDIT" ->
+                            require(eventAmount > 0L) { "Coupon credit movement must be positive for event " + c.getString(6) }
+                        "REDEMPTION" ->
+                            require(eventAmount < 0L) { "Coupon redemption movement must be negative for event " + c.getString(6) }
+                        else -> error("Unknown coupon ledger type: " + c.getString(3))
+                    }
                     couponEvents.add(
                         CouponEvent(
-                            customerId, eventCurrency, decimals, c.getString(3), c.getLong(4),
+                            customerId, eventCurrency, decimals, c.getString(3), eventAmount,
                             c.getLong(5), c.getString(6), c.getString(7),
                             branches[c.getString(8)]?.name.orEmpty()
                         )
@@ -438,8 +452,8 @@ class CustomerExcelExporter @Inject constructor(
                 val salesMinor = CustomerFinancialReconciliationMath.sumMinor(sales.map { it.amountMinor ?: 0L })
                 val creditFundingMinor = CustomerFinancialReconciliationMath.sumMinor(sales.map { it.creditMinor })
                 val repaidMinor = CustomerFinancialReconciliationMath.sumMinor(repayments.map { it.amountMinor ?: 0L })
-                val refundMinor = CustomerFinancialReconciliationMath.sumMinor(refunds.map { kotlin.math.abs(it.amountMinor ?: 0L) })
-                val couponRefundMinor = CustomerFinancialReconciliationMath.sumMinor(couponRefunds.map { kotlin.math.abs(it.amountMinor ?: 0L) })
+                val refundMinor = CustomerFinancialReconciliationMath.sumMinor(refunds.map { CustomerFinancialReconciliationMath.absoluteMinor(it.amountMinor ?: 0L) })
+                val couponRefundMinor = CustomerFinancialReconciliationMath.sumMinor(couponRefunds.map { CustomerFinancialReconciliationMath.absoluteMinor(it.amountMinor ?: 0L) })
                 val couponMinor = CustomerFinancialReconciliationMath.sumMinor(couponPurchases.map { it.amountMinor ?: 0L })
                 val ledger = ledgerByKey[key] ?: Ledger()
                 val allSaleCreditFundingMinor = CustomerFinancialReconciliationMath.sumMinor(rows.filter { it.type == "SALE" }.map { it.creditMinor })
@@ -453,7 +467,7 @@ class CustomerExcelExporter @Inject constructor(
                         refunds.map { (it.relatedTransactionId ?: error("Refund history is missing its original transaction ID")) to (it.amountMinor ?: 0L) },
                         voidedTransactionIds
                     ), decimals), money(ledger.obligations, decimals),
-                    money(-ledger.repaymentsSigned, decimals), money(ledger.adjustments, decimals),
+                    money(Math.negateExact(ledger.repaymentsSigned), decimals), money(ledger.adjustments, decimals),
                     money(ledger.balance, decimals), money(variance, decimals),
                     if (variance == 0L) "OK" else "REVIEW — ledger obligations differ from sale credit funding"
                 )
@@ -478,7 +492,7 @@ class CustomerExcelExporter @Inject constructor(
                     val transactionPurchase = CustomerFinancialReconciliationMath.sumMinor(transactionRows.map { it.amountMinor ?: 0L })
                     val ledgerPurchase = CustomerFinancialReconciliationMath.sumMinor(events.filter { it.type == "PURCHASE" }.map { it.amountMinor })
                     val bonuses = CustomerFinancialReconciliationMath.sumMinor(events.filter { it.type == "PROMOTION_BONUS" }.map { it.amountMinor })
-                    val redemptions = CustomerFinancialReconciliationMath.sumMinor(events.filter { it.type == "REDEMPTION" }.map { kotlin.math.abs(it.amountMinor) })
+                    val redemptions = CustomerFinancialReconciliationMath.sumMinor(events.filter { it.type == "REDEMPTION" }.map { CustomerFinancialReconciliationMath.absoluteMinor(it.amountMinor) })
                     val refundCredits = CustomerFinancialReconciliationMath.sumMinor(events.filter { it.type == "REFUND_CREDIT" }.map { it.amountMinor })
                     val walletBalance = CustomerFinancialReconciliationMath.sumMinor(events.map { it.amountMinor })
                     val purchaseVariance = Math.subtractExact(ledgerPurchase, transactionPurchase)
@@ -651,6 +665,11 @@ internal object CustomerExcelWorkbook {
 internal object CustomerFinancialReconciliationMath {
     fun sumMinor(values: Iterable<Long>): Long =
         values.fold(0L) { total, value -> Math.addExact(total, value) }
+
+    fun absoluteMinor(value: Long): Long {
+        require(value != Long.MIN_VALUE) { "Financial amount cannot be represented as an absolute minor-unit value" }
+        return kotlin.math.abs(value)
+    }
 
     /** Refunds against already-voided sales are historical evidence, not a second net-sales deduction. */
     fun netSalesAfterRefunds(
