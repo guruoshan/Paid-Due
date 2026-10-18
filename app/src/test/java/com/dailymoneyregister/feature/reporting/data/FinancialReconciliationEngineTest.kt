@@ -129,6 +129,53 @@ class FinancialReconciliationEngineTest {
     }
 
     @Test
+    fun cloudOperationWithoutLocalMaterializationIsIncomplete() {
+        val cloud = cloud(operation())
+        val result = FinancialReconciliationEngine.reconcile(
+            localOperations = emptyList(),
+            cloudOperations = listOf(cloud),
+            rows = emptyList(),
+            cloudInventoryVerified = true
+        )
+
+        assertEquals(ReportingReconciliationStatus.INCOMPLETE, result.status)
+        assertEquals(listOf("op-1"), result.cloudOnlyOperationIds)
+        assertEquals(listOf("op-1"), result.missingOperationIds)
+    }
+
+    @Test
+    fun successfulLocalOperationMissingFromCloudIsIncomplete() {
+        val local = listOf(operation())
+        val result = FinancialReconciliationEngine.reconcile(
+            localOperations = local,
+            cloudOperations = emptyList(),
+            rows = emptyList(),
+            cloudInventoryVerified = true
+        )
+
+        assertEquals(ReportingReconciliationStatus.INCOMPLETE, result.status)
+        assertEquals(listOf("op-1"), result.localOnlyOperationIds)
+    }
+
+    @Test
+    fun cloudLocalOperationIdentityConflictRequiresReview() {
+        val local = listOf(operation())
+        val conflictingCloud = cloud(operation()).copy(
+            operationType = OperationType.RECORD_SALE.name
+        )
+        val result = FinancialReconciliationEngine.reconcile(
+            localOperations = local,
+            cloudOperations = listOf(conflictingCloud),
+            rows = listOf(row()),
+            cloudInventoryVerified = true
+        )
+
+        assertEquals(ReportingReconciliationStatus.REQUIRES_REVIEW, result.status)
+        assertEquals(listOf("op-1"), result.identityMismatchOperationIds)
+        assertEquals(listOf("change-1"), result.operationTypeMismatchRowIds)
+    }
+
+    @Test
     fun cashShiftIsExplicitlyExcludedFromTransactionDetailCoverage() {
         val local = listOf(operation(type = OperationType.OPEN_CASH_SHIFT))
         val result = FinancialReconciliationEngine.reconcile(
