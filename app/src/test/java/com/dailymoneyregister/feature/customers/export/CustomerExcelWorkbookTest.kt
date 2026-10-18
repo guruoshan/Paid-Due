@@ -19,6 +19,7 @@ class CustomerExcelWorkbookTest {
             listOf("Customer Directory", listOf("Customer ID", "Customer Name"), listOf(listOf("cust-1", "Example"))),
             listOf("Customer Financial Summary", listOf("Currency", "Sales Value"), listOf(listOf("OMR", BigDecimal("12.345")))),
             listOf("Full Transaction History", listOf("Reference", "Amount"), listOf(listOf("SALE-1", BigDecimal("12.345")))),
+            listOf("Sale Refund Reconciliation", listOf("Net Sales", "Control Status"), listOf(listOf(BigDecimal("8.500"), "PASS"))),
             listOf("Credit Reconciliation", listOf("Outstanding Credit", "Control Status"), listOf(listOf(BigDecimal("0.000"), "PASS"))),
             listOf("Coupon Reconciliation", listOf("Wallet Balance", "Control Status"), listOf(listOf(BigDecimal("5.000"), "PASS")))
         )
@@ -46,7 +47,7 @@ class CustomerExcelWorkbookTest {
             "_rels/.rels",
             "xl/workbook.xml",
             "xl/_rels/workbook.xml.rels"
-        ) + (1..5).map { "xl/worksheets/sheet$it.xml" }
+        ) + (1..6).map { "xl/worksheets/sheet$it.xml" }
         requiredParts.forEach { assertNotNull("Missing XLSX part: $it", entries[it]) }
 
         val factory = DocumentBuilderFactory.newInstance().apply {
@@ -65,12 +66,13 @@ class CustomerExcelWorkbookTest {
 
         val workbook = factory.newDocumentBuilder().parse(ByteArrayInputStream(entries.getValue("xl/workbook.xml")))
         val sheetNodes = workbook.getElementsByTagNameNS("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "sheet")
-        assertEquals(5, sheetNodes.length)
+        assertEquals(6, sheetNodes.length)
         assertEquals(
             listOf(
                 "Customer Directory",
                 "Customer Financial Summary",
                 "Full Transaction History",
+                "Sale Refund Reconciliation",
                 "Credit Reconciliation",
                 "Coupon Reconciliation"
             ),

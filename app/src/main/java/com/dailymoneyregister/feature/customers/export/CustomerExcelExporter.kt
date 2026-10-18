@@ -505,6 +505,30 @@ class CustomerExcelExporter @Inject constructor(
                     )
                 }
 
+            val saleRefundReconciliation = activities
+                .filter { it.type == "SALE" }
+                .sortedWith(compareBy<Activity> { it.customerId }.thenBy { it.currency }.thenBy { it.date }.thenBy { it.ref })
+                .map { sale ->
+                    val transactionId = sale.relatedTransactionId
+                        ?: error("Sale history is missing its original transaction ID")
+                    val saleMinor = sale.amountMinor
+                        ?: error("Sale history is missing its corrected amount")
+                    val refundRows = activities.filter {
+                        it.type == "REFUND" && it.relatedTransactionId == transactionId
+                    }
+                    val refundMinor = CustomerFinancialReconciliationMath.sumMinor(
+                        refundRows.map { CustomerFinancialReconciliationMath.absoluteMinor(it.amountMinor ?: 0L) }
+                    )
+                    val isVoided = sale.status != "Recorded"
+                    val netContribution = if (isVoided) 0L else Math.subtractExact(saleMinor, refundMinor)
+                    listOf(
+                        sale.customerId, sale.name, sale.currency, sale.ref, money(saleMinor, sale.decimals),
+                        if (isVoided) "VOIDED" else "VALID", refundRows.size, money(refundMinor, sale.decimals),
+                        money(netContribution, sale.decimals),
+                        CustomerFinancialReconciliationMath.saleRefundControlStatus(saleMinor, refundMinor, isVoided)
+                    )
+                }
+
             val history = activities.sortedWith(compareBy<Activity> { it.date }.thenBy { it.ref }.thenBy { it.customerId }).map { row ->
                 listOf(
                     fmt(row.date), SimpleDateFormat("HH:mm:ss", Locale.US).format(Date(row.date)),
@@ -536,6 +560,7 @@ class CustomerExcelExporter @Inject constructor(
                     listOf("Customer Directory", listOf("Customer ID", "Customer Name", "Phone Number", "First Activity Date", "Last Activity Date", "Recorded Activity Rows", "Invoice Count", "Valid Sale Count", "Refund Count", "Status"), directory),
                     listOf("Customer Financial Summary", listOf("Customer ID", "Customer Name", "Phone Number", "Currency", "Valid Sale Count", "Sales Value", "Credit Sales Funding", "Credit Repaid (Collections)", "Sale Refund Value", "Coupon Purchase Refund Value", "Coupon Purchases", "Net Sales After Sale Refunds", "Credit Ledger Obligations", "Credit Ledger Repayments", "Credit Ledger Adjustments", "Outstanding Credit (Authoritative Ledger)", "Obligation Variance (Ledger - All Sale Funding)", "Reconciliation Status"), summary),
                     listOf("Full Transaction History", listOf("Date", "Time", "Branch", "Customer ID", "Customer Name", "Phone Number", "Event Type", "Reference Number", "Currency", "Amount (refunds negative)", "Payment Method", "Status"), history),
+                    listOf("Sale Refund Reconciliation", listOf("Customer ID", "Customer Name", "Currency", "Transaction Reference", "Corrected Sale Value", "Sale Status", "Refund Event Count", "Refund Value", "Net Sales Contribution", "Control Status"), saleRefundReconciliation),
                     listOf("Credit Reconciliation", listOf("Customer ID", "Customer Name", "Currency", "Sale Credit Funding (including voided originals)", "Ledger Obligations", "Obligation Variance", "Ledger Repayments", "Ledger Adjustments", "Outstanding Credit Ledger Balance", "Control Status"), reconciliation),
                     listOf("Coupon Reconciliation", listOf("Customer ID", "Customer Name", "Currency", "Ledger Event Count", "Coupon Purchase Transaction Value", "Coupon Ledger Purchase Value", "Purchase Variance (Ledger - Transaction)", "Promotion Bonuses", "Redemptions", "Refund Credits", "Ledger Wallet Balance", "Control Status"), couponReconciliation)
                 )
@@ -669,6 +694,14 @@ internal object CustomerFinancialReconciliationMath {
     fun absoluteMinor(value: Long): Long {
         require(value != Long.MIN_VALUE) { "Financial amount cannot be represented as an absolute minor-unit value" }
         return kotlin.math.abs(value)
+    }
+
+    fun saleRefundControlStatus(saleMinor: Long, refundMinor: Long, isVoided: Boolean): String = when {
+        refundMinor > saleMinor -> "REVIEW — refund value exceeds corrected sale value"
+        isVoided && refundMinor > 0L -> "VOIDED — refund history retained; net contribution is zero"
+        isVoided -> "VOIDED — excluded from net sales"
+        refundMinor > 0L -> "PASS — refunds deducted once"
+        else -> "PASS"
     }
 
     /** Refunds against already-voided sales are historical evidence, not a second net-sales deduction. */

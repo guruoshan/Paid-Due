@@ -1,6 +1,7 @@
 package com.dailymoneyregister.feature.customers.export
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CustomerFinancialReconciliationMathTest {
@@ -20,6 +21,20 @@ class CustomerFinancialReconciliationMathTest {
         )
 
         assertEquals(8_500L, netSales)
+    }
+
+    @Test
+    fun refundReconciliationFlagsOverRefundAndExplainsVoidOverlap() {
+        assertTrue(
+            CustomerFinancialReconciliationMath.saleRefundControlStatus(
+                saleMinor = 1_000L, refundMinor = 1_200L, isVoided = false
+            ).startsWith("REVIEW")
+        )
+        assertTrue(
+            CustomerFinancialReconciliationMath.saleRefundControlStatus(
+                saleMinor = 1_000L, refundMinor = 900L, isVoided = true
+            ).contains("net contribution is zero")
+        )
     }
 
     @Test
