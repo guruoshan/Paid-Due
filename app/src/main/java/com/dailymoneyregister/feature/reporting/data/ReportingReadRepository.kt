@@ -345,12 +345,10 @@ class RoomReportingReadRepository(
                 val record = checkNotNull(voidRecords[event.transactionId]) {
                     "Void ${event.id} transaction evidence is missing."
                 }
-                val view = FinancialReadModelResolver.resolve(record)
                 ReportingRowMappers.mapVoid(
                     event = event,
                     tx = requireTransaction(transactionsById, event.transactionId, access),
                     settlements = settlementsByOperation[event.operationId].orEmpty(),
-                    fallbackAffected = view.currentAmount - view.refundedAmount,
                     lookups = lookups
                 )
             }
