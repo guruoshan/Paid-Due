@@ -327,7 +327,8 @@ class RemoteEnvelopeMaterializerTest {
             database = database,
             actorUserId = removedCreatorId,
             businessId = businessId,
-            branchId = branchId
+            branchId = branchId,
+            transactionId = transactionId
         )
 
         assertEquals(true, result)
