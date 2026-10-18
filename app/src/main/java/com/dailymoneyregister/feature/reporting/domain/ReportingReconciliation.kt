@@ -216,6 +216,8 @@ object FinancialReconciliationEngine {
         cloudInventoryVerified: Boolean,
         cloudInventoryFailureReason: String? = null
     ): ReportingReconciliation {
+        val duplicateLocalIds = localOperations.groupingBy { it.id }
+            .eachCount().filterValues { it > 1 }.keys.sorted()
         val localById = localOperations.associateBy { it.id }
         val cloudById = cloudOperations.associateBy { it.operationId }
         val duplicateCloudIds = cloudOperations.groupingBy { it.operationId }
@@ -278,7 +280,7 @@ object FinancialReconciliationEngine {
             .associate { it.operationId to "OPERATIONAL_EVENT_NOT_TRANSACTION_DETAIL" }
 
         val status = when {
-            duplicateOperationIds.isNotEmpty() || duplicateCloudIds.isNotEmpty() ||
+            duplicateLocalIds.isNotEmpty() || duplicateCloudIds.isNotEmpty() ||
                 duplicateRows.isNotEmpty() || unmatchedRows.isNotEmpty() ||
                 typeMismatches.isNotEmpty() || unsupported.isNotEmpty() ||
                 identityMismatches.isNotEmpty() || !cloudInventoryVerified ->
@@ -298,7 +300,7 @@ object FinancialReconciliationEngine {
                 if (unresolvedLocal.isNotEmpty()) add("local operations are not in a succeeded state")
             }.joinToString("; ").ifBlank { "Operation coverage is incomplete." }
             ReportingReconciliationStatus.REQUIRES_REVIEW -> buildList {
-                if (duplicateOperationIds.isNotEmpty()) add("duplicate local operation identities")
+                if (duplicateLocalIds.isNotEmpty()) add("duplicate local operation identities")
                 if (duplicateCloudIds.isNotEmpty()) add("duplicate cloud operation identities")
                 if (duplicateRows.isNotEmpty()) add("duplicate report row identities")
                 if (unmatchedRows.isNotEmpty()) add("report rows lack a matching successful cloud and local operation")
@@ -320,7 +322,7 @@ object FinancialReconciliationEngine {
             missingOperationIds = missing,
             unmatchedRowIds = unmatchedRows,
             operationTypeMismatchRowIds = typeMismatches,
-            duplicateOperationIds = duplicateOperationIds,
+            duplicateOperationIds = duplicateLocalIds,
             duplicateCloudOperationIds = duplicateCloudIds,
             duplicateRowIds = duplicateRows,
             unsupportedOperationIds = unsupported,
