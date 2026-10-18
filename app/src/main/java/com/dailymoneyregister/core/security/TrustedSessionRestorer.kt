@@ -45,6 +45,13 @@ class TrustedSessionRestorer @Inject constructor(
             return invalidate()
         }
 
+        // Owner/admin is the only active authenticated role. Keep the legacy
+        // cashier restoration branch below for source compatibility, but fail
+        // closed before it can create a live session.
+        if (user.role != UserRole.ADMIN || user.authType != AuthType.PASSWORD) {
+            return invalidate()
+        }
+
         val membership =
             userDao.getMembership(
                 user.id,
