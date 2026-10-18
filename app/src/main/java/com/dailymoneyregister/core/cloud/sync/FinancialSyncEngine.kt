@@ -453,6 +453,14 @@ class FinancialSyncEngine @Inject constructor(
                         sessionBranchId = materializationBranchScope
                     )
                 } catch (error: Exception) {
+                    // Preserve the stack trace for Room constraints, decoder failures,
+                    // and immutable-evidence conflicts. The rejection reason alone is
+                    // not enough to identify the first failing persistence step.
+                    Log.e(
+                        "PaidDueFinancialSync",
+                        "INBOUND_APPLY_EXCEPTION operation=${envelope.operationId} type=${envelope.operationType}",
+                        error
+                    )
                     InboundProcessResult.Rejected(
                         error.message ?: "Inbound envelope processing failed"
                     )
