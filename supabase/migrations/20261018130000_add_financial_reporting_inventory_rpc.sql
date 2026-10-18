@@ -48,7 +48,7 @@ BEGIN
     END IF;
 
     IF cardinality(p_branch_ids) <> (
-        SELECT count(DISTINCT branch_id) FROM unnest(p_branch_ids) AS requested(branch_id)
+        SELECT count(DISTINCT requested.branch_id) FROM unnest(p_branch_ids) AS requested(branch_id)
     ) THEN
         RAISE EXCEPTION 'Duplicate branch IDs in reporting scope' USING errcode = '22023';
     END IF;
