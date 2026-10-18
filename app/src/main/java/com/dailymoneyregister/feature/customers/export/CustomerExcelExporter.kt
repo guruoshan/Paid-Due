@@ -86,6 +86,22 @@ class CustomerExcelExporter @Inject constructor(
                     }
                 }
             }
+            runCatching {
+                db.query("SELECT t.customer_id,t.branch_id,t.currency_code,t.currency_decimal_places,r.refund_amount_minor,r.occurred_at,r.id FROM refund_events r JOIN transactions t ON t.id=r.transaction_id JOIN branches b ON b.id=t.branch_id WHERE b.business_id=? ORDER BY r.occurred_at", arrayOf(businessId)).use { c ->
+                    while(c.moveToNext()) {
+                        val customerCursor = db.query("SELECT name,canonical_phone FROM customers WHERE id=?", arrayOf(c.getString(0)))
+                        customerCursor.use { p ->
+                            if (p.moveToFirst()) {
+                                val phone = p.getString(1).orEmpty()
+                                val key = phone.filter { it.isDigit() }.ifEmpty { phone }
+                                val customer = customers[key] ?: continue
+                                val amount = c.getLong(4).toDouble() / Math.pow(10.0,c.getInt(3).toDouble())
+                                activity.add(Activity(c.getLong(5),branches[c.getString(1)].orEmpty(),customer.name,customer.phone,"REFUND",c.getString(6),-amount,c.getString(2)))
+                            }
+                        }
+                    }
+                }
+            }
             val groups = activity.groupBy { it.phone.filter { ch -> ch.isDigit() }.ifEmpty { it.phone } }
             val directory = customers.values.map { customer ->
                 val rows = groups[customer.phone.filter { it.isDigit() }.ifEmpty { customer.phone }].orEmpty()
