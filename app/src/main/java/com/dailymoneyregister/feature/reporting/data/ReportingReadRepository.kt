@@ -606,7 +606,9 @@ class RoomReportingReadRepository(
                 check(envelope.businessId == access.businessId) {
                     "Cloud inventory returned an envelope for another business."
                 }
-                check(envelope.branchId in access.branchIds) {
+                val envelopeBranchId = envelope.branchId
+                    ?: error("Cloud inventory returned an envelope without a branch ID.")
+                check(envelopeBranchId in access.branchIds) {
                     "Cloud inventory returned an envelope outside the requested branch scope."
                 }
                 val occurredAt = java.time.Instant.parse(envelope.occurredAtIso).toEpochMilli()
@@ -639,7 +641,7 @@ class RoomReportingReadRepository(
                 operations += com.dailymoneyregister.feature.reporting.domain.ReportingCloudOperation(
                     operationId = envelope.operationId,
                     businessId = envelope.businessId,
-                    branchId = envelope.branchId.orEmpty(),
+                    branchId = envelopeBranchId,
                     operationType = envelope.operationType,
                     occurredAtMillis = occurredAt,
                     actorUserId = envelope.payloadJson.optString("actor_user_id").ifBlank { null },
