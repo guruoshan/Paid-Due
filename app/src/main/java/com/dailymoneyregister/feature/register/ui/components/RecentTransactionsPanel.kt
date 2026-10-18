@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -90,7 +91,7 @@ fun RecentTransactionsPanel(
     onExpenseSelected: (String) -> Unit = {},
     maxListHeight: androidx.compose.ui.unit.Dp = 220.dp,
     modifier: Modifier = Modifier,
-    compactMaxListHeight: androidx.compose.ui.unit.Dp = 100.dp
+    compactMaxListHeight: androidx.compose.ui.unit.Dp = 180.dp
 ) {
     // BOARDLOCK_COUPON_TODAY_TOTAL
     // Do not sum raw signedEffect here: Coupon redemption is an
@@ -199,7 +200,7 @@ fun RecentTransactionsPanel(
                 onExpenseSelected = onExpenseSelected,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = compactMaxListHeight)
+                        .heightIn(max = compactMaxListHeight * LocalDensity.current.fontScale.coerceAtLeast(1f))
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 )
             }
@@ -290,9 +291,9 @@ private fun RecentTransactionRow(
             if (isDarkTheme) Color(0xFFBDBDBD) else Color(0xFF616161)
     }
     val typeLabel = when (transaction.type) {
-        RecentActivityType.MERCHANDISE_SALE,
-        RecentActivityType.COUPON_SELL,
-        RecentActivityType.COUPON_TOP_UP -> "SALE"
+        RecentActivityType.MERCHANDISE_SALE -> "SALE"
+        RecentActivityType.COUPON_SELL -> "COUPON SALE"
+        RecentActivityType.COUPON_TOP_UP -> "COUPON TOP-UP"
         RecentActivityType.CREDIT_REPAYMENT -> "CREDIT"
         RecentActivityType.EXPENSE -> "EXPENSE"
         RecentActivityType.REFUND,
@@ -426,7 +427,7 @@ private fun RecentTransactionRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    modifier = Modifier.width(112.dp).height(24.dp),
+                    modifier = Modifier.widthIn(min = 112.dp).heightIn(min = 24.dp),
                     color = flowColor.copy(alpha = if (isDarkTheme) 0.20f else 0.12f),
                     contentColor = flowColor,
                     shape = RoundedCornerShape(6.dp)
@@ -437,7 +438,9 @@ private fun RecentTransactionRow(
                             modifier = Modifier.padding(horizontal = 4.dp),
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
-                            maxLines = 1,
+                            maxLines = 2,
+                            softWrap = true,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center
                         )
                     }
