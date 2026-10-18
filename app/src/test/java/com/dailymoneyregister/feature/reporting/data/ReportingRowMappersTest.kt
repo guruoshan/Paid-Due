@@ -272,7 +272,7 @@ class ReportingRowMappersTest {
 
         assertEquals(ReportActivityType.CREDIT_SALE, row.activityType)
         assertEquals(
-            listOf(ReportPaymentPart(PaymentCategory.CREDIT, PaymentChannel.CREDIT, MoneyMinorUnits(1000L))),
+            listOf(ReportPaymentPart(PaymentCategory.CREDIT, PaymentChannel.CREDIT_ACCOUNT, MoneyMinorUnits(1000L))),
             row.paymentParts
         )
         assertEquals("op-2", row.operationId)
