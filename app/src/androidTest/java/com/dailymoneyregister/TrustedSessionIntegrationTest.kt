@@ -167,7 +167,7 @@ class TrustedSessionIntegrationTest {
     }
 
     @Test
-    fun restoreRebuildsAdminAndRestrictedCashierFromRoom() = runBlocking {
+    fun restoreRebuildsAdminAndRejectsCashierSessionFromRoom() = runBlocking {
         Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - start")
         val setup = createSetup()
         Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after createSetup")
@@ -199,10 +199,11 @@ class TrustedSessionIntegrationTest {
         SessionManager.clearSession()
 
         val restoredCashier = restorer.restore()
-        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after second restore - DONE")
-        assertNotNull(restoredCashier)
-        assertEquals(cashierId.value, restoredCashier?.user?.id)
-        assertTrue(restoredCashier?.requiresPinChange == true)
+        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRejectsCashierSessionFromRoom - after second restore - DONE")
+        assertNull(restoredCashier)
+        assertNull(trustedSessionStore.load())
+        assertNull(SessionManager.currentSession.value)
+        assertTrue(cashierId.value.isNotBlank())
     }
 
     @Test
