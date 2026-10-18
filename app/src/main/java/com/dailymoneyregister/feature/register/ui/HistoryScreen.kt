@@ -17,6 +17,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -281,44 +283,40 @@ private fun HistoryExpenseCard(
                 Arrangement.spacedBy(5.dp)
         ) {
 
-            Row(
-                modifier =
-                    Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.SpaceBetween
+            Surface(
+                color = Color(0xFFD32F2F).copy(alpha = 0.12f),
+                contentColor = Color(0xFFD32F2F),
+                shape = RoundedCornerShape(6.dp)
             ) {
-
-                Column(
-                    modifier =
-                        Modifier.weight(1f)
-                ) {
-
-                    Text(
-                        text = "Expense",
-                        fontWeight =
-                            FontWeight.Bold
-                    )
-
-                    Text(
-                        text =
-                            expense.displayReference,
-                        style =
-                            MaterialTheme.typography.bodySmall
-                    )
-                }
-
                 Text(
-                    text =
-                        expense.signedEffect
-                            .formatDisplay(currency),
-                    fontWeight =
-                        FontWeight.Bold,
-                    color =
-                        MaterialTheme.colorScheme.error
+                    text = "EXPENSE",
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelSmall
                 )
             }
 
-            Text(timestamp)
+            Text(
+                text = "- ${com.dailymoneyregister.core.model.money.MoneyMinorUnits(kotlin.math.abs(expense.signedEffect.amount)).formatDisplay(currency)}",
+                fontWeight = FontWeight.ExtraBold,
+                color = Color(0xFFD32F2F),
+                style = MaterialTheme.typography.headlineSmall
+            )
+
+            Text(
+                text = "Ref: ${expense.displayReference}",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text(
+                text = "Time: $timestamp",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Status: RECORDED",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             expense.payeeName
                 ?.takeIf {
@@ -417,30 +415,47 @@ private fun HistoryTransactionCard(
                 Arrangement.spacedBy(5.dp)
         ) {
 
-            Row(
-                modifier =
-                    Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.SpaceBetween
+            val transactionTypeLabel = when (financial.financialKind) {
+                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.MERCHANDISE_SALE -> "SALE"
+                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.COUPON_SALE -> "COUPON SALE"
+                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.COUPON_TOP_UP -> "COUPON TOP-UP"
+            }
+
+            Surface(
+                color = Color(0xFF1565C0).copy(alpha = 0.12f),
+                contentColor = Color(0xFF1565C0),
+                shape = RoundedCornerShape(6.dp)
             ) {
-
                 Text(
-                    text =
-                        financial.displayRef,
-                    fontWeight =
-                        FontWeight.SemiBold
-                )
-
-                Text(
-                    text =
-                        historyDisplayedAmount(financial)
-                            .formatDisplay(currency),
-                    fontWeight =
-                        FontWeight.Bold
+                    text = transactionTypeLabel,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelSmall
                 )
             }
 
-            Text(timestamp)
+            Text(
+                text = historyDisplayedAmount(financial).formatDisplay(currency),
+                fontWeight = FontWeight.ExtraBold,
+                color = Color(0xFF1565C0),
+                style = MaterialTheme.typography.headlineSmall
+            )
+
+            Text(
+                text = "Ref: ${financial.displayRef}",
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text(
+                text = "Time: $timestamp",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Status: ${historyLifecycleLabel(financial.lifecycleStates)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             row.customerName
                 ?.takeIf {
