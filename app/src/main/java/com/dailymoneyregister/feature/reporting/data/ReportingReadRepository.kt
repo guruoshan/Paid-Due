@@ -17,6 +17,40 @@ import com.dailymoneyregister.feature.reporting.domain.ReportingReadModel
 import com.dailymoneyregister.feature.reporting.domain.ReportingReconciliation
 import com.dailymoneyregister.feature.reporting.domain.ReportingScope
 import kotlinx.coroutines.CancellationException
+import org.json.JSONArray
+import org.json.JSONObject
+
+/**
+ * Structural JSON equality independent of object-key order. Android's org.json
+ * implementation does not expose JSONObject.similar() on every supported API.
+ * Arrays remain order-sensitive; numerically equivalent JSON number forms compare equal.
+ */
+private fun reportingJsonEquivalent(left: Any?, right: Any?): Boolean {
+    if (left === JSONObject.NULL || right === JSONObject.NULL) {
+        return left === JSONObject.NULL && right === JSONObject.NULL
+    }
+    if (left == null || right == null) return left == right
+    if (left is JSONObject && right is JSONObject) {
+        val leftKeys = left.keys().asSequence().toSet()
+        val rightKeys = right.keys().asSequence().toSet()
+        if (leftKeys != rightKeys) return false
+        return leftKeys.all { key -> reportingJsonEquivalent(left.get(key), right.get(key)) }
+    }
+    if (left is JSONArray && right is JSONArray) {
+        if (left.length() != right.length()) return false
+        return (0 until left.length()).all { index ->
+            reportingJsonEquivalent(left.get(index), right.get(index))
+        }
+    }
+    if (left is Number && right is Number) {
+        return try {
+            java.math.BigDecimal(left.toString()).compareTo(java.math.BigDecimal(right.toString())) == 0
+        } catch (_: NumberFormatException) {
+            false
+        }
+    }
+    return left == right
+}
 
 /**
  * BOARDLOCK Authoritative Reporting read boundary.
@@ -626,7 +660,7 @@ class RoomReportingReadRepository(
                 check(digest.equals(CommandFingerprint.sha256(envelope.canonicalText), ignoreCase = true)) {
                     "Cloud inventory digest is inconsistent for operation ${envelope.operationId}."
                 }
-                check(org.json.JSONObject(envelope.canonicalText).similar(envelope.payloadJson)) {
+                check(reportingJsonEquivalent(JSONObject(envelope.canonicalText), envelope.payloadJson)) {
                     "Cloud canonical text and payload JSON differ for operation ${envelope.operationId}."
                 }
                 val actorUserId = envelope.payloadJson.optString("actor_user_id").ifBlank { null }
