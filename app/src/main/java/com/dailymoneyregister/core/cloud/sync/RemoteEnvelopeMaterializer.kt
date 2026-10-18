@@ -528,6 +528,11 @@ object RemoteEnvelopeMaterializer {
                         }
                     }
                 }
+                if (replayDetected) {
+                    check(existingItems.keys == itemsList.map { it.id }.toSet()) {
+                        "Replay item identity set differs from the already materialized transaction"
+                    }
+                }
                 val newItems = itemsList.filter { it.id !in existingItems }
                 if (newItems.isNotEmpty()) {
                     transactionDao.insertTransactionItems(newItems)
@@ -568,6 +573,11 @@ object RemoteEnvelopeMaterializer {
                     check(existing == incoming) {
                         "Settlement evidence conflicts with existing immutable settlement"
                     }
+                }
+            }
+            if (replayDetected) {
+                check(existingSettlements.keys == settlementsList.map { it.id }.toSet()) {
+                    "Replay settlement identity set differs from the already materialized operation"
                 }
             }
             val newSettlements = settlementsList.filter { it.id !in existingSettlements }
