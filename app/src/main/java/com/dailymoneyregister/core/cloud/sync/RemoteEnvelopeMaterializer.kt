@@ -240,7 +240,7 @@ object RemoteEnvelopeMaterializer {
         // Validate that the historical identity belongs to this business/branch, but
         // do not require that identity to remain active. The envelope actor above and
         // each settlement actor remain subject to the active-identity checks.
-        if (!hasHistoricalActorReference(database, createdByUserId, sessionBusinessId, branchId)) {
+        if (!hasHistoricalActorReference(database, createdByUserId, sessionBusinessId, branchId, tJson.getString("id"))) {
             return InboundProcessResult.Rejected(
                 "Referenced historical transaction creator '$createdByUserId' is unknown in this business/branch"
             )
@@ -631,8 +631,15 @@ object RemoteEnvelopeMaterializer {
         database: DmrDatabase,
         actorUserId: String,
         businessId: String,
-        branchId: String
+        branchId: String,
+        transactionId: String
     ): Boolean {
+        // Prefer the immutable local transaction snapshot when it already exists.
+        // The creator ID on that snapshot is attribution evidence even if the creator
+        // was subsequently removed and no staff projection is currently cached.
+        val existingTransaction = database.transactionDao().getTransactionById(transactionId)
+        if (existingTransaction?.createdByUserId == actorUserId) return true
+
         val cloudIdentity = database.cloudStaffIdentityDao()
             .findIdentity(actorUserId, businessId, branchId)
         if (cloudIdentity != null) return true
