@@ -31,8 +31,6 @@ import com.dailymoneyregister.core.startup.StartupRecoveryCoordinator
 import com.dailymoneyregister.feature.notifications.ui.NotificationsScreen
 import com.dailymoneyregister.feature.auth.ui.LoginScreen
 import com.dailymoneyregister.feature.auth.ui.LoginViewModel
-import com.dailymoneyregister.feature.auth.ui.ChangePinScreen
-import com.dailymoneyregister.feature.auth.ui.ChangePinViewModel
 import com.dailymoneyregister.feature.onboarding.ui.LanguagePickerScreen
 import com.dailymoneyregister.feature.onboarding.ui.SignUpRoleScreen
 import com.dailymoneyregister.feature.onboarding.ui.WelcomeScreen
@@ -60,9 +58,7 @@ object Routes {
     const val SIGNUP_ROLE = "signup_role"
     const val SETUP = "setup"
     const val LOGIN = "login"
-    const val CHANGE_PIN = "change_pin"
     const val ADMIN_HUB = "admin_hub"
-    const val CASHIER_HUB = "cashier_hub"
     const val REGISTER = "register"
     const val SETTINGS = "settings"
     const val REPORTS = "reports"
@@ -163,20 +159,15 @@ fun DmrApp(
             trustedSessionRestorer.restore()
 
         startDestination =
-            if (restoredSession != null) {
-
-                when {
-                    restoredSession.user.role == UserRole.ADMIN ->
-                        Routes.ADMIN_HUB
-
-                    restoredSession.requiresPinChange ->
-                        Routes.CHANGE_PIN
-
-                    else ->
-                        Routes.REGISTER
+            if (restoredSession != null && restoredSession.user.role == UserRole.ADMIN) {
+                Routes.ADMIN_HUB
+            } else {
+                if (restoredSession != null) {
+                    // Cashier sessions are no longer admitted through the active UI.
+                    trustedSessionStore.clear()
+                    SessionManager.clearSession()
                 }
 
-            } else {
 
                 val isComplete =
                     setupRepository.isSetupComplete()
@@ -331,31 +322,11 @@ fun DmrApp(
             LoginScreen(
                 viewModel = loginViewModel,
                 onLoginSuccess = { session ->
-                    val destination =
-                        if (session.user.role == UserRole.ADMIN) {
-                            Routes.ADMIN_HUB
-                        } else if (session.requiresPinChange) {
-                            Routes.CHANGE_PIN
-                        } else {
-                            Routes.REGISTER
-                        }
-
-                    navController.navigate(destination) {
+                    // LoginScreen authenticates owners/admins only.
+                    navController.navigate(Routes.ADMIN_HUB) {
                         popUpTo(0) {
                             inclusive = true
                         }
-                    }
-                }
-            )
-        }
-
-        composable(Routes.CHANGE_PIN) {
-            val changePinViewModel: ChangePinViewModel = hiltViewModel()
-            ChangePinScreen(
-                viewModel = changePinViewModel,
-                onSuccess = {
-                    navController.navigate(Routes.REGISTER) {
-                        popUpTo(Routes.CHANGE_PIN) { inclusive = true }
                     }
                 }
             )
