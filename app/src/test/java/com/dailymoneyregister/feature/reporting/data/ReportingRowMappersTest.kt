@@ -271,7 +271,10 @@ class ReportingRowMappersTest {
         val row = ReportingRowMappers.mapSale(record, emptyList(), listOf(obligation), lookups)
 
         assertEquals(ReportActivityType.CREDIT_SALE, row.activityType)
-        assertEquals(emptyList<ReportPaymentPart>(), row.paymentParts)
+        assertEquals(
+            listOf(ReportPaymentPart(PaymentCategory.CREDIT, PaymentChannel.CREDIT, MoneyMinorUnits(1000L))),
+            row.paymentParts
+        )
         assertEquals("op-2", row.operationId)
         assertEquals("Customer One", row.person?.name)
     }
@@ -284,6 +287,10 @@ class ReportingRowMappersTest {
                 settlement(
                     "s-sale", "op-sale", EntryPurpose.SALE_FUNDING,
                     PaymentCategory.CASH, PaymentChannel.CASH_TENDER, 1000L
+                ),
+                settlement(
+                    "s-void", "op-v", EntryPurpose.VOID_REVERSAL,
+                    PaymentCategory.CASH, PaymentChannel.CASH_TENDER, -1000L
                 )
             ),
             voidEvents = listOf(
@@ -497,7 +504,8 @@ class ReportingRowMappersTest {
         )
 
         assertEquals(CouponReportEventKind.PURCHASE, row.eventKind)
-        assertNull(row.fundingCategory)
+        assertEquals(PaymentCategory.CASH, row.fundingCategory)
+        assertEquals(PaymentChannel.CASH_TENDER, row.fundingChannel)
     }
 
     @Test
