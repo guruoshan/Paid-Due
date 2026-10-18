@@ -135,7 +135,7 @@ class CustomerExcelExporter @Inject constructor(
                         ?: error("Repayment has no matching business customer: " + c.getString(0))
                     val currency = c.getString(2).uppercase(Locale.ROOT)
                     val branch = branches[c.getString(6)]
-                    val decimals = if (branch?.currencyCode.equals(currency, true) && branch != null) {
+                    val decimals = decimalsByCurrency[currency] ?: if (branch?.currencyCode.equals(currency, true) && branch != null) {
                         branch.decimals
                     } else {
                         com.dailymoneyregister.core.model.currency.CurrencyRegistry.findByCode(currency).decimalPlaces
@@ -209,7 +209,7 @@ class CustomerExcelExporter @Inject constructor(
                     require(customers.containsKey(customerId)) { "Credit ledger has no matching business customer: " + customerId }
                     val currency = c.getString(1).uppercase(Locale.ROOT)
                     val branchCurrency = c.getString(5)
-                    val decimals = if (branchCurrency.equals(currency, true) && !c.isNull(6)) {
+                    val decimals = decimalsByCurrency[currency] ?: if (branchCurrency.equals(currency, true) && !c.isNull(6)) {
                         c.getInt(6)
                     } else {
                         com.dailymoneyregister.core.model.currency.CurrencyRegistry.findByCode(currency).decimalPlaces
