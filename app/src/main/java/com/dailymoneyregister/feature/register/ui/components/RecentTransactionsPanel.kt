@@ -1,10 +1,11 @@
-﻿package com.dailymoneyregister.feature.register.ui.components
+package com.dailymoneyregister.feature.register.ui.components
 
 import com.dailymoneyregister.core.model.currency.CurrencyConfig
 
 import com.dailymoneyregister.R
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,10 +21,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -88,7 +91,7 @@ fun RecentTransactionsPanel(
     onExpenseSelected: (String) -> Unit = {},
     maxListHeight: androidx.compose.ui.unit.Dp = 220.dp,
     modifier: Modifier = Modifier,
-    compactMaxListHeight: androidx.compose.ui.unit.Dp = 100.dp
+    compactMaxListHeight: androidx.compose.ui.unit.Dp = 180.dp
 ) {
     // BOARDLOCK_COUPON_TODAY_TOTAL
     // Do not sum raw signedEffect here: Coupon redemption is an
@@ -197,7 +200,7 @@ fun RecentTransactionsPanel(
                 onExpenseSelected = onExpenseSelected,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = compactMaxListHeight)
+                        .heightIn(max = compactMaxListHeight * LocalDensity.current.fontScale.coerceAtLeast(1f))
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 )
             }
@@ -265,11 +268,77 @@ private fun RecentTransactionRow(
         val zonedDateTime = Instant.ofEpochMilli(transaction.occurredAt).atZone(zoneId)
         zonedDateTime.format(DateTimeFormatter.ofPattern("hh:mm a", java.util.Locale.getDefault()))
     }
-    val amountFormatted = transaction.signedEffect.formatDisplay(currency)
-    val amountText = if (transaction.signedEffect.isPositive) {
-        stringResource(R.string.positive_amount, amountFormatted)
-    } else {
-        amountFormatted
+    val isDarkTheme = isSystemInDarkTheme()
+    val flowColor = when (transaction.type) {
+        RecentActivityType.MERCHANDISE_SALE,
+        RecentActivityType.COUPON_SELL,
+        RecentActivityType.COUPON_TOP_UP,
+        RecentActivityType.CREDIT_REPAYMENT ->
+            if (isDarkTheme) Color(0xFF90CAF9) else Color(0xFF1565C0)
+        RecentActivityType.EXPENSE,
+        RecentActivityType.REFUND,
+        RecentActivityType.REFUND_TO_COUPON,
+        RecentActivityType.VOID ->
+            if (isDarkTheme) Color(0xFFEF9A9A) else Color(0xFFD32F2F)
+        RecentActivityType.AMOUNT_CORRECTION -> when {
+            transaction.signedEffect.isNegative ->
+                if (isDarkTheme) Color(0xFFEF9A9A) else Color(0xFFD32F2F)
+            transaction.signedEffect.isPositive ->
+                if (isDarkTheme) Color(0xFF90CAF9) else Color(0xFF1565C0)
+            else -> if (isDarkTheme) Color(0xFFBDBDBD) else Color(0xFF616161)
+        }
+        RecentActivityType.PAYMENT_METHOD_CHANGE ->
+            if (isDarkTheme) Color(0xFFBDBDBD) else Color(0xFF616161)
+    }
+    val typeLabel = when (transaction.type) {
+        RecentActivityType.MERCHANDISE_SALE -> "SALE"
+        RecentActivityType.COUPON_SELL -> "COUPON SALE"
+        RecentActivityType.COUPON_TOP_UP -> "COUPON TOP-UP"
+        RecentActivityType.CREDIT_REPAYMENT -> "CREDIT"
+        RecentActivityType.EXPENSE -> "EXPENSE"
+        RecentActivityType.REFUND,
+        RecentActivityType.REFUND_TO_COUPON -> "REFUND"
+        RecentActivityType.VOID -> "VOID"
+        RecentActivityType.AMOUNT_CORRECTION -> "CORRECTION"
+        RecentActivityType.PAYMENT_METHOD_CHANGE -> "PAYMENT CHANGE"
+    }
+    val referenceText = when (transaction.type) {
+        RecentActivityType.REFUND,
+        RecentActivityType.REFUND_TO_COUPON,
+        RecentActivityType.VOID,
+        RecentActivityType.AMOUNT_CORRECTION,
+        RecentActivityType.PAYMENT_METHOD_CHANGE -> transaction.sourceReference
+        else -> transaction.displayRef.ifBlank { transaction.sourceReference }
+    }
+    val activityStatus = when (transaction.type) {
+        RecentActivityType.VOID -> "VOIDED"
+        RecentActivityType.REFUND,
+        RecentActivityType.REFUND_TO_COUPON -> "REFUNDED"
+        RecentActivityType.AMOUNT_CORRECTION -> "CORRECTED"
+        RecentActivityType.PAYMENT_METHOD_CHANGE -> "UPDATED"
+        else -> transaction.status.name.replace('_', ' ')
+    }
+    val amountMagnitude = MoneyMinorUnits(kotlin.math.abs(transaction.signedEffect.amount))
+        .formatDisplay(currency)
+    val amountText = when {
+        transaction.type in setOf(
+            RecentActivityType.MERCHANDISE_SALE,
+            RecentActivityType.COUPON_SELL,
+            RecentActivityType.COUPON_TOP_UP,
+            RecentActivityType.CREDIT_REPAYMENT
+        ) -> stringResource(R.string.positive_amount, amountMagnitude)
+        transaction.type in setOf(
+            RecentActivityType.EXPENSE,
+            RecentActivityType.REFUND,
+            RecentActivityType.REFUND_TO_COUPON,
+            RecentActivityType.VOID
+        ) -> "- $amountMagnitude"
+        transaction.type == RecentActivityType.AMOUNT_CORRECTION &&
+            transaction.signedEffect.isPositive ->
+            stringResource(R.string.positive_amount, amountMagnitude)
+        transaction.type == RecentActivityType.AMOUNT_CORRECTION &&
+            transaction.signedEffect.isNegative -> "- $amountMagnitude"
+        else -> amountMagnitude
     }
     val cashMethodLabel = stringResource(R.string.tx_payment_cash)
     val onlineMethodLabel = stringResource(R.string.tx_payment_online)
@@ -324,27 +393,6 @@ private fun RecentTransactionRow(
             ""
         }
 
-    val paymentLabel = when (transaction.type) {
-        RecentActivityType.COUPON_SELL -> stringResource(R.string.coupon_purchase_title)
-        RecentActivityType.COUPON_TOP_UP -> stringResource(R.string.coupon_top_up_label)
-        RecentActivityType.CREDIT_REPAYMENT -> stringResource(R.string.dmr20_credit_payment)
-        RecentActivityType.REFUND -> stringResource(R.string.recent_activity_refund)
-        RecentActivityType.REFUND_TO_COUPON -> stringResource(R.string.recent_activity_refund_coupon)
-        RecentActivityType.VOID -> stringResource(R.string.recent_status_voided)
-        RecentActivityType.AMOUNT_CORRECTION -> stringResource(R.string.recent_status_corrected)
-        RecentActivityType.PAYMENT_METHOD_CHANGE -> stringResource(R.string.recent_status_payment_method_changed)
-        RecentActivityType.EXPENSE -> stringResource(R.string.dmr20_expense)
-        RecentActivityType.MERCHANDISE_SALE -> if (transaction.fundingBreakdown.size > 1) {
-            methodLabel
-        } else when (transaction.fundingBreakdown.singleOrNull()?.category) {
-            PaymentCategory.CASH -> stringResource(R.string.cash_sale_label)
-            PaymentCategory.ONLINE -> stringResource(R.string.online_sale_label)
-            PaymentCategory.CREDIT -> stringResource(R.string.credit_sale_label)
-            PaymentCategory.COUPON -> stringResource(R.string.coupon_sale_label)
-            null -> stringResource(R.string.sale_label)
-        }
-    }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -367,84 +415,108 @@ private fun RecentTransactionRow(
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Column(modifier = Modifier.weight(1.7f)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.widthIn(min = 112.dp).heightIn(min = 24.dp),
+                    color = flowColor.copy(alpha = if (isDarkTheme) 0.20f else 0.12f),
+                    contentColor = flowColor,
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = typeLabel,
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            maxLines = 2,
+                            softWrap = true,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
                 Text(
-                    text = paymentLabel,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
+                    text = timeStr,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
                 )
-                val lifecycleMethodLabel =
-                    if (
-                        (
-                            transaction.type == RecentActivityType.REFUND ||
-                            transaction.type == RecentActivityType.REFUND_TO_COUPON
-                        ) &&
-                        refundBreakdownLabel.isNotBlank()
-                    ) {
-                        refundBreakdownLabel
-                    } else {
-                        methodLabel
-                    }
-
-                if (
-                    lifecycleMethodLabel.isNotBlank() &&
-                    transaction.type != RecentActivityType.MERCHANDISE_SALE
-                ) {
-                    Text(
-                        text = lifecycleMethodLabel,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines =
-                            if (
-                                transaction.type == RecentActivityType.REFUND ||
-                                transaction.type == RecentActivityType.REFUND_TO_COUPON
-                            ) {
-                                2
-                            } else {
-                                1
-                            }
-                    )
-                }
-                transaction.customerName?.let { customerName ->
-                    Text(
-                        text = customerName,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
-                }
             }
 
             Text(
-                text = timeStr,
-                modifier = Modifier.weight(0.75f),
-                textAlign = TextAlign.Center,
-                fontSize = 12.sp,
+                text = amountText,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Start,
+                fontWeight = FontWeight.ExtraBold,
+                color = flowColor,
+                fontSize = 22.sp,
+                maxLines = 2,
+                softWrap = true
+            )
+
+            Text(
+                text = "Ref: $referenceText",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+
+            Text(
+                text = "Status: $activityStatus",
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
             )
 
-            Text(
-                text = amountText,
-                modifier = Modifier.weight(1.05f),
-                textAlign = TextAlign.End,
-                fontWeight = FontWeight.Bold,
-                color = when {
-                    transaction.signedEffect.isNegative -> MaterialTheme.colorScheme.error
-                    transaction.signedEffect.isPositive -> RegisterColors.CashPrimary
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                fontSize = 15.sp,
-                maxLines = 1
-            )
+            val lifecycleMethodLabel =
+                if (
+                    (
+                        transaction.type == RecentActivityType.REFUND ||
+                        transaction.type == RecentActivityType.REFUND_TO_COUPON
+                    ) &&
+                    refundBreakdownLabel.isNotBlank()
+                ) {
+                    refundBreakdownLabel
+                } else {
+                    methodLabel
+                }
+
+            if (
+                lifecycleMethodLabel.isNotBlank() &&
+                transaction.type != RecentActivityType.MERCHANDISE_SALE
+            ) {
+                Text(
+                    text = lifecycleMethodLabel,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = if (
+                        transaction.type == RecentActivityType.REFUND ||
+                        transaction.type == RecentActivityType.REFUND_TO_COUPON
+                    ) 2 else 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+
+            transaction.customerName?.let { customerName ->
+                Text(
+                    text = customerName,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }

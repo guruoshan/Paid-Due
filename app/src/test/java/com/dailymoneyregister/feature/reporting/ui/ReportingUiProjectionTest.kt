@@ -106,6 +106,15 @@ class ReportingUiProjectionTest {
             listOf(refund),
             filtered
         )
+
+        val projected = ReportingUiProjection.toRows(
+            rows = listOf(refund, expense),
+            decimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat"
+        )
+        assertEquals("- OMR 0.500", projected[0].amountText)
+        assertEquals("- OMR 0.250", projected[1].amountText)
     }
 
     @Test
@@ -156,6 +165,9 @@ class ReportingUiProjectionTest {
             7,
             cards.size
         )
+        assertEquals("+ OMR 0.900", cards[0].amountText)
+        assertEquals("- OMR 0.100", cards[5].amountText)
+        assertEquals("- OMR 0.040", cards[6].amountText)
 
         assertTrue(
             cards.none {

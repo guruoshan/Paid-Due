@@ -1,8 +1,14 @@
 package com.dailymoneyregister.feature.reporting.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -36,8 +43,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dailymoneyregister.R
@@ -721,113 +731,149 @@ private fun ReportingRowCard(
     row: ReportingRowUiModel,
     onOpenCustomer: (String) -> Unit
 ) {
-    Card(
-        modifier =
-            Modifier.fillMaxWidth()
-    ) {
+    val isDarkTheme = isSystemInDarkTheme()
+    val flowColor = when (row.activityType) {
+        ReportActivityType.SALE,
+        ReportActivityType.CREDIT_SALE,
+        ReportActivityType.CREDIT_REPAYMENT,
+        ReportActivityType.COUPON_PURCHASE,
+        ReportActivityType.COUPON_TOP_UP,
+        ReportActivityType.COUPON_CREDIT_REPAYMENT ->
+            if (isDarkTheme) Color(0xFF90CAF9) else Color(0xFF1565C0)
+        ReportActivityType.REFUND,
+        ReportActivityType.COUPON_REFUND,
+        ReportActivityType.EXPENSE,
+        ReportActivityType.VOID ->
+            if (isDarkTheme) Color(0xFFEF9A9A) else Color(0xFFD32F2F)
+        ReportActivityType.AMOUNT_CORRECTION -> when {
+            row.amountText?.startsWith("-") == true ->
+                if (isDarkTheme) Color(0xFFEF9A9A) else Color(0xFFD32F2F)
+            row.amountText?.startsWith("+") == true ->
+                if (isDarkTheme) Color(0xFF90CAF9) else Color(0xFF1565C0)
+            else -> if (isDarkTheme) Color(0xFFBDBDBD) else Color(0xFF616161)
+        }
+        ReportActivityType.COUPON_BONUS ->
+            if (isDarkTheme) Color(0xFF90CAF9) else Color(0xFF1565C0)
+        ReportActivityType.COUPON_REDEMPTION,
+        ReportActivityType.PAYMENT_METHOD_CHANGE ->
+            if (isDarkTheme) Color(0xFFBDBDBD) else Color(0xFF616161)
+    }
+    val typeLabel = when (row.activityType) {
+        ReportActivityType.SALE -> "SALE"
+        ReportActivityType.COUPON_PURCHASE -> "COUPON SALE"
+        ReportActivityType.COUPON_TOP_UP -> "COUPON TOP-UP"
+        ReportActivityType.CREDIT_SALE,
+        ReportActivityType.CREDIT_REPAYMENT,
+        ReportActivityType.COUPON_CREDIT_REPAYMENT -> "CREDIT"
+        ReportActivityType.EXPENSE -> "EXPENSE"
+        ReportActivityType.REFUND,
+        ReportActivityType.COUPON_REFUND -> "REFUND"
+        ReportActivityType.VOID -> "VOID"
+        ReportActivityType.AMOUNT_CORRECTION -> "CORRECTION"
+        ReportActivityType.PAYMENT_METHOD_CHANGE -> "PAYMENT CHANGE"
+        ReportActivityType.COUPON_REDEMPTION -> "COUPON USE"
+        ReportActivityType.COUPON_BONUS -> "OTHER INCOME"
+    }
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier =
-                Modifier.padding(12.dp),
-            verticalArrangement =
-                Arrangement.spacedBy(4.dp)
+            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(
-                modifier =
-                    Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.SpaceBetween
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    activityTypeLabel(
-                        row.activityType
-                    ),
-                    fontWeight =
-                        FontWeight.SemiBold
-                )
-
-                row.amountText?.let {
-                    Text(
-                        it,
-                        fontWeight =
-                            FontWeight.Bold
-                    )
+                Surface(
+                    modifier = Modifier.widthIn(min = 112.dp, max = 180.dp).heightIn(min = 24.dp),
+                    color = flowColor.copy(alpha = if (isDarkTheme) 0.20f else 0.12f),
+                    contentColor = flowColor,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            typeLabel,
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelSmall,
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                            softWrap = true,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
+                Text(
+                    text = row.occurredAtText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    textAlign = TextAlign.End
+                )
+            }
+
+            row.amountText?.let { amount ->
+                Text(
+                    text = amount,
+                    modifier = Modifier.fillMaxWidth(),
+                    fontWeight = FontWeight.ExtraBold,
+                    color = flowColor,
+                    style = MaterialTheme.typography.headlineSmall,
+                    maxLines = 2
+                )
             }
 
             row.referenceText?.let {
                 Text(
                     text = it,
-                    style =
-                        MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
-            if (
-                row.customerName != null ||
-                row.customerPhone != null
-            ) {
-                val customerText =
-                    listOfNotNull(
-                        row.customerName,
-                        row.customerPhone
-                    ).joinToString(" · ")
-
+            if (row.customerName != null || row.customerPhone != null) {
+                val customerText = listOfNotNull(row.customerName, row.customerPhone)
+                    .joinToString(" · ")
                 Text(
                     text = customerText,
-                    modifier =
-                        if (row.customerId != null) {
-                            Modifier.clickable {
-                                onOpenCustomer(
-                                    row.customerId
-                                )
-                            }
-                        } else {
-                            Modifier
-                        },
-                    color =
-                        if (row.customerId != null) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        }
+                    modifier = if (row.customerId != null) {
+                        Modifier.clickable { onOpenCustomer(row.customerId) }
+                    } else Modifier,
+                    color = if (row.customerId != null) {
+                        MaterialTheme.colorScheme.primary
+                    } else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
             row.paymentText?.let {
                 Text(
-                    text =
-                        stringResource(
-                            R.string.reporting_payment_value,
-                            it
-                        ),
-                    style =
-                        MaterialTheme.typography.bodySmall
+                    text = stringResource(R.string.reporting_payment_value, it),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
             row.reasonText?.let {
                 Text(
-                    text =
-                        stringResource(
-                            R.string.reporting_reason_value,
-                            it
-                        ),
-                    style =
-                        MaterialTheme.typography.bodySmall
+                    text = stringResource(R.string.reporting_reason_value, it),
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
             Text(
-                text =
-                    listOfNotNull(
-                        row.occurredAtText,
-                        row.branchName,
-                        row.cashierName
-                    ).joinToString(" · "),
-                style =
-                    MaterialTheme.typography.bodySmall,
-                color =
-                    MaterialTheme.colorScheme.onSurfaceVariant
+                text = listOfNotNull(row.branchName, row.cashierName).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

@@ -2,11 +2,17 @@ package com.dailymoneyregister.feature.register.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,11 +21,15 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import com.dailymoneyregister.R
 import com.dailymoneyregister.core.cloud.sync.InboundIncompleteBanner
 import com.dailymoneyregister.core.model.currency.CurrencyConfig
@@ -258,6 +268,9 @@ private fun HistoryExpenseCard(
                 )
             )
 
+    val isDarkTheme = isSystemInDarkTheme()
+    val expenseFlowColor =
+        if (isDarkTheme) Color(0xFFEF9A9A) else Color(0xFFD32F2F)
     val payment =
         historyPaymentCategoryLabel(
             expense.paymentCategory
@@ -281,44 +294,51 @@ private fun HistoryExpenseCard(
                 Arrangement.spacedBy(5.dp)
         ) {
 
-            Row(
-                modifier =
-                    Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.SpaceBetween
+            Surface(
+                modifier = Modifier.widthIn(min = 112.dp, max = 180.dp).heightIn(min = 24.dp),
+                color = expenseFlowColor.copy(alpha = if (isDarkTheme) 0.20f else 0.12f),
+                contentColor = expenseFlowColor,
+                shape = RoundedCornerShape(6.dp)
             ) {
-
-                Column(
-                    modifier =
-                        Modifier.weight(1f)
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
                 ) {
-
                     Text(
-                        text = "Expense",
-                        fontWeight =
-                            FontWeight.Bold
-                    )
-
-                    Text(
-                        text =
-                            expense.displayReference,
-                        style =
-                            MaterialTheme.typography.bodySmall
+                        text = "EXPENSE",
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        maxLines = 1
                     )
                 }
-
-                Text(
-                    text =
-                        expense.signedEffect
-                            .formatDisplay(currency),
-                    fontWeight =
-                        FontWeight.Bold,
-                    color =
-                        MaterialTheme.colorScheme.error
-                )
             }
 
-            Text(timestamp)
+            Text(
+                text = "- ${com.dailymoneyregister.core.model.money.MoneyMinorUnits(kotlin.math.abs(expense.signedEffect.amount)).formatDisplay(currency)}",
+                fontWeight = FontWeight.ExtraBold,
+                color = expenseFlowColor,
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 2
+            )
+
+            Text(
+                text = "Ref: ${expense.displayReference}",
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "Time: $timestamp",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Status: RECORDED",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             expense.payeeName
                 ?.takeIf {
@@ -326,7 +346,7 @@ private fun HistoryExpenseCard(
                 }
                 ?.let { name ->
 
-                    Text(name)
+                    Text(name, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
 
             expense.payeePhone
@@ -367,8 +387,9 @@ private fun HistoryExpenseCard(
 
                     Text(
                         text = note,
-                        style =
-                            MaterialTheme.typography.bodySmall
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
         }
@@ -417,37 +438,83 @@ private fun HistoryTransactionCard(
                 Arrangement.spacedBy(5.dp)
         ) {
 
-            Row(
-                modifier =
-                    Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.SpaceBetween
-            ) {
-
-                Text(
-                    text =
-                        financial.displayRef,
-                    fontWeight =
-                        FontWeight.SemiBold
-                )
-
-                Text(
-                    text =
-                        historyDisplayedAmount(financial)
-                            .formatDisplay(currency),
-                    fontWeight =
-                        FontWeight.Bold
-                )
+            val transactionTypeLabel = when (financial.financialKind) {
+                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.MERCHANDISE_SALE ->
+                    if (financial.currentPaymentCategory == PaymentCategory.CREDIT) "CREDIT" else "SALE"
+                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.COUPON_SALE -> "COUPON SALE"
+                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.COUPON_TOP_UP -> "COUPON TOP-UP"
             }
 
-            Text(timestamp)
+            Surface(
+                modifier = Modifier.widthIn(min = 112.dp, max = 180.dp).heightIn(min = 24.dp),
+                color = (if (isSystemInDarkTheme()) Color(0xFF90CAF9) else Color(0xFF1565C0))
+                    .copy(alpha = if (isSystemInDarkTheme()) 0.20f else 0.12f),
+                contentColor = if (isSystemInDarkTheme()) Color(0xFF90CAF9) else Color(0xFF1565C0),
+                shape = RoundedCornerShape(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    Text(
+                        text = transactionTypeLabel,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        maxLines = 2,
+                        softWrap = true,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            val signedAmount = historyDisplayedAmount(financial).amount
+            val amountMagnitude = com.dailymoneyregister.core.model.money.MoneyMinorUnits(
+                kotlin.math.abs(signedAmount)
+            ).formatDisplay(currency)
+            val amountColor = if (isSystemInDarkTheme()) Color(0xFF90CAF9) else Color(0xFF1565C0)
+            Text(
+                text = when {
+                    signedAmount < 0L -> "- $amountMagnitude"
+                    signedAmount > 0L -> "+ $amountMagnitude"
+                    else -> amountMagnitude
+                },
+                fontWeight = FontWeight.ExtraBold,
+                color = when {
+                    signedAmount < 0L ->
+                        if (isSystemInDarkTheme()) Color(0xFFEF9A9A) else Color(0xFFD32F2F)
+                    signedAmount > 0L -> amountColor
+                    else -> if (isSystemInDarkTheme()) Color(0xFFBDBDBD) else Color(0xFF616161)
+                },
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 2
+            )
+
+            Text(
+                text = "Ref: ${financial.displayRef}",
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "Time: $timestamp",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Status: ${historyLifecycleLabel(financial.lifecycleStates)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             row.customerName
                 ?.takeIf {
                     it.isNotBlank()
                 }
                 ?.let {
-                    Text(it)
+                    Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
 
             row.canonicalPhone
