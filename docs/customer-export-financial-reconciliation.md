@@ -8,7 +8,7 @@
 ## Source-of-truth rules
 - Original transaction amounts come from `transactions`; the latest `amount_correction_events.corrected_amount_minor` is used where present.
 - A transaction with a `void_events` record remains visible in history with a void status, but is excluded from valid sales totals.
-- Refund events are shown as negative amounts in the history and deducted from net sales in the summary.
+- Refund events are shown as negative amounts in the history. Refunds of ordinary sales are deducted from net sales; coupon-purchase refunds are reported separately so they cannot incorrectly reduce the ordinary-sales metric.
 - Repayments are shown as cash/online collections against credit. They are not sales revenue and are not added to net sales.
 - Issued documents are audit/history rows only. Invoice values are not counted a second time as sales.
 - Outstanding credit is the signed sum of `credit_ledger_events.amount_signed_minor`, grouped by customer and currency. It is not inferred from sales less repayments because adjustments and historical events may exist.
@@ -20,6 +20,7 @@
 - **Customer Financial Summary:** financial values separated by customer and currency, with valid sales, credit funding, repayments, refunds, coupon purchases, net sales after refunds, authoritative outstanding credit, and the credit-obligation variance.
 - **Full Transaction History:** transaction, repayment, refund, and document events. Refund amounts are negative; document rows have a blank amount and are explicitly excluded from financial totals.
 - **Credit Reconciliation:** sale credit funding vs credit-ledger obligations, ledger repayments, adjustments, outstanding balance, and a visible PASS/INVESTIGATE control.
+- **Coupon Reconciliation:** coupon purchase transaction value vs coupon-ledger purchase value, plus bonuses, redemptions, refund credits, and the signed wallet balance. A purchase variance is surfaced for investigation.
 
 ## Required release checks
 1. Android build, unit tests, and instrumentation tests pass on the exact head SHA.
