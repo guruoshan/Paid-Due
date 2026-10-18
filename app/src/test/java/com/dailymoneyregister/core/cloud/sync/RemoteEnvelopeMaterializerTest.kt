@@ -302,6 +302,44 @@ class RemoteEnvelopeMaterializerTest {
         coVerify(exactly = 1) { transactionDao.insertRefund(match { it.actorUserId == actorUserId && it.refundAmountMinor == 500L }) }
     }
 
+    private fun refundEnvelope(originalCreatorId: String): RemoteEnvelopeV2 {
+        val base = cashSaleEnvelope()
+        val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at")
+        val refundSettlement = JSONObject().apply {
+            put("id", "refund-outflow-settlement")
+            put("operation_id", operationId)
+            put("subject_type", SubjectType.TRANSACTION.name)
+            put("subject_id", transactionId)
+            put("transaction_id", transactionId)
+            put("entry_purpose", "REFUND_OUTFLOW")
+            put("category", "CASH")
+            put("channel", "CASH_TENDER")
+            put("amount_signed_minor", -500L)
+            put("currency_code", "OMR")
+            put("confirmation_type", "CASHIER_CONFIRMED")
+            put("actor_user_id", actorUserId)
+            put("occurred_at", occurredAt)
+        }
+        val payload = JSONObject(base.canonicalText).apply {
+            put("operation_type", "RECORD_REFUND")
+            put("subject_type", SubjectType.TRANSACTION.name)
+            put("subject_id", transactionId)
+            put("transaction_id", transactionId)
+            getJSONObject("transaction").put("created_by_user_id", originalCreatorId)
+            put("settlements", JSONArray().put(refundSettlement))
+            put("financial_evidence", JSONObject().put("refund_event", JSONObject().apply {
+                put("id", "refund-event")
+                put("transaction_id", transactionId)
+                put("operation_id", operationId)
+                put("refund_amount_minor", 500L)
+                put("reason", "Test refund")
+                put("actor_user_id", actorUserId)
+                put("occurred_at", occurredAt)
+            }))
+        }
+        return envelopeFromPayload(base, "RECORD_REFUND", payload)
+    }
+
     private fun expenseEnvelope(): RemoteEnvelopeV2 {
         val base = cashSaleEnvelope()
         val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at")
