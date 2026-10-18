@@ -6,6 +6,8 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.MediaStore
 import com.dailymoneyregister.core.database.DmrDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.SimpleSQLiteQuery
 import com.dailymoneyregister.core.security.SessionManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -151,31 +153,37 @@ class CustomerExcelExporter @Inject constructor(
         runCatching { context.startActivity(intent) }
     }
 
-    private fun creditAmountForTransaction(db: android.database.sqlite.SQLiteDatabase, transactionId: String, decimalPlaces: Int): Double {
+    private fun creditAmountForTransaction(db: SupportSQLiteDatabase, transactionId: String, decimalPlaces: Int): Double {
         // Credit exposure is the signed CREDIT tender balance after any
         // authoritative payment-method reclassification events.
         val amountMinor = db.query(
-            "SELECT COALESCE(SUM(amount_signed_minor),0) FROM settlement_entries WHERE transaction_id=? AND category='CREDIT' AND entry_purpose IN ('SALE_FUNDING','PAYMENT_METHOD_RECLASSIFICATION')",
-            arrayOf(transactionId)
+            SimpleSQLiteQuery(
+                "SELECT COALESCE(SUM(amount_signed_minor),0) FROM settlement_entries WHERE transaction_id=? AND category='CREDIT' AND entry_purpose IN ('SALE_FUNDING','PAYMENT_METHOD_RECLASSIFICATION')",
+                arrayOf<Any?>(transactionId)
+            )
         ).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else 0L }
         return amountMinor.coerceAtLeast(0L).toDouble() / Math.pow(10.0, decimalPlaces.toDouble())
     }
 
-    private fun paymentMethodForTransaction(db: android.database.sqlite.SQLiteDatabase, transactionId: String, transactionType: String): String {
+    private fun paymentMethodForTransaction(db: SupportSQLiteDatabase, transactionId: String, transactionType: String): String {
         // The immutable payment-method-change event is the latest authoritative
         // tender snapshot. Otherwise use original sale/coupon funding evidence,
         // never the transaction currency code or an unrelated repayment.
         db.query(
-            "SELECT new_method,new_channel FROM payment_method_change_events WHERE transaction_id=? ORDER BY occurred_at DESC,id DESC LIMIT 1",
-            arrayOf(transactionId)
+            SimpleSQLiteQuery(
+                "SELECT new_method,new_channel FROM payment_method_change_events WHERE transaction_id=? ORDER BY occurred_at DESC,id DESC LIMIT 1",
+                arrayOf<Any?>(transactionId)
+            )
         ).use { cursor ->
             if (cursor.moveToFirst()) return paymentMethodLabel(cursor.getString(0), cursor.getString(1))
         }
         val purpose = if (transactionType == "COUPON_PURCHASE") "COUPON_PURCHASE_FUNDING" else "SALE_FUNDING"
         val methods = linkedSetOf<String>()
         db.query(
-            "SELECT DISTINCT category,channel FROM settlement_entries WHERE transaction_id=? AND entry_purpose=? AND amount_signed_minor>0 ORDER BY occurred_at,id",
-            arrayOf(transactionId, purpose)
+            SimpleSQLiteQuery(
+                "SELECT DISTINCT category,channel FROM settlement_entries WHERE transaction_id=? AND entry_purpose=? AND amount_signed_minor>0 ORDER BY occurred_at,id",
+                arrayOf<Any?>(transactionId, purpose)
+            )
         ).use { cursor ->
             while (cursor.moveToNext()) methods.add(paymentMethodLabel(cursor.getString(0), cursor.getString(1)))
         }
