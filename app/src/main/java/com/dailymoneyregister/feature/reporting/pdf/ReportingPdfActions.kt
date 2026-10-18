@@ -59,7 +59,6 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf<String?>(null) }
-    var pendingDownload by remember { mutableStateOf(false) }
 
     fun generateSnapshot(): ReportingPdfSnapshot? {
         val readModel = state.readModel ?: return null
@@ -84,12 +83,10 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
             else -> ReportValueTone.OPERATIONAL
         }
         val summary = readModel.summary
-        val repaymentTotal = runCatching {
-            Math.addExact(
-                Math.addExact(summary.cashCreditRepayments.amount, summary.onlineCreditRepayments.amount),
-                summary.couponCreditRepayments.amount
-            )
-        }.getOrDefault(0L)
+        val repaymentTotal = Math.addExact(
+            Math.addExact(summary.cashCreditRepayments.amount, summary.onlineCreditRepayments.amount),
+            summary.couponCreditRepayments.amount
+        )
         val title = when (state.selectedPreset) {
             ReportingPeriodPreset.TODAY, ReportingPeriodPreset.YESTERDAY -> "Daily Report"
             ReportingPeriodPreset.THIS_MONTH -> "Monthly Report"
@@ -192,7 +189,6 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        pendingDownload = false
         if (granted) runAction("download")
         else status = "Storage permission is needed to save the PDF on this Android version."
     }
@@ -211,7 +207,6 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
                         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
                             ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
                         ) {
-                            pendingDownload = true
                             permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                         } else runAction("download")
                     },
