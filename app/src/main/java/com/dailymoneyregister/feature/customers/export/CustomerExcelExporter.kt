@@ -74,7 +74,7 @@ class CustomerExcelExporter @Inject constructor(
                 }
             }
             runCatching {
-                db.query("SELECT d.customer_id,d.created_at,d.display_number,d.document_type FROM documents d JOIN operations o ON o.id=d.operation_id WHERE o.business_id=? AND d.customer_id IS NOT NULL ORDER BY d.created_at", arrayOf(businessId)).use { c ->
+                db.query("SELECT d.customer_id,d.created_at,d.display_number,d.document_type,d.snapshot_json,b.name FROM documents d JOIN operations o ON o.id=d.operation_id LEFT JOIN branches b ON b.id=o.branch_id WHERE o.business_id=? AND d.customer_id IS NOT NULL ORDER BY d.created_at", arrayOf(businessId)).use { c ->
                     while(c.moveToNext()) {
                         val customerRow = db.query("SELECT name,canonical_phone FROM customers WHERE id=?", arrayOf(c.getString(0)))
                         customerRow.use { p ->
@@ -82,7 +82,11 @@ class CustomerExcelExporter @Inject constructor(
                                 val phone = p.getString(1).orEmpty()
                                 val key = phone.filter { it.isDigit() }.ifEmpty { phone }
                                 val customer = customers[key] ?: continue
-                                activity.add(Activity(c.getLong(1),"",customer.name,customer.phone,c.getString(3),c.getString(2),0.0,""))
+                                val snapshot = runCatching { org.json.JSONObject(c.getString(4)) }.getOrNull()
+                                val invoiceAmount = snapshot?.optLong("grandTotalMinor",0L)?.toDouble()?.div(
+                                    Math.pow(10.0,(snapshot.optInt("currencyDecimalPlaces",2)).toDouble())
+                                ) ?: 0.0
+                                activity.add(Activity(c.getLong(1),c.getString(5).orEmpty(),customer.name,customer.phone,c.getString(3),c.getString(2),invoiceAmount,""))
                             }
                         }
                     }
