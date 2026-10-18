@@ -437,9 +437,10 @@ private fun HistoryTransactionCard(
         ) {
 
             val transactionTypeLabel = when (financial.financialKind) {
-                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.MERCHANDISE_SALE -> "SALE"
-                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.COUPON_SALE -> "COUPON SALE"
-                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.COUPON_TOP_UP -> "COUPON TOP-UP"
+                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.MERCHANDISE_SALE ->
+                    if (financial.currentPaymentCategory == PaymentCategory.CREDIT) "CREDIT" else "SALE"
+                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.COUPON_SALE,
+                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.COUPON_TOP_UP -> "SALE"
             }
 
             Surface(
@@ -470,11 +471,18 @@ private fun HistoryTransactionCard(
             ).formatDisplay(currency)
             val amountColor = if (isSystemInDarkTheme()) Color(0xFF90CAF9) else Color(0xFF1565C0)
             Text(
-                text = (if (signedAmount < 0L) "- " else "+ ") + amountMagnitude,
+                text = when {
+                    signedAmount < 0L -> "- $amountMagnitude"
+                    signedAmount > 0L -> "+ $amountMagnitude"
+                    else -> amountMagnitude
+                },
                 fontWeight = FontWeight.ExtraBold,
-                color = if (signedAmount < 0L) {
-                    if (isSystemInDarkTheme()) Color(0xFFEF9A9A) else Color(0xFFD32F2F)
-                } else amountColor,
+                color = when {
+                    signedAmount < 0L ->
+                        if (isSystemInDarkTheme()) Color(0xFFEF9A9A) else Color(0xFFD32F2F)
+                    signedAmount > 0L -> amountColor
+                    else -> if (isSystemInDarkTheme()) Color(0xFFBDBDBD) else Color(0xFF616161)
+                },
                 style = MaterialTheme.typography.headlineSmall,
                 maxLines = 2
             )
