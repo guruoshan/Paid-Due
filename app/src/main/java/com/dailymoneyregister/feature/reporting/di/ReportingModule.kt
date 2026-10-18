@@ -1,5 +1,6 @@
 package com.dailymoneyregister.feature.reporting.di
 
+import com.dailymoneyregister.core.cloud.sync.RemoteFinancialSyncRepository
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.feature.reporting.data.ReportingReadRepository
 import com.dailymoneyregister.feature.reporting.data.RoomReportingReadRepository
@@ -14,9 +15,11 @@ object ReportingModule {
 
     @Provides
     fun provideReportingReadRepository(
-        database: DmrDatabase
+        database: DmrDatabase,
+        remoteFinancialSyncRepository: RemoteFinancialSyncRepository
     ): ReportingReadRepository =
         RoomReportingReadRepository(
-            database = database
+            database = database,
+            remoteSyncRepository = remoteFinancialSyncRepository
         )
 }
