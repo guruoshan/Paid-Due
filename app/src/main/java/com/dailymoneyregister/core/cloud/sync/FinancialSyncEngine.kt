@@ -19,14 +19,18 @@ class FinancialSyncEngine @Inject constructor(
     private val database: DmrDatabase,
     private val remoteSyncRepository: RemoteFinancialSyncRepository,
     private val inboundEnvelopeApplier: InboundEnvelopeApplier,
-    @ApplicationContext private val context: Context? = null,
-    private val staffIdentitySync: StaffIdentitySync
+    @ApplicationContext private val context: Context? = null
 ) {
+    // Owner-only mode must not instantiate the cashier identity/metadata sync service.
+    // Keep its implementation and legacy guarded branches in source, but inject no
+    // cashier runtime dependency into the active financial sync engine.
+    private val staffIdentitySync: StaffIdentitySync = StaffIdentitySync.NoOp
+
     constructor(
         database: DmrDatabase,
         remoteSyncRepository: RemoteFinancialSyncRepository,
         inboundEnvelopeApplier: InboundEnvelopeApplier = MaterializingInboundEnvelopeApplier()
-    ) : this(database, remoteSyncRepository, inboundEnvelopeApplier, null, StaffIdentitySync.NoOp)
+    ) : this(database, remoteSyncRepository, inboundEnvelopeApplier, null)
 
     private val inMemoryCursors = mutableMapOf<String, VersionedInboundCursor>()
     private val syncMutex = Mutex()
