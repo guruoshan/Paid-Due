@@ -35,6 +35,10 @@ class CustomerDirectorySyncClient @Inject constructor(
 
     suspend fun syncIfDue() = withContext(Dispatchers.IO) {
         val session = SessionManager.currentSession.value ?: return@withContext
+        if (session.user.role != UserRole.ADMIN) {
+            Log.i(TAG, "CUSTOMER_DIRECTORY_SYNC_SKIPPED_NON_OWNER_SESSION")
+            return@withContext
+        }
         val membershipId = session.membership?.id?.takeIf { it.isNotBlank() } ?: return@withContext
         val businessId = session.business.id
         val branchId = session.branch.id

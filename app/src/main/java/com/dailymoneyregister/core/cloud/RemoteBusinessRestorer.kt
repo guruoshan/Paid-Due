@@ -102,6 +102,12 @@ class RemoteBusinessRestorer @Inject constructor(
         pin: String,
         countryCode: String
     ): RemoteBusinessRestorationResult {
+        // Owner-only mode keeps the legacy implementation in source but makes the
+        // cashier restoration entry point fail closed before database/network work.
+        return RemoteBusinessRestorationResult.Failed(
+            "Cashier restoration is disabled in owner-only mode"
+        )
+
         val existingBusiness = businessBranchDao.getFirstBusiness()
 
         // Existing business is NOT evidence that this cashier is restored.

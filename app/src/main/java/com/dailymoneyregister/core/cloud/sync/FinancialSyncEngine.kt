@@ -329,34 +329,15 @@ class FinancialSyncEngine @Inject constructor(
         adminAccountId: String
     ): Int = syncMutex.withLock {
         val session = SessionManager.currentSession.value
-        if (session?.user?.role == UserRole.CASHIER) {
+        if (session?.user?.role != UserRole.ADMIN) {
             Log.i("PaidDueFinancialSync", "INBOUND_SKIPPED_NON_OWNER_SESSION")
             return@withLock 0
         }
-        val sessionBusinessId = session?.business?.id ?: businessId
-        val sessionBranchId = session?.membership?.branchId
-        // The authenticated Admin download RPC returns envelopes for every branch
-        // the Admin is authorized to access in this business. A single active-branch
-        // filter here would reject valid envelopes from the Admin's other branches
-        // and hold the durable cursor behind them. Cashier downloads are server-scoped
-        // to their own branch, so retain the strict local branch check for cashiers.
-        val materializationBranchScope =
-            if (session?.user?.role == UserRole.ADMIN) null else sessionBranchId
-
-        // Staff identity must be available before any financial envelope is materialized.
-        // Failure is visible in logs and the actor remains fail-closed in the materializer.
-        if (
-            session?.user?.role == UserRole.ADMIN &&
-            session.business.id == businessId &&
-            !sessionBranchId.isNullOrBlank()
-        ) {
-            val identitySyncSucceeded = runCatching {
-                staffIdentitySync.synchronize(businessId, sessionBranchId)
-            }.onFailure { error ->
-                Log.w("PaidDueFinancialSync", "STAFF_IDENTITY_SYNC_DEFERRED", error)
-            }.isSuccess
-            if (!identitySyncSucceeded) return@withLock 0
-        }
+        val sessionBusinessId = session.business.id
+        val sessionBranchId = session.membership?.branchId
+        // Owner download is business-scoped across every authorized branch.
+        // Cashier identity-directory refresh is deliberately not launched in owner-only mode.
+        val materializationBranchScope: String? = null
 
         // Cashier downloads are scoped to one branch and may have no local
         // user_accounts row. Keep their cursor branch-specific and trust the

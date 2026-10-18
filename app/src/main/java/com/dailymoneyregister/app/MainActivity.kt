@@ -56,7 +56,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         supabase.handleDeeplinks(intent)
-        com.dailymoneyregister.core.cloud.sync.CashierCloudSession.initialize(applicationContext)
         financialSyncScheduler.startAutoSync()
 
         setContent {

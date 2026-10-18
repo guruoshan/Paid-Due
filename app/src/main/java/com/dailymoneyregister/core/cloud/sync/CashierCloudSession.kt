@@ -23,6 +23,11 @@ import javax.crypto.spec.GCMParameterSpec
 
 object CashierCloudSession {
 
+    /**
+     * Owner-only app mode: keep legacy cashier integration source for compatibility,
+     * but do not restore cashier credentials or permit its network endpoints to run.
+     */
+    private const val OWNER_ONLY_MODE = true
     private const val TAG = "PaidDueFinancialSync"
 
     @Volatile
@@ -49,6 +54,13 @@ object CashierCloudSession {
 
     @Synchronized
     fun initialize(context: Context) {
+        if (OWNER_ONLY_MODE) {
+            credential = null
+            pendingRestoration = null
+            applicationContext = null
+            Log.i(TAG, "CASHIER_CLOUD_SESSION_DISABLED_OWNER_ONLY")
+            return
+        }
         applicationContext = context.applicationContext
 
         // Never overwrite a freshly authenticated in-memory session.
@@ -209,6 +221,11 @@ object CashierCloudSession {
         expectedMembershipId: String
     ): Boolean = withContext(Dispatchers.IO) {
 
+        if (OWNER_ONLY_MODE) {
+            lastAuthStage = "OWNER_ONLY_MODE"
+            Log.i(TAG, "CASHIER_CLOUD_AUTH_BLOCKED_OWNER_ONLY")
+            return@withContext false
+        }
         lastAuthStage = "STARTED"
         clear()
 
@@ -335,6 +352,10 @@ object CashierCloudSession {
         canonicalPhone: String,
         pin: String
     ): JSONObject? {
+        if (OWNER_ONLY_MODE) {
+            lastAuthStage = "OWNER_ONLY_MODE"
+            return null
+        }
         if (!authenticate(canonicalPhone, pin, expectedMembershipId = "")) {
             return null
         }
@@ -349,6 +370,7 @@ object CashierCloudSession {
         envelope: JSONObject
     ): JSONObject = withContext(Dispatchers.IO) {
 
+        if (OWNER_ONLY_MODE) throw SecurityException("OWNER_ONLY_MODE")
         val token = tokenFor(membershipId)
             ?: throw SecurityException(
                 "CASHIER_CLOUD_SESSION_REQUIRED"
@@ -434,6 +456,7 @@ object CashierCloudSession {
         afterOperationId: String?,
         limit: Int
     ): JSONArray = withContext(Dispatchers.IO) {
+        if (OWNER_ONLY_MODE) throw SecurityException("OWNER_ONLY_MODE")
         val token = tokenFor(membershipId) ?: throw SecurityException("CASHIER_CLOUD_SESSION_REQUIRED")
         val baseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trimEnd('/') + "/functions/v1/api"
         require(baseUrl.startsWith("https://"))

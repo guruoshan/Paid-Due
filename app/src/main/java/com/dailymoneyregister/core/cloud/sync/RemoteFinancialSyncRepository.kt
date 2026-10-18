@@ -76,6 +76,11 @@ class RemoteFinancialSyncRepository @Inject constructor(
             com.dailymoneyregister.core.security.SessionManager
                 .currentSession.value
 
+        if (currentSession?.user?.role != com.dailymoneyregister.core.model.enums.UserRole.ADMIN) {
+            android.util.Log.w("PaidDueFinancialSync", "UPLOAD_BLOCKED_NON_OWNER_SESSION operation=${envelope.operationId}")
+            return FinancialSyncReceipt.Unauthorized(envelope.operationId)
+        }
+
         if (
             currentSession?.user?.role ==
             com.dailymoneyregister.core.model.enums.UserRole.CASHIER
@@ -272,6 +277,9 @@ class RemoteFinancialSyncRepository @Inject constructor(
         }
 
         val activeSession = SessionManager.currentSession.value
+        if (activeSession?.user?.role != com.dailymoneyregister.core.model.enums.UserRole.ADMIN) {
+            throw SecurityException("OWNER_SESSION_REQUIRED")
+        }
         if (activeSession?.user?.role == com.dailymoneyregister.core.model.enums.UserRole.CASHIER) {
             val cashierMembershipId = activeSession.membership?.id
                 ?: throw SecurityException("CASHIER_MEMBERSHIP_REQUIRED")
