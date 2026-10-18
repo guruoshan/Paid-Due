@@ -329,11 +329,11 @@ class FinancialSyncEngine @Inject constructor(
         adminAccountId: String
     ): Int = syncMutex.withLock {
         val session = SessionManager.currentSession.value
-        if (session == null || session.user.role != UserRole.ADMIN) {
+        if (session?.user?.role == UserRole.CASHIER) {
             Log.i("PaidDueFinancialSync", "INBOUND_SKIPPED_NON_OWNER_SESSION")
             return@withLock 0
         }
-        val sessionBusinessId = session.business.id
+        val sessionBusinessId = session?.business?.id ?: businessId
         val sessionBranchId = session?.membership?.branchId
         // The authenticated Admin download RPC returns envelopes for every branch
         // the Admin is authorized to access in this business. A single active-branch
