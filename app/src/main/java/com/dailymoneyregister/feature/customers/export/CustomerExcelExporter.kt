@@ -323,25 +323,35 @@ class CustomerExcelExporter @Inject constructor(
                 )
             }
 
-            val couponReconciliation = couponEvents
-                .groupBy { Key(it.customerId, it.currency) }
-                .entries
-                .sortedWith(compareBy({ it.key.customerId }, { it.key.currency }))
-                .map { (key, events) ->
+            val couponKeys = linkedSetOf<Key>()
+            couponEvents.forEach { couponKeys.add(Key(it.customerId, it.currency)) }
+            activities.filter { it.type == "COUPON_PURCHASE" }.forEach {
+                couponKeys.add(Key(it.customerId, it.currency))
+            }
+            val couponReconciliation = couponKeys
+                .sortedWith(compareBy<Key> { it.customerId }.thenBy { it.currency })
+                .map { key ->
                     val customer = customers[key.customerId] ?: error("Missing customer in coupon reconciliation")
+                    val events = couponEvents.filter { it.customerId == key.customerId && it.currency == key.currency }
+                    val transactionRows = activities.filter {
+                        it.customerId == key.customerId && it.currency == key.currency &&
+                            it.type == "COUPON_PURCHASE" && it.status == "Recorded"
+                    }
                     val decimals = decimalsByCurrency[key.currency]
                         ?: com.dailymoneyregister.core.model.currency.CurrencyRegistry.findByCode(key.currency).decimalPlaces
-                    val purchased = events.filter { it.type == "PURCHASE" }.sumOf { it.amountMinor }
+                    val transactionPurchase = transactionRows.sumOf { it.amountMinor ?: 0L }
+                    val ledgerPurchase = events.filter { it.type == "PURCHASE" }.sumOf { it.amountMinor }
                     val bonuses = events.filter { it.type == "PROMOTION_BONUS" }.sumOf { it.amountMinor }
                     val redemptions = events.filter { it.type == "REDEMPTION" }.sumOf { kotlin.math.abs(it.amountMinor) }
                     val refundCredits = events.filter { it.type == "REFUND_CREDIT" }.sumOf { it.amountMinor }
                     val walletBalance = events.sumOf { it.amountMinor }
+                    val purchaseVariance = ledgerPurchase - transactionPurchase
                     listOf(
                         customer.id, customer.name, key.currency, events.size,
-                        money(purchased, decimals), money(bonuses, decimals), money(redemptions, decimals),
-                        money(refundCredits, decimals), money(walletBalance, decimals),
-                        if (walletBalance == purchased + bonuses - redemptions + refundCredits) "PASS"
-                        else "INVESTIGATE: coupon ledger arithmetic variance"
+                        money(transactionPurchase, decimals), money(ledgerPurchase, decimals),
+                        money(purchaseVariance, decimals), money(bonuses, decimals),
+                        money(redemptions, decimals), money(refundCredits, decimals), money(walletBalance, decimals),
+                        if (purchaseVariance == 0L) "PASS" else "INVESTIGATE: transaction value differs from coupon ledger purchase"
                     )
                 }
 
@@ -377,7 +387,7 @@ class CustomerExcelExporter @Inject constructor(
                     listOf("Customer Financial Summary", listOf("Customer ID", "Customer Name", "Phone Number", "Currency", "Valid Sale Count", "Sales Value", "Credit Sales Funding", "Credit Repaid (Collections)", "Refund Value", "Coupon Purchases", "Net Sales After Refunds", "Credit Ledger Obligations", "Credit Ledger Repayments", "Credit Ledger Adjustments", "Outstanding Credit (Authoritative Ledger)", "Obligation Variance (Ledger - All Sale Funding)", "Reconciliation Status"), summary),
                     listOf("Full Transaction History", listOf("Date", "Time", "Branch", "Customer ID", "Customer Name", "Phone Number", "Event Type", "Reference Number", "Currency", "Amount (refunds negative)", "Payment Method", "Status"), history),
                     listOf("Credit Reconciliation", listOf("Customer ID", "Customer Name", "Currency", "Sale Credit Funding (including voided originals)", "Ledger Obligations", "Obligation Variance", "Ledger Repayments", "Ledger Adjustments", "Outstanding Credit Ledger Balance", "Control Status"), reconciliation),
-                    listOf("Coupon Reconciliation", listOf("Customer ID", "Customer Name", "Currency", "Ledger Event Count", "Coupon Purchases (ledger)", "Promotion Bonuses", "Redemptions", "Refund Credits", "Wallet Balance", "Control Status"), couponReconciliation)
+                    listOf("Coupon Reconciliation", listOf("Customer ID", "Customer Name", "Currency", "Ledger Event Count", "Coupon Purchase Transaction Value", "Coupon Ledger Purchase Value", "Purchase Variance (Ledger - Transaction)", "Promotion Bonuses", "Redemptions", "Refund Credits", "Ledger Wallet Balance", "Control Status"), couponReconciliation)
                 )
             )
             val values = ContentValues().apply {
