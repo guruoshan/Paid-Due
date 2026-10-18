@@ -344,6 +344,9 @@ class FinancialSyncEngineTest {
     @Test
     fun cashierSessionCannotInitiateOutboundSync() = runTest {
         coEvery { db.financialSyncOutboxDao() } returns outboxDao
+        coEvery { db.operationDao() } returns operationDao
+        coEvery { db.transactionDao() } returns transactionDao
+        coEvery { db.expenseDao() } returns expenseDao
         val branch = BranchEntity(
             id = "branch-1",
             businessId = "biz-1",
