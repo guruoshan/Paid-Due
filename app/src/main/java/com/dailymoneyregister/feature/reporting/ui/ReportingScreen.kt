@@ -46,6 +46,7 @@ import com.dailymoneyregister.feature.reporting.domain.ReportActivityFilter
 import com.dailymoneyregister.feature.reporting.domain.ReportActivityType
 import com.dailymoneyregister.feature.reporting.domain.ReportPaymentFilter
 import com.dailymoneyregister.feature.reporting.domain.ReportingPeriodPreset
+import com.dailymoneyregister.feature.reporting.pdf.ReportingPdfActions
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -212,6 +213,11 @@ fun ReportingScreen(
                     state.paymentFilter,
                 onSelected =
                     viewModel::selectPayment
+            )
+
+            ReportingPdfActions(
+                state = state,
+                modifier = Modifier.padding(bottom = 4.dp)
             )
 
             when {
