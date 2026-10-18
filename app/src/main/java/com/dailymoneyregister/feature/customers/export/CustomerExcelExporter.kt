@@ -125,7 +125,23 @@ class CustomerExcelExporter @Inject constructor(
             }
             val summary = customers.values.map { customer ->
                 val rows = groups[customer.phone.filter { it.isDigit() }.ifEmpty { customer.phone }].orEmpty()
-                listOf(customer.name,customer.phone,rows.count { it.type.contains("SALE",true) },rows.filter { it.type.contains("SALE",true) }.sumOf { it.amount },rows.filter { it.type == "CREDIT_SALE" }.sumOf { it.creditAmount },rows.filter { it.type.contains("REPAY",true) }.sumOf { it.amount },rows.filter { it.type.contains("REFUND",true) }.sumOf { it.amount },rows.filter { it.type.contains("COUPON",true) }.sumOf { it.amount },rows.sumOf { it.creditAmount }-rows.filter { it.type.contains("REPAY",true) }.sumOf { it.amount },rows.sumOf { it.amount })
+                // Invoices are separate document-history rows and repayments are balance
+                // movements, not new sales. Do not include either in sales or net value.
+                val sales = rows.filter { it.type.contains("SALE", true) && !it.type.contains("REPAY", true) }
+                val repayments = rows.filter { it.type.contains("REPAY", true) }
+                val refunds = rows.filter { it.type.contains("REFUND", true) }
+                listOf(
+                    customer.name,
+                    customer.phone,
+                    sales.size,
+                    sales.sumOf { it.amount },
+                    sales.filter { it.type == "CREDIT_SALE" }.sumOf { it.creditAmount },
+                    repayments.sumOf { it.amount },
+                    refunds.sumOf { it.amount },
+                    rows.filter { it.type.contains("COUPON", true) }.sumOf { it.amount },
+                    rows.sumOf { it.creditAmount } - repayments.sumOf { it.amount },
+                    sales.sumOf { it.amount } + refunds.sumOf { it.amount }
+                )
             }
             val history = activity.map { listOf(fmt(it.date),SimpleDateFormat("HH:mm:ss",Locale.US).format(Date(it.date)),it.branch,it.name,it.phone,it.type,it.ref,it.amount,it.paymentMethod,"Recorded") }
             val day = SimpleDateFormat("yyyy_MM_dd",Locale.US).format(Date())
