@@ -154,7 +154,7 @@ class CustomerExcelExporter @Inject constructor(
             // Refunds retain the original transaction currency and are negative in transaction history.
             db.query(
                 "SELECT t.customer_id,t.branch_id,t.currency_code,t.currency_decimal_places,r.refund_amount_minor," +
-                    "r.occurred_at,r.id,t.id FROM refund_events r JOIN transactions t ON t.id=r.transaction_id " +
+                    "r.occurred_at,r.id,t.id,t.type FROM refund_events r JOIN transactions t ON t.id=r.transaction_id " +
                     "JOIN branches b ON b.id=t.branch_id AND b.business_id=? " +
                     "JOIN customers c ON c.id=t.customer_id AND c.business_id=? ORDER BY r.occurred_at,r.id",
                 arrayOf(businessId, businessId)
@@ -168,9 +168,10 @@ class CustomerExcelExporter @Inject constructor(
                     activities.add(
                         Activity(
                             customer.id, c.getLong(5), branches[c.getString(1)]?.name.orEmpty(),
-                            customer.name, customer.phone, "REFUND", c.getString(6), currency, decimals,
-                            -kotlin.math.abs(c.getLong(4)),
-                            payment = paymentMethodForTransaction(db, c.getString(7), "SALE")
+                            customer.name, customer.phone,
+                            if (c.getString(8) == "COUPON_PURCHASE") "COUPON_PURCHASE_REFUND" else "REFUND",
+                            c.getString(6), currency, decimals, -kotlin.math.abs(c.getLong(4)),
+                            payment = paymentMethodForTransaction(db, c.getString(7), c.getString(8))
                         )
                     )
                 }
@@ -286,7 +287,7 @@ class CustomerExcelExporter @Inject constructor(
                     customer.id, customer.name, customer.phone, fmt(rows.minOfOrNull { it.date }),
                     fmt(rows.maxOfOrNull { it.date }), rows.size, invoiceCounts[customer.id] ?: 0,
                     rows.count { it.type == "SALE" && it.status == "Recorded" },
-                    rows.count { it.type == "REFUND" },
+                    rows.count { it.type == "REFUND" || it.type == "COUPON_PURCHASE_REFUND" },
                     if (rows.isEmpty()) "No recorded activity" else "Active"
                 )
             }
@@ -302,12 +303,14 @@ class CustomerExcelExporter @Inject constructor(
                 val couponPurchases = rows.filter { it.type == "COUPON_PURCHASE" && it.status == "Recorded" }
                 val repayments = rows.filter { it.type == "CREDIT_REPAYMENT" }
                 val refunds = rows.filter { it.type == "REFUND" }
+                val couponRefunds = rows.filter { it.type == "COUPON_PURCHASE_REFUND" }
                 val decimals = decimalsByCurrency[key.currency]
                     ?: com.dailymoneyregister.core.model.currency.CurrencyRegistry.findByCode(key.currency).decimalPlaces
                 val salesMinor = sales.sumOf { it.amountMinor ?: 0L }
                 val creditFundingMinor = sales.sumOf { it.creditMinor }
                 val repaidMinor = repayments.sumOf { it.amountMinor ?: 0L }
                 val refundMinor = refunds.sumOf { kotlin.math.abs(it.amountMinor ?: 0L) }
+                val couponRefundMinor = couponRefunds.sumOf { kotlin.math.abs(it.amountMinor ?: 0L) }
                 val couponMinor = couponPurchases.sumOf { it.amountMinor ?: 0L }
                 val ledger = ledgerByKey[key] ?: Ledger()
                 val allSaleCreditFundingMinor = rows.filter { it.type == "SALE" }.sumOf { it.creditMinor }
@@ -315,7 +318,7 @@ class CustomerExcelExporter @Inject constructor(
                 listOf(
                     customer.id, customer.name, customer.phone, key.currency, sales.size,
                     money(salesMinor, decimals), money(creditFundingMinor, decimals),
-                    money(repaidMinor, decimals), money(refundMinor, decimals), money(couponMinor, decimals),
+                    money(repaidMinor, decimals), money(refundMinor, decimals), money(couponRefundMinor, decimals), money(couponMinor, decimals),
                     money(salesMinor - refundMinor, decimals), money(ledger.obligations, decimals),
                     money(-ledger.repaymentsSigned, decimals), money(ledger.adjustments, decimals),
                     money(ledger.balance, decimals), money(variance, decimals),
@@ -384,7 +387,7 @@ class CustomerExcelExporter @Inject constructor(
             val bytes = xlsx(
                 listOf(
                     listOf("Customer Directory", listOf("Customer ID", "Customer Name", "Phone Number", "First Activity Date", "Last Activity Date", "Recorded Activity Rows", "Invoice Count", "Valid Sale Count", "Refund Count", "Status"), directory),
-                    listOf("Customer Financial Summary", listOf("Customer ID", "Customer Name", "Phone Number", "Currency", "Valid Sale Count", "Sales Value", "Credit Sales Funding", "Credit Repaid (Collections)", "Refund Value", "Coupon Purchases", "Net Sales After Refunds", "Credit Ledger Obligations", "Credit Ledger Repayments", "Credit Ledger Adjustments", "Outstanding Credit (Authoritative Ledger)", "Obligation Variance (Ledger - All Sale Funding)", "Reconciliation Status"), summary),
+                    listOf("Customer Financial Summary", listOf("Customer ID", "Customer Name", "Phone Number", "Currency", "Valid Sale Count", "Sales Value", "Credit Sales Funding", "Credit Repaid (Collections)", "Sale Refund Value", "Coupon Purchase Refund Value", "Coupon Purchases", "Net Sales After Sale Refunds", "Credit Ledger Obligations", "Credit Ledger Repayments", "Credit Ledger Adjustments", "Outstanding Credit (Authoritative Ledger)", "Obligation Variance (Ledger - All Sale Funding)", "Reconciliation Status"), summary),
                     listOf("Full Transaction History", listOf("Date", "Time", "Branch", "Customer ID", "Customer Name", "Phone Number", "Event Type", "Reference Number", "Currency", "Amount (refunds negative)", "Payment Method", "Status"), history),
                     listOf("Credit Reconciliation", listOf("Customer ID", "Customer Name", "Currency", "Sale Credit Funding (including voided originals)", "Ledger Obligations", "Obligation Variance", "Ledger Repayments", "Ledger Adjustments", "Outstanding Credit Ledger Balance", "Control Status"), reconciliation),
                     listOf("Coupon Reconciliation", listOf("Customer ID", "Customer Name", "Currency", "Ledger Event Count", "Coupon Purchase Transaction Value", "Coupon Ledger Purchase Value", "Purchase Variance (Ledger - Transaction)", "Promotion Bonuses", "Redemptions", "Refund Credits", "Ledger Wallet Balance", "Control Status"), couponReconciliation)
