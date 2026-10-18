@@ -275,6 +275,78 @@ class RemoteFinancialSyncRepository @Inject constructor(
         }.getOrDefault(false)
     }
 
+    /**
+     * Fetches one bounded page of authoritative cloud envelopes for a report's
+     * exact scope. The server validates the Admin membership for every branch.
+     */
+    suspend fun fetchFinancialReportingInventoryPage(
+        businessId: String,
+        branchIds: List<String>,
+        fromInclusiveMillis: Long,
+        toExclusiveMillis: Long,
+        actorUserId: String?,
+        afterReceivedAt: String? = null,
+        afterOperationId: String? = null,
+        limit: Int = 100
+    ): List<RemoteEnvelopeV2> {
+        require(businessId.isNotBlank())
+        require(branchIds.isNotEmpty() && branchIds.all { it.isNotBlank() })
+        require(fromInclusiveMillis < toExclusiveMillis)
+        require((afterReceivedAt == null && afterOperationId == null) ||
+            (afterReceivedAt != null && afterOperationId != null))
+        require(limit in 1..100)
+
+        val session = SessionManager.currentSession.value
+        if (session?.user?.role != com.dailymoneyregister.core.model.enums.UserRole.ADMIN ||
+            session.business.id != businessId
+        ) {
+            throw SecurityException("ADMIN_REPORTING_SESSION_REQUIRED")
+        }
+        if (supabase.auth.currentSessionOrNull() == null) {
+            throw SecurityException("ADMIN_SUPABASE_AUTH_REQUIRED")
+        }
+
+        val params = FetchReportingInventoryParams(
+            businessId = businessId,
+            branchIds = branchIds.distinct(),
+            fromOccurredAt = java.time.Instant.ofEpochMilli(fromInclusiveMillis).toString(),
+            toOccurredAt = java.time.Instant.ofEpochMilli(toExclusiveMillis).toString(),
+            actorUserId = actorUserId,
+            afterReceivedAt = afterReceivedAt,
+            afterOperationId = afterOperationId,
+            limit = limit
+        )
+        val paramJsonObj = json.parseToJsonElement(
+            json.encodeToString(FetchReportingInventoryParams.serializer(), params)
+        ).jsonObject
+        val dtoList = supabase.postgrest.rpc(
+            function = "fetch_financial_reporting_inventory_v1",
+            parameters = paramJsonObj
+        ).decodeList<RemoteEnvelopeV2Dto>()
+
+        return dtoList.map { dto ->
+            val payload = if (dto.canonicalPayload != null) {
+                JSONObject(dto.canonicalPayload.toString())
+            } else {
+                JSONObject(dto.canonicalText)
+            }
+            RemoteEnvelopeV2(
+                operationId = dto.operationId,
+                businessId = dto.businessId,
+                branchId = dto.branchId,
+                operationType = dto.operationType,
+                occurredAtIso = dto.occurredAt,
+                receivedAtIso = dto.receivedAt,
+                canonicalText = dto.canonicalText,
+                payloadJson = payload,
+                canonicalSha256 = dto.canonicalSha256,
+                actorMembershipId = dto.actorMembershipId,
+                actorLocalUserId = dto.actorLocalUserId,
+                actorRole = dto.actorRole
+            )
+        }
+    }
+
     suspend fun fetchRemoteEnvelopesV2(
         businessId: String,
         afterReceivedAt: String? = null,
@@ -457,6 +529,18 @@ private data class AdminSessionScopeDto(
 @Serializable
 data class FetchEnvelopesV2Params(
     @SerialName("p_business_id") val businessId: String,
+    @SerialName("p_after_received_at") val afterReceivedAt: String? = null,
+    @SerialName("p_after_operation_id") val afterOperationId: String? = null,
+    @SerialName("p_limit") val limit: Int = 100
+)
+
+@Serializable
+data class FetchReportingInventoryParams(
+    @SerialName("p_business_id") val businessId: String,
+    @SerialName("p_branch_ids") val branchIds: List<String>,
+    @SerialName("p_from_occurred_at") val fromOccurredAt: String,
+    @SerialName("p_to_occurred_at") val toOccurredAt: String,
+    @SerialName("p_actor_user_id") val actorUserId: String? = null,
     @SerialName("p_after_received_at") val afterReceivedAt: String? = null,
     @SerialName("p_after_operation_id") val afterOperationId: String? = null,
     @SerialName("p_limit") val limit: Int = 100
