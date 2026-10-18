@@ -262,9 +262,11 @@ object FinancialReconciliationEngine {
         }.map { it.operationId }.distinct().sorted()
         val unmatchedRows = rows.filter { row ->
             val id = row.operationId
-            id.isNullOrBlank() ||
-                id !in cloudById ||
-                localById[id]?.status != OperationStatus.SUCCEEDED
+            if (id.isNullOrBlank()) {
+                true
+            } else {
+                id !in cloudById || localById[id]?.status != OperationStatus.SUCCEEDED
+            }
         }.map { it.stableId }.distinct().sorted()
         val typeMismatches = rows.filter { row ->
             val id = row.operationId ?: return@filter true
