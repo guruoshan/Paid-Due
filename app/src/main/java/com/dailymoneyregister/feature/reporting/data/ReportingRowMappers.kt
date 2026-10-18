@@ -212,7 +212,7 @@ internal object ReportingRowMappers {
             // A credit obligation is the unpaid tender component, not a collection.
             // Represent it as CREDIT so the sale total remains fully classified without
             // fabricating a cash/card settlement.
-            val obligationMinor = record.creditLedgerEvents
+            val obligationMinor = creditEvents
                 .filter {
                     it.transactionId == tx.id &&
                         it.type == CreditLedgerType.OBLIGATION &&
