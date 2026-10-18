@@ -1,6 +1,7 @@
 package com.dailymoneyregister
 
 import android.content.Context
+import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -80,6 +81,14 @@ class DmrDatabaseIntegrationTest {
     private lateinit var cashierManagementRepository: CashierManagementRepository
     private lateinit var context: Context
     private lateinit var trustedSessionStore: TrustedSessionStore
+    private val ownedViewModelStores = mutableListOf<ViewModelStore>()
+
+    private fun trackViewModel(viewModel: SettingsViewModel): SettingsViewModel {
+        val store = ViewModelStore()
+        store.put("settings-${ownedViewModelStores.size}", viewModel)
+        ownedViewModelStores += store
+        return viewModel
+    }
 
     @Before
     fun setUp() {
@@ -96,6 +105,9 @@ class DmrDatabaseIntegrationTest {
 
     @After
     fun tearDown() {
+        // Cancel manually constructed ViewModels before closing their shared test database.
+        ownedViewModelStores.forEach { it.clear() }
+        ownedViewModelStores.clear()
         trustedSessionStore.clear()
         SessionManager.clearSession()
         database.close()
@@ -1199,11 +1211,11 @@ class DmrDatabaseIntegrationTest {
         val beforeBranch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
         val languageManager = LanguageManager(context)
         val originalLanguage = languageManager.currentLanguage.value.code
-        val viewModel = SettingsViewModel(
+        val viewModel = trackViewModel(SettingsViewModel(
             languageManager,
             SettingsRepository(database.userDao(), database.businessBranchDao()),
             MerchantQrRepository(database.documentMediaDao(), context)
-        )
+        ))
         val initialSession = ActiveSession(
             business = beforeBusiness,
             branch = beforeBranch,
@@ -1252,11 +1264,11 @@ class DmrDatabaseIntegrationTest {
         val beforeBranch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
         val languageManager = LanguageManager(context)
         val originalLanguage = languageManager.currentLanguage.value.code
-        val viewModel = SettingsViewModel(
+        val viewModel = trackViewModel(SettingsViewModel(
             languageManager,
             SettingsRepository(database.userDao(), database.businessBranchDao()),
             MerchantQrRepository(database.documentMediaDao(), context)
-        )
+        ))
         val initialSession = ActiveSession(
             business = beforeBusiness,
             branch = beforeBranch,
