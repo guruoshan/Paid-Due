@@ -274,6 +274,35 @@ class RemoteEnvelopeMaterializerTest {
         coVerify(exactly = 0) { transactionDao.insertTransaction(any()) }
     }
 
+    @Test
+    fun removedOriginalTransactionCreatorRemainsValidHistoricalAttribution() = runTest {
+        val removedCreatorId = "removed-original-sale-cashier"
+        val tombstone = cloudIdentity.copy(
+            membershipId = "removed-original-sale-membership",
+            localUserId = removedCreatorId,
+            isActive = false,
+            isRemoved = true
+        )
+        coEvery {
+            identityDao.findIdentity(removedCreatorId, businessId, branchId)
+        } returns tombstone
+        coEvery {
+            userDao.getUserByIdInBusiness(removedCreatorId, businessId)
+        } returns null
+
+        val result = RemoteEnvelopeMaterializer.hasHistoricalActorReference(
+            database = database,
+            actorUserId = removedCreatorId,
+            businessId = businessId,
+            branchId = branchId
+        )
+
+        assertEquals(true, result)
+        coVerify(exactly = 0) {
+            userDao.getUserByIdInBusiness(removedCreatorId, businessId)
+        }
+    }
+
     private fun expenseEnvelope(): RemoteEnvelopeV2 {
         val base = cashSaleEnvelope()
         val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at")
