@@ -608,6 +608,7 @@ data class ReportingSummary(
 
     val cashSalesCollected: MoneyMinorUnits = MoneyMinorUnits.ZERO,
     val onlineSalesCollected: MoneyMinorUnits = MoneyMinorUnits.ZERO,
+    val couponSalesCollected: MoneyMinorUnits = MoneyMinorUnits.ZERO,
 
     val creditSalesOriginated: MoneyMinorUnits = MoneyMinorUnits.ZERO,
 
