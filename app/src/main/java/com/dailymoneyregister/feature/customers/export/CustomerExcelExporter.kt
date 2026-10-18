@@ -54,6 +54,38 @@ class CustomerExcelExporter @Inject constructor(
                     activity.add(Activity(c.getLong(5),branches[c.getString(0)].orEmpty(),customer.name,customer.phone,c.getString(1),c.getString(6),amount,c.getString(7)))
                 }
             }
+            // Include repayments and issued invoices as first-class history events.
+            runCatching {
+                db.query("SELECT r.customer_id,r.amount_minor,r.currency_code,r.occurred_at,r.id,r.payment_category,b.name,b.currency_decimal_places FROM credit_repayments r JOIN customers c ON c.id=r.customer_id JOIN operations o ON o.id=r.operation_id JOIN branches b ON b.id=o.branch_id WHERE c.business_id=? ORDER BY r.occurred_at", arrayOf(businessId)).use { c ->
+                    while(c.moveToNext()) {
+                        val phoneCursor = db.query("SELECT name,canonical_phone FROM customers WHERE id=?", arrayOf(c.getString(0)))
+                        phoneCursor.use { p ->
+                            if (p.moveToFirst()) {
+                                val phone = p.getString(1).orEmpty()
+                                val key = phone.filter { it.isDigit() }.ifEmpty { phone }
+                                val customer = customers[key] ?: continue
+                                val amount = c.getLong(1).toDouble() / Math.pow(10.0,c.getInt(7).toDouble())
+                                activity.add(Activity(c.getLong(3),c.getString(6),customer.name,customer.phone,"CREDIT_REPAYMENT",c.getString(4),amount,c.getString(2)))
+                            }
+                        }
+                    }
+                }
+            }
+            runCatching {
+                db.query("SELECT d.customer_id,d.created_at,d.display_number,d.document_type FROM documents d JOIN operations o ON o.id=d.operation_id WHERE o.business_id=? AND d.customer_id IS NOT NULL ORDER BY d.created_at", arrayOf(businessId)).use { c ->
+                    while(c.moveToNext()) {
+                        val customerRow = db.query("SELECT name,canonical_phone FROM customers WHERE id=?", arrayOf(c.getString(0)))
+                        customerRow.use { p ->
+                            if (p.moveToFirst()) {
+                                val phone = p.getString(1).orEmpty()
+                                val key = phone.filter { it.isDigit() }.ifEmpty { phone }
+                                val customer = customers[key] ?: continue
+                                activity.add(Activity(c.getLong(1),"",customer.name,customer.phone,c.getString(3),c.getString(2),0.0,""))
+                            }
+                        }
+                    }
+                }
+            }
             val groups = activity.groupBy { it.phone.filter { ch -> ch.isDigit() }.ifEmpty { it.phone } }
             val directory = customers.values.map { customer ->
                 val rows = groups[customer.phone.filter { it.isDigit() }.ifEmpty { customer.phone }].orEmpty()
