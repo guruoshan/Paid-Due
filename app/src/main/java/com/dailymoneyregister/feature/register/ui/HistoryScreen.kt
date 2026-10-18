@@ -293,7 +293,7 @@ private fun HistoryExpenseCard(
         ) {
 
             Surface(
-                modifier = Modifier.width(112.dp).height(24.dp),
+                modifier = Modifier.widthIn(min = 112.dp, max = 180.dp).heightIn(min = 24.dp),
                 color = expenseFlowColor.copy(alpha = if (isDarkTheme) 0.20f else 0.12f),
                 contentColor = expenseFlowColor,
                 shape = RoundedCornerShape(6.dp)
@@ -439,12 +439,12 @@ private fun HistoryTransactionCard(
             val transactionTypeLabel = when (financial.financialKind) {
                 com.dailymoneyregister.core.model.financial.FinancialTransactionKind.MERCHANDISE_SALE ->
                     if (financial.currentPaymentCategory == PaymentCategory.CREDIT) "CREDIT" else "SALE"
-                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.COUPON_SALE,
-                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.COUPON_TOP_UP -> "SALE"
+                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.COUPON_SALE -> "COUPON SALE"
+                com.dailymoneyregister.core.model.financial.FinancialTransactionKind.COUPON_TOP_UP -> "COUPON TOP-UP"
             }
 
             Surface(
-                modifier = Modifier.width(112.dp).height(24.dp),
+                modifier = Modifier.widthIn(min = 112.dp, max = 180.dp).heightIn(min = 24.dp),
                 color = (if (isSystemInDarkTheme()) Color(0xFF90CAF9) else Color(0xFF1565C0))
                     .copy(alpha = if (isSystemInDarkTheme()) 0.20f else 0.12f),
                 contentColor = if (isSystemInDarkTheme()) Color(0xFF90CAF9) else Color(0xFF1565C0),
@@ -460,7 +460,9 @@ private fun HistoryTransactionCard(
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.labelSmall,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        maxLines = 1
+                        maxLines = 2,
+                        softWrap = true,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
