@@ -55,6 +55,49 @@ class FinancialSyncEngineTest {
     private val opId = "0199c001-1234-7abc-8def-0123456789ab"
     private val txId = "tx-0199c001-1234-7abc-8def-0123456789ab"
 
+    private fun setAdminSessionForInboundTests(userId: String = "test-admin") {
+        val branch = BranchEntity(
+            id = "branch-1",
+            businessId = "biz-1",
+            name = "Main",
+            code = "MAIN",
+            countryCode = "OM",
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat",
+            taxRoundingMode = com.dailymoneyregister.core.model.tax.TaxRoundingMode.HALF_UP,
+            defaultTaxRateBps = 0,
+            createdAt = 1L,
+            updatedAt = 1L
+        )
+        SessionManager.setSession(
+            ActiveSession(
+                business = BusinessEntity("biz-1", "Shop", 1L, 1L),
+                branch = branch,
+                user = UserAccountEntity(
+                    id = userId,
+                    businessId = "biz-1",
+                    displayName = "Admin",
+                    username = "admin",
+                    role = UserRole.ADMIN,
+                    authType = AuthType.PIN,
+                    credentialHash = "test-hash",
+                    credentialSalt = null,
+                    createdAt = 1L,
+                    updatedAt = 1L
+                ),
+                membership = UserBranchMembershipEntity(
+                    id = "membership-1",
+                    userId = userId,
+                    branchId = "branch-1",
+                    role = UserRole.ADMIN,
+                    createdAt = 1L
+                )
+            )
+        )
+    }
+
     private val outboxItem = FinancialSyncOutboxEntity(
         operationId = opId,
         businessId = "biz-1",
@@ -215,6 +258,7 @@ class FinancialSyncEngineTest {
 
     @Test
     fun syncInboundFetchesAndProcessesRemoteEnvelopes() = runTest {
+        setAdminSessionForInboundTests()
         coEvery { db.businessBranchDao() } returns businessBranchDao
         coEvery { db.userDao() } returns userDao
         coEvery { businessBranchDao.getBusinessById("biz-1") } returns mockk()
@@ -464,6 +508,7 @@ class FinancialSyncEngineTest {
 
     @Test
     fun syncInboundRejectsMissingOrMismatchedRemoteDigestBeforeApplying() = runTest {
+        setAdminSessionForInboundTests()
         coEvery { db.businessBranchDao() } returns businessBranchDao
         coEvery { db.userDao() } returns userDao
         coEvery { businessBranchDao.getBusinessById("biz-1") } returns mockk()
@@ -491,6 +536,7 @@ class FinancialSyncEngineTest {
 
     @Test
     fun rejectedEnvelopeDoesNotBlockLaterValidEnvelope() = runTest {
+        setAdminSessionForInboundTests()
         coEvery { db.businessBranchDao() } returns businessBranchDao
         coEvery { db.userDao() } returns userDao
         coEvery { businessBranchDao.getBusinessById("biz-1") } returns mockk()
