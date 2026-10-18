@@ -339,7 +339,7 @@ class FinancialSyncEngineTest {
     }
 
     @Test
-    fun cashierSessionCannotInitiateInboundSync() = runTest {
+    fun cashierSessionCanInitiateBranchScopedInboundSync() = runTest {
         val branch = BranchEntity(
             id = "branch-1",
             businessId = "biz-1",
@@ -380,17 +380,29 @@ class FinancialSyncEngineTest {
                 )
             )
         )
+        coEvery { db.businessBranchDao() } returns businessBranchDao
+        coEvery { db.userDao() } returns userDao
+        coEvery { businessBranchDao.getBusinessById("biz-1") } returns mockk()
+        coEvery {
+            remoteRepo.fetchRemoteEnvelopesV2("biz-1", null, null, any())
+        } returns emptyList()
 
         assertEquals(0, engine.syncInbound("biz-1", "cloud-cashier"))
-        coVerify(exactly = 0) { remoteRepo.fetchRemoteEnvelopesV2(any(), any(), any(), any()) }
+        coVerify(exactly = 1) {
+            remoteRepo.fetchRemoteEnvelopesV2("biz-1", null, null, any())
+        }
     }
 
     @Test
-    fun cashierSessionCannotInitiateOutboundSync() = runTest {
+    fun cashierSessionCanUploadItsOwnQueuedFinancialOperation() = runTest {
         coEvery { db.financialSyncOutboxDao() } returns outboxDao
         coEvery { db.operationDao() } returns operationDao
         coEvery { db.transactionDao() } returns transactionDao
         coEvery { db.expenseDao() } returns expenseDao
+        coEvery { db.businessBranchDao() } returns businessBranchDao
+
+        val cashierOutboxItem = outboxItem.copy(actorUserId = "cloud-cashier")
+        val cashierOperation = operation.copy(actorUserId = "cloud-cashier")
         val branch = BranchEntity(
             id = "branch-1",
             businessId = "biz-1",
@@ -431,9 +443,30 @@ class FinancialSyncEngineTest {
                 )
             )
         )
+        coEvery { outboxDao.classifyExistingRows() } returns 0
+        coEvery { outboxDao.resetStaleInFlight() } returns 0
+        coEvery {
+            outboxDao.getPendingUploadForActor("biz-1", "branch-1", "cloud-cashier", 50)
+        } returns listOf(cashierOutboxItem)
+        coEvery { outboxDao.getStatusCounts() } returns emptyList()
+        coEvery { outboxDao.updateStatus(any(), any(), any()) } returns 1
+        coEvery { outboxDao.deleteAcknowledged(any()) } returns 1
+        coEvery { operationDao.getOperationById(opId) } returns cashierOperation
+        coEvery { transactionDao.getTransactionById(txId) } returns transaction
+        coEvery { transactionDao.getItemsForTransaction(txId) } returns emptyList()
+        coEvery { transactionDao.getSettlementsForOperation(opId) } returns emptyList()
+        coEvery { expenseDao.getExpenseByOperationId(opId) } returns null
+        coEvery { businessBranchDao.getBranchById("branch-1") } returns branch
+        coEvery { remoteRepo.uploadEnvelope(any(), any(), any(), any()) } answers {
+            val envelope = firstArg<FinancialEnvelopeCodec.EncodedEnvelope>()
+            FinancialSyncReceipt.Acknowledged(envelope.operationId, envelope.canonicalSha256)
+        }
 
-        assertEquals(0, engine.syncOutbound("cashier-membership"))
-        coVerify(exactly = 0) { remoteRepo.uploadEnvelope(any(), any(), any(), any()) }
+        assertEquals(1, engine.syncOutbound("cashier-membership", UserRole.CASHIER))
+        coVerify(exactly = 1) {
+            remoteRepo.uploadEnvelope(any(), "cashier-membership", "Asia/Muscat", any())
+        }
+        coVerify(exactly = 1) { outboxDao.deleteAcknowledged(opId) }
     }
 
     @Test
