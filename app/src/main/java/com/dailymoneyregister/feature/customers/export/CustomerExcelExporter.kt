@@ -227,6 +227,51 @@ class CustomerExcelExporter @Inject constructor(
                 }
             }
 
+            // Coupon value is a separate stored-value ledger. Report purchases, bonuses,
+            // redemptions and refund credits separately; never add these again to sales revenue.
+            data class CouponEvent(
+                val customerId: String, val currency: String, val decimals: Int,
+                val type: String, val amountMinor: Long, val occurredAt: Long, val id: String
+            )
+            val couponEvents = mutableListOf<CouponEvent>()
+            db.query(
+                "SELECT w.customer_id,w.currency_code,e.currency_code,e.type,e.amount_signed_minor,e.occurred_at,e.id," +
+                    "o.branch_id,b.currency_code,b.currency_decimal_places " +
+                    "FROM coupon_ledger_events e JOIN coupon_wallets w ON w.id=e.wallet_id " +
+                    "JOIN customers c ON c.id=w.customer_id AND c.business_id=? " +
+                    "JOIN operations o ON o.id=e.operation_id AND o.business_id=? " +
+                    "LEFT JOIN branches b ON b.id=o.branch_id ORDER BY e.occurred_at,e.id",
+                arrayOf(businessId, businessId)
+            ).use { c ->
+                while (c.moveToNext()) {
+                    val customerId = c.getString(0)
+                    require(customers.containsKey(customerId)) {
+                        "Coupon ledger has no matching business customer: " + customerId
+                    }
+                    val walletCurrency = c.getString(1).uppercase(Locale.ROOT)
+                    val eventCurrency = c.getString(2).uppercase(Locale.ROOT)
+                    require(walletCurrency == eventCurrency) {
+                        "Coupon wallet currency mismatch for event " + c.getString(6) +
+                            "; export stopped rather than mixing currencies"
+                    }
+                    val branchCurrency = c.getString(8)
+                    val decimals = decimalsByCurrency[eventCurrency] ?: if (
+                        branchCurrency.equals(eventCurrency, true) && !c.isNull(9)
+                    ) {
+                        c.getInt(9)
+                    } else {
+                        com.dailymoneyregister.core.model.currency.CurrencyRegistry.findByCode(eventCurrency).decimalPlaces
+                    }
+                    registerCurrency(eventCurrency, decimals)
+                    couponEvents.add(
+                        CouponEvent(
+                            customerId, eventCurrency, decimals, c.getString(3), c.getLong(4),
+                            c.getLong(5), c.getString(6)
+                        )
+                    )
+                }
+            }
+
             val invoiceCounts = mutableMapOf<String, Int>()
             db.query(
                 "SELECT d.customer_id,COUNT(*) FROM documents d JOIN operations o ON o.id=d.operation_id " +
@@ -278,6 +323,28 @@ class CustomerExcelExporter @Inject constructor(
                 )
             }
 
+            val couponReconciliation = couponEvents
+                .groupBy { Key(it.customerId, it.currency) }
+                .entries
+                .sortedWith(compareBy({ it.key.customerId }, { it.key.currency }))
+                .map { (key, events) ->
+                    val customer = customers[key.customerId] ?: error("Missing customer in coupon reconciliation")
+                    val decimals = decimalsByCurrency[key.currency]
+                        ?: com.dailymoneyregister.core.model.currency.CurrencyRegistry.findByCode(key.currency).decimalPlaces
+                    val purchased = events.filter { it.type == "PURCHASE" }.sumOf { it.amountMinor }
+                    val bonuses = events.filter { it.type == "PROMOTION_BONUS" }.sumOf { it.amountMinor }
+                    val redemptions = events.filter { it.type == "REDEMPTION" }.sumOf { kotlin.math.abs(it.amountMinor) }
+                    val refundCredits = events.filter { it.type == "REFUND_CREDIT" }.sumOf { it.amountMinor }
+                    val walletBalance = events.sumOf { it.amountMinor }
+                    listOf(
+                        customer.id, customer.name, key.currency, events.size,
+                        money(purchased, decimals), money(bonuses, decimals), money(redemptions, decimals),
+                        money(refundCredits, decimals), money(walletBalance, decimals),
+                        if (walletBalance == purchased + bonuses - redemptions + refundCredits) "PASS"
+                        else "INVESTIGATE: coupon ledger arithmetic variance"
+                    )
+                }
+
             val history = activities.sortedWith(compareBy<Activity> { it.date }.thenBy { it.ref }.thenBy { it.customerId }).map { row ->
                 listOf(
                     fmt(row.date), SimpleDateFormat("HH:mm:ss", Locale.US).format(Date(row.date)),
@@ -309,7 +376,8 @@ class CustomerExcelExporter @Inject constructor(
                     listOf("Customer Directory", listOf("Customer ID", "Customer Name", "Phone Number", "First Activity Date", "Last Activity Date", "Recorded Activity Rows", "Invoice Count", "Valid Sale Count", "Refund Count", "Status"), directory),
                     listOf("Customer Financial Summary", listOf("Customer ID", "Customer Name", "Phone Number", "Currency", "Valid Sale Count", "Sales Value", "Credit Sales Funding", "Credit Repaid (Collections)", "Refund Value", "Coupon Purchases", "Net Sales After Refunds", "Credit Ledger Obligations", "Credit Ledger Repayments", "Credit Ledger Adjustments", "Outstanding Credit (Authoritative Ledger)", "Obligation Variance (Ledger - All Sale Funding)", "Reconciliation Status"), summary),
                     listOf("Full Transaction History", listOf("Date", "Time", "Branch", "Customer ID", "Customer Name", "Phone Number", "Event Type", "Reference Number", "Currency", "Amount (refunds negative)", "Payment Method", "Status"), history),
-                    listOf("Credit Reconciliation", listOf("Customer ID", "Customer Name", "Currency", "Sale Credit Funding (including voided originals)", "Ledger Obligations", "Obligation Variance", "Ledger Repayments", "Ledger Adjustments", "Outstanding Credit Ledger Balance", "Control Status"), reconciliation)
+                    listOf("Credit Reconciliation", listOf("Customer ID", "Customer Name", "Currency", "Sale Credit Funding (including voided originals)", "Ledger Obligations", "Obligation Variance", "Ledger Repayments", "Ledger Adjustments", "Outstanding Credit Ledger Balance", "Control Status"), reconciliation),
+                    listOf("Coupon Reconciliation", listOf("Customer ID", "Customer Name", "Currency", "Ledger Event Count", "Coupon Purchases (ledger)", "Promotion Bonuses", "Redemptions", "Refund Credits", "Wallet Balance", "Control Status"), couponReconciliation)
                 )
             )
             val values = ContentValues().apply {
