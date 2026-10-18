@@ -37,7 +37,8 @@ class CustomerExcelExporter @Inject constructor(
                 val customerId: String, val date: Long, val branch: String, val name: String,
                 val phone: String, val type: String, val ref: String, val currency: String,
                 val decimals: Int, val amountMinor: Long?, val creditMinor: Long = 0L,
-                val payment: String = "", val status: String = "Recorded"
+                val payment: String = "", val status: String = "Recorded",
+                val relatedTransactionId: String? = null
             )
             data class Ledger(
                 var obligations: Long = 0L, var repaymentsSigned: Long = 0L,
@@ -87,6 +88,7 @@ class CustomerExcelExporter @Inject constructor(
                     "SELECT 1 FROM void_events WHERE transaction_id=? LIMIT 1",
                     arrayOf<Any?>(transactionId)
                 )).use { it.moveToFirst() }
+            val voidedTransactionIds = mutableSetOf<String>()
 
             db.query(
                 "SELECT t.branch_id,t.type,t.customer_id,t.grand_total_minor,t.currency_decimal_places,t.created_at," +
@@ -103,6 +105,7 @@ class CustomerExcelExporter @Inject constructor(
                     val decimals = c.getInt(4)
                     registerCurrency(currency, decimals)
                     val isVoid = voided(transactionId)
+                    if (isVoid) voidedTransactionIds.add(transactionId)
                     val creditMinor = if (c.getString(1) == "SALE") {
                         db.query(SimpleSQLiteQuery(
                             "SELECT COALESCE(SUM(amount_signed_minor),0) FROM settlement_entries " +
@@ -117,7 +120,8 @@ class CustomerExcelExporter @Inject constructor(
                             customer.name, customer.phone, c.getString(1), c.getString(6).orEmpty(),
                             currency, decimals, correctedAmount(transactionId, c.getLong(3)), creditMinor,
                             paymentMethodForTransaction(db, transactionId, c.getString(1)),
-                            if (isVoid) "VOIDED — excluded from net sales" else "Recorded"
+                            if (isVoid) "VOIDED — excluded from net sales" else "Recorded",
+                            relatedTransactionId = transactionId
                         )
                     )
                 }
@@ -165,13 +169,19 @@ class CustomerExcelExporter @Inject constructor(
                     val currency = c.getString(2).uppercase(Locale.ROOT)
                     val decimals = c.getInt(3)
                     registerCurrency(currency, decimals)
+                    val refundTransactionId = c.getString(7)
+                    val originalSaleWasVoided = refundTransactionId in voidedTransactionIds
                     activities.add(
                         Activity(
                             customer.id, c.getLong(5), branches[c.getString(1)]?.name.orEmpty(),
                             customer.name, customer.phone,
                             if (c.getString(8) == "COUPON_PURCHASE") "COUPON_PURCHASE_REFUND" else "REFUND",
                             c.getString(6), currency, decimals, -kotlin.math.abs(c.getLong(4)),
-                            payment = paymentMethodForTransaction(db, c.getString(7), c.getString(8))
+                            payment = paymentMethodForTransaction(db, refundTransactionId, c.getString(8)),
+                            status = if (originalSaleWasVoided)
+                                "Refund history — original sale also voided; not deducted twice"
+                            else "Recorded",
+                            relatedTransactionId = refundTransactionId
                         )
                     )
                 }
@@ -308,20 +318,24 @@ class CustomerExcelExporter @Inject constructor(
                 val couponRefunds = rows.filter { it.type == "COUPON_PURCHASE_REFUND" }
                 val decimals = decimalsByCurrency[key.currency]
                     ?: com.dailymoneyregister.core.model.currency.CurrencyRegistry.findByCode(key.currency).decimalPlaces
-                val salesMinor = sales.sumOf { it.amountMinor ?: 0L }
-                val creditFundingMinor = sales.sumOf { it.creditMinor }
-                val repaidMinor = repayments.sumOf { it.amountMinor ?: 0L }
-                val refundMinor = refunds.sumOf { kotlin.math.abs(it.amountMinor ?: 0L) }
-                val couponRefundMinor = couponRefunds.sumOf { kotlin.math.abs(it.amountMinor ?: 0L) }
-                val couponMinor = couponPurchases.sumOf { it.amountMinor ?: 0L }
+                val salesMinor = CustomerFinancialReconciliationMath.sumMinor(sales.map { it.amountMinor ?: 0L })
+                val creditFundingMinor = CustomerFinancialReconciliationMath.sumMinor(sales.map { it.creditMinor })
+                val repaidMinor = CustomerFinancialReconciliationMath.sumMinor(repayments.map { it.amountMinor ?: 0L })
+                val refundMinor = CustomerFinancialReconciliationMath.sumMinor(refunds.map { kotlin.math.abs(it.amountMinor ?: 0L) })
+                val couponRefundMinor = CustomerFinancialReconciliationMath.sumMinor(couponRefunds.map { kotlin.math.abs(it.amountMinor ?: 0L) })
+                val couponMinor = CustomerFinancialReconciliationMath.sumMinor(couponPurchases.map { it.amountMinor ?: 0L })
                 val ledger = ledgerByKey[key] ?: Ledger()
-                val allSaleCreditFundingMinor = rows.filter { it.type == "SALE" }.sumOf { it.creditMinor }
-                val variance = ledger.obligations - allSaleCreditFundingMinor
+                val allSaleCreditFundingMinor = CustomerFinancialReconciliationMath.sumMinor(rows.filter { it.type == "SALE" }.map { it.creditMinor })
+                val variance = Math.subtractExact(ledger.obligations, allSaleCreditFundingMinor)
                 listOf(
                     customer.id, customer.name, customer.phone, key.currency, sales.size,
                     money(salesMinor, decimals), money(creditFundingMinor, decimals),
                     money(repaidMinor, decimals), money(refundMinor, decimals), money(couponRefundMinor, decimals), money(couponMinor, decimals),
-                    money(salesMinor - refundMinor, decimals), money(ledger.obligations, decimals),
+                    money(CustomerFinancialReconciliationMath.netSalesAfterRefunds(
+                        salesMinor,
+                        refunds.map { (it.relatedTransactionId ?: error("Refund history is missing its original transaction ID")) to (it.amountMinor ?: 0L) },
+                        voidedTransactionIds
+                    ), decimals), money(ledger.obligations, decimals),
                     money(-ledger.repaymentsSigned, decimals), money(ledger.adjustments, decimals),
                     money(ledger.balance, decimals), money(variance, decimals),
                     if (variance == 0L) "OK" else "REVIEW — ledger obligations differ from sale credit funding"
@@ -344,13 +358,13 @@ class CustomerExcelExporter @Inject constructor(
                     }
                     val decimals = decimalsByCurrency[key.currency]
                         ?: com.dailymoneyregister.core.model.currency.CurrencyRegistry.findByCode(key.currency).decimalPlaces
-                    val transactionPurchase = transactionRows.sumOf { it.amountMinor ?: 0L }
-                    val ledgerPurchase = events.filter { it.type == "PURCHASE" }.sumOf { it.amountMinor }
-                    val bonuses = events.filter { it.type == "PROMOTION_BONUS" }.sumOf { it.amountMinor }
-                    val redemptions = events.filter { it.type == "REDEMPTION" }.sumOf { kotlin.math.abs(it.amountMinor) }
-                    val refundCredits = events.filter { it.type == "REFUND_CREDIT" }.sumOf { it.amountMinor }
-                    val walletBalance = events.sumOf { it.amountMinor }
-                    val purchaseVariance = ledgerPurchase - transactionPurchase
+                    val transactionPurchase = CustomerFinancialReconciliationMath.sumMinor(transactionRows.map { it.amountMinor ?: 0L })
+                    val ledgerPurchase = CustomerFinancialReconciliationMath.sumMinor(events.filter { it.type == "PURCHASE" }.map { it.amountMinor })
+                    val bonuses = CustomerFinancialReconciliationMath.sumMinor(events.filter { it.type == "PROMOTION_BONUS" }.map { it.amountMinor })
+                    val redemptions = CustomerFinancialReconciliationMath.sumMinor(events.filter { it.type == "REDEMPTION" }.map { kotlin.math.abs(it.amountMinor) })
+                    val refundCredits = CustomerFinancialReconciliationMath.sumMinor(events.filter { it.type == "REFUND_CREDIT" }.map { it.amountMinor })
+                    val walletBalance = CustomerFinancialReconciliationMath.sumMinor(events.map { it.amountMinor })
+                    val purchaseVariance = Math.subtractExact(ledgerPurchase, transactionPurchase)
                     listOf(
                         customer.id, customer.name, key.currency, events.size,
                         money(transactionPurchase, decimals), money(ledgerPurchase, decimals),
@@ -372,12 +386,12 @@ class CustomerExcelExporter @Inject constructor(
                 val customer = customers[key.customerId] ?: error("Missing customer in credit reconciliation")
                 val ledger = ledgerByKey[key] ?: Ledger()
                 val rows = activities.filter { it.customerId == key.customerId && it.currency == key.currency }
-                val funding = rows.filter { it.type == "SALE" }.sumOf { it.creditMinor }
+                val funding = CustomerFinancialReconciliationMath.sumMinor(rows.filter { it.type == "SALE" }.map { it.creditMinor })
                 val decimals = decimalsByCurrency[key.currency]
                     ?: com.dailymoneyregister.core.model.currency.CurrencyRegistry.findByCode(key.currency).decimalPlaces
                 listOf(
                     customer.id, customer.name, key.currency, money(funding, decimals),
-                    money(ledger.obligations, decimals), money(ledger.obligations - funding, decimals),
+                    money(ledger.obligations, decimals), money(Math.subtractExact(ledger.obligations, funding), decimals),
                     money(-ledger.repaymentsSigned, decimals), money(ledger.adjustments, decimals),
                     money(ledger.balance, decimals),
                     if (ledger.obligations == funding) "PASS" else "INVESTIGATE: credit funding / obligation variance"
@@ -513,5 +527,24 @@ internal object CustomerExcelWorkbook {
             }
         }
         return out.toByteArray()
+    }
+}
+
+
+internal object CustomerFinancialReconciliationMath {
+    fun sumMinor(values: Iterable<Long>): Long =
+        values.fold(0L) { total, value -> Math.addExact(total, value) }
+
+    /** Refunds against already-voided sales are historical evidence, not a second net-sales deduction. */
+    fun netSalesAfterRefunds(
+        validSalesMinor: Long,
+        refunds: Iterable<Pair<String, Long>>,
+        voidedTransactionIds: Set<String>
+    ): Long {
+        val deductableRefunds = sumMinor(
+            refunds.filter { (transactionId, _) -> transactionId !in voidedTransactionIds }
+                .map { kotlin.math.abs(it.second) }
+        )
+        return Math.subtractExact(validSalesMinor, deductableRefunds)
     }
 }
