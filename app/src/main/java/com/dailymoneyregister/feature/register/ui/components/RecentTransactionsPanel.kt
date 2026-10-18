@@ -266,27 +266,33 @@ private fun RecentTransactionRow(
         val zonedDateTime = Instant.ofEpochMilli(transaction.occurredAt).atZone(zoneId)
         zonedDateTime.format(DateTimeFormatter.ofPattern("hh:mm a", java.util.Locale.getDefault()))
     }
+    val isDarkTheme = isSystemInDarkTheme()
     val flowColor = when (transaction.type) {
         RecentActivityType.MERCHANDISE_SALE,
         RecentActivityType.COUPON_SELL,
         RecentActivityType.COUPON_TOP_UP,
-        RecentActivityType.CREDIT_REPAYMENT -> Color(0xFF1565C0)
+        RecentActivityType.CREDIT_REPAYMENT ->
+            if (isDarkTheme) Color(0xFF90CAF9) else Color(0xFF1565C0)
         RecentActivityType.EXPENSE,
         RecentActivityType.REFUND,
         RecentActivityType.REFUND_TO_COUPON,
-        RecentActivityType.VOID -> Color(0xFFD32F2F)
+        RecentActivityType.VOID ->
+            if (isDarkTheme) Color(0xFFEF9A9A) else Color(0xFFD32F2F)
         RecentActivityType.AMOUNT_CORRECTION -> when {
-            transaction.signedEffect.isNegative -> Color(0xFFD32F2F)
-            transaction.signedEffect.isPositive -> Color(0xFF1565C0)
-            else -> Color(0xFF757575)
+            transaction.signedEffect.isNegative ->
+                if (isDarkTheme) Color(0xFFEF9A9A) else Color(0xFFD32F2F)
+            transaction.signedEffect.isPositive ->
+                if (isDarkTheme) Color(0xFF90CAF9) else Color(0xFF1565C0)
+            else -> if (isDarkTheme) Color(0xFFBDBDBD) else Color(0xFF616161)
         }
-        RecentActivityType.PAYMENT_METHOD_CHANGE -> Color(0xFF757575)
+        RecentActivityType.PAYMENT_METHOD_CHANGE ->
+            if (isDarkTheme) Color(0xFFBDBDBD) else Color(0xFF616161)
     }
     val typeLabel = when (transaction.type) {
-        RecentActivityType.MERCHANDISE_SALE -> "SALE"
-        RecentActivityType.COUPON_SELL -> "COUPON SALE"
-        RecentActivityType.COUPON_TOP_UP -> "COUPON TOP-UP"
-        RecentActivityType.CREDIT_REPAYMENT -> "CREDIT REPAYMENT"
+        RecentActivityType.MERCHANDISE_SALE,
+        RecentActivityType.COUPON_SELL,
+        RecentActivityType.COUPON_TOP_UP -> "SALE"
+        RecentActivityType.CREDIT_REPAYMENT -> "CREDIT"
         RecentActivityType.EXPENSE -> "EXPENSE"
         RecentActivityType.REFUND,
         RecentActivityType.REFUND_TO_COUPON -> "REFUND"
@@ -385,27 +391,6 @@ private fun RecentTransactionRow(
             ""
         }
 
-    val paymentLabel = when (transaction.type) {
-        RecentActivityType.COUPON_SELL -> stringResource(R.string.coupon_purchase_title)
-        RecentActivityType.COUPON_TOP_UP -> stringResource(R.string.coupon_top_up_label)
-        RecentActivityType.CREDIT_REPAYMENT -> stringResource(R.string.dmr20_credit_payment)
-        RecentActivityType.REFUND -> stringResource(R.string.recent_activity_refund)
-        RecentActivityType.REFUND_TO_COUPON -> stringResource(R.string.recent_activity_refund_coupon)
-        RecentActivityType.VOID -> stringResource(R.string.recent_status_voided)
-        RecentActivityType.AMOUNT_CORRECTION -> stringResource(R.string.recent_status_corrected)
-        RecentActivityType.PAYMENT_METHOD_CHANGE -> stringResource(R.string.recent_status_payment_method_changed)
-        RecentActivityType.EXPENSE -> stringResource(R.string.dmr20_expense)
-        RecentActivityType.MERCHANDISE_SALE -> if (transaction.fundingBreakdown.size > 1) {
-            methodLabel
-        } else when (transaction.fundingBreakdown.singleOrNull()?.category) {
-            PaymentCategory.CASH -> stringResource(R.string.cash_sale_label)
-            PaymentCategory.ONLINE -> stringResource(R.string.online_sale_label)
-            PaymentCategory.CREDIT -> stringResource(R.string.credit_sale_label)
-            PaymentCategory.COUPON -> stringResource(R.string.coupon_sale_label)
-            null -> stringResource(R.string.sale_label)
-        }
-    }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -440,17 +425,21 @@ private fun RecentTransactionRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    color = flowColor.copy(alpha = 0.12f),
+                    modifier = Modifier.width(112.dp).height(24.dp),
+                    color = flowColor.copy(alpha = if (isDarkTheme) 0.20f else 0.12f),
                     contentColor = flowColor,
                     shape = RoundedCornerShape(6.dp)
                 ) {
-                    Text(
-                        text = typeLabel,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        maxLines = 1
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = typeLabel,
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
                 Text(
                     text = timeStr,
@@ -467,14 +456,16 @@ private fun RecentTransactionRow(
                 fontWeight = FontWeight.ExtraBold,
                 color = flowColor,
                 fontSize = 22.sp,
-                maxLines = 1
+                maxLines = 2,
+                softWrap = true
             )
 
             Text(
                 text = "Ref: $referenceText",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
 
             Text(
