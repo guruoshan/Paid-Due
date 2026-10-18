@@ -124,6 +124,31 @@ class FinancialReconciliationEngineTest {
     }
 
     @Test
+    fun twentyNineOperationsAndTwentyFiveDetailsClassifyFourCashShiftEventsExplicitly() {
+        val financialOperations = (1..25).map { operation(id = "financial-$it") }
+        val cashShiftOperations = listOf(
+            operation(id = "open-1", type = OperationType.OPEN_CASH_SHIFT),
+            operation(id = "open-2", type = OperationType.OPEN_CASH_SHIFT),
+            operation(id = "count-1", type = OperationType.COUNT_CASH_SHIFT),
+            operation(id = "count-2", type = OperationType.COUNT_CASH_SHIFT)
+        )
+        val detailRows = financialOperations.map { row(operationId = it.id, stableId = "detail-${it.id}") }
+
+        val result = FinancialReconciliationEngine.reconcile(
+            operations = financialOperations + cashShiftOperations,
+            rows = detailRows,
+            cloudInventoryVerified = true
+        )
+
+        assertEquals(29, result.authoritativeOperationCount)
+        assertEquals(25, result.reportableOperationCount)
+        assertEquals(25, result.representedOperationCount)
+        assertEquals(0, result.operationCoverageDelta)
+        assertEquals(4, result.excludedOperations.size)
+        assertEquals(ReportingReconciliationStatus.COMPLETE, result.status)
+    }
+
+    @Test
     fun duplicateReportRowIdentityRequiresReview() {
         val result = FinancialReconciliationEngine.reconcile(
             operations = listOf(operation()),
