@@ -294,6 +294,14 @@ private fun RecentTransactionRow(
         RecentActivityType.AMOUNT_CORRECTION -> "CORRECTION"
         RecentActivityType.PAYMENT_METHOD_CHANGE -> "PAYMENT CHANGE"
     }
+    val referenceText = when (transaction.type) {
+        RecentActivityType.REFUND,
+        RecentActivityType.REFUND_TO_COUPON,
+        RecentActivityType.VOID,
+        RecentActivityType.AMOUNT_CORRECTION,
+        RecentActivityType.PAYMENT_METHOD_CHANGE -> transaction.sourceReference
+        else -> transaction.displayRef.ifBlank { transaction.sourceReference }
+    }
     val activityStatus = when (transaction.type) {
         RecentActivityType.VOID -> "VOIDED"
         RecentActivityType.REFUND,
@@ -463,7 +471,7 @@ private fun RecentTransactionRow(
             )
 
             Text(
-                text = "Ref: ${transaction.displayRef.ifBlank { transaction.sourceReference }}",
+                text = "Ref: $referenceText",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
