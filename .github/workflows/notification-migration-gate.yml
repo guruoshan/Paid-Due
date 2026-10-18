@@ -68,6 +68,7 @@ jobs:
           psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261013230803_customer_directory_permission_enforcement.sql
           psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261013230811_release_blocker_security_hardening.sql
           psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261014150651_capture_live_function_definitions.sql
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261018130000_add_financial_reporting_inventory_rpc.sql
       - name: Verify release-blocker security, permission and replay behavior
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
