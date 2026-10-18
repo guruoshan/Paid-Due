@@ -4,7 +4,6 @@ import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.feature.reporting.domain.AmountCorrectionReportRow
 import com.dailymoneyregister.feature.reporting.domain.CouponReportEventKind
-import com.dailymoneyregister.feature.reporting.domain.CouponReportEventKind
 import com.dailymoneyregister.feature.reporting.domain.CouponReportRow
 import com.dailymoneyregister.feature.reporting.domain.CreditRepaymentReportRow
 import com.dailymoneyregister.feature.reporting.domain.ExpenseReportRow
