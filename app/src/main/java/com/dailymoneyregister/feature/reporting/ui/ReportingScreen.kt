@@ -750,8 +750,9 @@ private fun ReportingRowCard(
                 if (isDarkTheme) Color(0xFF90CAF9) else Color(0xFF1565C0)
             else -> if (isDarkTheme) Color(0xFFBDBDBD) else Color(0xFF616161)
         }
+        ReportActivityType.COUPON_BONUS ->
+            if (isDarkTheme) Color(0xFF90CAF9) else Color(0xFF1565C0)
         ReportActivityType.COUPON_REDEMPTION,
-        ReportActivityType.COUPON_BONUS,
         ReportActivityType.PAYMENT_METHOD_CHANGE ->
             if (isDarkTheme) Color(0xFFBDBDBD) else Color(0xFF616161)
     }
