@@ -297,7 +297,8 @@ class RemoteFinancialSyncRepository @Inject constructor(
         require(limit in 1..100)
 
         val session = SessionManager.currentSession.value
-        if (session?.user?.role != com.dailymoneyregister.core.model.enums.UserRole.ADMIN ||
+        if (session == null ||
+            session.user.role != com.dailymoneyregister.core.model.enums.UserRole.ADMIN ||
             session.business.id != businessId
         ) {
             throw SecurityException("ADMIN_REPORTING_SESSION_REQUIRED")
@@ -371,7 +372,7 @@ class RemoteFinancialSyncRepository @Inject constructor(
         if (activeSession.user.role == com.dailymoneyregister.core.model.enums.UserRole.CASHIER) {
             val cashierMembershipId = activeSession.membership?.id
                 ?: throw SecurityException("CASHIER_MEMBERSHIP_REQUIRED")
-            if (activeSession.membership.branchId != activeSession.branch.id) {
+            if (activeSession.membership?.branchId != activeSession.branch.id) {
                 throw SecurityException("CASHIER_BRANCH_SCOPE_MISMATCH")
             }
             if (CashierCloudSession.tokenFor(cashierMembershipId) == null) {
