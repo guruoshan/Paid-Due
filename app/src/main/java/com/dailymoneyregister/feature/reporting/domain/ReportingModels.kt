@@ -666,7 +666,8 @@ data class ReportingActivityCounts(
 data class ReportingReadModel(
     val scope: ReportingScope,
     val summary: ReportingSummary,
-    val rows: List<ReportRow>
+    val rows: List<ReportRow>,
+    val reconciliation: ReportingReconciliation = ReportingReconciliation.unverified()
 )
 
 enum class ReportPaymentFilter {
