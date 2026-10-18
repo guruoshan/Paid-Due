@@ -102,6 +102,8 @@ class RemoteEnvelopeMaterializerTest {
         coEvery { transactionDao.insertSettlements(any()) } returns Unit
         coEvery { transactionDao.getPaymentMethodChanges(transactionId) } returns emptyList()
         coEvery { transactionDao.insertPaymentMethodChange(any()) } returns Unit
+        coEvery { transactionDao.getRefundEventByOperationId(any()) } returns null
+        coEvery { transactionDao.insertRefund(any()) } returns Unit
         coEvery { expenseDao.getExpenseById(any()) } returns null
         coEvery { expenseDao.insertExpense(any()) } returns Unit
 
@@ -275,6 +277,37 @@ class RemoteEnvelopeMaterializerTest {
     }
 
     @Test
+    fun refundMaterializesWhenOriginalSaleCreatorHasBeenRemoved() = runTest {
+        val removedCreatorId = "removed-original-sale-cashier"
+        val tombstone = cloudIdentity.copy(
+            membershipId = "removed-original-sale-membership",
+            localUserId = removedCreatorId,
+            isActive = false,
+            isRemoved = true
+        )
+        coEvery {
+            identityDao.findIdentity(removedCreatorId, businessId, branchId)
+        } returns tombstone
+        coEvery {
+            userDao.getUserByIdInBusiness(removedCreatorId, businessId)
+        } returns null
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database = database,
+            envelope = refundEnvelope(removedCreatorId),
+            sessionBusinessId = businessId,
+            sessionBranchId = branchId
+        )
+
+        assertEquals(InboundProcessResult.Applied, result)
+        assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
+        coVerify(exactly = 1) { operationDao.insertOperationIfAbsent(any()) }
+        coVerify(exactly = 1) { transactionDao.insertTransaction(any()) }
+        coVerify(exactly = 1) { transactionDao.insertSettlements(match { it.single().amountSignedMinor == -500L }) }
+        coVerify(exactly = 1) { transactionDao.insertRefund(match { it.actorUserId == actorUserId && it.refundAmountMinor == 500L }) }
+    }
+
+    @Test
     fun removedOriginalTransactionCreatorRemainsValidHistoricalAttribution() = runTest {
         val removedCreatorId = "removed-original-sale-cashier"
         val tombstone = cloudIdentity.copy(
@@ -301,6 +334,40 @@ class RemoteEnvelopeMaterializerTest {
         coVerify(exactly = 0) {
             userDao.getUserByIdInBusiness(removedCreatorId, businessId)
         }
+    }
+
+    private fun refundEnvelope(originalCreatorId: String): RemoteEnvelopeV2 {
+        val base = cashSaleEnvelope()
+        val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at")
+        val payload = JSONObject(base.canonicalText).apply {
+            put("operation_type", "RECORD_REFUND")
+            getJSONObject("transaction").put("created_by_user_id", originalCreatorId)
+            put("settlements", JSONArray().put(JSONObject().apply {
+                put("id", "refund-outflow-settlement")
+                put("operation_id", operationId)
+                put("subject_type", SubjectType.TRANSACTION.name)
+                put("subject_id", transactionId)
+                put("transaction_id", transactionId)
+                put("entry_purpose", "REFUND_OUTFLOW")
+                put("category", "CASH")
+                put("channel", "CASH_TENDER")
+                put("amount_signed_minor", -500L)
+                put("currency_code", "OMR")
+                put("confirmation_type", ConfirmationType.CASHIER_CONFIRMED.name)
+                put("actor_user_id", actorUserId)
+                put("occurred_at", occurredAt)
+            }))
+            put("financial_evidence", JSONObject().put("refund_event", JSONObject().apply {
+                put("id", "refund-event")
+                put("transaction_id", transactionId)
+                put("operation_id", operationId)
+                put("refund_amount_minor", 500L)
+                put("reason", "Partial refund")
+                put("actor_user_id", actorUserId)
+                put("occurred_at", occurredAt)
+            }))
+        }
+        return envelopeFromPayload(base, "RECORD_REFUND", payload)
     }
 
     private fun expenseEnvelope(): RemoteEnvelopeV2 {
