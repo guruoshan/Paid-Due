@@ -59,7 +59,7 @@ class CustomerExcelExporter @Inject constructor(
                 }
             }
             // Include repayments and issued invoices as first-class history events.
-            runCatching {
+            run {
                 db.query("SELECT r.customer_id,r.amount_minor,r.currency_code,r.occurred_at,r.id,r.payment_category,b.name,b.currency_decimal_places FROM credit_repayments r JOIN customers c ON c.id=r.customer_id JOIN operations o ON o.id=r.operation_id JOIN branches b ON b.id=o.branch_id WHERE c.business_id=? ORDER BY r.occurred_at", arrayOf(businessId)).use { c ->
                     while(c.moveToNext()) {
                         val phoneCursor = db.query("SELECT name,canonical_phone FROM customers WHERE id=?", arrayOf(c.getString(0)))
@@ -75,7 +75,7 @@ class CustomerExcelExporter @Inject constructor(
                     }
                 }
             }
-            runCatching {
+            run {
                 db.query("SELECT d.customer_id,d.created_at,d.display_number,d.document_type,d.snapshot_json,b.name FROM documents d JOIN operations o ON o.id=d.operation_id LEFT JOIN branches b ON b.id=o.branch_id WHERE o.business_id=? AND d.customer_id IS NOT NULL ORDER BY d.created_at", arrayOf(businessId)).use { c ->
                     while(c.moveToNext()) {
                         val customerRow = db.query("SELECT name,canonical_phone FROM customers WHERE id=?", arrayOf(c.getString(0)))
@@ -94,7 +94,7 @@ class CustomerExcelExporter @Inject constructor(
                     }
                 }
             }
-            runCatching {
+            run {
                 db.query("SELECT t.customer_id,t.branch_id,t.currency_code,t.currency_decimal_places,r.refund_amount_minor,r.occurred_at,r.id,t.id,t.type FROM refund_events r JOIN transactions t ON t.id=r.transaction_id JOIN branches b ON b.id=t.branch_id WHERE b.business_id=? ORDER BY r.occurred_at", arrayOf(businessId)).use { c ->
                     while(c.moveToNext()) {
                         val customerCursor = db.query("SELECT name,canonical_phone FROM customers WHERE id=?", arrayOf(c.getString(0)))
@@ -117,7 +117,10 @@ class CustomerExcelExporter @Inject constructor(
                 val credit = rows.filter { it.type.contains("CREDIT",true) }
                 val repaid = rows.filter { it.type.contains("REPAY",true) }
                 val refunds = rows.filter { it.type.contains("REFUND",true) }
-                val invoices = try { db.query("SELECT COUNT(*) FROM documents WHERE customer_id=? AND document_type='INVOICE'",arrayOf(customer.id)).use { q -> if(q.moveToFirst()) q.getInt(0) else 0 } } catch (_:Exception) { 0 }
+                val invoices = db.query("SELECT COUNT(*) FROM documents WHERE customer_id=? AND document_type='INVOICE'",arrayOf(customer.id)).use { q ->
+                    check(q.moveToFirst()) { "Could not read invoice count for customer ${customer.id}" }
+                    q.getInt(0)
+                }
                 listOf(customer.name,customer.phone,fmt(rows.minOfOrNull { it.date }),fmt(rows.maxOfOrNull { it.date }),rows.size,sales.sumOf { it.amount },rows.sumOf { it.creditAmount },repaid.sumOf { it.amount },rows.sumOf { it.creditAmount }-repaid.sumOf { it.amount },invoices,refunds.size,if(rows.isEmpty()) "No recorded transaction" else "Active")
             }
             val summary = customers.values.map { customer ->
@@ -138,7 +141,14 @@ class CustomerExcelExporter @Inject constructor(
                 put(MediaStore.Downloads.RELATIVE_PATH,"Download/PaidDue")
             }
             val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values) ?: error("Could not create Downloads/PaidDue export")
-            context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("Could not write workbook")
+            try {
+                context.contentResolver.openOutputStream(uri)?.use { stream -> stream.write(bytes) }
+                    ?: error("Could not open output stream for customer workbook")
+            } catch (error: Throwable) {
+                // Never leave a partial workbook in Downloads after a failed export.
+                context.contentResolver.delete(uri, null, null)
+                throw error
+            }
             uri
         }
     }
