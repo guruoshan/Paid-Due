@@ -213,7 +213,7 @@ object ReportingUiProjection {
         return listOf(
             ReportingSummaryUiModel(
                 ReportingSummaryMetric.NET_SALES_ACTIVITY,
-                formatMoney(
+                formatSignedMoney(
                     summary.periodNetSalesActivity,
                     decimalPlaces,
                     currencySymbol
@@ -221,7 +221,7 @@ object ReportingUiProjection {
             ),
             ReportingSummaryUiModel(
                 ReportingSummaryMetric.CASH_SALES,
-                formatMoney(
+                formatSignedMoney(
                     summary.cashSalesCollected,
                     decimalPlaces,
                     currencySymbol
@@ -229,7 +229,7 @@ object ReportingUiProjection {
             ),
             ReportingSummaryUiModel(
                 ReportingSummaryMetric.ONLINE_SALES,
-                formatMoney(
+                formatSignedMoney(
                     summary.onlineSalesCollected,
                     decimalPlaces,
                     currencySymbol
@@ -237,7 +237,7 @@ object ReportingUiProjection {
             ),
             ReportingSummaryUiModel(
                 ReportingSummaryMetric.CREDIT_SALES,
-                formatMoney(
+                formatSignedMoney(
                     summary.creditSalesOriginated,
                     decimalPlaces,
                     currencySymbol
@@ -245,7 +245,7 @@ object ReportingUiProjection {
             ),
             ReportingSummaryUiModel(
                 ReportingSummaryMetric.CREDIT_REPAYMENTS,
-                formatMoney(
+                formatSignedMoney(
                     repaymentTotal,
                     decimalPlaces,
                     currencySymbol
@@ -253,7 +253,7 @@ object ReportingUiProjection {
             ),
             ReportingSummaryUiModel(
                 ReportingSummaryMetric.REFUNDS,
-                formatMoney(
+                formatSignedMoney(
                     summary.periodRefundEffect,
                     decimalPlaces,
                     currencySymbol
@@ -261,7 +261,7 @@ object ReportingUiProjection {
             ),
             ReportingSummaryUiModel(
                 ReportingSummaryMetric.EXPENSES,
-                formatMoney(
+                formatSignedMoney(
                     MoneyMinorUnits(
                         Math.negateExact(
                             summary.totalExpenses.amount
@@ -416,6 +416,23 @@ object ReportingUiProjection {
         ).any {
             it.lowercase()
                 .contains(normalizedQuery)
+        }
+    }
+
+    private fun formatSignedMoney(
+        value: MoneyMinorUnits,
+        decimalPlaces: Int,
+        currencySymbol: String
+    ): String {
+        val magnitude = formatMoney(
+            MoneyMinorUnits(Math.abs(value.amount)),
+            decimalPlaces,
+            currencySymbol
+        )
+        return when {
+            value.amount > 0L -> "+ $magnitude"
+            value.amount < 0L -> "- $magnitude"
+            else -> magnitude
         }
     }
 
