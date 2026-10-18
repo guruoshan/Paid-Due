@@ -218,10 +218,25 @@ class RoomReportingReadRepository(
             transactionDao.getTransactionsByIds(it)
         }.forEach { transactionsById[it.id] = it }
 
-        val voidRecords: Map<String, TransactionFinancialRecord> =
-            loadChunked(voids.map { it.transactionId }) {
+        val lifecycleTransactionIds = (
+            refunds.map { it.transactionId } +
+                voids.map { it.transactionId } +
+                corrections.map { it.transactionId }
+            ).distinct()
+        val lifecycleRecords: Map<String, TransactionFinancialRecord> =
+            loadChunked(lifecycleTransactionIds) {
                 transactionDao.getFinancialRecordsByIds(it)
             }.associateBy { it.transaction.id }
+
+        // Validate complete persisted lifecycle history, not only the events
+        // that happen to fall inside this report period. This proves cumulative
+        // refunds do not exceed the corrected transaction amount and that the
+        // full correction chain is continuous.
+        lifecycleRecords.values.forEach { record ->
+            guarded("transaction lifecycle ${record.transaction.id}") {
+                FinancialReadModelResolver.resolve(record)
+            }
+        }
 
         // ---- 5. Operations + settlements + coupon evidence ----------------
 
@@ -368,7 +383,7 @@ class RoomReportingReadRepository(
 
         for (event in voids) {
             rows += guarded("void ${event.id}") {
-                val record = checkNotNull(voidRecords[event.transactionId]) {
+                val record = checkNotNull(lifecycleRecords[event.transactionId]) {
                     "Void ${event.id} transaction evidence is missing."
                 }
                 ReportingRowMappers.mapVoid(
