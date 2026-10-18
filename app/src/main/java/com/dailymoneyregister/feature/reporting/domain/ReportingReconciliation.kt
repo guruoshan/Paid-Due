@@ -16,6 +16,7 @@ data class ReportingReconciliation(
     val representedOperationCount: Int,
     val missingOperationIds: List<String> = emptyList(),
     val unmatchedRowIds: List<String> = emptyList(),
+    val operationTypeMismatchRowIds: List<String> = emptyList(),
     val duplicateOperationIds: List<String> = emptyList(),
     val duplicateRowIds: List<String> = emptyList(),
     val unsupportedOperationIds: List<String> = emptyList(),
@@ -117,13 +118,20 @@ object FinancialReconciliationEngine {
 
         val unmatchedRows = rows
             .filter { row ->
-                row.operationId.isNullOrBlank() ||
-                    row.operationId !in operationsById ||
-                    operationsById[row.operationId]?.status != OperationStatus.SUCCEEDED
+                val operationId = row.operationId
+                operationId.isNullOrBlank() ||
+                    operationId !in operationsById ||
+                    operationsById[operationId]?.status != OperationStatus.SUCCEEDED
             }
             .map { it.stableId }
             .distinct()
             .sorted()
+
+        val typeMismatches = rows.filter { row ->
+            val operationId = row.operationId ?: return@filter true
+            val operation = operationsById[operationId] ?: return@filter true
+            operation.operationType.name !in expectedOperationTypes(row)
+        }.map { it.stableId }.distinct().sorted()
 
         val representedOperationIds = reportable
             .map { it.id }
@@ -134,6 +142,7 @@ object FinancialReconciliationEngine {
             duplicateOperationIds.isNotEmpty() ||
                 duplicateRowIds.isNotEmpty() ||
                 unmatchedRows.isNotEmpty() ||
+                typeMismatches.isNotEmpty() ||
                 unsupported.isNotEmpty() ||
                 !cloudInventoryVerified ->
                 ReportingReconciliationStatus.REQUIRES_REVIEW
@@ -156,6 +165,7 @@ object FinancialReconciliationEngine {
                 if (duplicateOperationIds.isNotEmpty()) add("duplicate operation identities")
                 if (duplicateRowIds.isNotEmpty()) add("duplicate report row identities")
                 if (unmatchedRows.isNotEmpty()) add("report rows without a matching successful in-scope operation")
+                if (typeMismatches.isNotEmpty()) add("report rows linked to an incompatible operation type")
                 if (unsupported.isNotEmpty()) add("successful operations with unsupported report classification")
                 if (!cloudInventoryVerified) add("cloud inventory coverage is not verified")
             }.joinToString("; ").ifBlank { "Scope or evidence could not be verified." }
@@ -168,6 +178,7 @@ object FinancialReconciliationEngine {
             representedOperationCount = representedOperationIds.size,
             missingOperationIds = missing,
             unmatchedRowIds = unmatchedRows,
+            operationTypeMismatchRowIds = typeMismatches,
             duplicateOperationIds = duplicateOperationIds,
             duplicateRowIds = duplicateRowIds,
             unsupportedOperationIds = unsupported.distinct().sorted(),
@@ -175,5 +186,23 @@ object FinancialReconciliationEngine {
             cloudInventoryVerified = cloudInventoryVerified,
             explanation = explanation
         )
+    }
+
+    private fun expectedOperationTypes(row: ReportRow): Set<String> = when (row) {
+        is SaleReportRow -> setOf("RECORD_SALE")
+        is RefundReportRow -> setOf("RECORD_REFUND")
+        is VoidReportRow -> setOf("RECORD_VOID")
+        is AmountCorrectionReportRow -> setOf("RECORD_AMOUNT_CORRECTION")
+        is PaymentMethodChangeReportRow -> setOf("RECORD_PAYMENT_METHOD_CHANGE")
+        is CreditRepaymentReportRow -> setOf("RECORD_CREDIT_REPAYMENT")
+        is ExpenseReportRow -> setOf("RECORD_EXPENSE")
+        is CouponReportRow -> when (row.eventKind) {
+            CouponReportEventKind.PURCHASE,
+            CouponReportEventKind.TOP_UP,
+            CouponReportEventKind.PROMOTION_BONUS -> setOf("RECORD_COUPON_PURCHASE")
+            CouponReportEventKind.REFUND_CREDIT -> setOf("RECORD_REFUND")
+            CouponReportEventKind.CREDIT_REPAYMENT -> setOf("RECORD_CREDIT_REPAYMENT")
+            CouponReportEventKind.REDEMPTION -> setOf("RECORD_SALE", "RECORD_CREDIT_REPAYMENT")
+        }
     }
 }
