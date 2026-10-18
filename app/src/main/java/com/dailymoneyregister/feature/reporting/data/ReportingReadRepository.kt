@@ -170,6 +170,18 @@ class RoomReportingReadRepository(
         val corrections = reportingDao.getAmountCorrectionsInPeriod(branchIds, from, to)
         val paymentChanges = reportingDao.getPaymentMethodChangesInPeriod(branchIds, from, to)
 
+        val correctionHistory = loadChunked(corrections.map { it.transactionId }.distinct()) {
+            reportingDao.getAmountCorrectionsForTransactions(it)
+        }
+        correctionHistory.groupBy { it.transactionId }.forEach { (transactionId, events) ->
+            val orderedHistory = events.sortedWith(compareBy({ it.occurredAt }, { it.id }))
+            orderedHistory.zipWithNext().forEach { (previous, next) ->
+                check(previous.correctedAmountMinor == next.previousAmountMinor) {
+                    "Correction chain for transaction $transactionId is discontinuous between ${previous.id} and ${next.id}."
+                }
+            }
+        }
+
         // ---- 3. Repayments, coupon ledger, expenses -----------------------
 
         val repayments =
