@@ -295,12 +295,7 @@ class FinancialSyncEngineTest {
     }
 
     @Test
-    fun cloudOnlyCashierPersistsInboundCursorPerBranchWithoutLocalAccountRow() = runTest {
-        coEvery { db.businessBranchDao() } returns businessBranchDao
-        coEvery { db.userDao() } returns userDao
-        coEvery { businessBranchDao.getBusinessById("biz-1") } returns mockk()
-        coEvery { userDao.getUserByIdInBusiness("cloud-cashier", "biz-1") } returns null
-
+    fun cashierSessionCannotInitiateInboundSync() = runTest {
         val branch = BranchEntity(
             id = "branch-1",
             businessId = "biz-1",
@@ -342,33 +337,8 @@ class FinancialSyncEngineTest {
             )
         )
 
-        val payload = JSONObject()
-            .put("operation_id", opId)
-            .put("business_id", "biz-1")
-        val canonical = payload.toString()
-        val remoteEnvelope = RemoteEnvelopeV2(
-            operationId = opId,
-            businessId = "biz-1",
-            branchId = "branch-1",
-            operationType = "RECORD_SALE",
-            occurredAtIso = "2026-10-09T10:00:00Z",
-            receivedAtIso = "2026-10-09T10:00:01Z",
-            canonicalText = canonical,
-            payloadJson = payload,
-            canonicalSha256 = com.dailymoneyregister.core.command.CommandFingerprint.sha256(canonical)
-        )
-        coEvery { remoteRepo.fetchRemoteEnvelopesV2("biz-1", null, null, any()) } returns listOf(remoteEnvelope)
-        inboundApplier.result = InboundProcessResult.Applied
-
-        assertEquals(1, engine.syncInbound("biz-1", "cloud-cashier"))
-        val cursorField = FinancialSyncEngine::class.java.getDeclaredField("inMemoryCursors")
-        cursorField.isAccessible = true
-        @Suppress("UNCHECKED_CAST")
-        val cursors = cursorField.get(engine) as Map<String, VersionedInboundCursor>
-        assertEquals(
-            true,
-            cursors.containsKey("inbound_cursor_biz-1_cloud-cashier_branch_branch-1")
-        )
+        assertEquals(0, engine.syncInbound("biz-1", "cloud-cashier"))
+        coVerify(exactly = 0) { remoteRepo.fetchRemoteEnvelopesV2(any(), any(), any(), any()) }
     }
 
     @Test
