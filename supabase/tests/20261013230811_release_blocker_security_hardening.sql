@@ -157,6 +157,40 @@ BEGIN
     RAISE EXCEPTION 'Replay must persist exactly one financial envelope';
   END IF;
 
+  -- Reusing the same business/operation identity with different canonical
+  -- content is an integrity conflict, not a retry and not a second row.
+  v_bad_payload := v_payload || jsonb_build_object(
+    'request_fingerprint', 'release-blocker-conflicting-fingerprint'
+  );
+  v_bad_canonical_text := v_bad_payload::text;
+  v_bad_digest := encode(
+    extensions.digest(convert_to(v_bad_canonical_text, 'UTF8'), 'sha256'),
+    'hex'
+  );
+  v_rejected := false;
+  BEGIN
+    PERFORM *
+    FROM public.ingest_cashier_financial_envelope(
+      'biz-test', 'release-blocker-replay-test', 'branch-test', 'membership-test',
+      'release-blocker-device', 'RECORD_SALE', 1, v_occurred_at, 'Asia/Muscat',
+      (v_occurred_at AT TIME ZONE 'Asia/Muscat')::date,
+      v_bad_canonical_text, v_bad_digest, v_bad_payload
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_rejected := true;
+  END;
+  IF NOT v_rejected THEN
+    RAISE EXCEPTION 'Same operation ID with a different canonical digest was accepted';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM private.financial_operation_envelopes
+  WHERE business_id = 'biz-test'
+    AND operation_id = 'release-blocker-replay-test';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'Conflicting replay changed the single persisted envelope';
+  END IF;
+
   SELECT count(*) INTO v_count
   FROM public.fetch_cashier_financial_envelopes_v2(
     'biz-test', 'branch-test', 'membership-test', NULL, NULL, 100
