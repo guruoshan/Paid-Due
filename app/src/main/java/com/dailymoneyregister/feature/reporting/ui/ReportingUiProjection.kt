@@ -448,27 +448,6 @@ object ReportingUiProjection {
         }
     }
 
-    private fun formatMoney(
-        value: MoneyMinorUnits,
-        decimalPlaces: Int,
-        currencySymbol: String
-    ): String {
-
-        require(decimalPlaces >= 0)
-
-        val number =
-            BigDecimal.valueOf(
-                value.amount,
-                decimalPlaces
-            ).toPlainString()
-
-        return if (currencySymbol.isBlank()) {
-            number
-        } else {
-            "$currencySymbol $number"
-        }
-    }
-
     private fun formatOccurredAt(
         occurredAt: Long,
         timezoneId: String
