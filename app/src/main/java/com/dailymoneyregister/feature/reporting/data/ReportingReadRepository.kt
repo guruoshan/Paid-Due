@@ -8,6 +8,7 @@ import com.dailymoneyregister.core.model.financial.FinancialReadModelResolver
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.feature.reporting.domain.FinancialReconciliationEngine
 import com.dailymoneyregister.feature.reporting.domain.ReportRow
 import com.dailymoneyregister.feature.reporting.domain.ReportingReadModel
 import com.dailymoneyregister.feature.reporting.domain.ReportingScope
@@ -134,6 +135,17 @@ class RoomReportingReadRepository(
         val branchIds = access.branchIds
         val businessId = access.businessId
 
+        // This inventory includes every operation status in the same business,
+        // branch, actor and half-open period scope. It is reconciled by stable
+        // operation identity rather than comparing raw operation and row counts.
+        val operationsInScope = reportingDao.getOperationsInPeriod(
+            businessId = businessId,
+            branchIds = branchIds,
+            fromInclusive = from,
+            toExclusive = to,
+            cashierUserId = scope.cashierUserId
+        )
+
         // ---- 1. Original sales -------------------------------------------
 
         val saleIds =
@@ -218,11 +230,13 @@ class RoomReportingReadRepository(
             }
         }
 
-        val operationsById = loadChunked(
-            saleOperationIds + repayments.map { it.operationId } + couponEvents.map { it.operationId }
-        ) {
-            reportingDao.getOperationsByIds(it)
-        }.associateBy { it.id }
+        val operationsById = (
+            operationsInScope + loadChunked(
+                saleOperationIds + repayments.map { it.operationId } + couponEvents.map { it.operationId }
+            ) {
+                reportingDao.getOperationsByIds(it)
+            }
+        ).associateBy { it.id }
 
         val settlementOperationIds =
             refunds.map { it.operationId } +
@@ -450,10 +464,20 @@ class RoomReportingReadRepository(
                 .thenByDescending { it.stableId }
         )
 
+        val reconciliation = FinancialReconciliationEngine.reconcile(
+            operations = operationsInScope,
+            rows = ordered,
+            // The current read repository is Room-only. Until the corresponding
+            // cloud inventory is fetched and reconciled for this exact scope,
+            // cross-device completeness must remain unverified.
+            cloudInventoryVerified = false
+        )
+
         return ReportingReadModel(
             scope = scope,
             summary = ReportingAggregator.build(ordered),
-            rows = ordered
+            rows = ordered,
+            reconciliation = reconciliation
         )
     }
 
