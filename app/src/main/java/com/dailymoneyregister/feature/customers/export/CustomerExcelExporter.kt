@@ -127,6 +127,92 @@ class CustomerExcelExporter @Inject constructor(
                 }
             }
 
+            // Lifecycle rows are first-class audit history. Do not hide corrections, voids,
+            // or payment-method reclassifications behind the current transaction snapshot.
+            db.query(
+                "SELECT a.transaction_id,a.previous_amount_minor,a.corrected_amount_minor,a.occurred_at,a.id," +
+                    "b.name,t.currency_code,t.currency_decimal_places,t.display_ref,c.id,c.name,c.canonical_phone " +
+                    "FROM amount_correction_events a JOIN transactions t ON t.id=a.transaction_id " +
+                    "JOIN operations o ON o.id=a.operation_id AND o.business_id=? " +
+                    "JOIN branches b ON b.id=t.branch_id AND b.business_id=? " +
+                    "JOIN customers c ON c.id=t.customer_id AND c.business_id=? ORDER BY a.occurred_at,a.id",
+                arrayOf(businessId, businessId, businessId)
+            ).use { c ->
+                while (c.moveToNext()) {
+                    val transactionId = c.getString(0)
+                    val previous = c.getLong(1)
+                    val corrected = c.getLong(2)
+                    val currency = c.getString(6).uppercase(Locale.ROOT)
+                    val decimals = c.getInt(7)
+                    registerCurrency(currency, decimals)
+                    activities.add(
+                        Activity(
+                            c.getString(9), c.getLong(3), c.getString(5), c.getString(10), c.getString(11),
+                            "AMOUNT_CORRECTION", c.getString(8) + " / correction " + c.getString(4),
+                            currency, decimals, Math.subtractExact(corrected, previous),
+                            status = "Correction event — previous " + money(previous, decimals) +
+                                "; corrected " + money(corrected, decimals),
+                            relatedTransactionId = transactionId
+                        )
+                    )
+                }
+            }
+
+            db.query(
+                "SELECT v.transaction_id,v.occurred_at,v.id,v.reason,b.name,t.currency_code," +
+                    "t.currency_decimal_places,t.display_ref,c.id,c.name,c.canonical_phone " +
+                    "FROM void_events v JOIN operations o ON o.id=v.operation_id AND o.business_id=? " +
+                    "JOIN transactions t ON t.id=v.transaction_id " +
+                    "JOIN branches b ON b.id=t.branch_id AND b.business_id=? " +
+                    "JOIN customers c ON c.id=t.customer_id AND c.business_id=? ORDER BY v.occurred_at,v.id",
+                arrayOf(businessId, businessId, businessId)
+            ).use { c ->
+                while (c.moveToNext()) {
+                    val transactionId = c.getString(0)
+                    val currency = c.getString(5).uppercase(Locale.ROOT)
+                    val decimals = c.getInt(6)
+                    registerCurrency(currency, decimals)
+                    activities.add(
+                        Activity(
+                            c.getString(8), c.getLong(1), c.getString(4), c.getString(9), c.getString(10),
+                            "VOID", c.getString(7), currency, decimals, null,
+                            status = "Void event — " + c.getString(3).orEmpty().ifBlank { "reason not recorded" } +
+                                "; original transaction excluded from valid sales",
+                            relatedTransactionId = transactionId
+                        )
+                    )
+                }
+            }
+
+            db.query(
+                "SELECT p.transaction_id,p.occurred_at,p.id,p.previous_method,p.previous_channel," +
+                    "p.new_method,p.new_channel,p.reason,b.name,t.currency_code,t.currency_decimal_places," +
+                    "t.display_ref,c.id,c.name,c.canonical_phone " +
+                    "FROM payment_method_change_events p JOIN operations o ON o.id=p.operation_id AND o.business_id=? " +
+                    "JOIN transactions t ON t.id=p.transaction_id " +
+                    "JOIN branches b ON b.id=t.branch_id AND b.business_id=? " +
+                    "JOIN customers c ON c.id=t.customer_id AND c.business_id=? ORDER BY p.occurred_at,p.id",
+                arrayOf(businessId, businessId, businessId)
+            ).use { c ->
+                while (c.moveToNext()) {
+                    val transactionId = c.getString(0)
+                    val currency = c.getString(9).uppercase(Locale.ROOT)
+                    val decimals = c.getInt(10)
+                    registerCurrency(currency, decimals)
+                    val previous = paymentMethodLabel(c.getString(3), c.getString(4))
+                    val current = paymentMethodLabel(c.getString(5), c.getString(6))
+                    activities.add(
+                        Activity(
+                            c.getString(12), c.getLong(1), c.getString(8), c.getString(13), c.getString(14),
+                            "PAYMENT_METHOD_CHANGE", c.getString(11), currency, decimals, null,
+                            payment = previous + " → " + current,
+                            status = c.getString(7).orEmpty().ifBlank { "Payment method changed" },
+                            relatedTransactionId = transactionId
+                        )
+                    )
+                }
+            }
+
             // Repayments are balance movements, not additional sales. Keep the original customer ID.
             db.query(
                 "SELECT r.customer_id,r.amount_minor,r.currency_code,r.occurred_at,r.id,r.payment_category,o.branch_id " +
@@ -210,7 +296,8 @@ class CustomerExcelExporter @Inject constructor(
             // Outstanding credit comes from the signed credit ledger, not a reconstructed sales-minus-repayments guess.
             val ledgerByKey = mutableMapOf<Key, Ledger>()
             db.query(
-                "SELECT e.customer_id,e.currency_code,e.type,e.amount_signed_minor,o.branch_id,b.currency_code,b.currency_decimal_places " +
+                "SELECT e.customer_id,e.currency_code,e.type,e.amount_signed_minor,o.branch_id,b.currency_code,b.currency_decimal_places," +
+                    "e.occurred_at,e.id,e.transaction_id " +
                     "FROM credit_ledger_events e JOIN operations o ON o.id=e.operation_id AND o.business_id=? " +
                     "LEFT JOIN branches b ON b.id=o.branch_id ORDER BY e.occurred_at,e.id",
                 arrayOf(businessId)
@@ -231,7 +318,22 @@ class CustomerExcelExporter @Inject constructor(
                     when (c.getString(2)) {
                         "OBLIGATION" -> ledger.obligations = Math.addExact(ledger.obligations, amount)
                         "REPAYMENT" -> ledger.repaymentsSigned = Math.addExact(ledger.repaymentsSigned, amount)
-                        "ADJUSTMENT" -> ledger.adjustments = Math.addExact(ledger.adjustments, amount)
+                        "ADJUSTMENT" -> {
+                            ledger.adjustments = Math.addExact(ledger.adjustments, amount)
+                            val customer = customers[customerId] ?: error("Missing customer for credit adjustment")
+                            val branch = branches[c.getString(4)]
+                            val occurredAt = c.getLong(7)
+                            val eventId = c.getString(8)
+                            val transactionId = c.getString(9)
+                            activities.add(
+                                Activity(
+                                    customer.id, occurredAt, branch?.name.orEmpty(), customer.name, customer.phone,
+                                    "CREDIT_ADJUSTMENT", eventId, currency, decimals, amount,
+                                    status = "Credit ledger adjustment — excluded from sales totals",
+                                    relatedTransactionId = transactionId
+                                )
+                            )
+                        }
                         else -> error("Unknown credit ledger type: " + c.getString(2))
                     }
                     ledger.balance = Math.addExact(ledger.balance, amount)
@@ -242,12 +344,13 @@ class CustomerExcelExporter @Inject constructor(
             // redemptions and refund credits separately; never add these again to sales revenue.
             data class CouponEvent(
                 val customerId: String, val currency: String, val decimals: Int,
-                val type: String, val amountMinor: Long, val occurredAt: Long, val id: String
+                val type: String, val amountMinor: Long, val occurredAt: Long, val id: String,
+                val transactionId: String?, val branch: String
             )
             val couponEvents = mutableListOf<CouponEvent>()
             db.query(
-                "SELECT w.customer_id,w.currency_code,e.currency_code,e.type,e.amount_signed_minor,e.occurred_at,e.id," +
-                    "o.branch_id,b.currency_code,b.currency_decimal_places " +
+                "SELECT w.customer_id,w.currency_code,e.currency_code,e.type,e.amount_signed_minor,e.occurred_at," +
+                    "e.id,e.transaction_id,o.branch_id,b.currency_code,b.currency_decimal_places " +
                     "FROM coupon_ledger_events e JOIN coupon_wallets w ON w.id=e.wallet_id " +
                     "JOIN customers c ON c.id=w.customer_id AND c.business_id=? " +
                     "JOIN operations o ON o.id=e.operation_id AND o.business_id=? " +
@@ -265,11 +368,11 @@ class CustomerExcelExporter @Inject constructor(
                         "Coupon wallet currency mismatch for event " + c.getString(6) +
                             "; export stopped rather than mixing currencies"
                     }
-                    val branchCurrency = c.getString(8)
+                    val branchCurrency = c.getString(9)
                     val decimals = decimalsByCurrency[eventCurrency] ?: if (
-                        branchCurrency.equals(eventCurrency, true) && !c.isNull(9)
+                        branchCurrency.equals(eventCurrency, true) && !c.isNull(10)
                     ) {
-                        c.getInt(9)
+                        c.getInt(10)
                     } else {
                         com.dailymoneyregister.core.model.currency.CurrencyRegistry.findByCode(eventCurrency).decimalPlaces
                     }
@@ -277,10 +380,24 @@ class CustomerExcelExporter @Inject constructor(
                     couponEvents.add(
                         CouponEvent(
                             customerId, eventCurrency, decimals, c.getString(3), c.getLong(4),
-                            c.getLong(5), c.getString(6)
+                            c.getLong(5), c.getString(6), c.getString(7),
+                            branches[c.getString(8)]?.name.orEmpty()
                         )
                     )
                 }
+            }
+
+            couponEvents.forEach { event ->
+                val customer = customers[event.customerId]
+                    ?: error("Coupon ledger event has no matching business customer: " + event.customerId)
+                activities.add(
+                    Activity(
+                        customer.id, event.occurredAt, event.branch, customer.name, customer.phone,
+                        "COUPON_LEDGER_" + event.type, event.id, event.currency, event.decimals,
+                        event.amountMinor, status = "Coupon ledger evidence — excluded from sales totals",
+                        relatedTransactionId = event.transactionId
+                    )
+                )
             }
 
             val invoiceCounts = mutableMapOf<String, Int>()
