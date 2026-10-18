@@ -156,11 +156,16 @@ object ReportingUiProjection {
                 activityType = row.activityType,
                 amountText =
                     amount?.let {
-                        formatMoney(
-                            it,
+                        val magnitude = formatMoney(
+                            MoneyMinorUnits(Math.abs(it.amount)),
                             decimalPlaces,
                             currencySymbol
                         )
+                        when {
+                            it.amount > 0L -> "+ $magnitude"
+                            it.amount < 0L -> "- $magnitude"
+                            else -> magnitude
+                        }
                     },
                 referenceText =
                     row.reference
