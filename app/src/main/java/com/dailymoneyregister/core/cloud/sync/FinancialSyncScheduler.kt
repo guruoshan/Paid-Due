@@ -29,7 +29,11 @@ class FinancialSyncScheduler @Inject constructor(
         scope.launch {
             SessionManager.currentSession
                 .map { session -> session?.let { it.membership?.id to it } }
-                .distinctUntilChanged { old, new -> old?.first == new?.first }
+                .distinctUntilChanged { old, new ->
+                    old?.first == new?.first &&
+                        old?.second?.user?.id == new?.second?.user?.id &&
+                        old?.second?.user?.role == new?.second?.user?.role
+                }
                 .collectLatest { keyedSession ->
                 val session = keyedSession?.second
                 if (session == null || session.user.role != UserRole.ADMIN) {
