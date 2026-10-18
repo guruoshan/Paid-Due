@@ -619,15 +619,16 @@ class RoomReportingReadRepository(
                     }
                 }
                 val digest = envelope.canonicalSha256
-                check(!digest.isNullOrBlank() &&
-                    digest.equals(CommandFingerprint.sha256(envelope.canonicalText), ignoreCase = true)
-                ) {
-                    "Cloud inventory digest is missing or inconsistent for operation ${envelope.operationId}."
+                    ?.takeIf { it.isNotBlank() }
+                    ?: error("Cloud inventory digest is missing for operation ${envelope.operationId}.")
+                check(digest.equals(CommandFingerprint.sha256(envelope.canonicalText), ignoreCase = true)) {
+                    "Cloud inventory digest is inconsistent for operation ${envelope.operationId}."
                 }
                 check(envelope.payloadJson.optString("operation_id") == envelope.operationId &&
                     envelope.payloadJson.optString("business_id") == envelope.businessId &&
                     envelope.payloadJson.optString("branch_id") == envelope.branchId &&
-                    envelope.payloadJson.optString("operation_type") == envelope.operationType
+                    envelope.payloadJson.optString("operation_type") == envelope.operationType &&
+                    envelope.payloadJson.optLong("occurred_at", Long.MIN_VALUE) == occurredAt
                 ) {
                     "Cloud inventory payload metadata conflicts for operation ${envelope.operationId}."
                 }
