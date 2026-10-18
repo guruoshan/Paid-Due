@@ -232,11 +232,13 @@ class RoomReportingReadRepository(
         // that happen to fall inside this report period. This proves cumulative
         // refunds do not exceed the corrected transaction amount and that the
         // full correction chain is continuous.
-        lifecycleRecords.values.forEach { record ->
-            guarded("transaction lifecycle ${record.transaction.id}") {
-                FinancialReadModelResolver.resolve(record)
+        (saleRecords + lifecycleRecords.values)
+            .distinctBy { it.transaction.id }
+            .forEach { record ->
+                guarded("transaction lifecycle ${record.transaction.id}") {
+                    validateLifecycleEvidence(record)
+                }
             }
-        }
 
         // ---- 5. Operations + settlements + coupon evidence ----------------
 
@@ -535,6 +537,34 @@ class RoomReportingReadRepository(
         @Suppress("UNUSED_PARAMETER") businessId: String,
         loader: suspend (List<String>) -> List<T>
     ): List<T> = loadChunked(ids, loader)
+
+    private fun validateLifecycleEvidence(record: TransactionFinancialRecord) {
+        val view = FinancialReadModelResolver.resolve(record)
+        if (record.voidEvents.isEmpty()) return
+
+        check(record.voidEvents.size == 1) {
+            "Transaction ${record.transaction.id} has multiple void events; reversal history requires review."
+        }
+        val voidEvent = record.voidEvents.single()
+        val reversals = record.settlements.filter {
+            it.operationId == voidEvent.operationId &&
+                it.entryPurpose.name == "VOID_REVERSAL" &&
+                it.amountSignedMinor < 0L
+        }
+        check(reversals.isNotEmpty()) {
+            "Void ${voidEvent.id} has no event-specific reversal settlement evidence."
+        }
+        val reversedMinor = reversals.fold(0L) { total, settlement ->
+            Math.addExact(total, Math.negateExact(settlement.amountSignedMinor))
+        }
+        val remainingMinor = Math.subtractExact(
+            view.currentAmount.amount,
+            view.refundedAmount.amount
+        )
+        check(remainingMinor > 0L && reversedMinor == remainingMinor) {
+            "Void ${voidEvent.id} reversal total does not equal the remaining reversible amount."
+        }
+    }
 
     private fun requireTransaction(
         transactionsById: Map<String, TransactionEntity>,
