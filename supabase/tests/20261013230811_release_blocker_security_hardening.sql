@@ -179,6 +179,45 @@ BEGIN
     RAISE EXCEPTION 'Admin download did not include authoritative actor membership metadata';
   END IF;
 
+  -- Reporting inventory is filtered by business, authorized branches,
+  -- occurred-at period and optional actor; it returns the digest for verification.
+  SELECT count(*) INTO v_count
+  FROM public.fetch_financial_reporting_inventory_v1(
+    'biz-test',
+    ARRAY['branch-test'],
+    v_occurred_at,
+    v_occurred_at + interval '1 minute',
+    'cashier-local',
+    NULL,
+    NULL,
+    100
+  ) fetched
+  WHERE fetched.operation_id = 'release-blocker-replay-test'
+    AND fetched.canonical_sha256 = v_digest;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'Scoped reporting inventory did not return the expected digest-bearing operation';
+  END IF;
+
+  v_rejected := false;
+  BEGIN
+    PERFORM *
+    FROM public.fetch_financial_reporting_inventory_v1(
+      'biz-test',
+      ARRAY['branch-not-authorized'],
+      v_occurred_at,
+      v_occurred_at + interval '1 minute',
+      NULL,
+      NULL,
+      NULL,
+      100
+    );
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_rejected := true;
+  END;
+  IF NOT v_rejected THEN
+    RAISE EXCEPTION 'Reporting inventory allowed a branch outside the Admin membership scope';
+  END IF;
+
   v_bad_payload := v_payload || jsonb_build_object('operation_id', 'release-blocker-bad-date-test');
   v_bad_canonical_text := v_bad_payload::text;
   v_bad_digest := encode(extensions.digest(convert_to(v_bad_canonical_text, 'UTF8'), 'sha256'), 'hex');
