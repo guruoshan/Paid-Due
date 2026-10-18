@@ -165,6 +165,9 @@ class ReportingUiProjectionTest {
             7,
             cards.size
         )
+        assertEquals("+ OMR 0.900", cards[0].amountText)
+        assertEquals("- OMR 0.100", cards[5].amountText)
+        assertEquals("- OMR 0.040", cards[6].amountText)
 
         assertTrue(
             cards.none {
