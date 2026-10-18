@@ -127,6 +127,22 @@ interface ReportingReadDao {
         toExclusive: Long
     ): List<AmountCorrectionEventEntity>
 
+    /**
+     * Full correction history for transactions with in-period corrections.
+     * Required to validate chain continuity across reporting-period boundaries.
+     */
+    @Query(
+        """
+        SELECT *
+        FROM amount_correction_events
+        WHERE transaction_id IN (:transactionIds)
+        ORDER BY transaction_id ASC, occurred_at ASC, id ASC
+        """
+    )
+    suspend fun getAmountCorrectionsForTransactions(
+        transactionIds: List<String>
+    ): List<AmountCorrectionEventEntity>
+
     @Query(
         """
         SELECT e.*
