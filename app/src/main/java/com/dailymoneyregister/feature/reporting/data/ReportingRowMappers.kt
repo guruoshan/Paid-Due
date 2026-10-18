@@ -231,6 +231,13 @@ internal object ReportingRowMappers {
                     .distinct()
                     .singleOrNull()
 
+        check(!operationId.isNullOrBlank()) {
+            "Sale ${tx.id} has no unique authoritative originating operation."
+        }
+        check(sumExact(paymentParts.map { it.amount.amount }) == view.originalAmount.amount) {
+            "Sale ${tx.id} tender total does not equal its immutable original amount."
+        }
+
         val states = view.lifecycleStates
 
         val lifecycle = when {
@@ -342,6 +349,11 @@ internal object ReportingRowMappers {
                 emptyList()
             }
 
+        val destinations = externalParts + couponParts
+        check(sumExact(destinations.map { it.amount.amount }) == event.refundAmountMinor) {
+            "Refund ${event.id} destinations do not equal its authoritative refund amount."
+        }
+
         return RefundReportRow(
             stableId = "refund:${event.id}",
             operationId = event.operationId,
@@ -355,7 +367,7 @@ internal object ReportingRowMappers {
             refundEventId = event.id,
             amount = MoneyMinorUnits(event.refundAmountMinor),
             reason = event.reason,
-            destinationParts = externalParts + couponParts
+            destinationParts = destinations
         )
     }
 
@@ -364,16 +376,14 @@ internal object ReportingRowMappers {
     // ------------------------------------------------------------------
 
     /**
-     * affectedAmount comes from the void operation's VOID_REVERSAL
-     * settlements when they exist. Otherwise it uses fallbackAffected, which
-     * the repository computes with the same rule FinancialReadModelResolver
-     * uses (current amount minus refunds).
+     * The amount comes only from this void operation's own immutable
+     * VOID_REVERSAL settlements. No transaction-current-balance fallback is
+     * allowed because it can reuse an amount across multiple void events.
      */
     fun mapVoid(
         event: VoidEventEntity,
         tx: TransactionEntity,
         settlements: List<SettlementEntryEntity>,
-        fallbackAffected: MoneyMinorUnits,
         lookups: ReportingLookups
     ): VoidReportRow {
 
@@ -382,14 +392,15 @@ internal object ReportingRowMappers {
                 it.amountSignedMinor < 0L
         }
 
-        val affected =
-            if (reversals.isNotEmpty()) {
-                MoneyMinorUnits(
-                    sumExact(reversals.map { Math.negateExact(it.amountSignedMinor) })
-                )
-            } else {
-                fallbackAffected
-            }
+        check(reversals.isNotEmpty()) {
+            "Void ${event.id} has no event-specific authoritative reversal settlements."
+        }
+        val affected = MoneyMinorUnits(
+            sumExact(reversals.map { Math.negateExact(it.amountSignedMinor) })
+        )
+        check(affected.amount > 0L) {
+            "Void ${event.id} reverses no positive amount."
+        }
 
         return VoidReportRow(
             stableId = "void:${event.id}",
