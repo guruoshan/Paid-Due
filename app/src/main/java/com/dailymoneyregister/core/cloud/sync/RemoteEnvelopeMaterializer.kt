@@ -102,20 +102,17 @@ object RemoteEnvelopeMaterializer {
         // checks intentionally precede duplicate handling.
         val incomingFingerprint = jsonPayload.optString("request_fingerprint")
         val existingOp = database.operationDao().getOperationById(opId)
-        if (existingOp != null) {
-            if (
+        var replayDetected = existingOp?.status == OperationStatus.SUCCEEDED
+        if (existingOp != null && (
                 existingOp.businessId != envelope.businessId ||
-                existingOp.branchId != branchId ||
-                existingOp.operationType.name != opTypeStr ||
-                existingOp.requestFingerprint != incomingFingerprint
-            ) {
-                return InboundProcessResult.Rejected(
-                    "Operation ID collision: existing operation identity does not match inbound envelope"
-                )
-            }
-            if (existingOp.status == OperationStatus.SUCCEEDED) {
-                return InboundProcessResult.Skipped
-            }
+                    existingOp.branchId != branchId ||
+                    existingOp.operationType.name != opTypeStr ||
+                    existingOp.requestFingerprint != incomingFingerprint
+            )
+        ) {
+            return InboundProcessResult.Rejected(
+                "Operation ID collision: existing operation identity does not match inbound envelope"
+            )
         }
 
         // Expense creation already has a canonical expense snapshot and a Room
@@ -404,6 +401,16 @@ object RemoteEnvelopeMaterializer {
             )
             val operationDao = database.operationDao()
             val transactionDao = database.transactionDao()
+            val persistedOperation = operationDao.getOperationById(opId)
+            if (persistedOperation != null) {
+                check(
+                    persistedOperation.businessId == envelope.businessId &&
+                        persistedOperation.branchId == branchId &&
+                        persistedOperation.operationType.name == opTypeStr &&
+                        persistedOperation.requestFingerprint == incomingFingerprint
+                ) { "Operation ID collision during atomic materialization" }
+                replayDetected = persistedOperation.status == OperationStatus.SUCCEEDED
+            }
             val occurredAt = java.time.Instant.parse(envelope.occurredAtIso).toEpochMilli()
 
             val txId = tJson.getString("id")
@@ -574,7 +581,7 @@ object RemoteEnvelopeMaterializer {
                 "Inbound sale could not be finalized with the matching request fingerprint"
             }
 
-            InboundProcessResult.Applied
+            if (replayDetected) InboundProcessResult.Skipped else InboundProcessResult.Applied
         }
     }
 
@@ -852,6 +859,7 @@ object RemoteEnvelopeMaterializer {
                     status = OperationStatus.PENDING
                 )
                 val existing = operationDao.getOperationById(envelope.operationId)
+                val replayDetected = existing?.status == OperationStatus.SUCCEEDED
                 if (existing == null) {
                     operationDao.insertOperationIfAbsent(operation)
                 } else {
@@ -861,9 +869,6 @@ object RemoteEnvelopeMaterializer {
                             existing.operationType == operation.operationType &&
                             existing.requestFingerprint == operation.requestFingerprint
                     ) { "Inbound operation identity collision" }
-                    if (existing.status == OperationStatus.SUCCEEDED) {
-                        return@withTransaction InboundProcessResult.Skipped
-                    }
                 }
 
                 val settlementsArray = payload.optJSONArray("settlements") ?: org.json.JSONArray()
@@ -916,7 +921,7 @@ object RemoteEnvelopeMaterializer {
                 check(finalized == 1 || operationDao.isOperationSucceeded(envelope.operationId)) {
                     "Inbound non-transaction operation could not be finalized"
                 }
-                InboundProcessResult.Applied
+                if (replayDetected) InboundProcessResult.Skipped else InboundProcessResult.Applied
             }
         } catch (error: Exception) {
             InboundProcessResult.Rejected(
