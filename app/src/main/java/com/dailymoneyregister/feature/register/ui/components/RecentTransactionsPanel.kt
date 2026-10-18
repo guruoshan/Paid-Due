@@ -500,7 +500,8 @@ private fun RecentTransactionRow(
                     maxLines = if (
                         transaction.type == RecentActivityType.REFUND ||
                         transaction.type == RecentActivityType.REFUND_TO_COUPON
-                    ) 2 else 1
+                    ) 2 else 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
 
@@ -509,7 +510,8 @@ private fun RecentTransactionRow(
                     text = customerName,
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
         }
