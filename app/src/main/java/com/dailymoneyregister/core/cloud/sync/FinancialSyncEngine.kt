@@ -135,6 +135,10 @@ class FinancialSyncEngine @Inject constructor(
             Log.w("PaidDueFinancialSync", "OUTBOUND_SESSION_SCOPE_MISMATCH")
             return@withLock 0
         }
+        if (role != UserRole.ADMIN || activeSession.user.role != UserRole.ADMIN) {
+            Log.i("PaidDueFinancialSync", "OUTBOUND_SKIPPED_NON_OWNER_SESSION")
+            return@withLock 0
+        }
 
         if (activeSession.user.role == UserRole.CASHIER) {
             // Refresh the authoritative cloud identity before startup reconciliation.
@@ -325,7 +329,11 @@ class FinancialSyncEngine @Inject constructor(
         adminAccountId: String
     ): Int = syncMutex.withLock {
         val session = SessionManager.currentSession.value
-        val sessionBusinessId = session?.business?.id ?: businessId
+        if (session == null || session.user.role != UserRole.ADMIN) {
+            Log.i("PaidDueFinancialSync", "INBOUND_SKIPPED_NON_OWNER_SESSION")
+            return@withLock 0
+        }
+        val sessionBusinessId = session.business.id
         val sessionBranchId = session?.membership?.branchId
         // The authenticated Admin download RPC returns envelopes for every branch
         // the Admin is authorized to access in this business. A single active-branch
