@@ -6,6 +6,7 @@ on:
       - main
       - fix/backend-compatibility-audit-2026-10
       - fix/cash-shift-cloud-owner
+      - fix/inbound-refund-historical-actor-2026-10
   pull_request:
 
 permissions:
