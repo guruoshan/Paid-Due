@@ -513,8 +513,8 @@ object RemoteEnvelopeMaterializer {
             }
 
             // 2. Transaction Items
-            if (jsonPayload.has("items") && !jsonPayload.isNull("items")) {
-                val itemsArray = jsonPayload.getJSONArray("items")
+            if (replayDetected || (jsonPayload.has("items") && !jsonPayload.isNull("items"))) {
+                val itemsArray = jsonPayload.optJSONArray("items") ?: org.json.JSONArray()
                 val itemsList = mutableListOf<TransactionItemEntity>()
                 for (i in 0 until itemsArray.length()) {
                     val itemJson = itemsArray.getJSONObject(i)
@@ -558,6 +558,10 @@ object RemoteEnvelopeMaterializer {
                 val newItems = itemsList.filter { it.id !in existingItems }
                 if (newItems.isNotEmpty()) {
                     transactionDao.insertTransactionItems(newItems)
+                }
+            } else if (replayDetected) {
+                check(transactionDao.getItemsForTransaction(txId).isEmpty()) {
+                    "Replay omitted existing transaction item evidence"
                 }
             }
 
@@ -1118,6 +1122,10 @@ object RemoteEnvelopeMaterializer {
                 if (newItems.isNotEmpty()) {
                     transactionDao.insertTransactionItems(newItems)
                 }
+            } else if (replayDetected && txId != null) {
+                check(transactionDao.getItemsForTransaction(txId).isEmpty()) {
+                    "Replay omitted existing transaction item evidence"
+                }
             }
 
             // 3. Expense
@@ -1182,8 +1190,8 @@ object RemoteEnvelopeMaterializer {
             operationDao.insertOperationIfAbsent(opEntity)
 
             // 5. Settlements (insert after owning operation; settlement_entries has an operation foreign key)
-            if (jsonPayload.has("settlements") && !jsonPayload.isNull("settlements")) {
-                val settlementsArray = jsonPayload.getJSONArray("settlements")
+            if (replayDetected || (jsonPayload.has("settlements") && !jsonPayload.isNull("settlements"))) {
+                val settlementsArray = jsonPayload.optJSONArray("settlements") ?: org.json.JSONArray()
                 val settlementsList = mutableListOf<SettlementEntryEntity>()
                 for (i in 0 until settlementsArray.length()) {
                     val sJson = settlementsArray.getJSONObject(i)
