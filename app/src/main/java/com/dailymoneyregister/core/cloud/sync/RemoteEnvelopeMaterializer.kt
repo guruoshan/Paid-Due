@@ -946,7 +946,11 @@ object RemoteEnvelopeMaterializer {
                 }
                 val existingSettlements = database.transactionDao()
                     .getSettlementsForOperation(envelope.operationId)
-                if (existingSettlements.isEmpty() && settlementRows.isNotEmpty()) {
+                if (replayDetected) {
+                    check(existingSettlements.toSet() == settlementRows.toSet()) {
+                        "Replay settlement identity set differs from the already materialized operation"
+                    }
+                } else if (existingSettlements.isEmpty() && settlementRows.isNotEmpty()) {
                     database.transactionDao().insertSettlements(settlementRows)
                 } else if (settlementRows.isNotEmpty()) {
                     check(existingSettlements.toSet() == settlementRows.toSet()) {
