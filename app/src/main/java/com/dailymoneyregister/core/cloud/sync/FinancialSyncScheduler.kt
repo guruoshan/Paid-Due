@@ -32,7 +32,10 @@ class FinancialSyncScheduler @Inject constructor(
                 .distinctUntilChanged { old, new -> old?.first == new?.first }
                 .collectLatest { keyedSession ->
                 val session = keyedSession?.second
-                if (session == null) return@collectLatest
+                if (session == null || session.user.role != UserRole.ADMIN) {
+                    Log.i("PaidDueFinancialSync", "SYNC_SKIPPED_NON_OWNER_SESSION")
+                    return@collectLatest
+                }
 
                 val membershipId = session.membership?.id
                 if (membershipId.isNullOrBlank()) {
@@ -56,6 +59,10 @@ class FinancialSyncScheduler @Inject constructor(
         scope.launch {
             val session = SessionManager.currentSession.value
                 ?: return@launch
+            if (session.user.role != UserRole.ADMIN) {
+                Log.i("PaidDueFinancialSync", "SYNC_TRIGGER_SKIPPED_NON_OWNER_SESSION")
+                return@launch
+            }
 
             val membershipId = session.membership?.id
                 ?: return@launch
@@ -82,6 +89,12 @@ class FinancialSyncScheduler @Inject constructor(
         businessId: String,
         membershipId: String
     ) {
+        if (role != UserRole.ADMIN ||
+            SessionManager.currentSession.value?.user?.role != UserRole.ADMIN
+        ) {
+            Log.i("PaidDueFinancialSync", "SYNC_EXECUTION_SKIPPED_NON_OWNER_SESSION")
+            return
+        }
         try {
             when (role) {
                 UserRole.ADMIN -> {
