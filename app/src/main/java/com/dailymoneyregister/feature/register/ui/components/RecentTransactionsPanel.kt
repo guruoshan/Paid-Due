@@ -294,6 +294,14 @@ private fun RecentTransactionRow(
         RecentActivityType.AMOUNT_CORRECTION -> "CORRECTION"
         RecentActivityType.PAYMENT_METHOD_CHANGE -> "PAYMENT CHANGE"
     }
+    val activityStatus = when (transaction.type) {
+        RecentActivityType.VOID -> "VOIDED"
+        RecentActivityType.REFUND,
+        RecentActivityType.REFUND_TO_COUPON -> "REFUNDED"
+        RecentActivityType.AMOUNT_CORRECTION -> "CORRECTED"
+        RecentActivityType.PAYMENT_METHOD_CHANGE -> "UPDATED"
+        else -> transaction.status.name.replace('_', ' ')
+    }
     val amountMagnitude = MoneyMinorUnits(kotlin.math.abs(transaction.signedEffect.amount))
         .formatDisplay(currency)
     val amountText = when {
@@ -462,7 +470,7 @@ private fun RecentTransactionRow(
             )
 
             Text(
-                text = "Status: ${transaction.status.name.replace('_', ' ')}",
+                text = "Status: $activityStatus",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
