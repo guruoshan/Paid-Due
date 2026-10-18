@@ -223,7 +223,7 @@ internal object ReportingRowMappers {
                 listOf(
                     ReportPaymentPart(
                         category = PaymentCategory.CREDIT,
-                        channel = PaymentChannel.CREDIT,
+                        channel = PaymentChannel.CREDIT_ACCOUNT,
                         amount = MoneyMinorUnits(obligationMinor)
                     )
                 )
