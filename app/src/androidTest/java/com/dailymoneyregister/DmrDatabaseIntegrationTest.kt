@@ -38,6 +38,7 @@ import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.feature.admin.data.CashierManagementRepository
+import com.dailymoneyregister.feature.customers.export.CustomerExcelExporter
 import com.dailymoneyregister.feature.admin.data.CashierPermissionsConfig
 import com.dailymoneyregister.feature.admin.data.CreateCashierParams
 import com.dailymoneyregister.feature.auth.data.AuthRepository
@@ -64,6 +65,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.zip.ZipInputStream
 import javax.inject.Inject
 
 @RunWith(AndroidJUnit4::class)
@@ -1605,6 +1607,71 @@ class DmrDatabaseIntegrationTest {
         assertFalse(database.userDao().getUserById(cashier.id)!!.mustChangePin)
         assertTrue(authRepository.loginCashier("+96892345678", "123456") is AuthResult.InvalidCredentials)
         assertTrue(authRepository.loginCashier("+96892345678", "654321") is AuthResult.Success)
+    }
+
+    @Test
+    fun customerExcelExportIncludesReconciledSaleAndAllControlWorksheets() = runBlocking {
+        val setup = createLanguageTestSetup()
+        setupRepository.establishAdminSession(setup)
+        val business = database.businessBranchDao().getBusinessById(setup.businessId.value)!!
+        val branch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
+        val admin = database.userDao().getUserById(setup.adminUserId.value)!!
+        val phone = "+96890000001"
+        val operationId = OperationId.generate()
+        val transactionId = TransactionId.generate()
+        val registerRepository = RegisterRepository(database, commandExecutor)
+        val saleResult = registerRepository.executeCashSale(
+            CashSaleCommand(
+                operationId = operationId,
+                businessId = setup.businessId.value,
+                branchId = branch.id,
+                actorUserId = admin.id,
+                transactionIdVal = transactionId,
+                draftState = DraftState(manualAmount = MoneyMinorUnits(12345L)),
+                currencyCode = branch.currencyCode,
+                currencyDecimalPlaces = branch.currencyDecimalPlaces,
+                deviceId = "customer-export-test-device",
+                customerName = "Excel Export Customer",
+                customerPhone = phone
+            ),
+            admin,
+            database.userDao().getMembership(admin.id, branch.id)
+        )
+        assertTrue("Fixture sale should succeed: " + saleResult, saleResult is CommandResult.Success)
+        val customer = database.customerDao().getCustomerByPhone(setup.businessId.value, phone)!!
+        SessionManager.setSession(ActiveSession(business = business, branch = branch, user = admin, membership = null))
+
+        val exportResult = CustomerExcelExporter(context, database).export()
+        assertTrue("Customer Excel export should succeed: " + exportResult.exceptionOrNull(), exportResult.isSuccess)
+        val uri = exportResult.getOrThrow()
+        try {
+            var workbookXml = ""
+            var directoryXml = ""
+            var summaryXml = ""
+            var historyXml = ""
+            context.contentResolver.openInputStream(uri)!!.use { input ->
+                ZipInputStream(input).use { zip ->
+                    while (true) {
+                        val entry = zip.nextEntry ?: break
+                        val entryText = zip.readBytes().toString(Charsets.UTF_8)
+                        when (entry.name) {
+                            "xl/workbook.xml" -> workbookXml = entryText
+                            "xl/worksheets/sheet1.xml" -> directoryXml = entryText
+                            "xl/worksheets/sheet2.xml" -> summaryXml = entryText
+                            "xl/worksheets/sheet3.xml" -> historyXml = entryText
+                        }
+                    }
+                }
+            }
+            assertTrue("Workbook should contain credit reconciliation sheet", workbookXml.contains("Credit Reconciliation"))
+            assertTrue("Workbook should contain coupon reconciliation sheet", workbookXml.contains("Coupon Reconciliation"))
+            assertTrue("Directory should retain the exact customer ID", directoryXml.contains(customer.id))
+            assertTrue("Summary should show OMR sale as 12.345", summaryXml.contains("12.345"))
+            assertTrue("History should retain the source transaction ID", historyXml.contains(transactionId.value))
+        } finally {
+            context.contentResolver.delete(uri, null, null)
+            SessionManager.clearSession()
+        }
     }
 
     @Test
