@@ -249,6 +249,31 @@ interface ReportingReadDao {
         operationIds: List<String>
     ): List<OperationEntity>
 
+    /**
+     * Complete local operation inventory for a reporting scope. All statuses
+     * are returned so unresolved/non-successful operations can be explicitly
+     * classified instead of disappearing behind a success-only filter.
+     */
+    @Query(
+        """
+        SELECT *
+        FROM operations
+        WHERE business_id = :businessId
+          AND branch_id IN (:branchIds)
+          AND occurred_at >= :fromInclusive
+          AND occurred_at < :toExclusive
+          AND (:cashierUserId IS NULL OR actor_user_id = :cashierUserId)
+        ORDER BY occurred_at ASC, id ASC
+        """
+    )
+    suspend fun getOperationsInPeriod(
+        businessId: String,
+        branchIds: List<String>,
+        fromInclusive: Long,
+        toExclusive: Long,
+        cashierUserId: String?
+    ): List<OperationEntity>
+
     @Query(
         """
         SELECT *
