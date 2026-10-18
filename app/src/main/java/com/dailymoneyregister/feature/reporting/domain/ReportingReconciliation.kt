@@ -222,15 +222,19 @@ object FinancialReconciliationEngine {
         val cloudById = cloudOperations.associateBy { it.operationId }
         val duplicateCloudIds = cloudOperations.groupingBy { it.operationId }
             .eachCount().filterValues { it > 1 }.keys.sorted()
-        val localOnly = localOperations.filter {
-            it.status == OperationStatus.SUCCEEDED && it.id !in cloudById
-        }.map { it.id }.distinct().sorted()
-        val cloudOnly = cloudOperations.filter { it.operationId !in localById }
-            .map { it.operationId }.distinct().sorted()
+        val localOnly = if (cloudInventoryVerified) {
+            localOperations.filter {
+                it.status == OperationStatus.SUCCEEDED && it.id !in cloudById
+            }.map { it.id }.distinct().sorted()
+        } else emptyList()
+        val cloudOnly = if (cloudInventoryVerified) {
+            cloudOperations.filter { it.operationId !in localById }
+                .map { it.operationId }.distinct().sorted()
+        } else emptyList()
         val unresolvedLocal = localOperations.filter {
             it.status != OperationStatus.SUCCEEDED
         }.map { it.id }.distinct().sorted()
-        val identityMismatches = cloudOperations.filter { cloud ->
+        val identityMismatches = if (cloudInventoryVerified) cloudOperations.filter { cloud ->
             val local = localById[cloud.operationId] ?: return@filter false
             local.businessId != cloud.businessId ||
                 local.branchId != cloud.branchId ||
@@ -239,7 +243,7 @@ object FinancialReconciliationEngine {
                 (!cloud.actorUserId.isNullOrBlank() && local.actorUserId != cloud.actorUserId) ||
                 (!cloud.requestFingerprint.isNullOrBlank() &&
                     local.requestFingerprint != cloud.requestFingerprint)
-        }.map { it.operationId }.distinct().sorted()
+        }.map { it.operationId }.distinct().sorted() else emptyList()
 
         val duplicateRows = rows.groupingBy { it.stableId }
             .eachCount().filterValues { it > 1 }.keys.sorted()
@@ -252,7 +256,22 @@ object FinancialReconciliationEngine {
             "RECORD_EXPENSE", "RECORD_EXPENSE_CORRECTION", "RECORD_EXPENSE_VOID"
         )
         val operationalTypes = setOf("OPEN_CASH_SHIFT", "COUNT_CASH_SHIFT", "CLOSE_CASH_SHIFT")
-        val authoritative = if (cloudInventoryVerified) cloudOperations else emptyList()
+        val authoritative = if (cloudInventoryVerified) {
+            cloudOperations
+        } else {
+            localOperations.filter { it.status == OperationStatus.SUCCEEDED }.map {
+                ReportingCloudOperation(
+                    operationId = it.id,
+                    businessId = it.businessId,
+                    branchId = it.branchId.orEmpty(),
+                    operationType = it.operationType.name,
+                    occurredAtMillis = it.occurredAt,
+                    actorUserId = it.actorUserId,
+                    requestFingerprint = it.requestFingerprint,
+                    canonicalSha256 = ""
+                )
+            }
+        }
         val reportable = authoritative.filter { it.operationType in reportableTypes }
         val unsupported = authoritative.filter {
             it.operationType !in reportableTypes && it.operationType !in operationalTypes
@@ -264,13 +283,19 @@ object FinancialReconciliationEngine {
             val id = row.operationId
             if (id.isNullOrBlank()) {
                 true
-            } else {
+            } else if (cloudInventoryVerified) {
                 id !in cloudById || localById[id]?.status != OperationStatus.SUCCEEDED
+            } else {
+                localById[id]?.status != OperationStatus.SUCCEEDED
             }
         }.map { it.stableId }.distinct().sorted()
         val typeMismatches = rows.filter { row ->
             val id = row.operationId ?: return@filter true
-            val type = cloudById[id]?.operationType ?: return@filter true
+            val type = if (cloudInventoryVerified) {
+                cloudById[id]?.operationType
+            } else {
+                localById[id]?.operationType?.name
+            } ?: return@filter true
             type !in expectedOperationTypes(row)
         }.map { it.stableId }.distinct().sorted()
         val represented = reportable.filter {
