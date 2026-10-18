@@ -29,7 +29,7 @@ class CustomerExcelExporter @Inject constructor(
             val businessId = SessionManager.currentSession.value?.business?.id ?: error("No active business session")
             val db = database.openHelper.readableDatabase
             data class Customer(val id: String, val name: String, val phone: String, val updated: Long)
-            data class Activity(val date: Long, val branch: String, val name: String, val phone: String, val type: String, val ref: String, val amount: Double, val currency: String)
+            data class Activity(val date: Long, val branch: String, val name: String, val phone: String, val type: String, val ref: String, val amount: Double, val paymentMethod: String)
             val customers = linkedMapOf<String, Customer>()
             db.query("SELECT id,name,canonical_phone,updated_at FROM customers WHERE business_id=? AND TRIM(canonical_phone)<>'' ORDER BY updated_at DESC", arrayOf(businessId)).use { c ->
                 while (c.moveToNext()) {
@@ -45,13 +45,13 @@ class CustomerExcelExporter @Inject constructor(
             val branches = mutableMapOf<String,String>()
             db.query("SELECT id,name FROM branches WHERE business_id=?", arrayOf(businessId)).use { c -> while(c.moveToNext()) branches[c.getString(0)] = c.getString(1) }
             val activity = mutableListOf<Activity>()
-            db.query("SELECT t.branch_id,t.type,t.customer_id,t.grand_total_minor,t.currency_decimal_places,t.created_at,t.display_ref,t.currency_code,c.name,c.canonical_phone FROM transactions t JOIN branches b ON b.id=t.branch_id AND b.business_id=? JOIN customers c ON c.id=t.customer_id ORDER BY t.created_at", arrayOf(businessId)).use { c ->
+            db.query("SELECT t.branch_id,t.type,t.customer_id,t.grand_total_minor,t.currency_decimal_places,t.created_at,t.display_ref,t.currency_code,c.name,c.canonical_phone,t.id FROM transactions t JOIN branches b ON b.id=t.branch_id AND b.business_id=? JOIN customers c ON c.id=t.customer_id ORDER BY t.created_at", arrayOf(businessId)).use { c ->
                 while(c.moveToNext()) {
                     val phone = c.getString(9).orEmpty()
                     val key = phone.filter { it.isDigit() }.ifEmpty { phone }
                     val customer = customers[key] ?: continue
                     val amount = c.getLong(3).toDouble() / Math.pow(10.0,c.getInt(4).toDouble())
-                    activity.add(Activity(c.getLong(5),branches[c.getString(0)].orEmpty(),customer.name,customer.phone,c.getString(1),c.getString(6),amount,c.getString(7)))
+                    activity.add(Activity(c.getLong(5),branches[c.getString(0)].orEmpty(),customer.name,customer.phone,c.getString(1),c.getString(6),amount,paymentMethodForTransaction(db,c.getString(10),c.getString(1))))
                 }
             }
             // Include repayments and issued invoices as first-class history events.
@@ -65,7 +65,7 @@ class CustomerExcelExporter @Inject constructor(
                                 val key = phone.filter { it.isDigit() }.ifEmpty { phone }
                                 val customer = customers[key] ?: continue
                                 val amount = c.getLong(1).toDouble() / Math.pow(10.0,c.getInt(7).toDouble())
-                                activity.add(Activity(c.getLong(3),c.getString(6),customer.name,customer.phone,"CREDIT_REPAYMENT",c.getString(4),amount,c.getString(2)))
+                                activity.add(Activity(c.getLong(3),c.getString(6),customer.name,customer.phone,"CREDIT_REPAYMENT",c.getString(4),amount,paymentCategoryLabel(c.getString(5))))
                             }
                         }
                     }
@@ -87,7 +87,7 @@ class CustomerExcelExporter @Inject constructor(
                 }
             }
             runCatching {
-                db.query("SELECT t.customer_id,t.branch_id,t.currency_code,t.currency_decimal_places,r.refund_amount_minor,r.occurred_at,r.id FROM refund_events r JOIN transactions t ON t.id=r.transaction_id JOIN branches b ON b.id=t.branch_id WHERE b.business_id=? ORDER BY r.occurred_at", arrayOf(businessId)).use { c ->
+                db.query("SELECT t.customer_id,t.branch_id,t.currency_code,t.currency_decimal_places,r.refund_amount_minor,r.occurred_at,r.id,t.id,t.type FROM refund_events r JOIN transactions t ON t.id=r.transaction_id JOIN branches b ON b.id=t.branch_id WHERE b.business_id=? ORDER BY r.occurred_at", arrayOf(businessId)).use { c ->
                     while(c.moveToNext()) {
                         val customerCursor = db.query("SELECT name,canonical_phone FROM customers WHERE id=?", arrayOf(c.getString(0)))
                         customerCursor.use { p ->
@@ -96,7 +96,7 @@ class CustomerExcelExporter @Inject constructor(
                                 val key = phone.filter { it.isDigit() }.ifEmpty { phone }
                                 val customer = customers[key] ?: continue
                                 val amount = c.getLong(4).toDouble() / Math.pow(10.0,c.getInt(3).toDouble())
-                                activity.add(Activity(c.getLong(5),branches[c.getString(1)].orEmpty(),customer.name,customer.phone,"REFUND",c.getString(6),-amount,c.getString(2)))
+                                activity.add(Activity(c.getLong(5),branches[c.getString(1)].orEmpty(),customer.name,customer.phone,"REFUND",c.getString(6),-amount,paymentMethodForTransaction(db,c.getString(7),c.getString(8))))
                             }
                         }
                     }
@@ -116,7 +116,7 @@ class CustomerExcelExporter @Inject constructor(
                 val rows = groups[customer.phone.filter { it.isDigit() }.ifEmpty { customer.phone }].orEmpty()
                 listOf(customer.name,customer.phone,rows.count { it.type.contains("SALE",true) },rows.filter { it.type.contains("SALE",true) }.sumOf { it.amount },rows.filter { it.type.contains("CREDIT",true) }.sumOf { it.amount },rows.filter { it.type.contains("REPAY",true) }.sumOf { it.amount },rows.filter { it.type.contains("REFUND",true) }.sumOf { it.amount },rows.filter { it.type.contains("COUPON",true) }.sumOf { it.amount },rows.filter { it.type.contains("CREDIT",true) }.sumOf { it.amount }-rows.filter { it.type.contains("REPAY",true) }.sumOf { it.amount },rows.sumOf { it.amount })
             }
-            val history = activity.map { listOf(fmt(it.date),SimpleDateFormat("HH:mm:ss",Locale.US).format(Date(it.date)),it.branch,it.name,it.phone,it.type,it.ref,it.amount,it.currency,"Recorded") }
+            val history = activity.map { listOf(fmt(it.date),SimpleDateFormat("HH:mm:ss",Locale.US).format(Date(it.date)),it.branch,it.name,it.phone,it.type,it.ref,it.amount,it.paymentMethod,"Recorded") }
             val day = SimpleDateFormat("yyyy_MM_dd",Locale.US).format(Date())
             val filename = "PaidDue_Customers_" + day + ".xlsx"
             val bytes = xlsx(listOf(
@@ -143,6 +143,52 @@ class CustomerExcelExporter @Inject constructor(
     fun open(uri: Uri) {
         val intent = Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri,"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK) }
         runCatching { context.startActivity(intent) }
+    }
+
+    private fun paymentMethodForTransaction(db: android.database.sqlite.SQLiteDatabase, transactionId: String, transactionType: String): String {
+        // The immutable payment-method-change event is the latest authoritative
+        // tender snapshot. Otherwise use original sale/coupon funding evidence,
+        // never the transaction currency code or an unrelated repayment.
+        db.query(
+            "SELECT new_method,new_channel FROM payment_method_change_events WHERE transaction_id=? ORDER BY occurred_at DESC,id DESC LIMIT 1",
+            arrayOf(transactionId)
+        ).use { cursor ->
+            if (cursor.moveToFirst()) return paymentMethodLabel(cursor.getString(0), cursor.getString(1))
+        }
+        val purpose = if (transactionType == "COUPON_PURCHASE") "COUPON_PURCHASE_FUNDING" else "SALE_FUNDING"
+        val methods = linkedSetOf<String>()
+        db.query(
+            "SELECT DISTINCT category,channel FROM settlement_entries WHERE transaction_id=? AND entry_purpose=? AND amount_signed_minor>0 ORDER BY occurred_at,id",
+            arrayOf(transactionId, purpose)
+        ).use { cursor ->
+            while (cursor.moveToNext()) methods.add(paymentMethodLabel(cursor.getString(0), cursor.getString(1)))
+        }
+        return methods.joinToString(" + ").ifBlank { "Not recorded" }
+    }
+
+    private fun paymentMethodLabel(category: String?, channel: String?): String {
+        val normalizedCategory = category.orEmpty().uppercase(Locale.ROOT)
+        val normalizedChannel = channel.orEmpty().uppercase(Locale.ROOT)
+        return when {
+            normalizedChannel == "CASH_TENDER" || normalizedCategory == "CASH" -> "Cash"
+            normalizedChannel == "SOFTPOS" -> "Card"
+            normalizedChannel == "MANUAL_QR" -> "Online / Manual QR"
+            normalizedChannel == "CREDIT_ACCOUNT" || normalizedCategory == "CREDIT" -> "Credit"
+            normalizedChannel == "COUPON_WALLET" || normalizedCategory == "COUPON" -> "Coupon"
+            normalizedChannel.isNotBlank() -> normalizedChannel.replace('_', ' ').lowercase(Locale.ROOT)
+                .replaceFirstChar { it.uppercase(Locale.ROOT) }
+            normalizedCategory.isNotBlank() -> normalizedCategory.replace('_', ' ').lowercase(Locale.ROOT)
+                .replaceFirstChar { it.uppercase(Locale.ROOT) }
+            else -> "Not recorded"
+        }
+    }
+
+    private fun paymentCategoryLabel(category: String?): String = when (category.orEmpty().uppercase(Locale.ROOT)) {
+        "CASH" -> "Cash"
+        "ONLINE" -> "Online / Manual QR"
+        "CREDIT" -> "Credit"
+        "COUPON" -> "Coupon"
+        else -> "Not recorded"
     }
 
     private fun fmt(value: Long?): String = value?.let { SimpleDateFormat("yyyy-MM-dd",Locale.US).format(Date(it)) }.orEmpty()
