@@ -234,17 +234,12 @@ object RemoteEnvelopeMaterializer {
             )
         }
         val createdByUserId = tJson.optString("created_by_user_id").ifBlank { actorUserId }
-        // The transaction creator is historical attribution, not the actor authorized
-        // to perform this refund/correction/void. A cashier may be removed after the
-        // original sale while valid later lifecycle operations still reference it.
-        // Validate that the historical identity belongs to this business/branch, but
-        // do not require that identity to remain active. The envelope actor above and
-        // each settlement actor remain subject to the active-identity checks.
-        if (!hasHistoricalActorReference(database, createdByUserId, sessionBusinessId, branchId, tJson.getString("id"))) {
-            return InboundProcessResult.Rejected(
-                "Referenced historical transaction creator '$createdByUserId' is unknown in this business/branch"
-            )
-        }
+        // created_by_user_id is immutable attribution on the original transaction
+        // snapshot, not the actor authorized to perform this inbound operation.
+        // The original cashier may have been removed or their device-local identity
+        // may never have been installed here. Do not reject a valid refund/correction/
+        // void because of that historical state. The envelope actor and settlement
+        // actors above remain independently validated against the active scope.
         if (tJson.getString("branch_id") != branchId) {
             return InboundProcessResult.Rejected("Transaction branch does not match envelope branch")
         }
@@ -618,32 +613,6 @@ object RemoteEnvelopeMaterializer {
         if (localActor == null || !localActor.isActive) return false
         if (localActor.role.name == "ADMIN") return true
         return database.userDao().getMembership(actorUserId, branchId) != null
-    }
-
-    /**
-     * Validates an immutable historical creator reference without treating it as a
-     * currently authorized actor. Cloud identity rows are retained as tombstones after
-     * removal; their presence proves attribution even when isActive/isRemoved deny new
-     * actions. If no cloud projection exists, a local user row in this business is the
-     * remaining historical reference. Active actor authorization must use hasActorIdentity.
-     */
-    internal suspend fun hasHistoricalActorReference(
-        database: DmrDatabase,
-        actorUserId: String,
-        businessId: String,
-        branchId: String,
-        transactionId: String
-    ): Boolean {
-        // Prefer the immutable local transaction snapshot when it already exists.
-        // The creator ID on that snapshot is attribution evidence even if the creator
-        // was subsequently removed and no staff projection is currently cached.
-        val existingTransaction = database.transactionDao().getTransactionById(transactionId)
-        if (existingTransaction?.createdByUserId == actorUserId) return true
-
-        val cloudIdentity = database.cloudStaffIdentityDao()
-            .findIdentity(actorUserId, businessId, branchId)
-        if (cloudIdentity != null) return true
-        return database.userDao().getUserByIdInBusiness(actorUserId, businessId) != null
     }
 
     private fun normalizeJson(value: Any?): Any? = when (value) {
