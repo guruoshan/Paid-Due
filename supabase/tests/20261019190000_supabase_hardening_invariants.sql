@@ -78,6 +78,21 @@ BEGIN
     RAISE EXCEPTION 'Ingestion hardening invariant failed: secure idempotent ingest contract missing';
   END IF;
 
-  RAISE NOTICE 'Supabase hardening invariants passed: RLS enabled, tenant references aligned, canonical digests valid, duplicate keys absent, idempotent ingest contract present.';
+  -- The notification policy keeps its authorization predicates while avoiding
+  -- per-row auth.uid() evaluation.
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'private'
+      AND tablename = 'business_notifications'
+      AND policyname = 'admin_read_own_business_notifications'
+      AND qual ILIKE '%( SELECT auth.uid() AS uid)%'
+      AND qual ILIKE '%m.role = ''ADMIN''%'
+      AND qual ILIKE '%m.removed_at IS NULL%'
+  ) THEN
+    RAISE EXCEPTION 'RLS policy invariant failed: optimized admin notification policy missing';
+  END IF;
+
+  RAISE NOTICE 'Supabase hardening invariants passed: RLS enabled, tenant references aligned, canonical digests valid, duplicate keys absent, idempotent ingest contract present, notification RLS policy preserved.';
 END
 $hardening$;
