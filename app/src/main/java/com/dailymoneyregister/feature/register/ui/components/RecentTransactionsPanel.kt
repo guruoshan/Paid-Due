@@ -476,9 +476,7 @@ private fun RecentTransactionRow(
                     methodLabel
                 }
 
-            if (
-                lifecycleMethodLabel.isNotBlank() &&
-            ) {
+            if (lifecycleMethodLabel.isNotBlank()) {
                 Text(
                     text = lifecycleMethodLabel,
                     fontSize = 11.sp,
