@@ -103,7 +103,10 @@ class ReportingAggregatorTest {
                 person = person,
                 eventId = "v1",
                 affectedAmount = money(50L),
-                reason = "Void"
+                reason = "Void",
+                reversalParts = listOf(
+                    part(PaymentCategory.CASH, PaymentChannel.CASH_TENDER, 50L)
+                )
             ),
             AmountCorrectionReportRow(
                 stableId = "correction:c1",
@@ -152,7 +155,7 @@ class ReportingAggregatorTest {
         assertEquals(600L, summary.cashSalesCollected.amount)
         assertEquals(200L, summary.onlineSalesCollected.amount)
         assertEquals(200L, summary.creditSalesOriginated.amount)
-        assertEquals(600L, summary.cashInHand.amount)
+        assertEquals(550L, summary.cashInHand.amount)
         assertEquals(200L, summary.cashAtBank.amount)
         assertEquals(100L, summary.cashRefunded.amount)
         assertEquals(1, summary.counts.sales)
