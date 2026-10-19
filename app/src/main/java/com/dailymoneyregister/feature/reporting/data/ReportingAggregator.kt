@@ -65,6 +65,29 @@ internal object ReportingAggregator {
         var correctionCount = 0
         var paymentChangeCount = 0
 
+        fun addCouponTenderReceipts(row: CouponReportRow) {
+            if (row.fundingParts.isNotEmpty()) {
+                row.fundingParts.forEach { part ->
+                    when (part.category) {
+                        PaymentCategory.CASH ->
+                            cashCouponReceipts = Math.addExact(cashCouponReceipts, part.amount.amount)
+                        PaymentCategory.ONLINE ->
+                            onlineCouponReceipts = Math.addExact(onlineCouponReceipts, part.amount.amount)
+                        PaymentCategory.CREDIT, PaymentCategory.COUPON -> Unit
+                    }
+                }
+            } else {
+                // Compatibility fallback for legacy rows without settlement detail.
+                when (row.fundingCategory) {
+                    PaymentCategory.CASH ->
+                        cashCouponReceipts = Math.addExact(cashCouponReceipts, row.signedAmount.amount)
+                    PaymentCategory.ONLINE ->
+                        onlineCouponReceipts = Math.addExact(onlineCouponReceipts, row.signedAmount.amount)
+                    PaymentCategory.CREDIT, PaymentCategory.COUPON, null -> Unit
+                }
+            }
+        }
+
         rows.forEach { row ->
             when (row) {
                 is SaleReportRow -> {
@@ -199,29 +222,6 @@ internal object ReportingAggregator {
             Math.addExact(saleInflow, refundEffect),
             Math.addExact(voidEffect, correctionEffect)
         )
-
-        fun addCouponTenderReceipts(row: CouponReportRow) {
-            if (row.fundingParts.isNotEmpty()) {
-                row.fundingParts.forEach { part ->
-                    when (part.category) {
-                        PaymentCategory.CASH ->
-                            cashCouponReceipts = Math.addExact(cashCouponReceipts, part.amount.amount)
-                        PaymentCategory.ONLINE ->
-                            onlineCouponReceipts = Math.addExact(onlineCouponReceipts, part.amount.amount)
-                        PaymentCategory.CREDIT, PaymentCategory.COUPON -> Unit
-                    }
-                }
-            } else {
-                // Compatibility fallback for legacy rows without settlement detail.
-                when (row.fundingCategory) {
-                    PaymentCategory.CASH ->
-                        cashCouponReceipts = Math.addExact(cashCouponReceipts, row.signedAmount.amount)
-                    PaymentCategory.ONLINE ->
-                        onlineCouponReceipts = Math.addExact(onlineCouponReceipts, row.signedAmount.amount)
-                    PaymentCategory.CREDIT, PaymentCategory.COUPON, null -> Unit
-                }
-            }
-        }
 
         val cashInHand = Math.subtractExact(
             Math.subtractExact(
