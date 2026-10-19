@@ -390,6 +390,17 @@ internal object ReportingRowMappers {
             } else {
                 fallbackAffected
             }
+        val reversalParts = reversals
+            .groupBy { it.category to it.channel }
+            .map { (identity, entries) ->
+                ReportPaymentPart(
+                    category = identity.first,
+                    channel = identity.second,
+                    amount = MoneyMinorUnits(
+                        sumExact(entries.map { Math.negateExact(it.amountSignedMinor) })
+                    )
+                )
+            }
 
         return VoidReportRow(
             stableId = "void:${event.id}",
@@ -403,7 +414,8 @@ internal object ReportingRowMappers {
             person = lookups.person(tx.customerId),
             eventId = event.id,
             affectedAmount = affected,
-            reason = event.reason
+            reason = event.reason,
+            reversalParts = reversalParts
         )
     }
 
