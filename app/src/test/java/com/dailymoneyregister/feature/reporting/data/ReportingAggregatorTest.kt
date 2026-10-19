@@ -359,6 +359,8 @@ class ReportingAggregatorTest {
         val summary = ReportingAggregator.build(listOf(expense, refund, couponCredit))
         assertEquals(-500L, summary.periodNetSalesActivity.amount)
         assertEquals(250L, summary.cashExpenses.amount)
+        assertEquals(-250L, summary.cashInHand.amount)
+        assertEquals(0L, summary.cashAtBank.amount)
         assertEquals(250L, summary.totalExpenses.amount)
         assertEquals(500L, summary.couponRefunded.amount)
         assertEquals(0L, summary.cashRefunded.amount)
