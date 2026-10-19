@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="invoices" path="invoices/" />
+    <cache-path name="reports" path="reports/" />
     <cache-path name="receipts" path="receipts/" />
     <cache-path name="expense_capture" path="expense_supporting_document_capture/" />
     <files-path name="expense_supporting_documents" path="expense_supporting_documents/" />
