@@ -189,6 +189,28 @@ class RecentActivityAccountingTest {
     }
 
     @Test
+    fun creditRefund_reversesFullSalesAmountEvenWhenPayoutIsSmaller() {
+        val refund = activity(
+            id = "credit-refund",
+            type = RecentActivityType.REFUND_TO_COUPON,
+            signedEffect = -10_000L,
+            funding = listOf(
+                part(
+                    PaymentCategory.COUPON,
+                    PaymentChannel.COUPON_WALLET,
+                    10_000L
+                )
+            ),
+            totalEffectOverride = MoneyMinorUnits(-26_000L)
+        )
+
+        assertEquals(
+            -26_000L,
+            RecentActivityTotals.todayTotal(listOf(refund)).amount
+        )
+    }
+
+    @Test
     fun cashRefund_remainsNegativeInTodayTotal() {
         val refund = activity(
             id = "refund-cash",
@@ -223,7 +245,8 @@ class RecentActivityAccountingTest {
         id: String,
         type: RecentActivityType,
         signedEffect: Long,
-        funding: List<FinancialFundingPart>
+        funding: List<FinancialFundingPart>,
+        totalEffectOverride: MoneyMinorUnits? = null
     ) = RecentFinancialActivity(
         activityId = id,
         transactionId = "tx-$id",
@@ -238,6 +261,7 @@ class RecentActivityAccountingTest {
         originalTransactionId = null,
         sourceType = RecentActivitySourceType.TRANSACTION,
         sourceReference = id,
-        displayRef = "REF-$id"
+        displayRef = "REF-$id",
+        totalEffectOverride = totalEffectOverride
     )
 }
