@@ -102,23 +102,11 @@ internal object ReportingAggregator {
                     when (row.eventKind) {
                         CouponReportEventKind.PURCHASE -> {
                             couponPurchased = Math.addExact(couponPurchased, row.signedAmount.amount)
-                            when (row.fundingCategory) {
-                                PaymentCategory.CASH ->
-                                    cashCouponReceipts = Math.addExact(cashCouponReceipts, row.signedAmount.amount)
-                                PaymentCategory.ONLINE ->
-                                    onlineCouponReceipts = Math.addExact(onlineCouponReceipts, row.signedAmount.amount)
-                                PaymentCategory.CREDIT, PaymentCategory.COUPON, null -> Unit
-                            }
+                            addCouponTenderReceipts(row)
                         }
                         CouponReportEventKind.TOP_UP -> {
                             couponToppedUp = Math.addExact(couponToppedUp, row.signedAmount.amount)
-                            when (row.fundingCategory) {
-                                PaymentCategory.CASH ->
-                                    cashCouponReceipts = Math.addExact(cashCouponReceipts, row.signedAmount.amount)
-                                PaymentCategory.ONLINE ->
-                                    onlineCouponReceipts = Math.addExact(onlineCouponReceipts, row.signedAmount.amount)
-                                PaymentCategory.CREDIT, PaymentCategory.COUPON, null -> Unit
-                            }
+                            addCouponTenderReceipts(row)
                         }
                         CouponReportEventKind.REDEMPTION ->
                             couponRedeemed = Math.addExact(
@@ -211,6 +199,29 @@ internal object ReportingAggregator {
             Math.addExact(saleInflow, refundEffect),
             Math.addExact(voidEffect, correctionEffect)
         )
+
+        fun addCouponTenderReceipts(row: CouponReportRow) {
+            if (row.fundingParts.isNotEmpty()) {
+                row.fundingParts.forEach { part ->
+                    when (part.category) {
+                        PaymentCategory.CASH ->
+                            cashCouponReceipts = Math.addExact(cashCouponReceipts, part.amount.amount)
+                        PaymentCategory.ONLINE ->
+                            onlineCouponReceipts = Math.addExact(onlineCouponReceipts, part.amount.amount)
+                        PaymentCategory.CREDIT, PaymentCategory.COUPON -> Unit
+                    }
+                }
+            } else {
+                // Compatibility fallback for legacy rows without settlement detail.
+                when (row.fundingCategory) {
+                    PaymentCategory.CASH ->
+                        cashCouponReceipts = Math.addExact(cashCouponReceipts, row.signedAmount.amount)
+                    PaymentCategory.ONLINE ->
+                        onlineCouponReceipts = Math.addExact(onlineCouponReceipts, row.signedAmount.amount)
+                    PaymentCategory.CREDIT, PaymentCategory.COUPON, null -> Unit
+                }
+            }
+        }
 
         val cashInHand = Math.subtractExact(
             Math.subtractExact(
