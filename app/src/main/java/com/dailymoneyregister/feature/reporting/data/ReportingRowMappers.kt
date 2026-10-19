@@ -426,9 +426,22 @@ internal object ReportingRowMappers {
     fun mapCorrection(
         event: AmountCorrectionEventEntity,
         tx: TransactionEntity,
+        settlements: List<SettlementEntryEntity>,
         lookups: ReportingLookups
-    ): AmountCorrectionReportRow =
-        AmountCorrectionReportRow(
+    ): AmountCorrectionReportRow {
+        val fundingParts = settlements
+            .filter { it.entryPurpose == EntryPurpose.FUNDING_CORRECTION }
+            .groupBy { it.category to it.channel }
+            .map { (identity, entries) ->
+                ReportPaymentPart(
+                    category = identity.first,
+                    channel = identity.second,
+                    amount = MoneyMinorUnits(
+                        sumExact(entries.map { kotlin.math.abs(it.amountSignedMinor) })
+                    )
+                )
+            }
+        return AmountCorrectionReportRow(
             stableId = "correction:${event.id}",
             operationId = event.operationId,
             transactionId = tx.id,
@@ -441,8 +454,10 @@ internal object ReportingRowMappers {
             eventId = event.id,
             previousAmount = MoneyMinorUnits(event.previousAmountMinor),
             correctedAmount = MoneyMinorUnits(event.correctedAmountMinor),
-            reason = event.reason
+            reason = event.reason,
+            fundingParts = fundingParts
         )
+    }
 
     fun mapPaymentMethodChange(
         event: PaymentMethodChangeEventEntity,
