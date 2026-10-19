@@ -149,6 +149,8 @@ class ReportingAggregatorTest {
         assertEquals(600L, summary.cashSalesCollected.amount)
         assertEquals(200L, summary.onlineSalesCollected.amount)
         assertEquals(200L, summary.creditSalesOriginated.amount)
+        assertEquals(500L, summary.cashInHand.amount)
+        assertEquals(200L, summary.cashAtBank.amount)
         assertEquals(100L, summary.cashRefunded.amount)
         assertEquals(1, summary.counts.sales)
         assertEquals(1, summary.counts.refunds)
@@ -224,8 +226,12 @@ class ReportingAggregatorTest {
 
     @Test
     fun couponActivityDoesNotCreateMerchandiseRevenueOrDoubleCountRepayment() {
-        fun coupon(id: String, kind: CouponReportEventKind, signed: Long) =
-            CouponReportRow(
+        fun coupon(
+            id: String,
+            kind: CouponReportEventKind,
+            signed: Long,
+            funding: PaymentCategory? = null
+        ) = CouponReportRow(
                 stableId = "coupon:$id",
                 operationId = "operation-$id",
                 transactionId = null,
@@ -239,8 +245,12 @@ class ReportingAggregatorTest {
                 ledgerEventId = id,
                 eventKind = kind,
                 signedAmount = money(signed),
-                fundingCategory = null,
-                fundingChannel = null,
+                fundingCategory = funding,
+                fundingChannel = when (funding) {
+                    PaymentCategory.CASH -> PaymentChannel.CASH_TENDER
+                    PaymentCategory.ONLINE -> PaymentChannel.MANUAL_QR
+                    else -> null
+                },
                 authorizedUserId = null,
                 authorizedUserName = null,
                 resultingBalance = null
@@ -267,8 +277,8 @@ class ReportingAggregatorTest {
 
         val summary = ReportingAggregator.build(
             listOf(
-                coupon("purchase", CouponReportEventKind.PURCHASE, 500L),
-                coupon("topup", CouponReportEventKind.TOP_UP, 200L),
+                coupon("purchase", CouponReportEventKind.PURCHASE, 500L, PaymentCategory.CASH),
+                coupon("topup", CouponReportEventKind.TOP_UP, 200L, PaymentCategory.ONLINE),
                 coupon("redeem", CouponReportEventKind.REDEMPTION, -300L),
                 coupon("refund", CouponReportEventKind.REFUND_CREDIT, 150L),
                 coupon("bonus", CouponReportEventKind.PROMOTION_BONUS, 50L),
@@ -280,6 +290,8 @@ class ReportingAggregatorTest {
         assertEquals(0L, summary.periodSaleInflow.amount)
         assertEquals(500L, summary.couponPurchased.amount)
         assertEquals(200L, summary.couponToppedUp.amount)
+        assertEquals(500L, summary.cashInHand.amount)
+        assertEquals(200L, summary.cashAtBank.amount)
         assertEquals(300L, summary.couponRedeemed.amount)
         assertEquals(150L, summary.couponRefunded.amount)
         assertEquals(100L, summary.couponCreditRepayments.amount)
