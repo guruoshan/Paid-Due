@@ -525,7 +525,9 @@ data class AmountCorrectionReportRow(
     val previousAmount: MoneyMinorUnits,
     val correctedAmount: MoneyMinorUnits,
 
-    val reason: String?
+    val reason: String?,
+    /** Tender amounts from authoritative FUNDING_CORRECTION settlements. */
+    val fundingParts: List<ReportPaymentPart> = emptyList()
 ) : ReportRow {
 
     override val activityType: ReportActivityType =
