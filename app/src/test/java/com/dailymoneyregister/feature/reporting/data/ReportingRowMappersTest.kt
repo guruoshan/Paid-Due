@@ -617,6 +617,7 @@ class ReportingRowMappersTest {
                 occurredAt = 500L
             ),
             tx(),
+            emptyList(),
             lookups
         )
 
