@@ -89,9 +89,9 @@ fun RecentTransactionsPanel(
     onToggleExpanded: () -> Unit,
     onTransactionSelected: (String) -> Unit = {},
     onExpenseSelected: (String) -> Unit = {},
-    maxListHeight: androidx.compose.ui.unit.Dp = 220.dp,
+    maxListHeight: androidx.compose.ui.unit.Dp = 180.dp,
     modifier: Modifier = Modifier,
-    compactMaxListHeight: androidx.compose.ui.unit.Dp = 180.dp
+    compactMaxListHeight: androidx.compose.ui.unit.Dp = 140.dp
 ) {
     // BOARDLOCK_COUPON_TODAY_TOTAL
     // Do not sum raw signedEffect here: Coupon redemption is an
@@ -125,7 +125,7 @@ fun RecentTransactionsPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onToggleExpanded() }
-                    .padding(12.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -178,8 +178,8 @@ fun RecentTransactionsPanel(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = maxListHeight)
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     items(transactions, key = { it.activityId }) { tx ->
                         RecentTransactionRow(
@@ -232,7 +232,7 @@ private fun CompactRecentRows(
     // Measure real row heights, including badges and font scaling. Stop before
     // the first incomplete row, without a fixed count or a scroll container.
     SubcomposeLayout(modifier = modifier) { constraints ->
-        val spacing = 6.dp.roundToPx()
+        val spacing = 3.dp.roundToPx()
         val rows = mutableListOf<Pair<Placeable, Int>>()
         val budget = RecentRowHeightBudget(constraints.maxHeight, spacing)
         for (transaction in transactions) {
@@ -302,15 +302,7 @@ private fun RecentTransactionRow(
         RecentActivityType.AMOUNT_CORRECTION -> "CORRECTION"
         RecentActivityType.PAYMENT_METHOD_CHANGE -> "PAYMENT CHANGE"
     }
-    val referenceText = when (transaction.type) {
-        RecentActivityType.REFUND,
-        RecentActivityType.REFUND_TO_COUPON,
-        RecentActivityType.VOID,
-        RecentActivityType.AMOUNT_CORRECTION,
-        RecentActivityType.PAYMENT_METHOD_CHANGE -> transaction.sourceReference
-        else -> transaction.displayRef.ifBlank { transaction.sourceReference }
-    }
-    val activityStatus = when (transaction.type) {
+        val activityStatus = when (transaction.type) {
         RecentActivityType.VOID -> "VOIDED"
         RecentActivityType.REFUND,
         RecentActivityType.REFUND_TO_COUPON -> "REFUNDED"
@@ -418,8 +410,8 @@ private fun RecentTransactionRow(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -427,7 +419,7 @@ private fun RecentTransactionRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    modifier = Modifier.widthIn(min = 112.dp).heightIn(min = 24.dp),
+                    modifier = Modifier.widthIn(min = 76.dp).heightIn(min = 22.dp),
                     color = flowColor.copy(alpha = if (isDarkTheme) 0.20f else 0.12f),
                     contentColor = flowColor,
                     shape = RoundedCornerShape(6.dp)
@@ -459,17 +451,9 @@ private fun RecentTransactionRow(
                 textAlign = TextAlign.Start,
                 fontWeight = FontWeight.ExtraBold,
                 color = flowColor,
-                fontSize = 22.sp,
-                maxLines = 2,
+                fontSize = 16.sp,
+                maxLines = 1,
                 softWrap = true
-            )
-
-            Text(
-                text = "Ref: $referenceText",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
 
             Text(
@@ -492,10 +476,7 @@ private fun RecentTransactionRow(
                     methodLabel
                 }
 
-            if (
-                lifecycleMethodLabel.isNotBlank() &&
-                transaction.type != RecentActivityType.MERCHANDISE_SALE
-            ) {
+            if (lifecycleMethodLabel.isNotBlank()) {
                 Text(
                     text = lifecycleMethodLabel,
                     fontSize = 11.sp,
@@ -508,15 +489,6 @@ private fun RecentTransactionRow(
                 )
             }
 
-            transaction.customerName?.let { customerName ->
-                Text(
-                    text = customerName,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
-            }
         }
     }
 }
