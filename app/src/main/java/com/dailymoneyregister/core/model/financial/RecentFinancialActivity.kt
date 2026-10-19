@@ -349,7 +349,8 @@ object RecentActivityReadModelResolver {
             occurredAt = refund.occurredAt,
             customerName = customerName,
             sourceType = RecentActivitySourceType.REFUND_EVENT,
-            sourceReference = refund.id
+            sourceReference = refund.id,
+            totalEffectOverride = MoneyMinorUnits(Math.negateExact(refund.refundAmountMinor))
         )
     }
 
@@ -444,7 +445,8 @@ object RecentActivityReadModelResolver {
         occurredAt: Long,
         customerName: String?,
         sourceType: RecentActivitySourceType,
-        sourceReference: String
+        sourceReference: String,
+        totalEffectOverride: MoneyMinorUnits? = null
     ) = RecentFinancialActivity(
         activityId = activityId,
         transactionId = record.transaction.id,
@@ -459,7 +461,8 @@ object RecentActivityReadModelResolver {
         originalTransactionId = record.transaction.id,
         sourceType = sourceType,
         sourceReference = sourceReference,
-        displayRef = record.transaction.displayRef
+        displayRef = record.transaction.displayRef,
+        totalEffectOverride = totalEffectOverride
     )
 
     private fun fundingParts(settlements: List<SettlementEntryEntity>): List<FinancialFundingPart> =
