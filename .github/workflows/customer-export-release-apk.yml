@@ -3,6 +3,8 @@ name: Customer export release APK build
 on:
   push:
     branches: [feature/customer-excel-export]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
