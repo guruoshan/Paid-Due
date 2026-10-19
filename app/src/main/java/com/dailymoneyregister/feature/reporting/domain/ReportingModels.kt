@@ -333,7 +333,9 @@ data class CouponReportRow(
     /**
      * Populated only from authoritative ledger balance evidence.
      */
-    val resultingBalance: MoneyMinorUnits?
+    val resultingBalance: MoneyMinorUnits?,
+    /** Actual Cash/Online tender received for coupon purchases/top-ups. */
+    val fundingParts: List<ReportPaymentPart> = emptyList()
 ) : ReportRow {
 
     override val activityType: ReportActivityType
