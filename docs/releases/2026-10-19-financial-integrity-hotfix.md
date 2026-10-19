@@ -10,3 +10,6 @@ Date: 2026-10-19
 
 ## Verification status
 This note describes the code change; it does not certify a release. The PR's Android unit/instrumentation tests, report reconciliation, export validation, signed APK/AAB generation, signing-certificate verification, and installability must pass before release.
+
+## Release build request
+- Request a signed Android release build from the merged `main` revision `4b3532c1648923431ede78f951b0091927bcdb9b`.
