@@ -49,6 +49,10 @@ internal object ReportingAggregator {
         var onlineRefunded = 0L
         var cashExpenses = 0L
         var onlineExpenses = 0L
+        var cashCouponReceipts = 0L
+        var onlineCouponReceipts = 0L
+        var cashVoided = 0L
+        var onlineVoided = 0L
 
         var salesCount = 0
         var repaymentCount = 0
@@ -94,10 +98,26 @@ internal object ReportingAggregator {
                 is CouponReportRow -> {
                     couponCount = Math.addExact(couponCount, 1)
                     when (row.eventKind) {
-                        CouponReportEventKind.PURCHASE ->
+                        CouponReportEventKind.PURCHASE -> {
                             couponPurchased = Math.addExact(couponPurchased, row.signedAmount.amount)
-                        CouponReportEventKind.TOP_UP ->
+                            when (row.fundingCategory) {
+                                PaymentCategory.CASH ->
+                                    cashCouponReceipts = Math.addExact(cashCouponReceipts, row.signedAmount.amount)
+                                PaymentCategory.ONLINE ->
+                                    onlineCouponReceipts = Math.addExact(onlineCouponReceipts, row.signedAmount.amount)
+                                PaymentCategory.CREDIT, PaymentCategory.COUPON, null -> Unit
+                            }
+                        }
+                        CouponReportEventKind.TOP_UP -> {
                             couponToppedUp = Math.addExact(couponToppedUp, row.signedAmount.amount)
+                            when (row.fundingCategory) {
+                                PaymentCategory.CASH ->
+                                    cashCouponReceipts = Math.addExact(cashCouponReceipts, row.signedAmount.amount)
+                                PaymentCategory.ONLINE ->
+                                    onlineCouponReceipts = Math.addExact(onlineCouponReceipts, row.signedAmount.amount)
+                                PaymentCategory.CREDIT, PaymentCategory.COUPON, null -> Unit
+                            }
+                        }
                         CouponReportEventKind.REDEMPTION ->
                             couponRedeemed = Math.addExact(
                                 couponRedeemed,
@@ -141,6 +161,15 @@ internal object ReportingAggregator {
                 is VoidReportRow -> {
                     voidCount = Math.addExact(voidCount, 1)
                     voidEffect = Math.subtractExact(voidEffect, row.affectedAmount.amount)
+                    row.reversalParts.forEach { part ->
+                        when (part.category) {
+                            PaymentCategory.CASH ->
+                                cashVoided = Math.addExact(cashVoided, part.amount.amount)
+                            PaymentCategory.ONLINE ->
+                                onlineVoided = Math.addExact(onlineVoided, part.amount.amount)
+                            PaymentCategory.CREDIT, PaymentCategory.COUPON -> Unit
+                        }
+                    }
                 }
 
                 is AmountCorrectionReportRow -> {
@@ -161,6 +190,21 @@ internal object ReportingAggregator {
         val netSalesActivity = Math.addExact(
             Math.addExact(saleInflow, refundEffect),
             Math.addExact(voidEffect, correctionEffect)
+        )
+
+        val cashInHand = Math.subtractExact(
+            Math.subtractExact(
+                Math.addExact(Math.addExact(cashSales, cashRepayments), cashCouponReceipts),
+                cashRefunded
+            ),
+            Math.addExact(cashExpenses, cashVoided)
+        )
+        val cashAtBank = Math.subtractExact(
+            Math.subtractExact(
+                Math.addExact(Math.addExact(onlineSales, onlineRepayments), onlineCouponReceipts),
+                onlineRefunded
+            ),
+            Math.addExact(onlineExpenses, onlineVoided)
         )
 
         return ReportingSummary(
@@ -185,6 +229,8 @@ internal object ReportingAggregator {
             cashExpenses = MoneyMinorUnits(cashExpenses),
             onlineExpenses = MoneyMinorUnits(onlineExpenses),
             totalExpenses = MoneyMinorUnits(Math.addExact(cashExpenses, onlineExpenses)),
+            cashInHand = MoneyMinorUnits(cashInHand),
+            cashAtBank = MoneyMinorUnits(cashAtBank),
             counts = ReportingActivityCounts(
                 sales = salesCount,
                 creditRepayments = repaymentCount,
