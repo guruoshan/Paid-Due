@@ -257,6 +257,18 @@ class FinancialSyncEngineTest {
     }
 
     @Test
+    fun syncInboundRejectsCallerSuppliedTenantOrAccountOutsideActiveSession() = runTest {
+        setAdminSessionForInboundTests(userId = "test-admin")
+
+        assertEquals(0, engine.syncInbound("biz-other", "test-admin"))
+        assertEquals(0, engine.syncInbound("biz-1", "other-admin"))
+
+        coVerify(exactly = 0) {
+            remoteRepo.fetchRemoteEnvelopesV2(any(), any(), any(), any())
+        }
+    }
+
+    @Test
     fun syncInboundFetchesAndProcessesRemoteEnvelopes() = runTest {
         setAdminSessionForInboundTests()
         coEvery { db.businessBranchDao() } returns businessBranchDao
