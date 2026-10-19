@@ -410,7 +410,8 @@ object RemoteEnvelopeMaterializer {
                     val matchingAdjustments = (0 until creditEvents.length())
                         .map { creditEvents.getJSONObject(it) }
                         .filter {
-                            it.optString("type") == "ADJUSTMENT" &&
+                            it.optString("operation_id") == opId &&
+                                it.optString("type") == "ADJUSTMENT" &&
                                 it.optString("transaction_id") == transactionId &&
                                 it.optString("customer_id") == customerId &&
                                 it.optLong("amount_signed_minor", 0L) < 0L
@@ -426,6 +427,7 @@ object RemoteEnvelopeMaterializer {
                         settlementSum != 0L ||
                         !wasCreditFunded ||
                         customerId.isBlank() ||
+                        creditEvents.length() != 1 ||
                         matchingAdjustments.size != 1 ||
                         creditAdjustmentTotal != Math.negateExact(refundAmount) ||
                         hasCouponCredit
