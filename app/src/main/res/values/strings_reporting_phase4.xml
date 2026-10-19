@@ -24,6 +24,8 @@
     <string name="reporting_net_sales_activity">Net sales activity</string>
     <string name="reporting_cash_sales">Cash sales</string>
     <string name="reporting_online_sales">Online sales</string>
+    <string name="reporting_cash_in_hand">Cash in Hand</string>
+    <string name="reporting_cash_at_bank">Cash at Bank</string>
     <string name="reporting_no_results">No activity matches these filters.</string>
     <string name="reporting_payment_value">Payment: %1$s</string>
     <string name="reporting_reason_value">Reason: %1$s</string>
