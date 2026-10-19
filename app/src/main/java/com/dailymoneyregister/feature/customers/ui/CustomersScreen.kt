@@ -48,6 +48,7 @@ import com.dailymoneyregister.core.ui.asString
 
 data class CustomersScreenActions(
     val onNavigateBack: () -> Unit,
+    val onExportCustomers: () -> Unit,
     val onOpenCustomer: (String) -> Unit,
     val onReload: () -> Unit,
     val onQueryChange: (String) -> Unit,
@@ -117,6 +118,7 @@ fun CustomersScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Button(onClick = actions.onExportCustomers, modifier = Modifier.fillMaxWidth()) { Text("EXPORT CUSTOMERS") }
             OutlinedTextField(
                 value = state.query,
                 onValueChange = actions.onQueryChange,

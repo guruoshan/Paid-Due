@@ -34,6 +34,7 @@ import com.dailymoneyregister.feature.auth.ui.LoginViewModel
 import com.dailymoneyregister.feature.onboarding.ui.LanguagePickerScreen
 import com.dailymoneyregister.feature.onboarding.ui.SignUpRoleScreen
 import com.dailymoneyregister.feature.onboarding.ui.WelcomeScreen
+import com.dailymoneyregister.feature.customers.export.CustomerExcelExportViewModel
 import com.dailymoneyregister.feature.customers.ui.CustomerDetailScreen
 import com.dailymoneyregister.feature.customers.ui.CustomerDetailScreenActions
 import com.dailymoneyregister.feature.customers.ui.CustomerDetailViewModel
@@ -391,6 +392,7 @@ fun DmrApp(
 
         composable(Routes.REPORTS) {
 
+            val customerExcelExportViewModel: CustomerExcelExportViewModel = hiltViewModel()
             val reportingViewModel: ReportingViewModel =
                 hiltViewModel()
 
@@ -401,7 +403,8 @@ fun DmrApp(
                 },
                 onOpenCustomer = { customerId ->
                     navController.navigate("customers/$customerId")
-                }
+                },
+                onExportCustomers = customerExcelExportViewModel::exportAndShare
             )
         }
 
@@ -433,6 +436,7 @@ fun DmrApp(
 
         composable(Routes.CUSTOMERS) {
 
+            val customerExcelExportViewModel: CustomerExcelExportViewModel = hiltViewModel()
             val customersViewModel: CustomersViewModel =
                 hiltViewModel()
 
@@ -443,6 +447,7 @@ fun DmrApp(
                 state = customersState,
                 actions = CustomersScreenActions(
                     onNavigateBack = { navController.popBackStack() },
+                    onExportCustomers = customerExcelExportViewModel::exportAndShare,
                     onOpenCustomer = { customerId ->
                         navController.navigate("customers/$customerId")
                     },

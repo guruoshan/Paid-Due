@@ -1,6 +1,7 @@
 package com.dailymoneyregister
 
 import android.content.Context
+import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -37,11 +38,14 @@ import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.feature.admin.data.CashierManagementRepository
+import com.dailymoneyregister.feature.customers.data.CreditRepaymentCommand
+import com.dailymoneyregister.feature.customers.export.CustomerExcelExporter
 import com.dailymoneyregister.feature.admin.data.CashierPermissionsConfig
 import com.dailymoneyregister.feature.admin.data.CreateCashierParams
 import com.dailymoneyregister.feature.auth.data.AuthRepository
 import com.dailymoneyregister.feature.auth.data.AuthResult
 import com.dailymoneyregister.feature.register.data.CashSaleCommand
+import com.dailymoneyregister.feature.register.data.CreditSaleCommand
 import com.dailymoneyregister.feature.register.data.RegisterRepository
 import com.dailymoneyregister.feature.register.domain.DraftState
 import com.dailymoneyregister.feature.setup.data.SetupParams
@@ -63,6 +67,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.zip.ZipInputStream
 import javax.inject.Inject
 
 @RunWith(AndroidJUnit4::class)
@@ -80,6 +85,14 @@ class DmrDatabaseIntegrationTest {
     private lateinit var cashierManagementRepository: CashierManagementRepository
     private lateinit var context: Context
     private lateinit var trustedSessionStore: TrustedSessionStore
+    private val ownedViewModelStores = mutableListOf<ViewModelStore>()
+
+    private fun trackViewModel(viewModel: SettingsViewModel): SettingsViewModel {
+        val store = ViewModelStore()
+        store.put("settings-${ownedViewModelStores.size}", viewModel)
+        ownedViewModelStores += store
+        return viewModel
+    }
 
     @Before
     fun setUp() {
@@ -96,6 +109,9 @@ class DmrDatabaseIntegrationTest {
 
     @After
     fun tearDown() {
+        // Cancel manually constructed ViewModels before closing their shared test database.
+        ownedViewModelStores.forEach { it.clear() }
+        ownedViewModelStores.clear()
         trustedSessionStore.clear()
         SessionManager.clearSession()
         database.close()
@@ -1199,11 +1215,11 @@ class DmrDatabaseIntegrationTest {
         val beforeBranch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
         val languageManager = LanguageManager(context)
         val originalLanguage = languageManager.currentLanguage.value.code
-        val viewModel = SettingsViewModel(
+        val viewModel = trackViewModel(SettingsViewModel(
             languageManager,
             SettingsRepository(database.userDao(), database.businessBranchDao()),
             MerchantQrRepository(database.documentMediaDao(), context)
-        )
+        ))
         val initialSession = ActiveSession(
             business = beforeBusiness,
             branch = beforeBranch,
@@ -1252,11 +1268,11 @@ class DmrDatabaseIntegrationTest {
         val beforeBranch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
         val languageManager = LanguageManager(context)
         val originalLanguage = languageManager.currentLanguage.value.code
-        val viewModel = SettingsViewModel(
+        val viewModel = trackViewModel(SettingsViewModel(
             languageManager,
             SettingsRepository(database.userDao(), database.businessBranchDao()),
             MerchantQrRepository(database.documentMediaDao(), context)
-        )
+        ))
         val initialSession = ActiveSession(
             business = beforeBusiness,
             branch = beforeBranch,
@@ -1593,6 +1609,113 @@ class DmrDatabaseIntegrationTest {
         assertFalse(database.userDao().getUserById(cashier.id)!!.mustChangePin)
         assertTrue(authRepository.loginCashier("+96892345678", "123456") is AuthResult.InvalidCredentials)
         assertTrue(authRepository.loginCashier("+96892345678", "654321") is AuthResult.Success)
+    }
+
+    @Test
+    fun customerExcelExportIncludesReconciledSaleAndAllControlWorksheets() = runBlocking {
+        val setup = createLanguageTestSetup()
+        setupRepository.establishAdminSession(setup)
+        val business = database.businessBranchDao().getBusinessById(setup.businessId.value)!!
+        val branch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
+        val admin = database.userDao().getUserById(setup.adminUserId.value)!!
+        val phone = "+96890000001"
+        val operationId = OperationId.generate()
+        val transactionId = TransactionId.generate()
+        val registerRepository = RegisterRepository(database, commandExecutor)
+        val saleResult = registerRepository.executeCashSale(
+            CashSaleCommand(
+                operationId = operationId,
+                businessId = setup.businessId.value,
+                branchId = branch.id,
+                actorUserId = admin.id,
+                transactionIdVal = transactionId,
+                draftState = DraftState(manualAmount = MoneyMinorUnits(12345L)),
+                currencyCode = branch.currencyCode,
+                currencyDecimalPlaces = branch.currencyDecimalPlaces,
+                deviceId = "customer-export-test-device",
+                customerName = "Excel Export Customer",
+                customerPhone = phone
+            ),
+            admin,
+            database.userDao().getMembership(admin.id, branch.id)
+        )
+        assertTrue("Fixture sale should succeed: " + saleResult, saleResult is CommandResult.Success)
+        val customer = database.customerDao().getCustomerByPhone(setup.businessId.value, phone)!!
+
+        val creditOperationId = OperationId.generate()
+        val creditTransactionId = TransactionId.generate()
+        val creditSaleResult = registerRepository.executeCreditSale(
+            CreditSaleCommand(
+                operationId = creditOperationId,
+                businessId = setup.businessId.value,
+                branchId = branch.id,
+                actorUserId = admin.id,
+                transactionIdVal = creditTransactionId,
+                customerPhone = phone,
+                customerName = "Excel Export Customer",
+                draftState = DraftState(manualAmount = MoneyMinorUnits(5000L)),
+                currencyCode = branch.currencyCode,
+                currencyDecimalPlaces = branch.currencyDecimalPlaces,
+                deviceId = "customer-export-credit-test-device"
+            )
+        )
+        assertTrue("Fixture credit sale should succeed: " + creditSaleResult, creditSaleResult is CommandResult.Success)
+        val repaymentResult = registerRepository.executeCreditRepayment(
+            CreditRepaymentCommand(
+                operationId = OperationId.generate(),
+                businessId = setup.businessId.value,
+                branchId = branch.id,
+                actorUserId = admin.id,
+                repaymentId = "customer-export-repayment-" + java.util.UUID.randomUUID(),
+                customerId = customer.id,
+                amountMinor = 2000L,
+                currencyCode = branch.currencyCode,
+                paymentCategory = PaymentCategory.CASH,
+                paymentChannel = PaymentChannel.CASH_TENDER,
+                deviceId = "customer-export-repayment-test-device"
+            )
+        )
+        assertTrue("Fixture credit repayment should succeed: " + repaymentResult, repaymentResult is CommandResult.Success)
+        SessionManager.setSession(ActiveSession(business = business, branch = branch, user = admin, membership = null))
+
+        val exportResult = CustomerExcelExporter(context, database).export()
+        assertTrue("Customer Excel export should succeed: " + exportResult.exceptionOrNull(), exportResult.isSuccess)
+        val uri = exportResult.getOrThrow()
+        try {
+            var workbookXml = ""
+            var directoryXml = ""
+            var summaryXml = ""
+            var historyXml = ""
+            var creditReconciliationXml = ""
+            context.contentResolver.openInputStream(uri)!!.use { input ->
+                ZipInputStream(input).use { zip ->
+                    while (true) {
+                        val entry = zip.nextEntry ?: break
+                        val entryText = zip.readBytes().toString(Charsets.UTF_8)
+                        when (entry.name) {
+                            "xl/workbook.xml" -> workbookXml = entryText
+                            "xl/worksheets/sheet1.xml" -> directoryXml = entryText
+                            "xl/worksheets/sheet2.xml" -> summaryXml = entryText
+                            "xl/worksheets/sheet3.xml" -> historyXml = entryText
+                            "xl/worksheets/sheet4.xml" -> creditReconciliationXml = entryText
+                        }
+                    }
+                }
+            }
+            assertTrue("Workbook should contain credit reconciliation sheet", workbookXml.contains("Credit Reconciliation"))
+            assertTrue("Workbook should contain coupon reconciliation sheet", workbookXml.contains("Coupon Reconciliation"))
+            assertTrue("Directory should retain the exact customer ID", directoryXml.contains(customer.id))
+            assertTrue("Summary should show total OMR sales of 17.345", summaryXml.contains("17.345"))
+            assertTrue("Summary should show credit sale value of 5.000", summaryXml.contains("5.000"))
+            assertTrue("Summary should show credit repayment collection of 2.000", summaryXml.contains("2.000"))
+            assertTrue("Summary should show ledger outstanding credit of 3.000 after repayment", summaryXml.contains("3.000"))
+            assertTrue("History should retain the cash-sale transaction ID", historyXml.contains(transactionId.value))
+            assertTrue("History should retain the credit-sale transaction ID", historyXml.contains(creditTransactionId.value))
+            assertTrue("Credit control should reconcile funding and ledger obligation", creditReconciliationXml.contains("PASS"))
+        } finally {
+            context.contentResolver.delete(uri, null, null)
+            SessionManager.clearSession()
+        }
     }
 
     @Test

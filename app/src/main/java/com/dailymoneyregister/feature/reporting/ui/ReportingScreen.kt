@@ -63,6 +63,7 @@ fun ReportingScreen(
     viewModel: ReportingViewModel,
     onNavigateBack: () -> Unit,
     onOpenCustomer: (String) -> Unit,
+    onExportCustomers: () -> Unit,
     initialActivityName: String? = null
 ) {
 
@@ -115,6 +116,8 @@ fun ReportingScreen(
         ) {
 
             InboundIncompleteBanner()
+
+            OutlinedButton(onClick = onExportCustomers, modifier = Modifier.fillMaxWidth()) { Text("EXPORT CUSTOMERS") }
 
             ReportingPeriodSelector(
                 selected =
