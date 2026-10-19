@@ -337,6 +337,20 @@ class FinancialSyncEngine @Inject constructor(
             Log.i("PaidDueFinancialSync", "INBOUND_SKIPPED_NON_OWNER_SESSION")
             return@withLock 0
         }
+        // The caller-supplied scope must never override the authenticated session.
+        // Validate it before cursor access or any remote request to prevent a caller
+        // from using an otherwise valid admin session to fetch another tenant's feed.
+        if (
+            businessId.isBlank() ||
+            businessId != session.business.id ||
+            adminAccountId.isBlank() ||
+            adminAccountId != session.user.id ||
+            session.membership?.branchId != session.branch.id ||
+            session.branch.businessId != session.business.id
+        ) {
+            Log.w("PaidDueFinancialSync", "INBOUND_SESSION_SCOPE_MISMATCH")
+            return@withLock 0
+        }
         val sessionBusinessId = session.business.id
         val sessionBranchId = session.membership?.branchId
         // Owner download is business-scoped across every authorized branch.
