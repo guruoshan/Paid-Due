@@ -532,7 +532,9 @@ class CustomerExcelExporter @Inject constructor(
             val history = activities.sortedWith(compareBy<Activity> { it.date }.thenBy { it.ref }.thenBy { it.customerId }).map { row ->
                 listOf(
                     fmt(row.date), SimpleDateFormat("HH:mm:ss", Locale.US).format(Date(row.date)),
-                    row.branch, row.customerId, row.name, row.phone, row.type,\n                    if (row.relatedTransactionId.isNullOrBlank()) row.ref else row.ref + " [" + row.relatedTransactionId + "]",\n                    row.currency,
+                    row.branch, row.customerId, row.name, row.phone, row.type,
+                    if (row.relatedTransactionId.isNullOrBlank()) row.ref else row.ref + " [" + row.relatedTransactionId + "]",
+                    row.currency,
                     if (row.amountMinor == null) "" else money(row.amountMinor, row.decimals),
                     row.payment, row.status
                 )
