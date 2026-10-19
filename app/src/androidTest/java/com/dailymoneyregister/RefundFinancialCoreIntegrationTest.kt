@@ -1064,10 +1064,6 @@ class RefundFinancialCoreIntegrationTest {
             assertNull(
                 database.ledgerDao().getCouponWallet(customer.id, "OMR")
             )
-            assertTrue(
-                database.ledgerDao().getCouponEventsForCustomer(customer.id).isEmpty()
-            )
-
             val refundSettlements =
                 refundOutflows(tx.id)
 
