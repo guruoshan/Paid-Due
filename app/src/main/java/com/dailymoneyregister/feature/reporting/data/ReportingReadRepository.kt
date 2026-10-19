@@ -227,6 +227,7 @@ class RoomReportingReadRepository(
         val settlementOperationIds =
             refunds.map { it.operationId } +
                 voids.map { it.operationId } +
+                corrections.map { it.operationId } +
                 repayments.map { it.operationId } +
                 couponEvents.map { it.operationId } +
                 expenses.map { it.operationId }
@@ -361,6 +362,7 @@ class RoomReportingReadRepository(
                 ReportingRowMappers.mapCorrection(
                     event = event,
                     tx = requireTransaction(transactionsById, event.transactionId, access),
+                    settlements = settlementsByOperation[event.operationId].orEmpty(),
                     lookups = lookups
                 )
             }
