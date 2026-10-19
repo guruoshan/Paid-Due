@@ -445,11 +445,14 @@ class RemoteEnvelopeMaterializerTest {
         payload.put("operation_id", operationId)
         payload.put("operation_type", operationType)
         val canonicalText = payload.toString()
-        val occurredAtIso = Instant.ofEpochMilli(payload.getLong("occurred_at")).toString()
+        val occurredAtMillis = payload.getLong("occurred_at")
+        val occurredAtIso = Instant.ofEpochMilli(occurredAtMillis).toString()
+        val receivedAtIso = Instant.ofEpochMilli(Math.addExact(occurredAtMillis, 1L)).toString()
         return base.copy(
             operationId = operationId,
             operationType = operationType,
             occurredAtIso = occurredAtIso,
+            receivedAtIso = receivedAtIso,
             canonicalText = canonicalText,
             payloadJson = payload,
             canonicalSha256 = CommandFingerprint.sha256(canonicalText)
