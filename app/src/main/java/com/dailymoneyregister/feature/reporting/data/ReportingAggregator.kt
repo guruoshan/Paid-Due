@@ -53,6 +53,8 @@ internal object ReportingAggregator {
         var onlineCouponReceipts = 0L
         var cashVoided = 0L
         var onlineVoided = 0L
+        var cashCorrectionDelta = 0L
+        var onlineCorrectionDelta = 0L
 
         var salesCount = 0
         var repaymentCount = 0
@@ -190,9 +192,9 @@ internal object ReportingAggregator {
                         )
                         when (part.category) {
                             PaymentCategory.CASH ->
-                                cashCouponReceipts = Math.addExact(cashCouponReceipts, signedTenderDelta)
+                                cashCorrectionDelta = Math.addExact(cashCorrectionDelta, signedTenderDelta)
                             PaymentCategory.ONLINE ->
-                                onlineCouponReceipts = Math.addExact(onlineCouponReceipts, signedTenderDelta)
+                                onlineCorrectionDelta = Math.addExact(onlineCorrectionDelta, signedTenderDelta)
                             PaymentCategory.CREDIT, PaymentCategory.COUPON -> Unit
                         }
                     }
@@ -212,14 +214,14 @@ internal object ReportingAggregator {
 
         val cashInHand = Math.subtractExact(
             Math.subtractExact(
-                Math.addExact(Math.addExact(cashSales, cashRepayments), cashCouponReceipts),
+                Math.addExact(Math.addExact(Math.addExact(cashSales, cashRepayments), cashCouponReceipts), cashCorrectionDelta),
                 cashRefunded
             ),
             Math.addExact(cashExpenses, cashVoided)
         )
         val cashAtBank = Math.subtractExact(
             Math.subtractExact(
-                Math.addExact(Math.addExact(onlineSales, onlineRepayments), onlineCouponReceipts),
+                Math.addExact(Math.addExact(Math.addExact(onlineSales, onlineRepayments), onlineCouponReceipts), onlineCorrectionDelta),
                 onlineRefunded
             ),
             Math.addExact(onlineExpenses, onlineVoided)
