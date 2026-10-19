@@ -118,7 +118,10 @@ class ReportingAggregatorTest {
                 eventId = "c1",
                 previousAmount = money(1_000L),
                 correctedAmount = money(1_100L),
-                reason = "Correction"
+                reason = "Correction",
+                fundingParts = listOf(
+                    part(PaymentCategory.CASH, PaymentChannel.CASH_TENDER, 100L)
+                )
             ),
             PaymentMethodChangeReportRow(
                 stableId = "paymentchange:p1",
@@ -149,7 +152,7 @@ class ReportingAggregatorTest {
         assertEquals(600L, summary.cashSalesCollected.amount)
         assertEquals(200L, summary.onlineSalesCollected.amount)
         assertEquals(200L, summary.creditSalesOriginated.amount)
-        assertEquals(500L, summary.cashInHand.amount)
+        assertEquals(600L, summary.cashInHand.amount)
         assertEquals(200L, summary.cashAtBank.amount)
         assertEquals(100L, summary.cashRefunded.amount)
         assertEquals(1, summary.counts.sales)
