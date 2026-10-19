@@ -704,14 +704,14 @@ private fun summaryMetricLabel(
                 R.string.reporting_net_sales_activity
             )
 
-        ReportingSummaryMetric.CASH_SALES ->
+        ReportingSummaryMetric.CASH_IN_HAND ->
             stringResource(
-                R.string.reporting_cash_sales
+                R.string.reporting_cash_in_hand
             )
 
-        ReportingSummaryMetric.ONLINE_SALES ->
+        ReportingSummaryMetric.CASH_AT_BANK ->
             stringResource(
-                R.string.reporting_online_sales
+                R.string.reporting_cash_at_bank
             )
 
         ReportingSummaryMetric.CREDIT_SALES ->
