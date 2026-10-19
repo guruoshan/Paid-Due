@@ -1013,9 +1013,16 @@ class RefundFinancialCoreIntegrationTest {
                     amountMinor =
                         3_000L,
                     category =
-                        PaymentCategory.CREDIT,
+                        PaymentCategory.COUPON,
                     channel =
-                        PaymentChannel.CREDIT_ACCOUNT,
+                        PaymentChannel.COUPON_WALLET,
+                    couponDestination =
+                        RefundCouponDestination(
+                            customerId = customer.id,
+                            customerName = customer.name,
+                            canonicalPhone = customer.canonicalPhone,
+                            createCustomer = false
+                        ),
                     occurredAt =
                         now + 1_000L,
                     reason =
@@ -1050,6 +1057,15 @@ class RefundFinancialCoreIntegrationTest {
                         customer.id,
                         "OMR"
                     )
+            )
+
+            // A Coupon destination must not manufacture store value from
+            // the unpaid 3,000 minor units. No wallet or Coupon event is due.
+            assertNull(
+                database.ledgerDao().getCouponWallet(customer.id, "OMR")
+            )
+            assertTrue(
+                database.ledgerDao().getCouponEventsForCustomer(customer.id).isEmpty()
             )
 
             val refundSettlements =
