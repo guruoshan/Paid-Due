@@ -490,7 +490,9 @@ data class VoidReportRow(
 
     val eventId: String,
     val affectedAmount: MoneyMinorUnits,
-    val reason: String?
+    val reason: String?,
+    /** Actual tender categories reversed by authoritative VOID_REVERSAL settlements. */
+    val reversalParts: List<ReportPaymentPart> = emptyList()
 ) : ReportRow {
 
     override val activityType: ReportActivityType =
@@ -627,6 +629,11 @@ data class ReportingSummary(
     val cashExpenses: MoneyMinorUnits = MoneyMinorUnits.ZERO,
     val onlineExpenses: MoneyMinorUnits = MoneyMinorUnits.ZERO,
     val totalExpenses: MoneyMinorUnits = MoneyMinorUnits.ZERO,
+
+    /** Net actual cash movement for the selected period; opening balance is zero. */
+    val cashInHand: MoneyMinorUnits = MoneyMinorUnits.ZERO,
+    /** Net actual online/bank movement for the selected period; opening balance is zero. */
+    val cashAtBank: MoneyMinorUnits = MoneyMinorUnits.ZERO,
 
     val openingCash: MoneyMinorUnits? = null,
     val expectedCash: MoneyMinorUnits? = null,
