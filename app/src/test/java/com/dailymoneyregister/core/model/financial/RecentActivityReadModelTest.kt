@@ -45,7 +45,7 @@ class RecentActivityReadModelTest {
     }
 
     @Test
-    fun creditSaleRemainsOneSaleWithoutCountingReceivableAsCollectedValue() {
+    fun creditSaleCountsTowardGrossSalesWithoutBeingCashCollection() {
         val activity = resolve(
             saleRecord("credit", PaymentCategory.CREDIT, PaymentChannel.CREDIT_ACCOUNT)
         ).single()
@@ -53,7 +53,7 @@ class RecentActivityReadModelTest {
         assertEquals(RecentActivityType.MERCHANDISE_SALE, activity.type)
         assertEquals(PaymentCategory.CREDIT, activity.fundingBreakdown.single().category)
         assertEquals(10_000L, activity.signedEffect.amount)
-        assertEquals(0L, activity.recentTotalEffect.amount)
+        assertEquals(10_000L, activity.recentTotalEffect.amount)
         assertEquals("credit-sale-op", activity.operationId)
     }
 
@@ -138,7 +138,7 @@ class RecentActivityReadModelTest {
         )
 
         assertEquals(PaymentCategory.CASH, cash.fundingBreakdown.single().category)
-        assertEquals(repayment.amountMinor, cash.recentTotalEffect.amount)
+        assertEquals(0L, cash.recentTotalEffect.amount)
         assertEquals(PaymentCategory.COUPON, coupon.fundingBreakdown.single().category)
         assertEquals(0L, coupon.recentTotalEffect.amount)
     }
