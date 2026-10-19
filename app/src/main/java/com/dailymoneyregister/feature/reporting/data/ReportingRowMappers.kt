@@ -619,6 +619,21 @@ internal object ReportingRowMappers {
 
         var fundingCategory: PaymentCategory? = null
         var fundingChannel: PaymentChannel? = null
+        val fundingParts = settlements
+            .filter {
+                it.entryPurpose == EntryPurpose.COUPON_PURCHASE_FUNDING &&
+                    it.amountSignedMinor > 0L
+            }
+            .groupBy { it.category to it.channel }
+            .map { (identity, entries) ->
+                ReportPaymentPart(
+                    category = identity.first,
+                    channel = identity.second,
+                    amount = MoneyMinorUnits(
+                        sumExact(entries.map { it.amountSignedMinor })
+                    )
+                )
+            }
 
         when (kind) {
 
@@ -667,7 +682,8 @@ internal object ReportingRowMappers {
             fundingChannel = fundingChannel,
             authorizedUserId = event.authorizedUserId,
             authorizedUserName = event.authorizedUserNameSnapshot,
-            resultingBalance = resultingBalance
+            resultingBalance = resultingBalance,
+            fundingParts = fundingParts
         )
     }
 
