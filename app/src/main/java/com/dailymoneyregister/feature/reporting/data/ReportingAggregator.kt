@@ -178,6 +178,24 @@ internal object ReportingAggregator {
                         correctionEffect,
                         row.signedDifference.amount
                     )
+                    val correctionSign = when {
+                        row.signedDifference.amount > 0L -> 1L
+                        row.signedDifference.amount < 0L -> -1L
+                        else -> 0L
+                    }
+                    row.fundingParts.forEach { part ->
+                        val signedTenderDelta = Math.multiplyExact(
+                            part.amount.amount,
+                            correctionSign
+                        )
+                        when (part.category) {
+                            PaymentCategory.CASH ->
+                                cashCouponReceipts = Math.addExact(cashCouponReceipts, signedTenderDelta)
+                            PaymentCategory.ONLINE ->
+                                onlineCouponReceipts = Math.addExact(onlineCouponReceipts, signedTenderDelta)
+                            PaymentCategory.CREDIT, PaymentCategory.COUPON -> Unit
+                        }
+                    }
                 }
 
                 is PaymentMethodChangeReportRow -> {
