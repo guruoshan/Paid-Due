@@ -13,6 +13,7 @@ import com.dailymoneyregister.feature.settings.data.MerchantQrRepository
 import com.dailymoneyregister.feature.settings.data.MerchantQrSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -30,8 +31,15 @@ class SettingsViewModel @Inject constructor(
     private val _qrSaving = kotlinx.coroutines.flow.MutableStateFlow(false)
     val qrSaving: kotlinx.coroutines.flow.StateFlow<Boolean> = _qrSaving
 
+    private var initialMerchantQrLoadJob: Job? = null
+
     init {
-        viewModelScope.launch { loadMerchantQr() }
+        initialMerchantQrLoadJob = viewModelScope.launch { loadMerchantQr() }
+    }
+
+    /** Test lifecycle hook: cancel and await the startup QR read before its database closes. */
+    internal suspend fun cancelInitialMerchantQrLoadAndJoin() {
+        initialMerchantQrLoadJob?.cancelAndJoin()
     }
 
     suspend fun loadMerchantQr() {

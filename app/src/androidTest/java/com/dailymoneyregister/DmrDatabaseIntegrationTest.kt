@@ -86,11 +86,13 @@ class DmrDatabaseIntegrationTest {
     private lateinit var context: Context
     private lateinit var trustedSessionStore: TrustedSessionStore
     private val ownedViewModelStores = mutableListOf<ViewModelStore>()
+    private val ownedViewModels = mutableListOf<SettingsViewModel>()
 
     private fun trackViewModel(viewModel: SettingsViewModel): SettingsViewModel {
         val store = ViewModelStore()
         store.put("settings-${ownedViewModelStores.size}", viewModel)
         ownedViewModelStores += store
+        ownedViewModels += viewModel
         return viewModel
     }
 
@@ -109,8 +111,13 @@ class DmrDatabaseIntegrationTest {
 
     @After
     fun tearDown() {
-        // Cancel manually constructed ViewModels before closing their shared test database.
+        // Clear stores first to request ViewModel-scope cancellation, then join the QR startup
+        // coroutine before closing Room. Store clearing requests cancellation but does not join jobs.
         ownedViewModelStores.forEach { it.clear() }
+        runBlocking {
+            ownedViewModels.forEach { it.cancelInitialMerchantQrLoadAndJoin() }
+        }
+        ownedViewModels.clear()
         ownedViewModelStores.clear()
         trustedSessionStore.clear()
         SessionManager.clearSession()
