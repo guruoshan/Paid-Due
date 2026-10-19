@@ -54,7 +54,9 @@ data class RecentFinancialActivity(
     val originalTransactionId: String?,
     val sourceType: RecentActivitySourceType,
     val sourceReference: String,
-    val displayRef: String
+    val displayRef: String,
+    /** Sales reversal amount may differ from the actual payout on a credit refund. */
+    val totalEffectOverride: MoneyMinorUnits? = null
 ) {
     val isRevenue: Boolean
         get() = type == RecentActivityType.MERCHANDISE_SALE
