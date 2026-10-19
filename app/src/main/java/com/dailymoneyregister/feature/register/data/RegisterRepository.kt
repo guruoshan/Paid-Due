@@ -6708,9 +6708,7 @@ class RegisterRepository @Inject constructor(
             }
 
         val replayIsUnpaidCreditReturn =
-            payload.destinationCategory == PaymentCategory.CREDIT &&
-                payload.destinationChannel == PaymentChannel.CREDIT_ACCOUNT &&
-                transaction.customerId != null &&
+            transaction.customerId != null &&
                 originalSaleFunding.size == 1 &&
                 originalSaleFunding.single().category == PaymentCategory.CREDIT &&
                 originalSaleFunding.single().channel == PaymentChannel.CREDIT_ACCOUNT &&
