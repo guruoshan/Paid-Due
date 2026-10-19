@@ -236,7 +236,8 @@ class ReportingAggregatorTest {
             id: String,
             kind: CouponReportEventKind,
             signed: Long,
-            funding: PaymentCategory? = null
+            funding: PaymentCategory? = null,
+            fundingParts: List<ReportPaymentPart> = emptyList()
         ) = CouponReportRow(
                 stableId = "coupon:$id",
                 operationId = "operation-$id",
@@ -259,7 +260,8 @@ class ReportingAggregatorTest {
                 },
                 authorizedUserId = null,
                 authorizedUserName = null,
-                resultingBalance = null
+                resultingBalance = null,
+                fundingParts = fundingParts
             )
 
         val couponRepayment = CreditRepaymentReportRow(
@@ -283,8 +285,23 @@ class ReportingAggregatorTest {
 
         val summary = ReportingAggregator.build(
             listOf(
-                coupon("purchase", CouponReportEventKind.PURCHASE, 500L, PaymentCategory.CASH),
-                coupon("topup", CouponReportEventKind.TOP_UP, 200L, PaymentCategory.ONLINE),
+                coupon(
+                    "purchase",
+                    CouponReportEventKind.PURCHASE,
+                    500L,
+                    fundingParts = listOf(
+                        part(PaymentCategory.CASH, PaymentChannel.CASH_TENDER, 300L),
+                        part(PaymentCategory.ONLINE, PaymentChannel.MANUAL_QR, 200L)
+                    )
+                ),
+                coupon(
+                    "topup",
+                    CouponReportEventKind.TOP_UP,
+                    200L,
+                    fundingParts = listOf(
+                        part(PaymentCategory.ONLINE, PaymentChannel.MANUAL_QR, 200L)
+                    )
+                ),
                 coupon("redeem", CouponReportEventKind.REDEMPTION, -300L),
                 coupon("refund", CouponReportEventKind.REFUND_CREDIT, 150L),
                 coupon("bonus", CouponReportEventKind.PROMOTION_BONUS, 50L),
@@ -296,8 +313,8 @@ class ReportingAggregatorTest {
         assertEquals(0L, summary.periodSaleInflow.amount)
         assertEquals(500L, summary.couponPurchased.amount)
         assertEquals(200L, summary.couponToppedUp.amount)
-        assertEquals(500L, summary.cashInHand.amount)
-        assertEquals(200L, summary.cashAtBank.amount)
+        assertEquals(300L, summary.cashInHand.amount)
+        assertEquals(400L, summary.cashAtBank.amount)
         assertEquals(300L, summary.couponRedeemed.amount)
         assertEquals(150L, summary.couponRefunded.amount)
         assertEquals(100L, summary.couponCreditRepayments.amount)
