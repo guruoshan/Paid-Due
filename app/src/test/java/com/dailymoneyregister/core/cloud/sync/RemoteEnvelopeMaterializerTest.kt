@@ -289,7 +289,7 @@ class RemoteEnvelopeMaterializerTest {
             refundAmountMinor = 900L,
             reason = "Partial return",
             actorUserId = actorUserId,
-            occurredAt = Instant.parse("2026-10-09T10:01:00Z").toEpochMilli()
+            occurredAt = Instant.parse("2026-10-09T10:00:01Z").toEpochMilli()
         )
         coEvery { transactionDao.getRefundEvents(transactionId) } returns listOf(priorRefund)
 
