@@ -89,9 +89,9 @@ fun RecentTransactionsPanel(
     onToggleExpanded: () -> Unit,
     onTransactionSelected: (String) -> Unit = {},
     onExpenseSelected: (String) -> Unit = {},
-    maxListHeight: androidx.compose.ui.unit.Dp = 220.dp,
+    maxListHeight: androidx.compose.ui.unit.Dp = 180.dp,
     modifier: Modifier = Modifier,
-    compactMaxListHeight: androidx.compose.ui.unit.Dp = 180.dp
+    compactMaxListHeight: androidx.compose.ui.unit.Dp = 140.dp
 ) {
     // BOARDLOCK_COUPON_TODAY_TOTAL
     // Do not sum raw signedEffect here: Coupon redemption is an
@@ -232,7 +232,7 @@ private fun CompactRecentRows(
     // Measure real row heights, including badges and font scaling. Stop before
     // the first incomplete row, without a fixed count or a scroll container.
     SubcomposeLayout(modifier = modifier) { constraints ->
-        val spacing = 6.dp.roundToPx()
+        val spacing = 3.dp.roundToPx()
         val rows = mutableListOf<Pair<Placeable, Int>>()
         val budget = RecentRowHeightBudget(constraints.maxHeight, spacing)
         for (transaction in transactions) {
