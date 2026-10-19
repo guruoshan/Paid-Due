@@ -44,21 +44,29 @@ jobs:
         run: ./gradlew clean
       - name: Run ./gradlew assembleRelease
         run: ./gradlew assembleRelease
-      - name: Record APK path and size
+      - name: Run ./gradlew bundleRelease
+        run: ./gradlew bundleRelease
+      - name: Record APK and AAB paths and sizes
         if: success()
         shell: bash
         run: |
           set -euo pipefail
           apk_path="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          aab_path="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -print -quit)"
           test -n "$apk_path" && test -s "$apk_path"
+          test -n "$aab_path" && test -s "$aab_path"
           printf 'APK_PATH=%s\n' "$apk_path" >> "$GITHUB_ENV"
+          printf 'AAB_PATH=%s\n' "$aab_path" >> "$GITHUB_ENV"
           stat -c 'APK_SIZE_BYTES=%s' "$apk_path" | tee -a "$GITHUB_ENV"
-          sha256sum "$apk_path"
-      - name: Upload release APK
+          stat -c 'AAB_SIZE_BYTES=%s' "$aab_path" | tee -a "$GITHUB_ENV"
+          sha256sum "$apk_path" "$aab_path"
+      - name: Upload APK and AAB artifacts
         if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: customer-export-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: customer-export-release-artifacts
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
