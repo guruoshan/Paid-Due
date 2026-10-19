@@ -5359,8 +5359,19 @@ class RegisterRepository @Inject constructor(
                 }
             }
 
+            /*
+             * Unpaid Credit is a debt reversal, not stored value.
+             * Do not even create a Coupon wallet unless this Credit return
+             * has an authoritative paid-value portion to credit.
+             */
             val couponWallet =
-                if (refundToCoupon) {
+                if (
+                    refundToCoupon &&
+                    !(
+                        validated.fundingCategory == PaymentCategory.CREDIT &&
+                            (creditReturnB2Plan?.paidValueRefundMinor ?: 0L) <= 0L
+                    )
+                ) {
                     val destination =
                         command.couponDestination
 
@@ -6000,8 +6011,12 @@ class RegisterRepository @Inject constructor(
             val couponLedgerEvent =
                 couponWallet
                     ?.takeIf {
-                        creditReturnB2Plan == null ||
-                            creditReturnB2Plan.paidValueRefundMinor > 0L
+                        if (validated.fundingCategory == PaymentCategory.CREDIT) {
+                            (creditReturnB2Plan?.paidValueRefundMinor ?: 0L) > 0L
+                        } else {
+                            creditReturnB2Plan == null ||
+                                creditReturnB2Plan.paidValueRefundMinor > 0L
+                        }
                     }
                     ?.let { wallet ->
                 val event = com.dailymoneyregister.core.database.entity.CouponLedgerEventEntity(
