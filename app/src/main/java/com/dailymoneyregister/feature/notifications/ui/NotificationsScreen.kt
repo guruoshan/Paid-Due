@@ -326,11 +326,11 @@ private fun ClosingReport(report: JsonObject) {
         ReportAmount(report, "Credit Sales Created", "credit_given_minor", currencySymbol, decimals)
         ReportAmount(report, "Coupon Value Redeemed (Not New Cash)", "coupon_used_minor", currencySymbol, decimals)
         ReportAmount(report, "Coupon top-ups", "coupon_top_up_minor", currencySymbol, decimals)
-        ReportAmount(report, "Coupons issued", "coupon_issued_minor", currencySymbol, decimals)
-        ReportAmount(report, "Cash coupon funding", "cash_coupon_funding_minor", currencySymbol, decimals)
-        ReportAmount(report, "Online coupon funding", "online_coupon_funding_minor", currencySymbol, decimals)
-        ReportAmount(report, "Expected cash", "expected_cash_minor", currencySymbol, decimals)
-        ReportAmount(report, "Counted cash", "counted_cash_minor", currencySymbol, decimals)
+        ReportAmount(report, "Coupon Value Issued (Prepaid Liability)", "coupon_issued_minor", currencySymbol, decimals)
+        ReportAmount(report, "Cash Received for Coupon Top-Ups", "cash_coupon_funding_minor", currencySymbol, decimals)
+        ReportAmount(report, "Online Received for Coupon Top-Ups", "online_coupon_funding_minor", currencySymbol, decimals)
+        ReportAmount(report, "Expected Cash Balance (Calculated)", "expected_cash_minor", currencySymbol, decimals)
+        ReportAmount(report, "Actual Cash Counted", "counted_cash_minor", currencySymbol, decimals)
         val difference = report["difference_minor"]?.jsonPrimitive?.longOrNull ?: 0L
         val differenceText = formatMinor(difference, decimals)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
