@@ -259,12 +259,6 @@ fun ReportingScreen(
                 }
 
                 else -> {
-                    Text(
-                        text = stringResource(R.string.reporting_financial_definitions),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
                     ReportingSummarySection(
                         cards =
                             state.summaryCards
