@@ -44,5 +44,4 @@
     <string name="reporting_invalid_custom_period">Enter a valid custom date range.</string>
     <string name="reporting_today_snapshot">Today’s CFO Snapshot</string>
     <string name="reporting_summary_unavailable">Financial summary unavailable.</string>
-    <string name="reporting_financial_definitions">Gross Sales = sales recorded before refunds and lifecycle changes. Net Sales = sales value after refunds, voids and corrections for the selected period. Cash/Online Sales Collected = sales paid through those methods; these are not all receipts. Credit Sales Created = new customer receivables, not cash collected. Credit Outstanding = unpaid credit balance as of now, not period sales. Credit Repaid (Collections) = collection of existing debt, not new sales. Coupon top-ups add prepaid customer funds; they are not additional merchandise sales. Coupon Liability = prepaid coupon value still owed to customers. Refunds reverse sales and may use different settlement methods. Expenses are separate and do not reduce Gross Sales.</string>
 </resources>
