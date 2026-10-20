@@ -617,9 +617,22 @@ class FinancialSyncEngine @Inject constructor(
 
     private fun reportInboundRejection(operationId: String, reason: String) {
         val message = "Inbound operation $operationId was rejected: $reason"
-        FinancialSyncStatus.report(FinancialSyncProblem(operationId, message))
-        context?.getSharedPreferences("dmr_financial_sync_attention", Context.MODE_PRIVATE)
-            ?.edit()?.putString("inbound_$operationId", message)?.commit()
+        val attention = context?.getSharedPreferences(
+            "dmr_financial_sync_attention",
+            Context.MODE_PRIVATE
+        )
+        val key = "inbound_$operationId"
+        val previouslyReportedMessage = attention?.getString(key, null)
+
+        // A poison envelope may be encountered on every sync cycle because the
+        // durable cursor intentionally stops before unresolved data. Keep the
+        // rejection/audit evidence, but only publish a user-visible problem when
+        // this operation's message is new or its rejection reason has changed.
+        if (previouslyReportedMessage != message) {
+            FinancialSyncStatus.report(FinancialSyncProblem(operationId, message))
+            attention?.edit()?.putString(key, message)?.commit()
+        }
+
         val now = System.currentTimeMillis()
         val lastLoggedAt = lastInboundRejectionLogAt[operationId] ?: Long.MIN_VALUE
         if (lastLoggedAt == Long.MIN_VALUE || now - lastLoggedAt >= 60_000L) {
