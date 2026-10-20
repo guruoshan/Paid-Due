@@ -49,6 +49,12 @@ fun ReportingDashboardSection(
                 FontWeight.SemiBold
         )
 
+        Text(
+            text = stringResource(R.string.reporting_financial_definitions),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
         when {
             state.isLoading -> {
                 CircularProgressIndicator()

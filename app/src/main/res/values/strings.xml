@@ -77,8 +77,8 @@
     <string name="whatsapp">WhatsApp</string>
 
     <!-- Recent Transactions Panel -->
-    <string name="recent_activity_count">Today\'s Activity (%1$d)</string>
-    <string name="today_total">Total: %1$s</string>
+    <string name="recent_activity_count">Recent Financial Activity (%1$d)</string>
+    <string name="today_total">Net External Cash &amp; Online Movement: %1$s</string>
     <string name="recent_activity_refund">Refund</string>
     <string name="recent_activity_refund_coupon">Refund to Coupon</string>
     <string name="no_transactions_today">No transactions recorded today yet.</string>
@@ -355,8 +355,8 @@
     <!-- BOARDLOCK Day Closing reconciliation -->
     <string name="dmr22_shift_closed">Shift Closed</string>
     <string name="dmr22_shift_closed_success">Shift closed successfully.</string>
-    <string name="dmr22_expected_cash">Expected cash: %1$s</string>
-    <string name="dmr22_cash_counted">Cash counted: %1$s</string>
+    <string name="dmr22_expected_cash">Expected Cash Balance (Calculated): %1$s</string>
+    <string name="dmr22_cash_counted">Actual Cash Counted: %1$s</string>
     <string name="dmr22_difference">Difference: %1$s</string>
     <string name="dmr22_status">Status: %1$s</string>
     <string name="dmr22_status_short">SHORT</string>

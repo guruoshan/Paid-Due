@@ -259,6 +259,12 @@ fun ReportingScreen(
                 }
 
                 else -> {
+                    Text(
+                        text = stringResource(R.string.reporting_financial_definitions),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
                     ReportingSummarySection(
                         cards =
                             state.summaryCards
@@ -768,15 +774,15 @@ private fun ReportingRowCard(
             if (isDarkTheme) Color(0xFFBDBDBD) else Color(0xFF616161)
     }
     val typeLabel = when (row.activityType) {
-        ReportActivityType.SALE -> "SALE"
-        ReportActivityType.COUPON_PURCHASE -> "COUPON SALE"
-        ReportActivityType.COUPON_TOP_UP -> "COUPON TOP-UP"
+        ReportActivityType.SALE -> "SALE RECORDED"
+        ReportActivityType.COUPON_PURCHASE -> "COUPON FUNDS SOLD"
+        ReportActivityType.COUPON_TOP_UP -> "PREPAID COUPON FUNDS ADDED"
         ReportActivityType.CREDIT_SALE,
         ReportActivityType.CREDIT_REPAYMENT,
         ReportActivityType.COUPON_CREDIT_REPAYMENT -> "CREDIT"
-        ReportActivityType.EXPENSE -> "EXPENSE"
+        ReportActivityType.EXPENSE -> "EXPENSE RECORDED"
         ReportActivityType.REFUND,
-        ReportActivityType.COUPON_REFUND -> "REFUND"
+        ReportActivityType.COUPON_REFUND -> "REFUND TO COUPON"
         ReportActivityType.VOID -> "VOID"
         ReportActivityType.AMOUNT_CORRECTION -> "CORRECTION"
         ReportActivityType.PAYMENT_METHOD_CHANGE -> "PAYMENT CHANGE"
