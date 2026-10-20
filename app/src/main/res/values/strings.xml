@@ -77,8 +77,8 @@
     <string name="whatsapp">WhatsApp</string>
 
     <!-- Recent Transactions Panel -->
-    <string name="recent_activity_count">Today\'s Activity (%1$d)</string>
-    <string name="today_total">Total: %1$s</string>
+    <string name="recent_activity_count">Recent Financial Activity (%1$d)</string>
+    <string name="today_total">Net External Cash &amp; Online Movement: %1$s</string>
     <string name="recent_activity_refund">Refund</string>
     <string name="recent_activity_refund_coupon">Refund to Coupon</string>
     <string name="no_transactions_today">No transactions recorded today yet.</string>
