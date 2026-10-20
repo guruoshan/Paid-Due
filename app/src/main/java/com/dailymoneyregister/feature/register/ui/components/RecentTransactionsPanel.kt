@@ -291,16 +291,16 @@ private fun RecentTransactionRow(
             if (isDarkTheme) Color(0xFFBDBDBD) else Color(0xFF616161)
     }
     val typeLabel = when (transaction.type) {
-        RecentActivityType.MERCHANDISE_SALE -> "SALE"
-        RecentActivityType.COUPON_SELL -> "COUPON SALE"
-        RecentActivityType.COUPON_TOP_UP -> "COUPON TOP-UP"
-        RecentActivityType.CREDIT_REPAYMENT -> "CREDIT"
-        RecentActivityType.EXPENSE -> "EXPENSE"
+        RecentActivityType.MERCHANDISE_SALE -> "SALE RECORDED"
+        RecentActivityType.COUPON_SELL -> "COUPON FUNDS SOLD"
+        RecentActivityType.COUPON_TOP_UP -> "PREPAID COUPON FUNDS ADDED"
+        RecentActivityType.CREDIT_REPAYMENT -> "CREDIT REPAID (COLLECTION)"
+        RecentActivityType.EXPENSE -> "EXPENSE RECORDED"
         RecentActivityType.REFUND,
         RecentActivityType.REFUND_TO_COUPON -> "REFUND"
         RecentActivityType.VOID -> "VOID"
-        RecentActivityType.AMOUNT_CORRECTION -> "CORRECTION"
-        RecentActivityType.PAYMENT_METHOD_CHANGE -> "PAYMENT CHANGE"
+        RecentActivityType.AMOUNT_CORRECTION -> "AMOUNT CORRECTION"
+        RecentActivityType.PAYMENT_METHOD_CHANGE -> "PAYMENT METHOD CHANGE"
     }
         val activityStatus = when (transaction.type) {
         RecentActivityType.VOID -> "VOIDED"
