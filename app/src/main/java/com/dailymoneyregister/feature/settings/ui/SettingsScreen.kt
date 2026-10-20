@@ -40,6 +40,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToCustomers: () -> Unit,
+    onNavigateToHelpFaq: () -> Unit,
     onLogout: () -> Unit
 ) {
     val currentLang by viewModel.languageManager.currentLanguage.collectAsState()
@@ -231,6 +232,23 @@ fun SettingsScreen(
                         Text(stringResource(currentLang.nativeLabel), color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
                     }
                     Text(stringResource(R.string.change), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable { onNavigateToHelpFaq() },
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.help_faq_title), fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                        Text(stringResource(R.string.help_faq_subtitle), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                    }
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
