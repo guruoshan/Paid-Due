@@ -14,9 +14,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-@Singleton
 private const val LEGACY_RETIRED_CASHIER_OPERATION_ID = "01a13a27-4c84-7569-acf6-9b56d1508a69"
 
+@Singleton
 class FinancialSyncEngine @Inject constructor(
     private val database: DmrDatabase,
     private val remoteSyncRepository: RemoteFinancialSyncRepository,
@@ -624,24 +624,17 @@ class FinancialSyncEngine @Inject constructor(
         )
         val key = "inbound_$operationId"
 
-        // This is a known legacy rejection from the retired cashier-registration
-        // flow. Suppress only its user-facing notification; leave the envelope,
-        // cursor, rejection decision, and audit logging untouched.
+        // Suppress only the known notification from the retired cashier-registration
+        // flow. Continue through the rejection logging below; do not change the
+        // rejection decision, envelope, cursor, or handling of other operations.
         if (operationId == LEGACY_RETIRED_CASHIER_OPERATION_ID) {
             attention?.edit()?.remove(key)?.commit()
             if (FinancialSyncStatus.adminVisibleProblem.value?.operationId == operationId) {
                 FinancialSyncStatus.clearVisibleProblem()
             }
             Log.i("PaidDueFinancialSync", "INBOUND_LEGACY_REJECTION_NOTIFICATION_SUPPRESSED operation=$operationId")
-            return
-        }
-
-        val message = "Inbound operation $operationId was rejected: $reason"
-        val previouslyReportedMessage = attention?.getString(key, null)
-
-        // Keep the rejection/audit evidence, but only publish a user-visible
-        // problem when this operation's message is new or its reason changed.
-        if (previouslyReportedMessage != message) {
+        } else {
+            val message = "Inbound operation $operationId was rejected: $reason"
             FinancialSyncStatus.report(FinancialSyncProblem(operationId, message))
             attention?.edit()?.putString(key, message)?.commit()
         }
