@@ -56,7 +56,25 @@ jobs:
           set +o pipefail
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
           set -o pipefail
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "emulator" "system-images;android-36;google_apis;x86_64"
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          # Install stable emulator packages from the stable channel first. Mixing
+          # preview channel selection into this request can make stable system-image
+          # resolution fail on a transient package-manifest fetch.
+          install_with_retry() {
+            local attempt=1
+            until "$@"; do
+              if [[ "$attempt" -ge 3 ]]; then
+                echo "::error::Android SDK package installation failed after $attempt attempts: $*"
+                return 1
+              fi
+              echo "SDK package installation attempt $attempt failed; retrying after manifest refresh."
+              attempt=$((attempt + 1))
+              sleep 10
+            done
+          }
+          install_with_retry "$sdkmanager" "platform-tools" "emulator" "system-images;android-36;google_apis;x86_64"
+          install_with_retry "$sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0"
+          test -d "$ANDROID_HOME/platforms/android-37.0"
           ln -sfn "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
 
       - name: Start isolated Android API 36 emulator for instrumentation tests
