@@ -79,7 +79,9 @@ fun FinancialMetricsExplainedScreen(onNavigateBack: () -> Unit) {
         R.string.faq_coupon_topups_question to R.string.faq_coupon_topups_answer,
         R.string.faq_coupon_liability_question to R.string.faq_coupon_liability_answer,
         R.string.faq_gross_cash_difference_question to R.string.faq_gross_cash_difference_answer,
-        R.string.faq_net_gross_difference_question to R.string.faq_net_gross_difference_answer
+        R.string.faq_net_gross_difference_question to R.string.faq_net_gross_difference_answer,
+        R.string.faq_refunds_question to R.string.faq_refunds_answer,
+        R.string.faq_expenses_question to R.string.faq_expenses_answer
     )
     Scaffold(
         topBar = {
