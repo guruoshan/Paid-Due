@@ -362,13 +362,110 @@ object RemoteEnvelopeMaterializer {
 
         when (opTypeStr) {
             "RECORD_REFUND" -> {
-                val refundAmount = financialEvidence.optJSONObject("refund_event")?.optLong("refund_amount_minor", 0L) ?: 0L
-                if (refundAmount <= 0L || settlementSum != -refundAmount) {
-                    return InboundProcessResult.Rejected("Refund event amount does not match its signed outflow settlements")
+                val refundEvent = financialEvidence.optJSONObject("refund_event")
+                    ?: return InboundProcessResult.Rejected("Refund is missing its immutable refund event")
+                val refundAmount = refundEvent.optLong("refund_amount_minor", 0L)
+                val refundTransactionId = refundEvent.optString("transaction_id")
+                val transactionId = tJson.optString("id")
+                if (refundAmount <= 0L || refundTransactionId != transactionId) {
+                    return InboundProcessResult.Rejected("Refund event amount or transaction reference is invalid")
+                }
+
+                val transactionDao = database.transactionDao()
+                val priorVoid = transactionDao.getVoidEvent(transactionId)
+                if (priorVoid != null) {
+                    return InboundProcessResult.Rejected("A voided transaction cannot accept another refund")
+                }
+                val priorRefunds = transactionDao.getRefundEvents(transactionId)
+                val corrections = transactionDao.getAmountCorrections(transactionId)
+                val correctedTotal = corrections.fold(grandTotalMinor) { total, correction ->
+                    Math.addExact(
+                        total,
+                        Math.subtractExact(correction.correctedAmountMinor, correction.previousAmountMinor)
+                    )
+                }
+                val priorRefundTotal = priorRefunds.fold(0L) { total, refund ->
+                    Math.addExact(total, refund.refundAmountMinor)
+                }
+                if (correctedTotal <= 0L || Math.addExact(priorRefundTotal, refundAmount) > correctedTotal) {
+                    return InboundProcessResult.Rejected("Refund exceeds the remaining refundable transaction amount")
+                }
+
+                if (settlementSum == Math.negateExact(refundAmount)) {
+                    // Ordinary refund and partially repaid credit-refund flows
+                    // must be fully represented by their signed outflow settlements.
+                } else {
+                    // An entirely unpaid credit sale has no external funds to pay
+                    // out. Its refund is valid only as an exact, immutable credit
+                    // obligation reduction. Never fabricate cash/coupon settlements.
+                    val customerId = tJson.optString("customer_id")
+                    val originalSettlements = transactionDao.getSettlementsForTransaction(transactionId)
+                    val wasCreditFunded = originalSettlements.any {
+                        it.entryPurpose == EntryPurpose.SALE_FUNDING &&
+                            it.category == PaymentCategory.CREDIT &&
+                            it.amountSignedMinor > 0L
+                    }
+                    val creditEvents = financialEvidence.optJSONArray("credit_ledger_events")
+                        ?: org.json.JSONArray()
+                    val matchingAdjustments = (0 until creditEvents.length())
+                        .map { creditEvents.getJSONObject(it) }
+                        .filter {
+                            it.optString("operation_id") == opId &&
+                                it.optString("type") == "ADJUSTMENT" &&
+                                it.optString("transaction_id") == transactionId &&
+                                it.optString("customer_id") == customerId &&
+                                it.optLong("amount_signed_minor", 0L) < 0L
+                        }
+                    val creditAdjustmentTotal = matchingAdjustments.fold(0L) { total, event ->
+                        Math.addExact(total, event.optLong("amount_signed_minor", 0L))
+                    }
+                    val couponEvents = financialEvidence.optJSONArray("coupon_ledger_events")
+                    val hasCouponCredit = couponEvents != null && (0 until couponEvents.length()).any {
+                        couponEvents.getJSONObject(it).optLong("amount_signed_minor", 0L) > 0L
+                    }
+                    if (
+                        settlementSum != 0L ||
+                        !wasCreditFunded ||
+                        customerId.isBlank() ||
+                        creditEvents.length() != 1 ||
+                        matchingAdjustments.size != 1 ||
+                        creditAdjustmentTotal != Math.negateExact(refundAmount) ||
+                        hasCouponCredit
+                    ) {
+                        return InboundProcessResult.Rejected(
+                            "Refund event amount does not match settlements or a verified unpaid-credit reduction"
+                        )
+                    }
                 }
             }
-            "RECORD_VOID" -> if (settlementSum != -grandTotalMinor) {
-                return InboundProcessResult.Rejected("Void reversal settlements do not reverse the original transaction total")
+            "RECORD_VOID" -> {
+                val voidEvent = financialEvidence.optJSONObject("void_event")
+                    ?: return InboundProcessResult.Rejected("Void is missing its immutable void event")
+                val transactionId = tJson.optString("id")
+                if (voidEvent.optString("transaction_id") != transactionId) {
+                    return InboundProcessResult.Rejected("Void event references a different transaction")
+                }
+                val transactionDao = database.transactionDao()
+                if (transactionDao.getVoidEvent(transactionId) != null) {
+                    return InboundProcessResult.Rejected("Transaction already has a void event")
+                }
+                val priorRefunds = transactionDao.getRefundEvents(transactionId)
+                val corrections = transactionDao.getAmountCorrections(transactionId)
+                val correctedTotal = corrections.fold(grandTotalMinor) { total, correction ->
+                    Math.addExact(
+                        total,
+                        Math.subtractExact(correction.correctedAmountMinor, correction.previousAmountMinor)
+                    )
+                }
+                val priorRefundTotal = priorRefunds.fold(0L) { total, refund ->
+                    Math.addExact(total, refund.refundAmountMinor)
+                }
+                val remainingReversible = Math.subtractExact(correctedTotal, priorRefundTotal)
+                if (remainingReversible <= 0L || settlementSum != Math.negateExact(remainingReversible)) {
+                    return InboundProcessResult.Rejected(
+                        "Void reversal settlements do not match the remaining amount after prior refunds and corrections"
+                    )
+                }
             }
             "RECORD_AMOUNT_CORRECTION" -> {
                 val event = financialEvidence.optJSONArray("amount_correction_events")?.optJSONObject(0)

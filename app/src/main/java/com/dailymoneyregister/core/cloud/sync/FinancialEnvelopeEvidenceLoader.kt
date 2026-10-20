@@ -32,7 +32,12 @@ internal object FinancialEnvelopeEvidenceLoader {
             else -> null
         }
 
+        // Refunds may cancel an unpaid credit obligation without creating any
+        // external settlement. Always transport the operation-linked credit
+        // ledger rows for refunds; selecting evidence only from settlement
+        // categories silently drops the debt cancellation on remote devices.
         val needsCreditEvidence = type == OperationType.RECORD_CREDIT_REPAYMENT ||
+            type == OperationType.RECORD_REFUND ||
             settlements.any { it.category == PaymentCategory.CREDIT }
         val needsCouponEvidence = type == OperationType.RECORD_COUPON_PURCHASE ||
             settlements.any { it.category == PaymentCategory.COUPON }
