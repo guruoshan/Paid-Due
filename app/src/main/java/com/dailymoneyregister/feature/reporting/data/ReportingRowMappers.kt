@@ -390,6 +390,17 @@ internal object ReportingRowMappers {
             } else {
                 fallbackAffected
             }
+        val reversalParts = reversals
+            .groupBy { it.category to it.channel }
+            .map { (identity, entries) ->
+                ReportPaymentPart(
+                    category = identity.first,
+                    channel = identity.second,
+                    amount = MoneyMinorUnits(
+                        sumExact(entries.map { Math.negateExact(it.amountSignedMinor) })
+                    )
+                )
+            }
 
         return VoidReportRow(
             stableId = "void:${event.id}",
@@ -403,7 +414,8 @@ internal object ReportingRowMappers {
             person = lookups.person(tx.customerId),
             eventId = event.id,
             affectedAmount = affected,
-            reason = event.reason
+            reason = event.reason,
+            reversalParts = reversalParts
         )
     }
 
@@ -414,9 +426,22 @@ internal object ReportingRowMappers {
     fun mapCorrection(
         event: AmountCorrectionEventEntity,
         tx: TransactionEntity,
+        settlements: List<SettlementEntryEntity>,
         lookups: ReportingLookups
-    ): AmountCorrectionReportRow =
-        AmountCorrectionReportRow(
+    ): AmountCorrectionReportRow {
+        val fundingParts = settlements
+            .filter { it.entryPurpose == EntryPurpose.FUNDING_CORRECTION }
+            .groupBy { it.category to it.channel }
+            .map { (identity, entries) ->
+                ReportPaymentPart(
+                    category = identity.first,
+                    channel = identity.second,
+                    amount = MoneyMinorUnits(
+                        sumExact(entries.map { kotlin.math.abs(it.amountSignedMinor) })
+                    )
+                )
+            }
+        return AmountCorrectionReportRow(
             stableId = "correction:${event.id}",
             operationId = event.operationId,
             transactionId = tx.id,
@@ -429,8 +454,10 @@ internal object ReportingRowMappers {
             eventId = event.id,
             previousAmount = MoneyMinorUnits(event.previousAmountMinor),
             correctedAmount = MoneyMinorUnits(event.correctedAmountMinor),
-            reason = event.reason
+            reason = event.reason,
+            fundingParts = fundingParts
         )
+    }
 
     fun mapPaymentMethodChange(
         event: PaymentMethodChangeEventEntity,
@@ -592,6 +619,21 @@ internal object ReportingRowMappers {
 
         var fundingCategory: PaymentCategory? = null
         var fundingChannel: PaymentChannel? = null
+        val fundingParts = settlements
+            .filter {
+                it.entryPurpose == EntryPurpose.COUPON_PURCHASE_FUNDING &&
+                    it.amountSignedMinor > 0L
+            }
+            .groupBy { it.category to it.channel }
+            .map { (identity, entries) ->
+                ReportPaymentPart(
+                    category = identity.first,
+                    channel = identity.second,
+                    amount = MoneyMinorUnits(
+                        sumExact(entries.map { it.amountSignedMinor })
+                    )
+                )
+            }
 
         when (kind) {
 
@@ -640,7 +682,8 @@ internal object ReportingRowMappers {
             fundingChannel = fundingChannel,
             authorizedUserId = event.authorizedUserId,
             authorizedUserName = event.authorizedUserNameSnapshot,
-            resultingBalance = resultingBalance
+            resultingBalance = resultingBalance,
+            fundingParts = fundingParts
         )
     }
 

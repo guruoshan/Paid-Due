@@ -37,8 +37,8 @@ data class ReportingRowUiModel(
 
 enum class ReportingSummaryMetric {
     NET_SALES_ACTIVITY,
-    CASH_SALES,
-    ONLINE_SALES,
+    CASH_IN_HAND,
+    CASH_AT_BANK,
     CREDIT_SALES,
     CREDIT_REPAYMENTS,
     REFUNDS,
@@ -220,17 +220,17 @@ object ReportingUiProjection {
                 )
             ),
             ReportingSummaryUiModel(
-                ReportingSummaryMetric.CASH_SALES,
+                ReportingSummaryMetric.CASH_IN_HAND,
                 formatSignedMoney(
-                    summary.cashSalesCollected,
+                    summary.cashInHand,
                     decimalPlaces,
                     currencySymbol
                 )
             ),
             ReportingSummaryUiModel(
-                ReportingSummaryMetric.ONLINE_SALES,
+                ReportingSummaryMetric.CASH_AT_BANK,
                 formatSignedMoney(
-                    summary.onlineSalesCollected,
+                    summary.cashAtBank,
                     decimalPlaces,
                     currencySymbol
                 )

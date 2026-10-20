@@ -9,7 +9,7 @@ import org.junit.Test
 class RecentActivityAccountingTest {
 
     @Test
-    fun couponSell100_thenCouponMerchandise50_todayTotalIs100Not150() {
+    fun couponSell100_thenCouponMerchandise50_countsBothReceiptAndSale() {
         val activities = listOf(
             activity(
                 id = "coupon-sell",
@@ -38,13 +38,13 @@ class RecentActivityAccountingTest {
         )
 
         assertEquals(
-            100_000L,
+            150_000L,
             RecentActivityTotals.todayTotal(activities).amount
         )
     }
 
     @Test
-    fun futureDayCouponOnlyRedemption_addsZeroToTodayTotal() {
+    fun couponFundedSale_countsFullSaleAmount() {
         val redemption = activity(
             id = "future-redemption",
             type = RecentActivityType.MERCHANDISE_SALE,
@@ -59,13 +59,13 @@ class RecentActivityAccountingTest {
         )
 
         assertEquals(
-            0L,
+            50_000L,
             RecentActivityTotals.todayTotal(listOf(redemption)).amount
         )
     }
 
     @Test
-    fun splitTender_coupon50_cash20_addsOnly20ToTodayTotal() {
+    fun splitTender_coupon50_cash20_countsFullSaleAmount() {
         val sale = activity(
             id = "split",
             type = RecentActivityType.MERCHANDISE_SALE,
@@ -85,13 +85,13 @@ class RecentActivityAccountingTest {
         )
 
         assertEquals(
-            20_000L,
+            70_000L,
             RecentActivityTotals.todayTotal(listOf(sale)).amount
         )
     }
 
     @Test
-    fun topUp20_thenCouponSale70_addsOnly20ToTodayTotal() {
+    fun topUp20_thenCouponSale70_countsBothSeparateActivities() {
         val activities = listOf(
             activity(
                 id = "top-up",
@@ -120,7 +120,7 @@ class RecentActivityAccountingTest {
         )
 
         assertEquals(
-            20_000L,
+            90_000L,
             RecentActivityTotals.todayTotal(activities).amount
         )
     }
@@ -147,7 +147,7 @@ class RecentActivityAccountingTest {
     }
 
     @Test
-    fun refundToCoupon_doesNotCreateNewTodayTotalValue() {
+    fun refundToCoupon_reducesDailySalesActivity() {
         val refund = activity(
             id = "refund-coupon",
             type = RecentActivityType.REFUND_TO_COUPON,
@@ -162,13 +162,13 @@ class RecentActivityAccountingTest {
         )
 
         assertEquals(
-            0L,
+            -25_000L,
             RecentActivityTotals.todayTotal(listOf(refund)).amount
         )
     }
 
     @Test
-    fun couponOnlyVoid_doesNotReverseValueThatRecentTotalNeverAdded() {
+    fun couponOnlyVoid_reversesCouponFundedSale() {
         val void = activity(
             id = "void-coupon",
             type = RecentActivityType.VOID,
@@ -183,8 +183,30 @@ class RecentActivityAccountingTest {
         )
 
         assertEquals(
-            0L,
+            -50_000L,
             RecentActivityTotals.todayTotal(listOf(void)).amount
+        )
+    }
+
+    @Test
+    fun creditRefund_reversesFullSalesAmountEvenWhenPayoutIsSmaller() {
+        val refund = activity(
+            id = "credit-refund",
+            type = RecentActivityType.REFUND_TO_COUPON,
+            signedEffect = -10_000L,
+            funding = listOf(
+                part(
+                    PaymentCategory.COUPON,
+                    PaymentChannel.COUPON_WALLET,
+                    10_000L
+                )
+            ),
+            totalEffectOverride = MoneyMinorUnits(-26_000L)
+        )
+
+        assertEquals(
+            -26_000L,
+            RecentActivityTotals.todayTotal(listOf(refund)).amount
         )
     }
 
@@ -223,7 +245,8 @@ class RecentActivityAccountingTest {
         id: String,
         type: RecentActivityType,
         signedEffect: Long,
-        funding: List<FinancialFundingPart>
+        funding: List<FinancialFundingPart>,
+        totalEffectOverride: MoneyMinorUnits? = null
     ) = RecentFinancialActivity(
         activityId = id,
         transactionId = "tx-$id",
@@ -238,6 +261,7 @@ class RecentActivityAccountingTest {
         originalTransactionId = null,
         sourceType = RecentActivitySourceType.TRANSACTION,
         sourceReference = id,
-        displayRef = "REF-$id"
+        displayRef = "REF-$id",
+        totalEffectOverride = totalEffectOverride
     )
 }

@@ -54,85 +54,60 @@ data class RecentFinancialActivity(
     val originalTransactionId: String?,
     val sourceType: RecentActivitySourceType,
     val sourceReference: String,
-    val displayRef: String
+    val displayRef: String,
+    /** Sales reversal amount may differ from the actual payout on a credit refund. */
+    val totalEffectOverride: MoneyMinorUnits? = null
 ) {
     val isRevenue: Boolean
         get() = type == RecentActivityType.MERCHANDISE_SALE
 
-    // BOARDLOCK_COUPON_RECENT_TOTAL_EFFECT
-    //
-    // Recent rows and the Recent header answer different questions.
-    //
-    // signedEffect is the activity's financial/lifecycle amount and is
-    // intentionally retained for the row itself.
-    //
-    // recentTotalEffect is the portion that may participate in the
-    // Register "Today Total". Coupon value is an internal settlement
-    // source once funded, so consuming Coupon value must not add that
-    // same economic value a second time.
-    //
-    // No persistent financial state is created here.
+    /**
+     * Daily activity total is a sales-activity measure, not cash movement.
+     * Merchandise sales count at full value for every tender, including Coupon
+     * and Credit. Coupon purchase/top-up counts only the actual Cash/Online
+     * funding received. Refunds and voids reverse sales; expenses and credit
+     * repayments do not alter sales. Payment-method changes are classification
+     * events only. A credit refund can therefore reverse sales without creating
+     * a Cash/Online outflow.
+     */
     val recentTotalEffect: MoneyMinorUnits
         get() {
-            if (type == RecentActivityType.PAYMENT_METHOD_CHANGE) {
-                return MoneyMinorUnits.ZERO
-            }
-
-            if (type == RecentActivityType.REFUND_TO_COUPON) {
-                return MoneyMinorUnits.ZERO
-            }
-
-            // Old/legacy lifecycle evidence may not have a settlement
-            // breakdown. Preserve its previous behavior rather than
-            // silently dropping legitimate non-Coupon activity.
-            if (fundingBreakdown.isEmpty()) {
-                return signedEffect
-            }
-
-            /*
-             * Today Total represents external value actually received or paid.
-             *
-             * CREDIT is a receivable, not money collected.
-             * COUPON is stored value, not new external money.
-             */
-            val externalAmount = fundingBreakdown
-                .asSequence()
-                .filter {
-                    it.category == PaymentCategory.CASH ||
-                        it.category == PaymentCategory.ONLINE
-                }
-                .fold(0L) { total, part ->
-                    Math.addExact(total, part.amountMinor)
-                }
-
+            totalEffectOverride?.let { return it }
             return when (type) {
-                RecentActivityType.MERCHANDISE_SALE,
+                RecentActivityType.MERCHANDISE_SALE ->
+                    signedEffect
+
                 RecentActivityType.COUPON_SELL,
-                RecentActivityType.COUPON_TOP_UP,
-                RecentActivityType.CREDIT_REPAYMENT ->
-                    MoneyMinorUnits(externalAmount)
+                RecentActivityType.COUPON_TOP_UP -> {
+                    if (fundingBreakdown.isEmpty()) {
+                        signedEffect
+                    } else {
+                        val received = fundingBreakdown
+                            .asSequence()
+                            .filter {
+                                it.category == PaymentCategory.CASH ||
+                                    it.category == PaymentCategory.ONLINE
+                            }
+                            .fold(0L) { total, part ->
+                                Math.addExact(total, part.amountMinor)
+                            }
+                        MoneyMinorUnits(received)
+                    }
+                }
 
                 RecentActivityType.REFUND,
-                RecentActivityType.VOID,
-                RecentActivityType.EXPENSE ->
-                    MoneyMinorUnits(Math.negateExact(externalAmount))
-
-                RecentActivityType.AMOUNT_CORRECTION -> when {
-                    signedEffect.isNegative ->
-                        MoneyMinorUnits(Math.negateExact(externalAmount))
-
-                    signedEffect.isPositive ->
-                        MoneyMinorUnits(externalAmount)
-
-                    else ->
-                        MoneyMinorUnits.ZERO
-                }
-
                 RecentActivityType.REFUND_TO_COUPON,
-                RecentActivityType.PAYMENT_METHOD_CHANGE ->
+                RecentActivityType.VOID,
+                RecentActivityType.AMOUNT_CORRECTION ->
+                    signedEffect
+
+                RecentActivityType.CREDIT_REPAYMENT,
+                RecentActivityType.PAYMENT_METHOD_CHANGE,
+                RecentActivityType.EXPENSE ->
                     MoneyMinorUnits.ZERO
             }
         }
+
 }
 
 object RecentActivityTotals {
@@ -374,7 +349,8 @@ object RecentActivityReadModelResolver {
             occurredAt = refund.occurredAt,
             customerName = customerName,
             sourceType = RecentActivitySourceType.REFUND_EVENT,
-            sourceReference = refund.id
+            sourceReference = refund.id,
+            totalEffectOverride = MoneyMinorUnits(Math.negateExact(refund.refundAmountMinor))
         )
     }
 
@@ -469,7 +445,8 @@ object RecentActivityReadModelResolver {
         occurredAt: Long,
         customerName: String?,
         sourceType: RecentActivitySourceType,
-        sourceReference: String
+        sourceReference: String,
+        totalEffectOverride: MoneyMinorUnits? = null
     ) = RecentFinancialActivity(
         activityId = activityId,
         transactionId = record.transaction.id,
@@ -484,7 +461,8 @@ object RecentActivityReadModelResolver {
         originalTransactionId = record.transaction.id,
         sourceType = sourceType,
         sourceReference = sourceReference,
-        displayRef = record.transaction.displayRef
+        displayRef = record.transaction.displayRef,
+        totalEffectOverride = totalEffectOverride
     )
 
     private fun fundingParts(settlements: List<SettlementEntryEntity>): List<FinancialFundingPart> =
