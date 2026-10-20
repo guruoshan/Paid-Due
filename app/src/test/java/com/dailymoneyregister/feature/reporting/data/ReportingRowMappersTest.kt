@@ -271,7 +271,10 @@ class ReportingRowMappersTest {
         val row = ReportingRowMappers.mapSale(record, emptyList(), listOf(obligation), lookups)
 
         assertEquals(ReportActivityType.CREDIT_SALE, row.activityType)
-        assertEquals(emptyList<ReportPaymentPart>(), row.paymentParts)
+        assertEquals(
+            listOf(ReportPaymentPart(PaymentCategory.CREDIT, PaymentChannel.CREDIT_ACCOUNT, MoneyMinorUnits(1000L))),
+            row.paymentParts
+        )
         assertEquals("op-2", row.operationId)
         assertEquals("Customer One", row.person?.name)
     }
@@ -280,6 +283,16 @@ class ReportingRowMappersTest {
     fun voidedSaleHasVoidedLifecycleStatus() {
         val record = TransactionFinancialRecord(
             transaction = tx(),
+            settlements = listOf(
+                settlement(
+                    "s-sale", "op-sale", EntryPurpose.SALE_FUNDING,
+                    PaymentCategory.CASH, PaymentChannel.CASH_TENDER, 1000L
+                ),
+                settlement(
+                    "s-void", "op-v", EntryPurpose.VOID_REVERSAL,
+                    PaymentCategory.CASH, PaymentChannel.CASH_TENDER, -1000L
+                )
+            ),
             voidEvents = listOf(
                 VoidEventEntity(
                     id = "v1",
@@ -366,24 +379,20 @@ class ReportingRowMappersTest {
                     PaymentCategory.CASH, PaymentChannel.CASH_TENDER, -1000L
                 )
             ),
-            fallbackAffected = MoneyMinorUnits(999L),
             lookups = lookups
         )
 
         assertEquals(MoneyMinorUnits(1000L), row.affectedAmount)
     }
 
-    @Test
-    fun voidFallsBackWhenNoReversalEvidenceExists() {
-        val row = ReportingRowMappers.mapVoid(
+    @Test(expected = IllegalStateException::class)
+    fun voidWithoutEventSpecificReversalEvidenceFailsClosed() {
+        ReportingRowMappers.mapVoid(
             event = voidEvent,
             tx = tx(),
             settlements = emptyList(),
-            fallbackAffected = MoneyMinorUnits(750L),
             lookups = lookups
         )
-
-        assertEquals(MoneyMinorUnits(750L), row.affectedAmount)
     }
 
     // ------------------------------------------------------------------
@@ -419,9 +428,9 @@ class ReportingRowMappersTest {
         assertEquals("Customer One", row.person.name)
     }
 
-    @Test(expected = IllegalStateException::class)
-    fun creditRepaymentWithMixedCollectionIdentitiesFailsClosed() {
-        ReportingRowMappers.mapCreditRepayment(
+    @Test
+    fun creditRepaymentSupportsMixedCollectionIdentities() {
+        val row = ReportingRowMappers.mapCreditRepayment(
             repayment = repayment(amount = 1000L),
             operation = operation("op-rep", OperationType.RECORD_CREDIT_REPAYMENT),
             settlements = listOf(
@@ -436,10 +445,15 @@ class ReportingRowMappersTest {
                     transactionId = null, subjectType = SubjectType.REPAYMENT, subjectId = "rep-1"
                 )
             ),
-            allocations = emptyList(),
+            allocations = listOf(
+                CreditRepaymentAllocationEntity("a1", "rep-1", "tx-1", 1000L, 100L)
+            ),
             balances = null,
             lookups = lookups
         )
+
+        assertEquals(2, row.paymentParts.size)
+        assertEquals(1000L, row.paymentParts.sumOf { it.amount.amount })
     }
 
     // ------------------------------------------------------------------
@@ -476,13 +490,22 @@ class ReportingRowMappersTest {
             operation = operation("op-buy", OperationType.RECORD_COUPON_PURCHASE, "SELL|wallet-1|800"),
             wallet = wallet,
             tx = null,
-            settlements = emptyList(),
+            settlements = listOf(
+                settlement(
+                    "s-buy", "op-buy", EntryPurpose.COUPON_PURCHASE_FUNDING,
+                    PaymentCategory.CASH, PaymentChannel.CASH_TENDER, 800L,
+                    transactionId = null,
+                    subjectType = SubjectType.COUPON_WALLET,
+                    subjectId = "wallet-1"
+                )
+            ),
             resultingBalance = null,
             lookups = lookups
         )
 
         assertEquals(CouponReportEventKind.PURCHASE, row.eventKind)
-        assertNull(row.fundingCategory)
+        assertEquals(PaymentCategory.CASH, row.fundingCategory)
+        assertEquals(PaymentChannel.CASH_TENDER, row.fundingChannel)
     }
 
     @Test

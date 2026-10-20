@@ -27,6 +27,8 @@ internal object ReportingAggregator {
         rows: List<ReportRow>,
         creditOutstanding: MoneyMinorUnits = MoneyMinorUnits.ZERO
     ): ReportingSummary {
+        validateRows(rows)
+
         var saleInflow = 0L
         var refundEffect = 0L
         var voidEffect = 0L
@@ -34,6 +36,7 @@ internal object ReportingAggregator {
 
         var cashSales = 0L
         var onlineSales = 0L
+        var couponSales = 0L
         var creditSales = 0L
 
         var cashRepayments = 0L
@@ -72,22 +75,42 @@ internal object ReportingAggregator {
                                 onlineSales = Math.addExact(onlineSales, part.amount.amount)
                             PaymentCategory.CREDIT ->
                                 creditSales = Math.addExact(creditSales, part.amount.amount)
-                            PaymentCategory.COUPON -> Unit
+                            PaymentCategory.COUPON ->
+                                couponSales = Math.addExact(couponSales, part.amount.amount)
                         }
                     }
                 }
 
                 is CreditRepaymentReportRow -> {
                     repaymentCount = Math.addExact(repaymentCount, 1)
-                    when (row.paymentCategory) {
-                        PaymentCategory.CASH ->
-                            cashRepayments = Math.addExact(cashRepayments, row.amount.amount)
-                        PaymentCategory.ONLINE ->
-                            onlineRepayments = Math.addExact(onlineRepayments, row.amount.amount)
-                        PaymentCategory.COUPON ->
-                            couponRepayments = Math.addExact(couponRepayments, row.amount.amount)
-                        PaymentCategory.CREDIT ->
-                            error("Credit cannot fund a credit repayment.")
+                    val parts = row.paymentParts.ifEmpty {
+                        listOfNotNull(
+                            row.paymentChannel?.let { channel ->
+                                com.dailymoneyregister.feature.reporting.domain.ReportPaymentPart(
+                                    row.paymentCategory,
+                                    channel,
+                                    row.amount
+                                )
+                            }
+                        )
+                    }
+                    check(parts.isNotEmpty()) {
+                        "Repayment ${row.repaymentId} has no reportable tender evidence."
+                    }
+                    check(parts.fold(0L) { total, part -> Math.addExact(total, part.amount.amount) } == row.amount.amount) {
+                        "Repayment ${row.repaymentId} tender parts do not equal its amount."
+                    }
+                    parts.forEach { part ->
+                        when (part.category) {
+                            PaymentCategory.CASH ->
+                                cashRepayments = Math.addExact(cashRepayments, part.amount.amount)
+                            PaymentCategory.ONLINE ->
+                                onlineRepayments = Math.addExact(onlineRepayments, part.amount.amount)
+                            PaymentCategory.COUPON ->
+                                couponRepayments = Math.addExact(couponRepayments, part.amount.amount)
+                            PaymentCategory.CREDIT ->
+                                error("Credit cannot fund a credit repayment.")
+                        }
                     }
                 }
 
@@ -171,6 +194,7 @@ internal object ReportingAggregator {
             periodNetSalesActivity = MoneyMinorUnits(netSalesActivity),
             cashSalesCollected = MoneyMinorUnits(cashSales),
             onlineSalesCollected = MoneyMinorUnits(onlineSales),
+            couponSalesCollected = MoneyMinorUnits(couponSales),
             creditSalesOriginated = MoneyMinorUnits(creditSales),
             cashCreditRepayments = MoneyMinorUnits(cashRepayments),
             onlineCreditRepayments = MoneyMinorUnits(onlineRepayments),
@@ -196,5 +220,81 @@ internal object ReportingAggregator {
                 paymentMethodChanges = paymentChangeCount
             )
         )
+    }
+
+    private fun validateRows(rows: List<ReportRow>) {
+        check(rows.map { it.stableId }.distinct().size == rows.size) {
+            "Reporting input contains duplicate stable row identities."
+        }
+
+        rows.filterIsInstance<SaleReportRow>().forEach { row ->
+            check(!row.operationId.isNullOrBlank()) {
+                "Sale ${row.transactionId} has no authoritative operation identity."
+            }
+            check(row.paymentParts.isNotEmpty()) {
+                "Sale ${row.transactionId} has no authoritative tender breakdown."
+            }
+            check(row.paymentParts.fold(0L) { total, part ->
+                Math.addExact(total, part.amount.amount)
+            } == row.originalAmount.amount) {
+                "Sale ${row.transactionId} tender total differs from its original amount."
+            }
+        }
+
+        rows.filterIsInstance<RefundReportRow>().forEach { row ->
+            check(row.destinationParts.isNotEmpty()) {
+                "Refund ${row.refundEventId} has no authoritative destination breakdown."
+            }
+            check(row.destinationParts.fold(0L) { total, part ->
+                Math.addExact(total, part.amount.amount)
+            } == row.amount.amount) {
+                "Refund ${row.refundEventId} destinations differ from its amount."
+            }
+        }
+
+        rows.filterIsInstance<VoidReportRow>().forEach { row ->
+            check(row.affectedAmount.amount > 0L) {
+                "Void ${row.eventId} has no positive event-specific reversal amount."
+            }
+        }
+
+        rows.filterIsInstance<CreditRepaymentReportRow>().forEach { row ->
+            check(row.paymentParts.isNotEmpty()) {
+                "Repayment ${row.repaymentId} has no authoritative tender breakdown."
+            }
+            check(row.paymentParts.fold(0L) { total, part ->
+                Math.addExact(total, part.amount.amount)
+            } == row.amount.amount) {
+                "Repayment ${row.repaymentId} tender parts differ from its amount."
+            }
+            check(row.allocations.fold(0L) { total, allocation ->
+                Math.addExact(total, allocation.amount.amount)
+            } == row.amount.amount) {
+                "Repayment ${row.repaymentId} allocations differ from its amount."
+            }
+        }
+
+        rows.filterIsInstance<CouponReportRow>().forEach { row ->
+            if (
+                row.eventKind == CouponReportEventKind.PURCHASE ||
+                row.eventKind == CouponReportEventKind.TOP_UP
+            ) {
+                check(row.fundingCategory != null && row.fundingChannel != null) {
+                    "Coupon funding event ${row.ledgerEventId} has no authoritative funding identity."
+                }
+            }
+        }
+
+        rows.filterIsInstance<AmountCorrectionReportRow>()
+            .groupBy { it.transactionId }
+            .values
+            .forEach { chain ->
+                val ordered = chain.sortedWith(compareBy<AmountCorrectionReportRow> { it.occurredAt }.thenBy { it.eventId })
+                ordered.zipWithNext().forEach { (previous, next) ->
+                    check(previous.correctedAmount.amount == next.previousAmount.amount) {
+                        "Correction chain is discontinuous between ${previous.eventId} and ${next.eventId}."
+                    }
+                }
+            }
     }
 }

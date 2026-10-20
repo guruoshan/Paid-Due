@@ -127,6 +127,22 @@ interface ReportingReadDao {
         toExclusive: Long
     ): List<AmountCorrectionEventEntity>
 
+    /**
+     * Full correction history for transactions with in-period corrections.
+     * Required to validate chain continuity across reporting-period boundaries.
+     */
+    @Query(
+        """
+        SELECT *
+        FROM amount_correction_events
+        WHERE transaction_id IN (:transactionIds)
+        ORDER BY transaction_id ASC, occurred_at ASC, id ASC
+        """
+    )
+    suspend fun getAmountCorrectionsForTransactions(
+        transactionIds: List<String>
+    ): List<AmountCorrectionEventEntity>
+
     @Query(
         """
         SELECT e.*
@@ -247,6 +263,31 @@ interface ReportingReadDao {
     @Query("SELECT * FROM operations WHERE id IN (:operationIds)")
     suspend fun getOperationsByIds(
         operationIds: List<String>
+    ): List<OperationEntity>
+
+    /**
+     * Complete local operation inventory for a reporting scope. All statuses
+     * are returned so unresolved/non-successful operations can be explicitly
+     * classified instead of disappearing behind a success-only filter.
+     */
+    @Query(
+        """
+        SELECT *
+        FROM operations
+        WHERE business_id = :businessId
+          AND branch_id IN (:branchIds)
+          AND occurred_at >= :fromInclusive
+          AND occurred_at < :toExclusive
+          AND (:cashierUserId IS NULL OR actor_user_id = :cashierUserId)
+        ORDER BY occurred_at ASC, id ASC
+        """
+    )
+    suspend fun getOperationsInPeriod(
+        businessId: String,
+        branchIds: List<String>,
+        fromInclusive: Long,
+        toExclusive: Long,
+        cashierUserId: String?
     ): List<OperationEntity>
 
     @Query(

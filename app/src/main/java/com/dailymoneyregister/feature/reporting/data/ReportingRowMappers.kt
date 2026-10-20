@@ -208,6 +208,28 @@ internal object ReportingRowMappers {
                 channel = it.channel,
                 amount = MoneyMinorUnits(it.amountMinor)
             )
+        }.ifEmpty {
+            // A credit obligation is the unpaid tender component, not a collection.
+            // Represent it as CREDIT so the sale total remains fully classified without
+            // fabricating a cash/card settlement.
+            val obligationMinor = creditEvents
+                .filter {
+                    it.transactionId == tx.id &&
+                        it.type == CreditLedgerType.OBLIGATION &&
+                        it.amountSignedMinor > 0L
+                }
+                .fold(0L) { total, event -> Math.addExact(total, event.amountSignedMinor) }
+            if (obligationMinor > 0L) {
+                listOf(
+                    ReportPaymentPart(
+                        category = PaymentCategory.CREDIT,
+                        channel = PaymentChannel.CREDIT_ACCOUNT,
+                        amount = MoneyMinorUnits(obligationMinor)
+                    )
+                )
+            } else {
+                emptyList()
+            }
         }
 
         val obligations = creditEvents.filter {
@@ -230,6 +252,13 @@ internal object ReportingRowMappers {
                     .map { it.operationId }
                     .distinct()
                     .singleOrNull()
+
+        check(!operationId.isNullOrBlank()) {
+            "Sale ${tx.id} has no unique authoritative originating operation."
+        }
+        check(sumExact(paymentParts.map { it.amount.amount }) == view.originalAmount.amount) {
+            "Sale ${tx.id} tender total does not equal its immutable original amount."
+        }
 
         val states = view.lifecycleStates
 
@@ -342,6 +371,11 @@ internal object ReportingRowMappers {
                 emptyList()
             }
 
+        val destinations = externalParts + couponParts
+        check(sumExact(destinations.map { it.amount.amount }) == event.refundAmountMinor) {
+            "Refund ${event.id} destinations do not equal its authoritative refund amount."
+        }
+
         return RefundReportRow(
             stableId = "refund:${event.id}",
             operationId = event.operationId,
@@ -355,7 +389,7 @@ internal object ReportingRowMappers {
             refundEventId = event.id,
             amount = MoneyMinorUnits(event.refundAmountMinor),
             reason = event.reason,
-            destinationParts = externalParts + couponParts
+            destinationParts = destinations
         )
     }
 
@@ -364,16 +398,14 @@ internal object ReportingRowMappers {
     // ------------------------------------------------------------------
 
     /**
-     * affectedAmount comes from the void operation's VOID_REVERSAL
-     * settlements when they exist. Otherwise it uses fallbackAffected, which
-     * the repository computes with the same rule FinancialReadModelResolver
-     * uses (current amount minus refunds).
+     * The amount comes only from this void operation's own immutable
+     * VOID_REVERSAL settlements. No transaction-current-balance fallback is
+     * allowed because it can reuse an amount across multiple void events.
      */
     fun mapVoid(
         event: VoidEventEntity,
         tx: TransactionEntity,
         settlements: List<SettlementEntryEntity>,
-        fallbackAffected: MoneyMinorUnits,
         lookups: ReportingLookups
     ): VoidReportRow {
 
@@ -382,14 +414,15 @@ internal object ReportingRowMappers {
                 it.amountSignedMinor < 0L
         }
 
-        val affected =
-            if (reversals.isNotEmpty()) {
-                MoneyMinorUnits(
-                    sumExact(reversals.map { Math.negateExact(it.amountSignedMinor) })
-                )
-            } else {
-                fallbackAffected
-            }
+        check(reversals.isNotEmpty()) {
+            "Void ${event.id} has no event-specific authoritative reversal settlements."
+        }
+        val affected = MoneyMinorUnits(
+            sumExact(reversals.map { Math.negateExact(it.amountSignedMinor) })
+        )
+        check(affected.amount > 0L) {
+            "Void ${event.id} reverses no positive amount."
+        }
 
         return VoidReportRow(
             stableId = "void:${event.id}",
@@ -482,28 +515,40 @@ internal object ReportingRowMappers {
         }
 
         val collections = settlements.filter { it.amountSignedMinor > 0L }
-
-        val identities = collections
-            .map { it.category to it.channel }
-            .distinct()
-
-        check(identities.size <= 1) {
-            "Repayment ${repayment.id} has mixed collection identities."
+        check(collections.isNotEmpty()) {
+            "Repayment ${repayment.id} has no authoritative collection settlements."
+        }
+        check(collections.all {
+            it.category == PaymentCategory.CASH ||
+                it.category == PaymentCategory.ONLINE ||
+                it.category == PaymentCategory.COUPON
+        }) {
+            "Repayment ${repayment.id} contains an unsupported collection category."
+        }
+        check(sumExact(collections.map { it.amountSignedMinor }) == repayment.amountMinor) {
+            "Repayment ${repayment.id} settlement total disagrees with the repayment."
         }
 
+        val paymentParts = collections
+            .groupBy { it.category to it.channel }
+            .map { (identity, entries) ->
+                ReportPaymentPart(
+                    category = identity.first,
+                    channel = identity.second,
+                    amount = MoneyMinorUnits(sumExact(entries.map { it.amountSignedMinor }))
+                )
+            }
+        val identities = paymentParts.map { it.category to it.channel }.distinct()
         val identity = identities.singleOrNull()
-
         val category = identity?.first ?: repayment.paymentCategory
 
-        if (collections.isNotEmpty()) {
-
+        if (identities.size == 1) {
             check(category == repayment.paymentCategory) {
                 "Repayment ${repayment.id} settlement category disagrees with the repayment."
             }
-
-            check(sumExact(collections.map { it.amountSignedMinor }) == repayment.amountMinor) {
-                "Repayment ${repayment.id} settlement total disagrees with the repayment."
-            }
+        }
+        check(sumExact(allocations.map { it.allocatedAmountMinor }) == repayment.amountMinor) {
+            "Repayment ${repayment.id} allocations do not equal the repayment amount."
         }
 
         return CreditRepaymentReportRow(
@@ -528,7 +573,8 @@ internal object ReportingRowMappers {
                 )
             },
             balanceBefore = balances?.first,
-            balanceAfter = balances?.second
+            balanceAfter = balances?.second,
+            paymentParts = paymentParts
         )
     }
 
@@ -606,10 +652,22 @@ internal object ReportingRowMappers {
                     .map { it.category to it.channel }
                     .distinct()
 
-                val identity = identities.singleOrNull()
+                check(identities.size == 1) {
+                    "Coupon funding event ${event.id} must have one authoritative tender identity."
+                }
+                val fundingTotal = sumExact(
+                    settlements.filter {
+                        it.entryPurpose == EntryPurpose.COUPON_PURCHASE_FUNDING &&
+                            it.amountSignedMinor > 0L
+                    }.map { it.amountSignedMinor }
+                )
+                check(fundingTotal == event.amountSignedMinor) {
+                    "Coupon funding event ${event.id} amount does not match its funding settlements."
+                }
+                val identity = identities.single()
 
-                fundingCategory = identity?.first
-                fundingChannel = identity?.second
+                fundingCategory = identity.first
+                fundingChannel = identity.second
             }
 
             CouponReportEventKind.REDEMPTION,

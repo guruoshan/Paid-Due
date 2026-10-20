@@ -7,6 +7,7 @@ import com.dailymoneyregister.feature.reporting.domain.AmountCorrectionReportRow
 import com.dailymoneyregister.feature.reporting.domain.CouponReportEventKind
 import com.dailymoneyregister.feature.reporting.domain.CouponReportRow
 import com.dailymoneyregister.feature.reporting.domain.CreditRepaymentReportRow
+import com.dailymoneyregister.feature.reporting.domain.CreditRepaymentAllocationReport
 import com.dailymoneyregister.feature.reporting.domain.ExpenseReportRow
 import com.dailymoneyregister.feature.reporting.domain.PaymentMethodChangeReportRow
 import com.dailymoneyregister.feature.reporting.domain.RefundReportRow
@@ -201,9 +202,16 @@ class ReportingAggregatorTest {
             amount = money(amount),
             paymentCategory = category,
             paymentChannel = channel,
-            allocations = emptyList(),
+            allocations = listOf(
+                CreditRepaymentAllocationReport(
+                    allocationId = "allocation-$id",
+                    originalTransactionId = "sale-$id",
+                    amount = money(amount)
+                )
+            ),
             balanceBefore = null,
-            balanceAfter = null
+            balanceAfter = null,
+            paymentParts = listOf(part(category, channel, amount))
         )
 
         val summary = ReportingAggregator.build(
@@ -239,8 +247,14 @@ class ReportingAggregatorTest {
                 ledgerEventId = id,
                 eventKind = kind,
                 signedAmount = money(signed),
-                fundingCategory = null,
-                fundingChannel = null,
+                fundingCategory = if (
+                    kind == CouponReportEventKind.PURCHASE ||
+                    kind == CouponReportEventKind.TOP_UP
+                ) PaymentCategory.CASH else null,
+                fundingChannel = if (
+                    kind == CouponReportEventKind.PURCHASE ||
+                    kind == CouponReportEventKind.TOP_UP
+                ) PaymentChannel.CASH_TENDER else null,
                 authorizedUserId = null,
                 authorizedUserName = null,
                 resultingBalance = null
@@ -260,9 +274,18 @@ class ReportingAggregatorTest {
             amount = money(100L),
             paymentCategory = PaymentCategory.COUPON,
             paymentChannel = PaymentChannel.COUPON_WALLET,
-            allocations = emptyList(),
+            allocations = listOf(
+                CreditRepaymentAllocationReport(
+                    allocationId = "allocation-coupon",
+                    originalTransactionId = "sale-coupon",
+                    amount = money(100L)
+                )
+            ),
             balanceBefore = null,
-            balanceAfter = null
+            balanceAfter = null,
+            paymentParts = listOf(
+                part(PaymentCategory.COUPON, PaymentChannel.COUPON_WALLET, 100L)
+            )
         )
 
         val summary = ReportingAggregator.build(
@@ -358,8 +381,8 @@ class ReportingAggregatorTest {
         val result = runCatching {
             ReportingAggregator.build(
                 listOf(
-                    sale("max", Long.MAX_VALUE, emptyList()),
-                    sale("overflow", 1L, emptyList())
+                    sale("max", Long.MAX_VALUE),
+                    sale("overflow", 1L)
                 )
             )
         }

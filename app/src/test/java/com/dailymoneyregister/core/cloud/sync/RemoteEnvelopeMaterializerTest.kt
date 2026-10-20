@@ -5,11 +5,13 @@ import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.dao.BusinessBranchDao
 import com.dailymoneyregister.core.database.dao.CloudStaffIdentityDao
 import com.dailymoneyregister.core.database.dao.ExpenseDao
+import com.dailymoneyregister.core.database.dao.InboundEnvelopeAuditDao
 import com.dailymoneyregister.core.database.dao.OperationDao
 import com.dailymoneyregister.core.database.dao.TransactionDao
 import com.dailymoneyregister.core.database.dao.UserDao
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
+import com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
 import com.dailymoneyregister.core.model.enums.ConfirmationType
@@ -38,6 +40,7 @@ class RemoteEnvelopeMaterializerTest {
     private val branchDao = mockk<BusinessBranchDao>()
     private val identityDao = mockk<CloudStaffIdentityDao>()
     private val operationDao = mockk<OperationDao>()
+    private val inboundAuditDao = mockk<InboundEnvelopeAuditDao>()
     private val expenseDao = mockk<ExpenseDao>()
     private val transactionDao = mockk<TransactionDao>()
     private val userDao = mockk<UserDao>()
@@ -49,6 +52,7 @@ class RemoteEnvelopeMaterializerTest {
     private val operationId = "0199c101-1234-7abc-8def-0123456789ab"
     private val fingerprint = "cash-sale-request-fingerprint"
     private var storedOperation: OperationEntity? = null
+    private var storedAppliedDigest: String? = null
     private lateinit var cloudIdentity: CloudStaffIdentityEntity
 
     @Before
@@ -56,7 +60,14 @@ class RemoteEnvelopeMaterializerTest {
         every { database.businessBranchDao() } returns branchDao
         every { database.cloudStaffIdentityDao() } returns identityDao
         every { database.operationDao() } returns operationDao
+        every { database.inboundEnvelopeAuditDao() } returns inboundAuditDao
         every { database.expenseDao() } returns expenseDao
+        storedAppliedDigest = null
+        coEvery { inboundAuditDao.appliedDigest(any()) } coAnswers { storedAppliedDigest }
+        coEvery { inboundAuditDao.appendAppliedIfAbsent(any()) } coAnswers {
+            storedAppliedDigest = firstArg<InboundEnvelopeAuditEventEntity>().canonicalSha256
+            Unit
+        }
         every { database.transactionDao() } returns transactionDao
         every { database.userDao() } returns userDao
         val branch = BranchEntity(
@@ -141,6 +152,41 @@ class RemoteEnvelopeMaterializerTest {
         // The remote identity projection, not a locally installed cashier account,
         // is sufficient to validate the actor and replay the immutable sale.
         coVerify(exactly = 0) { userDao.getUserByIdInBusiness(actorUserId, businessId) }
+    }
+
+    @Test
+    fun replayWithConflictingCanonicalDigestIsRejectedBeforeAnySecondWrite() = runTest {
+        val first = cashSaleEnvelope()
+        assertEquals(
+            InboundProcessResult.Applied,
+            RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+                database = database,
+                envelope = first,
+                sessionBusinessId = businessId,
+                sessionBranchId = branchId
+            )
+        )
+
+        val conflictingPayload = JSONObject(first.canonicalText).put("note", "conflicting payload")
+        val conflictingText = conflictingPayload.toString()
+        val conflicting = first.copy(
+            canonicalText = conflictingText,
+            payloadJson = conflictingPayload,
+            canonicalSha256 = CommandFingerprint.sha256(conflictingText)
+        )
+        assertEquals(
+            InboundProcessResult.Rejected(
+                "Operation ID replay conflicts with the previously applied canonical digest"
+            ),
+            RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+                database = database,
+                envelope = conflicting,
+                sessionBusinessId = businessId,
+                sessionBranchId = branchId
+            )
+        )
+        coVerify(exactly = 1) { operationDao.insertOperationIfAbsent(any()) }
+        coVerify(exactly = 1) { transactionDao.insertTransaction(any()) }
     }
 
     @Test

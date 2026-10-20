@@ -1,7 +1,9 @@
 package com.dailymoneyregister.core.cloud.sync
 
 import androidx.room.withTransaction
+import com.dailymoneyregister.core.command.CommandFingerprint
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
@@ -44,6 +46,12 @@ object RemoteEnvelopeMaterializer {
         val opTypeStr = envelope.operationType
 
         val jsonPayload = envelope.payloadJson
+        val envelopeDigest = envelope.canonicalSha256
+            ?.takeIf { it.isNotBlank() }
+            ?: return InboundProcessResult.Rejected("Canonical envelope digest is missing")
+        if (!envelopeDigest.equals(CommandFingerprint.sha256(envelope.canonicalText), ignoreCase = true)) {
+            return InboundProcessResult.Rejected("Canonical envelope digest does not match canonical text")
+        }
 
         // Verify the canonical text and separately returned JSONB payload are
         // semantically identical (object key order is irrelevant). The current
@@ -102,21 +110,32 @@ object RemoteEnvelopeMaterializer {
         // checks intentionally precede duplicate handling.
         val incomingFingerprint = jsonPayload.optString("request_fingerprint")
         val existingOp = database.operationDao().getOperationById(opId)
-        if (existingOp != null) {
-            if (
+        if (existingOp != null && (
                 existingOp.businessId != envelope.businessId ||
-                existingOp.branchId != branchId ||
-                existingOp.operationType.name != opTypeStr ||
-                existingOp.requestFingerprint != incomingFingerprint
-            ) {
+                    existingOp.branchId != branchId ||
+                    existingOp.operationType.name != opTypeStr ||
+                    existingOp.requestFingerprint != incomingFingerprint
+            )
+        ) {
+            return InboundProcessResult.Rejected(
+                "Operation ID collision: existing operation identity does not match inbound envelope"
+            )
+        }
+        val appliedDigest = database.inboundEnvelopeAuditDao().appliedDigest(opId)
+        if (appliedDigest != null) {
+            if (!appliedDigest.equals(envelopeDigest, ignoreCase = true)) {
                 return InboundProcessResult.Rejected(
-                    "Operation ID collision: existing operation identity does not match inbound envelope"
+                    "Operation ID replay conflicts with the previously applied canonical digest"
                 )
             }
-            if (existingOp.status == OperationStatus.SUCCEEDED) {
-                return InboundProcessResult.Skipped
+            if (existingOp?.status != OperationStatus.SUCCEEDED) {
+                return InboundProcessResult.Rejected(
+                    "Applied digest receipt exists without a succeeded local operation"
+                )
             }
+            return InboundProcessResult.Skipped
         }
+        var replayDetected = existingOp?.status == OperationStatus.SUCCEEDED
 
         // Expense creation already has a canonical expense snapshot and a Room
         // entity. Route only RECORD_EXPENSE through the generic atomic writer after
@@ -146,11 +165,7 @@ object RemoteEnvelopeMaterializer {
             ) {
                 return InboundProcessResult.Rejected("Expense branch or currency does not match the active business")
             }
-            return if (materializeEnvelope(database, jsonPayload)) {
-                InboundProcessResult.Applied
-            } else {
-                InboundProcessResult.Rejected("Expense envelope could not be materialized")
-            }
+            return materializeEnvelope(database, jsonPayload, envelope, branchId)
         }
 
         // Transaction-linked operations share the immutable original transaction
@@ -367,8 +382,30 @@ object RemoteEnvelopeMaterializer {
                     return InboundProcessResult.Rejected("Refund event amount does not match its signed outflow settlements")
                 }
             }
-            "RECORD_VOID" -> if (settlementSum != -grandTotalMinor) {
-                return InboundProcessResult.Rejected("Void reversal settlements do not reverse the original transaction total")
+            "RECORD_VOID" -> {
+                // A void reverses only the currently reversible remainder, not
+                // necessarily the original sale total (prior refunds/corrections
+                // may already have reduced it). Replays are validated against the
+                // persisted event/settlement snapshots inside the atomic writer.
+                if (existingOp?.status != OperationStatus.SUCCEEDED) {
+                    val originalRecord = database.transactionDao()
+                        .getFinancialRecordsByIds(listOf(tJson.getString("id")))
+                        .singleOrNull()
+                        ?: return InboundProcessResult.Rejected(
+                            "Void cannot be applied before its original transaction evidence exists"
+                        )
+                    val currentView = com.dailymoneyregister.core.model.financial.FinancialReadModelResolver
+                        .resolve(originalRecord)
+                    val reversibleMinor = Math.subtractExact(
+                        currentView.currentAmount.amount,
+                        currentView.refundedAmount.amount
+                    )
+                    if (reversibleMinor <= 0L || settlementSum != Math.negateExact(reversibleMinor)) {
+                        return InboundProcessResult.Rejected(
+                            "Void reversal settlements do not equal the remaining reversible amount"
+                        )
+                    }
+                }
             }
             "RECORD_AMOUNT_CORRECTION" -> {
                 val event = financialEvidence.optJSONArray("amount_correction_events")?.optJSONObject(0)
@@ -404,6 +441,16 @@ object RemoteEnvelopeMaterializer {
             )
             val operationDao = database.operationDao()
             val transactionDao = database.transactionDao()
+            val persistedOperation = operationDao.getOperationById(opId)
+            if (persistedOperation != null) {
+                check(
+                    persistedOperation.businessId == envelope.businessId &&
+                        persistedOperation.branchId == branchId &&
+                        persistedOperation.operationType.name == opTypeStr &&
+                        persistedOperation.requestFingerprint == incomingFingerprint
+                ) { "Operation ID collision during atomic materialization" }
+                replayDetected = persistedOperation.status == OperationStatus.SUCCEEDED
+            }
             val occurredAt = java.time.Instant.parse(envelope.occurredAtIso).toEpochMilli()
 
             val txId = tJson.getString("id")
@@ -466,8 +513,8 @@ object RemoteEnvelopeMaterializer {
             }
 
             // 2. Transaction Items
-            if (jsonPayload.has("items") && !jsonPayload.isNull("items")) {
-                val itemsArray = jsonPayload.getJSONArray("items")
+            if (replayDetected || (jsonPayload.has("items") && !jsonPayload.isNull("items"))) {
+                val itemsArray = jsonPayload.optJSONArray("items") ?: org.json.JSONArray()
                 val itemsList = mutableListOf<TransactionItemEntity>()
                 for (i in 0 until itemsArray.length()) {
                     val itemJson = itemsArray.getJSONObject(i)
@@ -503,9 +550,18 @@ object RemoteEnvelopeMaterializer {
                         }
                     }
                 }
+                if (replayDetected) {
+                    check(existingItems.keys == itemsList.map { it.id }.toSet()) {
+                        "Replay item identity set differs from the already materialized transaction"
+                    }
+                }
                 val newItems = itemsList.filter { it.id !in existingItems }
                 if (newItems.isNotEmpty()) {
                     transactionDao.insertTransactionItems(newItems)
+                }
+            } else if (replayDetected) {
+                check(transactionDao.getItemsForTransaction(txId).isEmpty()) {
+                    "Replay omitted existing transaction item evidence"
                 }
             }
 
@@ -545,6 +601,11 @@ object RemoteEnvelopeMaterializer {
                     }
                 }
             }
+            if (replayDetected) {
+                check(existingSettlements.keys == settlementsList.map { it.id }.toSet()) {
+                    "Replay settlement identity set differs from the already materialized operation"
+                }
+            }
             val newSettlements = settlementsList.filter { it.id !in existingSettlements }
             if (newSettlements.isNotEmpty()) {
                 transactionDao.insertSettlements(newSettlements)
@@ -574,7 +635,9 @@ object RemoteEnvelopeMaterializer {
                 "Inbound sale could not be finalized with the matching request fingerprint"
             }
 
-            InboundProcessResult.Applied
+            val result = if (replayDetected) InboundProcessResult.Skipped else InboundProcessResult.Applied
+            recordAppliedReceipt(database, envelope, branchId)
+            result
         }
     }
 
@@ -852,6 +915,7 @@ object RemoteEnvelopeMaterializer {
                     status = OperationStatus.PENDING
                 )
                 val existing = operationDao.getOperationById(envelope.operationId)
+                val replayDetected = existing?.status == OperationStatus.SUCCEEDED
                 if (existing == null) {
                     operationDao.insertOperationIfAbsent(operation)
                 } else {
@@ -861,9 +925,6 @@ object RemoteEnvelopeMaterializer {
                             existing.operationType == operation.operationType &&
                             existing.requestFingerprint == operation.requestFingerprint
                     ) { "Inbound operation identity collision" }
-                    if (existing.status == OperationStatus.SUCCEEDED) {
-                        return@withTransaction InboundProcessResult.Skipped
-                    }
                 }
 
                 val settlementsArray = payload.optJSONArray("settlements") ?: org.json.JSONArray()
@@ -889,7 +950,11 @@ object RemoteEnvelopeMaterializer {
                 }
                 val existingSettlements = database.transactionDao()
                     .getSettlementsForOperation(envelope.operationId)
-                if (existingSettlements.isEmpty() && settlementRows.isNotEmpty()) {
+                if (replayDetected) {
+                    check(existingSettlements.toSet() == settlementRows.toSet()) {
+                        "Replay settlement identity set differs from the already materialized operation"
+                    }
+                } else if (existingSettlements.isEmpty() && settlementRows.isNotEmpty()) {
                     database.transactionDao().insertSettlements(settlementRows)
                 } else if (settlementRows.isNotEmpty()) {
                     check(existingSettlements.toSet() == settlementRows.toSet()) {
@@ -916,7 +981,9 @@ object RemoteEnvelopeMaterializer {
                 check(finalized == 1 || operationDao.isOperationSucceeded(envelope.operationId)) {
                     "Inbound non-transaction operation could not be finalized"
                 }
-                InboundProcessResult.Applied
+                val result = if (replayDetected) InboundProcessResult.Skipped else InboundProcessResult.Applied
+                recordAppliedReceipt(database, envelope, branchId)
+                result
             }
         } catch (error: Exception) {
             InboundProcessResult.Rejected(
@@ -927,11 +994,12 @@ object RemoteEnvelopeMaterializer {
 
     private suspend fun materializeEnvelope(
         database: DmrDatabase,
-        jsonPayload: JSONObject
-    ): Boolean {
+        jsonPayload: JSONObject,
+        envelope: RemoteEnvelopeV2,
+        branchId: String
+    ): InboundProcessResult {
         val opId = jsonPayload.getString("operation_id")
         val businessId = jsonPayload.getString("business_id")
-        val branchId = jsonPayload.optString("branch_id").ifBlank { null }
         val actorUserId = jsonPayload.getString("actor_user_id")
         val deviceId = jsonPayload.getString("device_id")
         val opTypeStr = jsonPayload.getString("operation_type")
@@ -941,9 +1009,10 @@ object RemoteEnvelopeMaterializer {
         val intentPayload = jsonPayload.optString("intent_payload", "{}")
 
         val opType = runCatching { OperationType.valueOf(opTypeStr) }.getOrElse {
-            return false
+            return InboundProcessResult.UnsupportedYet(opTypeStr)
         }
 
+        var replayDetected = false
         return database.withTransaction {
             CustomerIdentityReconciler.reconcileEvidenceCustomers(
                 database, businessId,
@@ -954,19 +1023,18 @@ object RemoteEnvelopeMaterializer {
             val expenseDao = database.expenseDao()
 
             val existingOp = operationDao.getOperationById(opId)
-            if (existingOp != null) {
-                if (
+            if (existingOp != null && (
                     existingOp.businessId != businessId ||
-                    existingOp.branchId != branchId ||
-                    existingOp.operationType != opType ||
-                    existingOp.requestFingerprint != requestFingerprint
-                ) {
-                    return@withTransaction false
-                }
-                if (existingOp.status == OperationStatus.SUCCEEDED) {
-                    return@withTransaction true // Same immutable operation already materialized
-                }
+                        existingOp.branchId != branchId ||
+                        existingOp.operationType != opType ||
+                        existingOp.requestFingerprint != requestFingerprint
+                )
+            ) {
+                return@withTransaction InboundProcessResult.Rejected(
+                    "Operation ID collision: existing expense/operation identity differs from the envelope"
+                )
             }
+            replayDetected = existingOp?.status == OperationStatus.SUCCEEDED
 
             var txId: String? = null
             var txType = "TRANSACTION"
@@ -997,8 +1065,13 @@ object RemoteEnvelopeMaterializer {
                     description = tJson.optString("description").ifBlank { null },
                     displayRef = tJson.getString("display_ref")
                 )
-                if (transactionDao.getTransactionById(txId) == null) {
+                val existingTransaction = transactionDao.getTransactionById(txId)
+                if (existingTransaction == null) {
                     transactionDao.insertTransaction(tEntity)
+                } else {
+                    check(existingTransaction == tEntity) {
+                        "Existing immutable transaction differs from replayed envelope"
+                    }
                 }
             }
 
@@ -1025,12 +1098,32 @@ object RemoteEnvelopeMaterializer {
                         )
                     )
                 }
-                if (itemsList.isNotEmpty()) {
-                    val existingItemIds = txId?.let { transactionDao.getItemsForTransaction(it).map { it.id }.toSet() } ?: emptySet()
-                    val newItems = itemsList.filter { it.id !in existingItemIds }
-                    if (newItems.isNotEmpty()) {
-                        transactionDao.insertTransactionItems(newItems)
+                check(itemsList.map { it.id }.distinct().size == itemsList.size) {
+                    "Transaction contains duplicate item IDs"
+                }
+                val existingItems = txId?.let {
+                    transactionDao.getItemsForTransaction(it).associateBy { item -> item.id }
+                } ?: emptyMap()
+                for (incoming in itemsList) {
+                    val existing = existingItems[incoming.id]
+                    if (existing != null) {
+                        check(existing == incoming) {
+                            "Existing immutable transaction item differs from replayed envelope"
+                        }
                     }
+                }
+                if (replayDetected) {
+                    check(existingItems.keys == itemsList.map { it.id }.toSet()) {
+                        "Replay item identity set differs from the already materialized transaction"
+                    }
+                }
+                val newItems = itemsList.filter { it.id !in existingItems }
+                if (newItems.isNotEmpty()) {
+                    transactionDao.insertTransactionItems(newItems)
+                }
+            } else if (replayDetected && txId != null) {
+                check(transactionDao.getItemsForTransaction(txId).isEmpty()) {
+                    "Replay omitted existing transaction item evidence"
                 }
             }
 
@@ -1040,29 +1133,34 @@ object RemoteEnvelopeMaterializer {
                 val eId = eJson.getString("id")
                 txId = eId
                 txType = "EXPENSE"
-                if (expenseDao.getExpenseById(eId) == null) {
-                    val eEntity = ExpenseEntity(
-                        id = eId,
-                        operationId = eJson.getString("operation_id"),
-                        businessId = eJson.getString("business_id"),
-                        branchId = eJson.getString("branch_id"),
-                        cashShiftId = eJson.optString("cash_shift_id").ifBlank { null },
-                        actorUserId = eJson.getString("actor_user_id"),
-                        payeeId = eJson.optString("payee_id").ifBlank { null },
-                        payeeNameSnapshot = eJson.getString("payee_name_snapshot"),
-                        payeePhoneSnapshot = eJson.optString("payee_phone_snapshot").ifBlank { null },
-                        payeeAccountSnapshot = eJson.optString("payee_account_snapshot").ifBlank { null },
-                        category = eJson.getString("category"),
-                        amountMinor = eJson.getLong("amount_minor"),
-                        paymentCategory = eJson.getString("payment_category"),
-                        currencyCode = eJson.getString("currency_code"),
-                        reference = eJson.optString("reference").ifBlank { null },
-                        note = eJson.optString("note").ifBlank { null },
-                        recurrenceId = eJson.optString("recurrence_id").ifBlank { null },
-                        occurredAt = eJson.getLong("occurred_at"),
-                        createdAt = eJson.getLong("created_at")
-                    )
+                val eEntity = ExpenseEntity(
+                    id = eId,
+                    operationId = eJson.getString("operation_id"),
+                    businessId = eJson.getString("business_id"),
+                    branchId = eJson.getString("branch_id"),
+                    cashShiftId = eJson.optString("cash_shift_id").ifBlank { null },
+                    actorUserId = eJson.getString("actor_user_id"),
+                    payeeId = eJson.optString("payee_id").ifBlank { null },
+                    payeeNameSnapshot = eJson.getString("payee_name_snapshot"),
+                    payeePhoneSnapshot = eJson.optString("payee_phone_snapshot").ifBlank { null },
+                    payeeAccountSnapshot = eJson.optString("payee_account_snapshot").ifBlank { null },
+                    category = eJson.getString("category"),
+                    amountMinor = eJson.getLong("amount_minor"),
+                    paymentCategory = eJson.getString("payment_category"),
+                    currencyCode = eJson.getString("currency_code"),
+                    reference = eJson.optString("reference").ifBlank { null },
+                    note = eJson.optString("note").ifBlank { null },
+                    recurrenceId = eJson.optString("recurrence_id").ifBlank { null },
+                    occurredAt = eJson.getLong("occurred_at"),
+                    createdAt = eJson.getLong("created_at")
+                )
+                val existingExpense = expenseDao.getExpenseById(eId)
+                if (existingExpense == null) {
                     expenseDao.insertExpense(eEntity)
+                } else {
+                    check(existingExpense == eEntity) {
+                        "Existing immutable expense differs from replayed envelope"
+                    }
                 }
             }
 
@@ -1091,8 +1189,8 @@ object RemoteEnvelopeMaterializer {
             operationDao.insertOperationIfAbsent(opEntity)
 
             // 5. Settlements (insert after owning operation; settlement_entries has an operation foreign key)
-            if (jsonPayload.has("settlements") && !jsonPayload.isNull("settlements")) {
-                val settlementsArray = jsonPayload.getJSONArray("settlements")
+            if (replayDetected || (jsonPayload.has("settlements") && !jsonPayload.isNull("settlements"))) {
+                val settlementsArray = jsonPayload.optJSONArray("settlements") ?: org.json.JSONArray()
                 val settlementsList = mutableListOf<SettlementEntryEntity>()
                 for (i in 0 until settlementsArray.length()) {
                     val sJson = settlementsArray.getJSONObject(i)
@@ -1116,12 +1214,26 @@ object RemoteEnvelopeMaterializer {
                         )
                     )
                 }
-                if (settlementsList.isNotEmpty()) {
-                    val existingSettlements = transactionDao.getSettlementsForOperation(opId).map { it.id }.toSet()
-                    val newSettlements = settlementsList.filter { it.id !in existingSettlements }
-                    if (newSettlements.isNotEmpty()) {
-                        transactionDao.insertSettlements(newSettlements)
+                check(settlementsList.map { it.id }.distinct().size == settlementsList.size) {
+                    "Expense envelope contains duplicate settlement IDs"
+                }
+                val existingSettlements = transactionDao.getSettlementsForOperation(opId).associateBy { it.id }
+                for (incoming in settlementsList) {
+                    val existing = existingSettlements[incoming.id]
+                    if (existing != null) {
+                        check(existing == incoming) {
+                            "Existing immutable settlement differs from replayed envelope"
+                        }
                     }
+                }
+                if (replayDetected) {
+                    check(existingSettlements.keys == settlementsList.map { it.id }.toSet()) {
+                        "Replay settlement identity set differs from the already materialized expense operation"
+                    }
+                }
+                val newSettlements = settlementsList.filter { it.id !in existingSettlements }
+                if (newSettlements.isNotEmpty()) {
+                    transactionDao.insertSettlements(newSettlements)
                 }
             }
 
@@ -1138,7 +1250,44 @@ object RemoteEnvelopeMaterializer {
                 "Inbound operation was not persisted as succeeded"
             }
 
-            true
+            val result = if (replayDetected) InboundProcessResult.Skipped else InboundProcessResult.Applied
+            recordAppliedReceipt(database, envelope, branchId)
+            result
+        }
+    }
+
+    private suspend fun recordAppliedReceipt(
+        database: DmrDatabase,
+        envelope: RemoteEnvelopeV2,
+        branchId: String
+    ) {
+        val digest = envelope.canonicalSha256
+            ?.takeIf { it.isNotBlank() }
+            ?: error("Cannot persist an applied receipt without a canonical digest")
+        val dao = database.inboundEnvelopeAuditDao()
+        val existingDigest = dao.appliedDigest(envelope.operationId)
+        if (existingDigest != null) {
+            check(existingDigest.equals(digest, ignoreCase = true)) {
+                "Applied receipt digest conflicts for operation ${envelope.operationId}"
+            }
+            return
+        }
+        dao.appendAppliedIfAbsent(
+            InboundEnvelopeAuditEventEntity(
+                id = "inbound-applied:${envelope.operationId}",
+                operationId = envelope.operationId,
+                businessId = envelope.businessId,
+                branchId = branchId,
+                operationType = envelope.operationType,
+                receivedAtIso = envelope.receivedAtIso,
+                canonicalSha256 = digest,
+                eventType = "APPLIED",
+                reason = "Canonical digest verified; operation evidence committed atomically",
+                occurredAt = System.currentTimeMillis()
+            )
+        )
+        check(dao.appliedDigest(envelope.operationId)?.equals(digest, ignoreCase = true) == true) {
+            "Applied receipt could not be durably verified for operation ${envelope.operationId}"
         }
     }
 }

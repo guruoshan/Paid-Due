@@ -1,17 +1,56 @@
 package com.dailymoneyregister.feature.reporting.data
 
 import androidx.room.withTransaction
+import com.dailymoneyregister.core.cloud.sync.RemoteFinancialSyncRepository
+import com.dailymoneyregister.core.command.CommandFingerprint
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
 import com.dailymoneyregister.core.database.readmodel.TransactionFinancialRecord
 import com.dailymoneyregister.core.model.financial.FinancialReadModelResolver
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.feature.reporting.domain.FinancialReconciliationEngine
 import com.dailymoneyregister.feature.reporting.domain.ReportRow
 import com.dailymoneyregister.feature.reporting.domain.ReportingReadModel
+import com.dailymoneyregister.feature.reporting.domain.ReportingReconciliation
 import com.dailymoneyregister.feature.reporting.domain.ReportingScope
 import kotlinx.coroutines.CancellationException
+import org.json.JSONArray
+import org.json.JSONObject
+
+/**
+ * Structural JSON equality independent of object-key order. Android's org.json
+ * implementation does not expose JSONObject.similar() on every supported API.
+ * Arrays remain order-sensitive; numerically equivalent JSON number forms compare equal.
+ */
+private fun reportingJsonEquivalent(left: Any?, right: Any?): Boolean {
+    if (left === JSONObject.NULL || right === JSONObject.NULL) {
+        return left === JSONObject.NULL && right === JSONObject.NULL
+    }
+    if (left == null || right == null) return left == right
+    if (left is JSONObject && right is JSONObject) {
+        val leftKeys = left.keys().asSequence().toSet()
+        val rightKeys = right.keys().asSequence().toSet()
+        if (leftKeys != rightKeys) return false
+        return leftKeys.all { key -> reportingJsonEquivalent(left.get(key), right.get(key)) }
+    }
+    if (left is JSONArray && right is JSONArray) {
+        if (left.length() != right.length()) return false
+        return (0 until left.length()).all { index ->
+            reportingJsonEquivalent(left.get(index), right.get(index))
+        }
+    }
+    if (left is Number && right is Number) {
+        return try {
+            java.math.BigDecimal(left.toString()).compareTo(java.math.BigDecimal(right.toString())) == 0
+        } catch (_: NumberFormatException) {
+            false
+        }
+    }
+    return left == right
+}
 
 /**
  * BOARDLOCK Authoritative Reporting read boundary.
@@ -36,7 +75,8 @@ interface ReportingReadRepository {
 class RoomReportingReadRepository(
     private val database: DmrDatabase,
     private val sessionProvider: () -> ActiveSession? =
-        { SessionManager.currentSession.value }
+        { SessionManager.currentSession.value },
+    private val remoteSyncRepository: RemoteFinancialSyncRepository? = null
 ) : ReportingReadRepository {
 
     override suspend fun read(scope: ReportingScope): ReportingReadModel {
@@ -94,7 +134,7 @@ class RoomReportingReadRepository(
             requestedCashierKnownInBusiness = cashierKnown
         )
 
-        return try {
+        val localProjection = try {
             database.withTransaction {
                 readInside(scope, access)
             }
@@ -118,12 +158,35 @@ class RoomReportingReadRepository(
                 e
             )
         }
+
+        val (localReadModel, localOperations) = localProjection
+        val cloudInventory = try {
+            fetchCloudInventory(scope, access)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            CloudInventoryRead(
+                operations = emptyList(),
+                verified = false,
+                failureReason = e.message ?: e::class.java.simpleName
+            )
+        }
+
+        return localReadModel.copy(
+            reconciliation = FinancialReconciliationEngine.reconcile(
+                localOperations = localOperations,
+                cloudOperations = cloudInventory.operations,
+                rows = localReadModel.rows,
+                cloudInventoryVerified = cloudInventory.verified,
+                cloudInventoryFailureReason = cloudInventory.failureReason
+            )
+        )
     }
 
     private suspend fun readInside(
         scope: ReportingScope,
         access: ReportingAccess
-    ): ReportingReadModel {
+    ): Pair<ReportingReadModel, List<OperationEntity>> {
 
         val reportingDao = database.reportingReadDao()
         val transactionDao = database.transactionDao()
@@ -133,6 +196,17 @@ class RoomReportingReadRepository(
         val to = scope.period.toExclusive
         val branchIds = access.branchIds
         val businessId = access.businessId
+
+        // This inventory includes every operation status in the same business,
+        // branch, actor and half-open period scope. It is reconciled by stable
+        // operation identity rather than comparing raw operation and row counts.
+        val operationsInScope = reportingDao.getOperationsInPeriod(
+            businessId = businessId,
+            branchIds = branchIds,
+            fromInclusive = from,
+            toExclusive = to,
+            cashierUserId = scope.cashierUserId
+        )
 
         // ---- 1. Original sales -------------------------------------------
 
@@ -157,6 +231,18 @@ class RoomReportingReadRepository(
         val voids = reportingDao.getVoidEventsInPeriod(branchIds, from, to)
         val corrections = reportingDao.getAmountCorrectionsInPeriod(branchIds, from, to)
         val paymentChanges = reportingDao.getPaymentMethodChangesInPeriod(branchIds, from, to)
+
+        val correctionHistory = loadChunked(corrections.map { it.transactionId }.distinct()) {
+            reportingDao.getAmountCorrectionsForTransactions(it)
+        }
+        correctionHistory.groupBy { it.transactionId }.forEach { (transactionId, events) ->
+            val orderedHistory = events.sortedWith(compareBy({ it.occurredAt }, { it.id }))
+            orderedHistory.zipWithNext().forEach { (previous, next) ->
+                check(previous.correctedAmountMinor == next.previousAmountMinor) {
+                    "Correction chain for transaction $transactionId is discontinuous between ${previous.id} and ${next.id}."
+                }
+            }
+        }
 
         // ---- 3. Repayments, coupon ledger, expenses -----------------------
 
@@ -194,10 +280,27 @@ class RoomReportingReadRepository(
             transactionDao.getTransactionsByIds(it)
         }.forEach { transactionsById[it.id] = it }
 
-        val voidRecords: Map<String, TransactionFinancialRecord> =
-            loadChunked(voids.map { it.transactionId }) {
+        val lifecycleTransactionIds = (
+            refunds.map { it.transactionId } +
+                voids.map { it.transactionId } +
+                corrections.map { it.transactionId }
+            ).distinct()
+        val lifecycleRecords: Map<String, TransactionFinancialRecord> =
+            loadChunked(lifecycleTransactionIds) {
                 transactionDao.getFinancialRecordsByIds(it)
             }.associateBy { it.transaction.id }
+
+        // Validate complete persisted lifecycle history, not only the events
+        // that happen to fall inside this report period. This proves cumulative
+        // refunds do not exceed the corrected transaction amount and that the
+        // full correction chain is continuous.
+        (saleRecords + lifecycleRecords.values)
+            .distinctBy { it.transaction.id }
+            .forEach { record ->
+                guarded("transaction lifecycle ${record.transaction.id}") {
+                    validateLifecycleEvidence(record)
+                }
+            }
 
         // ---- 5. Operations + settlements + coupon evidence ----------------
 
@@ -218,11 +321,13 @@ class RoomReportingReadRepository(
             }
         }
 
-        val operationsById = loadChunked(
-            saleOperationIds + repayments.map { it.operationId } + couponEvents.map { it.operationId }
-        ) {
-            reportingDao.getOperationsByIds(it)
-        }.associateBy { it.id }
+        val operationsById = (
+            operationsInScope + loadChunked(
+                saleOperationIds + repayments.map { it.operationId } + couponEvents.map { it.operationId }
+            ) {
+                reportingDao.getOperationsByIds(it)
+            }
+        ).associateBy { it.id }
 
         val settlementOperationIds =
             refunds.map { it.operationId } +
@@ -342,15 +447,13 @@ class RoomReportingReadRepository(
 
         for (event in voids) {
             rows += guarded("void ${event.id}") {
-                val record = checkNotNull(voidRecords[event.transactionId]) {
+                val record = checkNotNull(lifecycleRecords[event.transactionId]) {
                     "Void ${event.id} transaction evidence is missing."
                 }
-                val view = FinancialReadModelResolver.resolve(record)
                 ReportingRowMappers.mapVoid(
                     event = event,
                     tx = requireTransaction(transactionsById, event.transactionId, access),
                     settlements = settlementsByOperation[event.operationId].orEmpty(),
-                    fallbackAffected = view.currentAmount - view.refundedAmount,
                     lookups = lookups
                 )
             }
@@ -455,8 +558,9 @@ class RoomReportingReadRepository(
         return ReportingReadModel(
             scope = scope,
             summary = ReportingAggregator.build(ordered),
-            rows = ordered
-        )
+            rows = ordered,
+            reconciliation = ReportingReconciliation.unverified()
+        ) to operationsInScope
     }
 
     // ------------------------------------------------------------------
@@ -486,6 +590,147 @@ class RoomReportingReadRepository(
         @Suppress("UNUSED_PARAMETER") businessId: String,
         loader: suspend (List<String>) -> List<T>
     ): List<T> = loadChunked(ids, loader)
+
+    private data class CloudInventoryRead(
+        val operations: List<com.dailymoneyregister.feature.reporting.domain.ReportingCloudOperation>,
+        val verified: Boolean,
+        val failureReason: String? = null
+    )
+
+    /**
+     * Full server-side scoped inventory scan. The snapshot is considered verified
+     * only when pagination reaches the end, every canonical digest validates, and
+     * no operation identity repeats.
+     */
+    private suspend fun fetchCloudInventory(
+        scope: ReportingScope,
+        access: ReportingAccess
+    ): CloudInventoryRead {
+        val remote = remoteSyncRepository
+            ?: return CloudInventoryRead(
+                emptyList(),
+                false,
+                "Cloud inventory provider is not configured."
+            )
+        val operations = mutableListOf<com.dailymoneyregister.feature.reporting.domain.ReportingCloudOperation>()
+        val seen = mutableMapOf<String, String>()
+        var afterReceivedAt: String? = null
+        var afterOperationId: String? = null
+        var pageCount = 0
+        val pageLimit = 100
+
+        while (true) {
+            check(pageCount < 10_000) {
+                "Cloud inventory pagination exceeded the safety limit."
+            }
+            val page = remote.fetchFinancialReportingInventoryPage(
+                businessId = access.businessId,
+                branchIds = access.branchIds,
+                fromInclusiveMillis = scope.period.fromInclusive,
+                toExclusiveMillis = scope.period.toExclusive,
+                actorUserId = scope.cashierUserId,
+                afterReceivedAt = afterReceivedAt,
+                afterOperationId = afterOperationId,
+                limit = pageLimit
+            )
+            pageCount++
+            if (page.isEmpty()) break
+
+            page.forEach { envelope ->
+                check(envelope.businessId == access.businessId) {
+                    "Cloud inventory returned an envelope for another business."
+                }
+                val envelopeBranchId = envelope.branchId
+                    ?: error("Cloud inventory returned an envelope without a branch ID.")
+                check(envelopeBranchId in access.branchIds) {
+                    "Cloud inventory returned an envelope outside the requested branch scope."
+                }
+                val occurredAt = java.time.Instant.parse(envelope.occurredAtIso).toEpochMilli()
+                check(occurredAt >= scope.period.fromInclusive && occurredAt < scope.period.toExclusive) {
+                    "Cloud inventory returned an envelope outside the requested time range."
+                }
+                if (!scope.cashierUserId.isNullOrBlank()) {
+                    check(envelope.payloadJson.optString("actor_user_id") == scope.cashierUserId) {
+                        "Cloud inventory returned an envelope outside the requested cashier scope."
+                    }
+                }
+                val digest = envelope.canonicalSha256
+                    ?.takeIf { it.isNotBlank() }
+                    ?: error("Cloud inventory digest is missing for operation ${envelope.operationId}.")
+                check(digest.equals(CommandFingerprint.sha256(envelope.canonicalText), ignoreCase = true)) {
+                    "Cloud inventory digest is inconsistent for operation ${envelope.operationId}."
+                }
+                check(reportingJsonEquivalent(JSONObject(envelope.canonicalText), envelope.payloadJson)) {
+                    "Cloud canonical text and payload JSON differ for operation ${envelope.operationId}."
+                }
+                val actorUserId = envelope.payloadJson.optString("actor_user_id").ifBlank { null }
+                val requestFingerprint = envelope.payloadJson.optString("request_fingerprint").ifBlank { null }
+                check(!actorUserId.isNullOrBlank() && !requestFingerprint.isNullOrBlank()) {
+                    "Cloud inventory operation ${envelope.operationId} lacks actor or request fingerprint evidence."
+                }
+                check(envelope.payloadJson.optString("operation_id") == envelope.operationId &&
+                    envelope.payloadJson.optString("business_id") == envelope.businessId &&
+                    envelope.payloadJson.optString("branch_id") == envelope.branchId &&
+                    envelope.payloadJson.optString("operation_type") == envelope.operationType &&
+                    envelope.payloadJson.optLong("occurred_at", Long.MIN_VALUE) == occurredAt
+                ) {
+                    "Cloud inventory payload metadata conflicts for operation ${envelope.operationId}."
+                }
+                val previousDigest = seen.putIfAbsent(envelope.operationId, digest)
+                check(previousDigest == null) {
+                    "Cloud inventory contains duplicate operation identity ${envelope.operationId}."
+                }
+                operations += com.dailymoneyregister.feature.reporting.domain.ReportingCloudOperation(
+                    operationId = envelope.operationId,
+                    businessId = envelope.businessId,
+                    branchId = envelopeBranchId,
+                    operationType = envelope.operationType,
+                    occurredAtMillis = occurredAt,
+                    actorUserId = actorUserId,
+                    requestFingerprint = requestFingerprint,
+                    canonicalSha256 = digest
+                )
+            }
+
+            if (page.size < pageLimit) break
+            val last = page.last()
+            check(last.receivedAtIso != afterReceivedAt || last.operationId != afterOperationId) {
+                "Cloud inventory cursor did not advance."
+            }
+            afterReceivedAt = last.receivedAtIso
+            afterOperationId = last.operationId
+        }
+
+        return CloudInventoryRead(operations = operations, verified = true)
+    }
+
+    private fun validateLifecycleEvidence(record: TransactionFinancialRecord) {
+        val view = FinancialReadModelResolver.resolve(record)
+        if (record.voidEvents.isEmpty()) return
+
+        check(record.voidEvents.size == 1) {
+            "Transaction ${record.transaction.id} has multiple void events; reversal history requires review."
+        }
+        val voidEvent = record.voidEvents.single()
+        val reversals = record.settlements.filter {
+            it.operationId == voidEvent.operationId &&
+                it.entryPurpose.name == "VOID_REVERSAL" &&
+                it.amountSignedMinor < 0L
+        }
+        check(reversals.isNotEmpty()) {
+            "Void ${voidEvent.id} has no event-specific reversal settlement evidence."
+        }
+        val reversedMinor = reversals.fold(0L) { total, settlement ->
+            Math.addExact(total, Math.negateExact(settlement.amountSignedMinor))
+        }
+        val remainingMinor = Math.subtractExact(
+            view.currentAmount.amount,
+            view.refundedAmount.amount
+        )
+        check(remainingMinor > 0L && reversedMinor == remainingMinor) {
+            "Void ${voidEvent.id} reversal total does not equal the remaining reversible amount."
+        }
+    }
 
     private fun requireTransaction(
         transactionsById: Map<String, TransactionEntity>,

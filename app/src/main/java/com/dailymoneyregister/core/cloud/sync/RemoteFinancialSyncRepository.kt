@@ -76,15 +76,24 @@ class RemoteFinancialSyncRepository @Inject constructor(
             com.dailymoneyregister.core.security.SessionManager
                 .currentSession.value
 
-        if (currentSession?.user?.role != com.dailymoneyregister.core.model.enums.UserRole.ADMIN) {
-            android.util.Log.w("PaidDueFinancialSync", "UPLOAD_BLOCKED_NON_OWNER_SESSION operation=${envelope.operationId}")
+        if (
+            currentSession == null ||
+            currentSession.user.role !in setOf(
+                com.dailymoneyregister.core.model.enums.UserRole.ADMIN,
+                com.dailymoneyregister.core.model.enums.UserRole.CASHIER
+            ) ||
+            currentSession.membership?.id != actorMembershipId ||
+            currentSession.business.id != envelope.businessId ||
+            currentSession.branch.id != envelope.branchId
+        ) {
+            android.util.Log.w(
+                "PaidDueFinancialSync",
+                "UPLOAD_BLOCKED_SESSION_SCOPE_MISMATCH operation=${envelope.operationId}"
+            )
             return FinancialSyncReceipt.Unauthorized(envelope.operationId)
         }
 
-        if (
-            currentSession?.user?.role ==
-            com.dailymoneyregister.core.model.enums.UserRole.CASHIER
-        ) {
+        if (currentSession.user.role == com.dailymoneyregister.core.model.enums.UserRole.CASHIER) {
             return try {
                 val payload = JSONObject()
                     .put("p_business_id", envelope.businessId)
@@ -266,6 +275,79 @@ class RemoteFinancialSyncRepository @Inject constructor(
         }.getOrDefault(false)
     }
 
+    /**
+     * Fetches one bounded page of authoritative cloud envelopes for a report's
+     * exact scope. The server validates the Admin membership for every branch.
+     */
+    suspend fun fetchFinancialReportingInventoryPage(
+        businessId: String,
+        branchIds: List<String>,
+        fromInclusiveMillis: Long,
+        toExclusiveMillis: Long,
+        actorUserId: String?,
+        afterReceivedAt: String? = null,
+        afterOperationId: String? = null,
+        limit: Int = 100
+    ): List<RemoteEnvelopeV2> {
+        require(businessId.isNotBlank())
+        require(branchIds.isNotEmpty() && branchIds.all { it.isNotBlank() })
+        require(fromInclusiveMillis < toExclusiveMillis)
+        require((afterReceivedAt == null && afterOperationId == null) ||
+            (afterReceivedAt != null && afterOperationId != null))
+        require(limit in 1..100)
+
+        val session = SessionManager.currentSession.value
+        if (session == null ||
+            session.user.role != com.dailymoneyregister.core.model.enums.UserRole.ADMIN ||
+            session.business.id != businessId
+        ) {
+            throw SecurityException("ADMIN_REPORTING_SESSION_REQUIRED")
+        }
+        if (supabase.auth.currentSessionOrNull() == null) {
+            throw SecurityException("ADMIN_SUPABASE_AUTH_REQUIRED")
+        }
+
+        val params = FetchReportingInventoryParams(
+            businessId = businessId,
+            branchIds = branchIds.distinct(),
+            fromOccurredAt = java.time.Instant.ofEpochMilli(fromInclusiveMillis).toString(),
+            toOccurredAt = java.time.Instant.ofEpochMilli(toExclusiveMillis).toString(),
+            actorUserId = actorUserId,
+            afterReceivedAt = afterReceivedAt,
+            afterOperationId = afterOperationId,
+            limit = limit
+        )
+        val paramJsonObj = json.parseToJsonElement(
+            json.encodeToString(FetchReportingInventoryParams.serializer(), params)
+        ).jsonObject
+        val dtoList = supabase.postgrest.rpc(
+            function = "fetch_financial_reporting_inventory_v1",
+            parameters = paramJsonObj
+        ).decodeList<RemoteEnvelopeV2Dto>()
+
+        return dtoList.map { dto ->
+            val payload = if (dto.canonicalPayload != null) {
+                JSONObject(dto.canonicalPayload.toString())
+            } else {
+                JSONObject(dto.canonicalText)
+            }
+            RemoteEnvelopeV2(
+                operationId = dto.operationId,
+                businessId = dto.businessId,
+                branchId = dto.branchId,
+                operationType = dto.operationType,
+                occurredAtIso = dto.occurredAt,
+                receivedAtIso = dto.receivedAt,
+                canonicalText = dto.canonicalText,
+                payloadJson = payload,
+                canonicalSha256 = dto.canonicalSha256,
+                actorMembershipId = dto.actorMembershipId,
+                actorLocalUserId = dto.actorLocalUserId,
+                actorRole = dto.actorRole
+            )
+        }
+    }
+
     suspend fun fetchRemoteEnvelopesV2(
         businessId: String,
         afterReceivedAt: String? = null,
@@ -277,12 +359,22 @@ class RemoteFinancialSyncRepository @Inject constructor(
         }
 
         val activeSession = SessionManager.currentSession.value
-        if (activeSession?.user?.role != com.dailymoneyregister.core.model.enums.UserRole.ADMIN) {
-            throw SecurityException("OWNER_SESSION_REQUIRED")
+        if (
+            activeSession == null ||
+            activeSession.user.role !in setOf(
+                com.dailymoneyregister.core.model.enums.UserRole.ADMIN,
+                com.dailymoneyregister.core.model.enums.UserRole.CASHIER
+            ) ||
+            activeSession.business.id != businessId
+        ) {
+            throw SecurityException("AUTHORIZED_FINANCIAL_SESSION_REQUIRED")
         }
-        if (activeSession?.user?.role == com.dailymoneyregister.core.model.enums.UserRole.CASHIER) {
+        if (activeSession.user.role == com.dailymoneyregister.core.model.enums.UserRole.CASHIER) {
             val cashierMembershipId = activeSession.membership?.id
                 ?: throw SecurityException("CASHIER_MEMBERSHIP_REQUIRED")
+            if (activeSession.membership?.branchId != activeSession.branch.id) {
+                throw SecurityException("CASHIER_BRANCH_SCOPE_MISMATCH")
+            }
             if (CashierCloudSession.tokenFor(cashierMembershipId) == null) {
                 // Do not fall through to the Admin Supabase RPC with a publishable key.
                 throw SecurityException("CASHIER_CLOUD_SESSION_REQUIRED")
@@ -438,6 +530,18 @@ private data class AdminSessionScopeDto(
 @Serializable
 data class FetchEnvelopesV2Params(
     @SerialName("p_business_id") val businessId: String,
+    @SerialName("p_after_received_at") val afterReceivedAt: String? = null,
+    @SerialName("p_after_operation_id") val afterOperationId: String? = null,
+    @SerialName("p_limit") val limit: Int = 100
+)
+
+@Serializable
+data class FetchReportingInventoryParams(
+    @SerialName("p_business_id") val businessId: String,
+    @SerialName("p_branch_ids") val branchIds: List<String>,
+    @SerialName("p_from_occurred_at") val fromOccurredAt: String,
+    @SerialName("p_to_occurred_at") val toOccurredAt: String,
+    @SerialName("p_actor_user_id") val actorUserId: String? = null,
     @SerialName("p_after_received_at") val afterReceivedAt: String? = null,
     @SerialName("p_after_operation_id") val afterOperationId: String? = null,
     @SerialName("p_limit") val limit: Int = 100

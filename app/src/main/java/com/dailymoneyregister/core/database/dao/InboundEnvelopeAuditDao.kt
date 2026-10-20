@@ -11,6 +11,18 @@ interface InboundEnvelopeAuditDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun append(event: InboundEnvelopeAuditEventEntity)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun appendAppliedIfAbsent(event: InboundEnvelopeAuditEventEntity)
+
+    @Query("""
+        SELECT canonical_sha256
+        FROM inbound_envelope_audit_events
+        WHERE operation_id = :operationId AND event_type = 'APPLIED'
+        ORDER BY occurred_at DESC
+        LIMIT 1
+    """)
+    suspend fun appliedDigest(operationId: String): String?
+
     @Query("""
         SELECT (
             SELECT COUNT(*) FROM inbound_envelope_audit_events

@@ -254,7 +254,12 @@ data class CreditRepaymentReportRow(
      * authoritative ordered Credit ledger.
      */
     val balanceBefore: MoneyMinorUnits?,
-    val balanceAfter: MoneyMinorUnits?
+    val balanceAfter: MoneyMinorUnits?,
+    /**
+     * Authoritative collection breakdown. Empty only for legacy rows where
+     * settlement evidence is absent; those rows must not qualify as complete.
+     */
+    val paymentParts: List<ReportPaymentPart> = emptyList()
 ) : ReportRow {
 
     override val activityType: ReportActivityType =
@@ -603,6 +608,7 @@ data class ReportingSummary(
 
     val cashSalesCollected: MoneyMinorUnits = MoneyMinorUnits.ZERO,
     val onlineSalesCollected: MoneyMinorUnits = MoneyMinorUnits.ZERO,
+    val couponSalesCollected: MoneyMinorUnits = MoneyMinorUnits.ZERO,
 
     val creditSalesOriginated: MoneyMinorUnits = MoneyMinorUnits.ZERO,
 
@@ -660,7 +666,8 @@ data class ReportingActivityCounts(
 data class ReportingReadModel(
     val scope: ReportingScope,
     val summary: ReportingSummary,
-    val rows: List<ReportRow>
+    val rows: List<ReportRow>,
+    val reconciliation: ReportingReconciliation = ReportingReconciliation.unverified()
 )
 
 enum class ReportPaymentFilter {
