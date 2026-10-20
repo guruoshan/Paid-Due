@@ -93,12 +93,6 @@ fun RecentTransactionsPanel(
     modifier: Modifier = Modifier,
     compactMaxListHeight: androidx.compose.ui.unit.Dp = 140.dp
 ) {
-    // BOARDLOCK_COUPON_TODAY_TOTAL
-    // Do not sum raw signedEffect here: Coupon redemption is an
-    // internal settlement of previously funded value.
-    val todayTotal =
-        RecentActivityTotals.todayTotal(transactions)
-    val todayTotalFormatted = todayTotal.formatDisplay(currency)
     val listState = rememberLazyListState()
     val newestTransactionId = transactions.firstOrNull()?.activityId
     val previousNewestId = remember { mutableStateOf<String?>(null) }
@@ -144,19 +138,10 @@ fun RecentTransactionsPanel(
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = stringResource(com.dailymoneyregister.R.string.today_total, todayTotalFormatted),
-                        fontWeight = FontWeight.Bold,
-                        color = RegisterColors.CashPrimary,
-                        fontSize = 14.sp
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(
-                        imageVector = if (isExpanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
-                        contentDescription = stringResource(R.string.toggle_panel)
-                    )
-                }
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                    contentDescription = stringResource(R.string.toggle_panel)
+                )
             }
 
             // Content stays visible in both modes; only expanded Recent scrolls.
