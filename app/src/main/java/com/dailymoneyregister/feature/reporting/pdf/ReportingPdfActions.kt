@@ -100,14 +100,15 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
             else "${fromDate.format(dateFormat)} – ${toDate.format(dateFormat)}"
         val reportDate = LocalDate.now(zoneId).format(dateFormat)
         val metrics = listOf(
-            ReportPdfMetric("Total Sales", money(summary.periodSaleInflow.amount), tone(summary.periodSaleInflow.amount)),
-            ReportPdfMetric("Total Expenses", money(-summary.totalExpenses.amount), ReportValueTone.NEGATIVE),
-            ReportPdfMetric("Refund Totals", money(summary.periodRefundEffect.amount), tone(summary.periodRefundEffect.amount)),
-            ReportPdfMetric("Credit Sales", money(summary.creditSalesOriginated.amount), tone(summary.creditSalesOriginated.amount)),
-            ReportPdfMetric("Credit Repayments", money(repaymentTotal), tone(repaymentTotal)),
+            ReportPdfMetric("Gross Sales", money(summary.periodSaleInflow.amount), tone(summary.periodSaleInflow.amount)),
+            ReportPdfMetric("Net Sales (After Refunds, Voids & Corrections)", money(summary.periodNetSalesActivity.amount), tone(summary.periodNetSalesActivity.amount)),
+            ReportPdfMetric("Expenses Recorded", money(-summary.totalExpenses.amount), ReportValueTone.NEGATIVE),
+            ReportPdfMetric("Refund Value", money(summary.periodRefundEffect.amount), tone(summary.periodRefundEffect.amount)),
+            ReportPdfMetric("Credit Sales Created", money(summary.creditSalesOriginated.amount), tone(summary.creditSalesOriginated.amount)),
+            ReportPdfMetric("Credit Repaid (Collections)", money(repaymentTotal), tone(repaymentTotal)),
             ReportPdfMetric("Credit Outstanding", money(summary.creditOutstanding.amount), tone(summary.creditOutstanding.amount)),
             ReportPdfMetric(
-                "Net Cash Position",
+                "Expected Cash Position (Calculated)",
                 summary.expectedCash?.amount?.let(::money) ?: "Not available",
                 summary.expectedCash?.amount?.let(::tone) ?: ReportValueTone.OPERATIONAL
             )
