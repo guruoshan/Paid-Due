@@ -46,6 +46,8 @@ import com.dailymoneyregister.feature.register.ui.RegisterViewModel
 import com.dailymoneyregister.feature.reporting.ui.ReportingScreen
 import com.dailymoneyregister.feature.reporting.ui.ReportingViewModel
 import com.dailymoneyregister.feature.settings.ui.SettingsScreen
+import com.dailymoneyregister.feature.settings.ui.HelpFaqScreen
+import com.dailymoneyregister.feature.settings.ui.FinancialMetricsExplainedScreen
 import com.dailymoneyregister.feature.setup.data.SetupRepository
 import com.dailymoneyregister.feature.setup.ui.SetupScreen
 import com.dailymoneyregister.feature.setup.ui.SetupViewModel
@@ -62,6 +64,8 @@ object Routes {
     const val ADMIN_HUB = "admin_hub"
     const val REGISTER = "register"
     const val SETTINGS = "settings"
+    const val HELP_FAQ = "help_faq"
+    const val FINANCIAL_METRICS_FAQ = "financial_metrics_faq"
     const val REPORTS = "reports"
     const val CUSTOMERS = "customers"
     const val CUSTOMER_DETAIL = "customers/{customerId}"
@@ -422,6 +426,9 @@ fun DmrApp(
                 onNavigateToCustomers = {
                     navController.navigate(Routes.CUSTOMERS)
                 },
+                onNavigateToHelpFaq = {
+                    navController.navigate(Routes.HELP_FAQ)
+                },
                 onLogout = {
                     trustedSessionStore.clear()
                     SessionManager.clearSession()
@@ -431,6 +438,19 @@ fun DmrApp(
                         }
                     }
                 }
+            )
+        }
+
+        composable(Routes.HELP_FAQ) {
+            HelpFaqScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onOpenFinancialMetrics = { navController.navigate(Routes.FINANCIAL_METRICS_FAQ) }
+            )
+        }
+
+        composable(Routes.FINANCIAL_METRICS_FAQ) {
+            FinancialMetricsExplainedScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 

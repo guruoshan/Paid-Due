@@ -307,7 +307,8 @@ class ExpenseCode2ProjectionIntegrationTest {
             )
 
             assertEquals(
-                -command.amountMinor,
+                "Expense remains visible as a negative row but is excluded from daily sales activity.",
+                0L,
                 row.recentTotalEffect.amount
             )
 

@@ -9,8 +9,8 @@
     <string name="reporting_all_cashiers">All cashiers</string>
     <string name="reporting_all">All</string>
     <string name="reporting_sales">Sales</string>
-    <string name="reporting_credit_sales">Credit sales</string>
-    <string name="reporting_credit_repayments">Credit repayments</string>
+    <string name="reporting_credit_sales">Credit Sales Created</string>
+    <string name="reporting_credit_repayments">Credit Repaid (Collections)</string>
     <string name="reporting_coupon">Coupon</string>
     <string name="reporting_refunds">Refunds</string>
     <string name="reporting_expenses">Expenses</string>
@@ -20,10 +20,10 @@
     <string name="reporting_cash">Cash</string>
     <string name="reporting_online">Online</string>
     <string name="reporting_credit">Credit</string>
-    <string name="reporting_period_summary">Period summary</string>
-    <string name="reporting_net_sales_activity">Net sales activity</string>
-    <string name="reporting_cash_sales">Cash sales</string>
-    <string name="reporting_online_sales">Online sales</string>
+    <string name="reporting_period_summary">Financial Summary</string>
+    <string name="reporting_net_sales_activity">Net Sales (After Refunds, Voids &amp; Corrections)</string>
+    <string name="reporting_cash_sales">Cash Sales Collected</string>
+    <string name="reporting_online_sales">Online Sales Collected</string>
     <string name="reporting_cash_in_hand">Cash in Hand</string>
     <string name="reporting_cash_at_bank">Cash at Bank</string>
     <string name="reporting_no_results">No activity matches these filters.</string>
@@ -33,7 +33,7 @@
     <string name="reporting_credit_sale">Credit sale</string>
     <string name="reporting_credit_repayment">Credit repayment</string>
     <string name="reporting_coupon_purchase">Coupon purchase</string>
-    <string name="reporting_coupon_topup">Coupon top-up</string>
+    <string name="reporting_coupon_topup">Prepaid Coupon Funds Added</string>
     <string name="reporting_coupon_redemption">Coupon redemption</string>
     <string name="reporting_coupon_refund">Refund to coupon</string>
     <string name="reporting_coupon_bonus">Coupon bonus</string>
@@ -44,6 +44,6 @@
     <string name="reporting_amount_correction">Amount correction</string>
     <string name="reporting_payment_method_change">Payment method change</string>
     <string name="reporting_invalid_custom_period">Enter a valid custom date range.</string>
-    <string name="reporting_today_snapshot">Today’s financial snapshot</string>
+    <string name="reporting_today_snapshot">Today’s CFO Snapshot</string>
     <string name="reporting_summary_unavailable">Financial summary unavailable.</string>
 </resources>

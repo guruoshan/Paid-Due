@@ -14,6 +14,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
+private const val LEGACY_RETIRED_CASHIER_OPERATION_ID = "01a13a27-4c84-7569-acf6-9b56d1508a69"
+
 @Singleton
 class FinancialSyncEngine @Inject constructor(
     private val database: DmrDatabase,
@@ -616,10 +618,27 @@ class FinancialSyncEngine @Inject constructor(
     }
 
     private fun reportInboundRejection(operationId: String, reason: String) {
-        val message = "Inbound operation $operationId was rejected: $reason"
-        FinancialSyncStatus.report(FinancialSyncProblem(operationId, message))
-        context?.getSharedPreferences("dmr_financial_sync_attention", Context.MODE_PRIVATE)
-            ?.edit()?.putString("inbound_$operationId", message)?.commit()
+        val attention = context?.getSharedPreferences(
+            "dmr_financial_sync_attention",
+            Context.MODE_PRIVATE
+        )
+        val key = "inbound_$operationId"
+
+        // Suppress only the known notification from the retired cashier-registration
+        // flow. Continue through the rejection logging below; do not change the
+        // rejection decision, envelope, cursor, or handling of other operations.
+        if (operationId == LEGACY_RETIRED_CASHIER_OPERATION_ID) {
+            attention?.edit()?.remove(key)?.commit()
+            if (FinancialSyncStatus.adminVisibleProblem.value?.operationId == operationId) {
+                FinancialSyncStatus.clearVisibleProblem()
+            }
+            Log.i("PaidDueFinancialSync", "INBOUND_LEGACY_REJECTION_NOTIFICATION_SUPPRESSED operation=$operationId")
+        } else {
+            val message = "Inbound operation $operationId was rejected: $reason"
+            FinancialSyncStatus.report(FinancialSyncProblem(operationId, message))
+            attention?.edit()?.putString(key, message)?.commit()
+        }
+
         val now = System.currentTimeMillis()
         val lastLoggedAt = lastInboundRejectionLogAt[operationId] ?: Long.MIN_VALUE
         if (lastLoggedAt == Long.MIN_VALUE || now - lastLoggedAt >= 60_000L) {
