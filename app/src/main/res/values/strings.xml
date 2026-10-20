@@ -409,4 +409,37 @@
     <string name="staff_perm_manage_products">Manage products</string>
     <string name="staff_perm_view_reports">View reports</string>
     <string name="admin_email">Admin email</string>
+
+    <!-- Help & FAQ: financial metric definitions (presentation-only; calculation rules live in reporting code). -->
+    <string name="help_faq_title">Help &amp; FAQ</string>
+    <string name="help_faq_subtitle">Answers to common questions about using Paid&amp;Due</string>
+    <string name="financial_metrics_explained_title">Financial Metrics Explained</string>
+    <string name="financial_metrics_explained_subtitle">Understand sales, collections, credit and coupon balances</string>
+    <string name="faq_gross_sales_question">What is Gross Sales?</string>
+    <string name="faq_gross_sales_answer">Gross Sales is the value of sales recorded before refunds and other sale lifecycle changes are applied. It describes recorded sales, not the amount of cash received.</string>
+    <string name="faq_net_sales_question">What is Net Sales?</string>
+    <string name="faq_net_sales_answer">Net Sales is the sales value after refunds, voids and corrections for the selected reporting period. It reflects those sales adjustments and is not the same as cash collected.</string>
+    <string name="faq_cash_collected_question">What is Cash Collected?</string>
+    <string name="faq_cash_collected_answer">Cash Sales Collected shows sales paid using cash. It is only the cash-paid portion of sales and does not represent every receipt or all money collected.</string>
+    <string name="faq_online_collected_question">What is Online Collected?</string>
+    <string name="faq_online_collected_answer">Online Sales Collected shows sales paid through online payment methods. It is the online-paid portion of sales, not all receipts or all money collected.</string>
+    <string name="faq_credit_sales_created_question">What are Credit Sales Created?</string>
+    <string name="faq_credit_sales_created_answer">Credit Sales Created are new sales recorded as amounts owed by customers. They create customer receivables; they are not cash collected at the time of sale.</string>
+    <string name="faq_credit_outstanding_question">What is Credit Outstanding?</string>
+    <string name="faq_credit_outstanding_answer">Credit Outstanding is the unpaid credit balance owed by customers at the time it is viewed. It is a current balance, not the total credit sales created during a reporting period.</string>
+    <string name="faq_credit_repayments_question">What are Credit Repayments?</string>
+    <string name="faq_credit_repayments_answer">Credit Repayments, also shown as Credit Repaid (Collections), are payments received against customer debt from earlier credit sales. They collect existing receivables rather than create new sales.</string>
+    <string name="faq_coupon_topups_question">What are Coupon Top-Ups?</string>
+    <string name="faq_coupon_topups_answer">Coupon top-ups add prepaid funds to a customer’s coupon balance. They represent funds received in advance and are not additional merchandise sales.</string>
+    <string name="faq_coupon_liability_question">What is Coupon Liability?</string>
+    <string name="faq_coupon_liability_answer">Coupon Liability is the prepaid coupon value that remains owed to customers for future redemption or settlement.</string>
+    <string name="faq_gross_cash_difference_question">Why are Gross Sales and Cash Collected different?</string>
+    <string name="faq_gross_cash_difference_answer">Gross Sales records sales before refunds and other sale lifecycle changes, regardless of how customers pay. Cash Collected includes only sales paid in cash. Online payments, credit sales and other payment types mean the two figures are not expected to match.</string>
+    <string name="faq_net_gross_difference_question">Why is Net Sales lower than Gross Sales?</string>
+    <string name="faq_net_gross_difference_answer">Net Sales can be lower because refunds, voids and corrections reduce or adjust the recorded sales value for the selected period. Gross Sales is shown before those sale lifecycle changes.</string>
+    <string name="faq_refunds_question">How do refunds affect sales?</string>
+    <string name="faq_refunds_answer">Refunds reverse sales value and may be settled using different methods. The settlement method does not change the meaning of Gross Sales or Net Sales.</string>
+    <string name="faq_expenses_question">Do expenses reduce Gross Sales?</string>
+    <string name="faq_expenses_answer">No. Expenses are tracked separately and do not reduce Gross Sales.</string>
+
 </resources>
