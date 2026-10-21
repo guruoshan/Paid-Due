@@ -10,6 +10,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -20,6 +21,12 @@ class RecordExpenseCertificationTest {
 
     @Test
     fun recordExpense_passes_through_real_driver() = runBlocking {
+        // Only the certification workflow provisions local Supabase and passes these args.
+        // Ordinary Android PR validation must not claim certification without that dependency.
+        assumeTrue(
+            "requires the isolated local Supabase fixture",
+            InstrumentationRegistry.getArguments().getString("supabase_url")?.isNotBlank() == true
+        )
         val engine = FinancialCertificationExecutionEngine(
             driver = FinancialCertificationDriverSelector(missingIntegration),
             runId = "record-expense-certification-test",
