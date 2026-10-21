@@ -106,10 +106,14 @@ class TwoDatabaseFinancialCertificationTest {
             canCreateCreditSale = true, canUseCoupon = true, canRefund = true, createdAt = 0L
         )
         try {
-            sender.businessBranchDao().insertBusiness(business)
-            sender.businessBranchDao().insertBranch(branch)
-            sender.userDao().insertUser(user)
-            sender.userDao().insertMembership(membership)
+            // Seed the same synthetic tenant/staff identity on both isolated databases.
+            // Only financial operation rows are transferred by the envelope materializer.
+            listOf(sender, receiver).forEach { database ->
+                database.businessBranchDao().insertBusiness(business)
+                database.businessBranchDao().insertBranch(branch)
+                database.userDao().insertUser(user)
+                database.userDao().insertMembership(membership)
+            }
             SessionManager.setSession(ActiveSession(business, branch, user, membership))
             val command = ExpenseCommand(
                 operationId = OperationId("cert-expense-operation"),
@@ -136,6 +140,58 @@ class TwoDatabaseFinancialCertificationTest {
             assertEquals(
                 "An independent receiver must not contain the sender expense before materialization",
                 null, receiver.expenseDao().getExpenseByOperationId(command.operationId.value)
+            )
+
+            // Exercise the real canonical envelope codec and production inbound materializer
+            // over a deterministic in-process transport. No Supabase or production database
+            // is contacted by this instrumentation test.
+            val encoded = FinancialEnvelopeCodec.encode(
+                operation = requireNotNull(operation),
+                expense = requireNotNull(expense)
+            )
+            assertEquals(command.operationId.value, encoded.operationId)
+            assertEquals(
+                encoded.canonicalSha256,
+                com.dailymoneyregister.core.command.CommandFingerprint.sha256(encoded.canonicalText)
+            )
+            val envelope = RemoteEnvelopeV2(
+                operationId = encoded.operationId,
+                businessId = encoded.businessId,
+                branchId = encoded.branchId,
+                operationType = encoded.operationType,
+                occurredAtIso = java.time.Instant.ofEpochMilli(encoded.occurredAt).toString(),
+                receivedAtIso = java.time.Instant.ofEpochMilli(encoded.occurredAt + 1L).toString(),
+                canonicalText = encoded.canonicalText,
+                payloadJson = encoded.jsonPayload,
+                canonicalSha256 = encoded.canonicalSha256
+            )
+            val firstApply = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+                database = receiver,
+                envelope = envelope,
+                sessionBusinessId = business.id,
+                sessionBranchId = null
+            )
+            assertEquals(InboundProcessResult.Applied, firstApply)
+            val receivedOperation = receiver.operationDao().getOperationById(command.operationId.value)
+            assertTrue("Materializer must persist the received operation", receivedOperation != null)
+            assertEquals(operation.operationType, receivedOperation!!.operationType)
+            assertEquals(operation.requestFingerprint, receivedOperation.requestFingerprint)
+            assertEquals(
+                1250L,
+                receiver.expenseDao().getExpenseByOperationId(command.operationId.value)?.amountMinor
+            )
+
+            val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+                database = receiver,
+                envelope = envelope,
+                sessionBusinessId = business.id,
+                sessionBranchId = null
+            )
+            assertEquals("A replay of the same immutable envelope must be skipped", InboundProcessResult.Skipped, replay)
+            assertEquals(
+                "Replay must not duplicate or mutate the received expense",
+                1250L,
+                receiver.expenseDao().getExpenseByOperationId(command.operationId.value)?.amountMinor
             )
         } finally {
             SessionManager.clearSession()
