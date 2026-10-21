@@ -6,6 +6,7 @@ on:
     paths:
       - 'app/src/test/java/com/dailymoneyregister/core/cloud/sync/FinancialCertificationCaseRegistry.kt'
       - 'app/src/test/java/com/dailymoneyregister/core/cloud/sync/FinancialCertificationCaseRegistryTest.kt'
+      - 'app/src/androidTest/java/com/dailymoneyregister/core/cloud/sync/**'
       - 'docs/financial-certification/**'
       - '.github/workflows/financial-certification.yml'
   workflow_dispatch:
@@ -46,3 +47,27 @@ jobs:
           path: app/build/test-results/testDebugUnitTest
           if-no-files-found: error
           retention-days: 30
+      - name: Run two-database certification instrumentation test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_2
+          script: |
+            set +e
+            bash ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.dailymoneyregister.core.cloud.sync.TwoDatabaseFinancialCertificationTest
+            test_status=$?
+            mkdir -p certification-artifacts
+            adb pull /sdcard/Android/data/com.dailymoneyregister/files/financial-certification-evidence certification-artifacts/financial-certification-evidence
+            pull_status=$?
+            if [ "$test_status" -ne 0 ]; then exit "$test_status"; fi
+            if [ "$pull_status" -ne 0 ]; then exit "$pull_status"; fi
+      - name: Preserve certification evidence bundle
+        if: always() && hashFiles('certification-artifacts/**') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: financial-certification-evidence-${{ github.run_id }}
+          path: certification-artifacts
+          if-no-files-found: error
+          retention-days: 90
