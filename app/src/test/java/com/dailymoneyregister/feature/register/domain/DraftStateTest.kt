@@ -22,7 +22,7 @@ class DraftStateTest {
     }
 
     @Test
-    fun testLockedGrandTotalFormulaWithItemizedBillTaxShippingAndPacking() {
+    fun taxableBaseIncludesItemizedBillShippingAndPackingCharges() {
         // Milk (1.000) + Biscuits (2.000) + Tea (3.000)
         val items = listOf(
             DraftItem("1", "Milk", unitPrice = MoneyMinorUnits(1000L), quantity = 1),
@@ -42,11 +42,14 @@ class DraftStateTest {
         // Subtotal = 1.000 + 2.000 + 3.000 = 6.000 OMR (6000 baisa)
         assertEquals(MoneyMinorUnits(6000L), draft.subtotal)
 
-        // Tax 5% on 6.000 = 0.300 OMR (300 baisa)
-        assertEquals(MoneyMinorUnits(300L), draft.taxAmount)
+        // Taxable base includes the 1.000 shipping and 2.000 packing charges.
+        assertEquals(MoneyMinorUnits(9000L), draft.taxableBase)
 
-        // Grand total = 6.000 + 0.300 + 1.000 (shipping) + 2.000 (packing) = 9.300 OMR (9300 baisa)
-        assertEquals(MoneyMinorUnits(9300L), draft.grandTotal)
+        // Tax 5% on 9.000 = 0.450 OMR (450 baisa)
+        assertEquals(MoneyMinorUnits(450L), draft.taxAmount)
+
+        // Grand total = 6.000 + 0.450 + 1.000 shipping + 2.000 packing = 9.450 OMR.
+        assertEquals(MoneyMinorUnits(9450L), draft.grandTotal)
     }
 
     @Test
