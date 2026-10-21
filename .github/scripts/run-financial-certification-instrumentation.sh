@@ -3,7 +3,7 @@ set -uo pipefail
 
 mkdir -p certification-artifacts
 
-test_class="com.dailymoneyregister.core.cloud.sync.TwoDatabaseFinancialCertificationTest,com.dailymoneyregister.core.cloud.sync.RecordExpenseCertificationTest"
+test_class="com.dailymoneyregister.core.cloud.sync.RecordExpenseCertificationTest"
 target_package="com.dailymoneyregister.debug"
 app_apk="app/build/outputs/apk/debug/app-debug.apk"
 test_apk="app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
@@ -68,6 +68,20 @@ test_status=0
 : "${CERT_SUPABASE_URL:?Local Supabase URL was not exported by the workflow}"
 : "${CERT_SUPABASE_ANON_KEY:?Local Supabase anon key was not exported by the workflow}"
 : "${CERT_SUPABASE_SERVICE_ROLE_KEY:?Local Supabase service-role key was not exported by the workflow}"
+# Run the original all-BLOCKED contract independently first. The real driver test runs second
+# and overwrites its manifest, so the final evidence reflects the latest executed driver.
+contract_status=0
+adb shell am instrument -w \
+  -e class "com.dailymoneyregister.core.cloud.sync.TwoDatabaseFinancialCertificationTest" \
+  -e supabase_url "$CERT_SUPABASE_URL" \
+  -e supabase_anon_key "$CERT_SUPABASE_ANON_KEY" \
+  -e supabase_service_role_key "$CERT_SUPABASE_SERVICE_ROLE_KEY" \
+  "$component" || contract_status=$?
+if [[ "$contract_status" -ne 0 ]]; then
+  echo "::error::Original two-database blocked-contract tests failed."
+  adb logcat -d -t 12000 | grep -E 'TwoDatabaseFinancialCertificationTest|Instrumentation|FATAL EXCEPTION|Test run failed' | tail -200 || true
+  exit "$contract_status"
+fi
 adb shell am instrument -w \
   -e class "$test_class" \
   -e supabase_url "$CERT_SUPABASE_URL" \
