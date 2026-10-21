@@ -1,5 +1,7 @@
 package com.dailymoneyregister.core.cloud.sync
 
+import android.os.Bundle
+import androidx.test.platform.app.InstrumentationRegistry
 import org.json.JSONObject
 
 /**
@@ -7,10 +9,31 @@ import org.json.JSONObject
  * application-path implementation is added in follow-up commits.
  */
 class SupabaseCertificationDriver : FinancialCertificationExecutionEngine.Driver {
+    // Repository RPC inventory: ingest_financial_envelope, restore_admin_by_auth_id,
+    // fetch_financial_envelopes_v3, and legacy fetch_financial_envelopes. The repository
+    // calls no tables or storage buckets directly; RPC migrations reference businesses,
+    // branches, profiles, business_memberships, and private.financial_operation_envelopes.
+    private fun localSupabase(): Boolean {
+        val args = InstrumentationRegistry.getArguments()
+        val url = args.getString("supabase_url")?.trim().orEmpty()
+        val anon = args.getString("supabase_anon_key")?.trim().orEmpty()
+        val service = args.getString("supabase_service_role_key")?.trim().orEmpty()
+        if (url.isBlank() || anon.isBlank() || service.isBlank()) {
+            throw FinancialCertificationExecutionEngine.BlockedDependency("Local Supabase arguments missing: URL, anon key and service key are required")
+        }
+        if (!(url.startsWith("http://10.0.2.2:") || url.startsWith("http://127.0.0.1:") || url.startsWith("http://localhost:"))) {
+            throw FinancialCertificationExecutionEngine.BlockedDependency("Refusing non-local Supabase URL; only emulator/loopback hosts are allowed")
+        }
+        return true
+    }
+
     private fun unavailable(): Nothing =
         throw FinancialCertificationExecutionEngine.BlockedDependency("not implemented yet")
 
-    override suspend fun createOnSender(operationType: String): FinancialCertificationExecutionEngine.OperationContext = unavailable()
+    override suspend fun createOnSender(operationType: String): FinancialCertificationExecutionEngine.OperationContext {
+        localSupabase()
+        return unavailable()
+    }
     override suspend fun verifyOutbox(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject = unavailable()
     override suspend fun uploadThroughNormalSync(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject = unavailable()
     override suspend fun verifyEnvelopeAndDigest(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject = unavailable()
