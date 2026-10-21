@@ -32,12 +32,12 @@ class InvoiceSnapshotTest {
         ),
         subtotalMinor = 10_000L,
         taxRateBps = 500,
-        taxAmountMinor = 500L,
+        taxAmountMinor = 515L,
         txShippingMinor = 0L,
         txPackingMinor = 0L,
         itemShippingTotalMinor = 100L,
         itemPackingTotalMinor = 200L,
-        grandTotalMinor = 10_800L,
+        grandTotalMinor = 10_815L,
         note = "Thanks",
         createdAt = 1_700_000_000_000L
     )
