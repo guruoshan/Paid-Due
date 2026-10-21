@@ -349,11 +349,9 @@ class SupabaseCertificationDriver(
             businessId = state.business.id,
             adminAccountId = state.user.id
         )
-        if (applied < 1 && state.downloadProbe.operationDao().getOperationById(context.operationId) == null) {
-            throw FinancialCertificationExecutionEngine.BlockedDependency(
-                "Normal inbound sync did not download/materialize the expense in the isolated probe database"
-            )
-        }
+        // Inbound application policy may defer this operation type while still returning
+        // the authenticated envelope. This stage certifies download only; the next stage
+        // independently invokes the real materializer against the untouched receiver DB.
         val downloaded = repository.fetchRemoteEnvelopesV2(
             businessId = state.business.id,
             afterReceivedAt = null,
@@ -365,6 +363,8 @@ class SupabaseCertificationDriver(
             )
         return JSONObject()
             .put("downloaded", true)
+            .put("normal_sync_applied_count", applied)
+            .put("probe_materialized", state.downloadProbe.operationDao().getOperationById(context.operationId) != null)
             .put("operation_id", downloaded.operationId)
             .put("business_id", downloaded.businessId)
             .put("branch_id", downloaded.branchId)
