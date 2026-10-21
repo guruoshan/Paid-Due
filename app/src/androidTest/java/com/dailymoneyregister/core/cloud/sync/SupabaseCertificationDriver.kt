@@ -135,7 +135,7 @@ class SupabaseCertificationDriver(
             connection.setRequestProperty("apikey", apiKey)
             connection.setRequestProperty("Authorization", "Bearer $bearer")
             connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("Prefer", "return=representation")
+            connection.setRequestProperty("Prefer", "resolution=merge-duplicates,return=representation")
             connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
@@ -196,7 +196,7 @@ class SupabaseCertificationDriver(
                 category = ExpenseCategory.SUPPLIES, paymentCategory = PaymentCategory.CASH,
                 paymentChannel = PaymentChannel.CASH_TENDER, payeeNameSnapshot = "Certification Supplier",
                 reference = "CERT-EXPENSE", note = "Synthetic certification fixture",
-                deviceId = "cert-device-a", occurredAt = 1_800_000_000_000L
+                deviceId = "cert-device-a", occurredAt = System.currentTimeMillis()
             )
             val result = RegisterRepository(sender, CommandExecutor(sender)).executeExpense(command)
             if (result !is CommandResult.Success) {
