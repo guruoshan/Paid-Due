@@ -359,7 +359,22 @@ class SupabaseCertificationDriver : FinancialCertificationExecutionEngine.Driver
             FinancialSnapshotCollector.capture(state.receiver, context.operationId)
         )
     }
-    override suspend fun expectedFixture(context: FinancialCertificationExecutionEngine.OperationContext): List<FinancialReportOracle.Entry> = unavailable()
+    override suspend fun expectedFixture(context: FinancialCertificationExecutionEngine.OperationContext): List<FinancialReportOracle.Entry> {
+        val state = context.opaque as? ExpenseSenderState
+            ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Expense fixture is unavailable for report oracle")
+        val expense = state.sender.expenseDao().getExpenseByOperationId(context.operationId)
+            ?: throw IllegalStateException("Authoritative expense is missing from sender")
+        return listOf(
+            FinancialReportOracle.Entry(
+                operationType = "RECORD_EXPENSE",
+                amountMinor = expense.amountMinor,
+                expenseOriginalMinor = expense.amountMinor,
+                expenseCorrectionsMinor = 0L,
+                expenseVoidsMinor = 0L,
+                expenseCurrentMinor = expense.amountMinor
+            )
+        )
+    }
     override suspend fun actualReportsFromApp(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject = unavailable()
 }
 
