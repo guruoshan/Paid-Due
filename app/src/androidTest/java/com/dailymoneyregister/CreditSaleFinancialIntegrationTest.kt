@@ -29,6 +29,7 @@ import com.dailymoneyregister.feature.customers.data.CustomerIdentity
 import com.dailymoneyregister.feature.register.data.CreditSaleCommand
 import com.dailymoneyregister.feature.register.data.CreditSalePayloadCodec
 import com.dailymoneyregister.feature.register.data.RegisterRepository
+import com.dailymoneyregister.feature.register.domain.DraftItem
 import com.dailymoneyregister.feature.register.domain.DraftState
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -136,7 +137,8 @@ class CreditSaleFinancialIntegrationTest {
         phone: String = "+96891234567",
         name: String = "Credit Customer",
         amountMinor: Long = 5000L,
-        occurredAt: Long = 1700000000000L
+        occurredAt: Long = 1700000000000L,
+        draft: DraftState? = null
     ) =
         CreditSaleCommand(
             operationId = OperationId(operationId),
@@ -146,11 +148,9 @@ class CreditSaleFinancialIntegrationTest {
             transactionIdVal = TransactionId(transactionId),
             customerPhone = phone,
             customerName = name,
-            draftState =
-                DraftState(
-                    manualAmount =
-                        MoneyMinorUnits(amountMinor)
-                ),
+            draftState = draft ?: DraftState(
+                manualAmount = MoneyMinorUnits(amountMinor)
+            ),
             currencyCode = "OMR",
             currencyDecimalPlaces = 3,
             deviceId = "credit-test-device",
@@ -176,6 +176,37 @@ class CreditSaleFinancialIntegrationTest {
             intentPayload = command.intentPayload,
             status = OperationStatus.PENDING
         )
+
+    @Test
+    fun legacyV3CreditPayloadRecoversWithoutV4ItemChargeFields() {
+        val draft = DraftState(
+            items = listOf(
+                DraftItem("item-1", "Tea", unitPrice = MoneyMinorUnits(2000L), quantity = 2)
+            ),
+            taxRateBps = 500,
+            isTaxEnabled = true,
+            txShipping = MoneyMinorUnits(300L),
+            txPacking = MoneyMinorUnits(200L)
+        )
+        val currentPayload = CreditSalePayloadCodec.encode(
+            command(operationId = "credit-v3-op", transactionId = "credit-v3-tx", draft = draft)
+        )
+        val legacyV3Payload = currentPayload.lineSequence()
+            .filterNot {
+                it.startsWith("taxableBaseMinor=") ||
+                    it.matches(Regex("item\\[\\d+\\]\\.itemPacking=.*")) ||
+                    it.matches(Regex("item\\[\\d+\\]\\.itemShipping=.*"))
+            }
+            .joinToString("\\n", postfix = "\\n")
+            .replaceFirst("v=4", "v=3")
+
+        val decoded = CreditSalePayloadCodec.decode(legacyV3Payload)
+        assertEquals(MoneyMinorUnits(4000L), decoded.draftState.taxableBase)
+        assertEquals(MoneyMinorUnits(200L), decoded.draftState.taxAmount)
+        assertEquals(MoneyMinorUnits(4700L), decoded.draftState.grandTotal)
+        assertEquals(MoneyMinorUnits.ZERO, decoded.draftState.itemPackingTotal)
+        assertEquals(MoneyMinorUnits.ZERO, decoded.draftState.itemShippingTotal)
+    }
 
     @Test
     fun newCustomerCreditSaleCreatesOneAuthoritativeSaleAndObligation() =
