@@ -2,6 +2,7 @@ package com.dailymoneyregister.feature.register.domain
 
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
+import com.dailymoneyregister.feature.register.data.withPersistedTaxableBase
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -120,6 +121,43 @@ class DraftStateTest {
         assertEquals(MoneyMinorUnits(6000L), draft.taxableBase)
         assertEquals(MoneyMinorUnits(300L), draft.taxAmount)
         assertEquals(MoneyMinorUnits(9300L), draft.grandTotal)
+    }
+
+    @Test
+    fun durablePayloadTaxBaseDistinguishesLegacyAndCurrentCalculations() {
+        val draft = DraftState(
+            items = listOf(
+                DraftItem("1", "Milk", unitPrice = MoneyMinorUnits(1000L)),
+                DraftItem("2", "Biscuits", unitPrice = MoneyMinorUnits(2000L)),
+                DraftItem("3", "Tea", unitPrice = MoneyMinorUnits(3000L))
+            ),
+            taxRateBps = 500,
+            isTaxEnabled = true,
+            txPacking = MoneyMinorUnits(2000L),
+            txShipping = MoneyMinorUnits(1000L)
+        )
+
+        val legacy = draft.withPersistedTaxableBase(emptyMap())
+        assertEquals(MoneyMinorUnits(6000L), legacy.taxableBase)
+        assertEquals(MoneyMinorUnits(300L), legacy.taxAmount)
+        assertEquals(MoneyMinorUnits(9300L), legacy.grandTotal)
+
+        val current = draft.withPersistedTaxableBase(mapOf("taxableBaseMinor" to "9000"))
+        assertEquals(MoneyMinorUnits(9000L), current.taxableBase)
+        assertEquals(MoneyMinorUnits(450L), current.taxAmount)
+        assertEquals(MoneyMinorUnits(9450L), current.grandTotal)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun durablePayloadRejectsTaxableBaseThatDoesNotMatchItsCharges() {
+        val draft = DraftState(
+            manualAmount = MoneyMinorUnits(6000L),
+            taxRateBps = 500,
+            isTaxEnabled = true,
+            txPacking = MoneyMinorUnits(2000L),
+            txShipping = MoneyMinorUnits(1000L)
+        )
+        draft.withPersistedTaxableBase(mapOf("taxableBaseMinor" to "6000"))
     }
 
 }
