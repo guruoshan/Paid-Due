@@ -159,6 +159,7 @@
     <string name="inv_pdf_bill_to">প্রাপক</string>
     <string name="inv_pdf_item_charges">প্রতি আইটেম - শিপিং %1$s • প্যাকিং %2$s</string>
     <string name="inv_pdf_subtotal">উপ-মোট</string>
+    <string name="inv_pdf_taxable_value">করযোগ্য মূল্য</string>
     <string name="inv_pdf_tax">কর (%1$s%%)</string>
     <string name="inv_pdf_item_shipping">আইটেম শিপিং</string>
     <string name="inv_pdf_item_packing">আইটেম প্যাকিং</string>
