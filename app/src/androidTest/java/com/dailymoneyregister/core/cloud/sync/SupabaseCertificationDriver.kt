@@ -303,8 +303,19 @@ class SupabaseCertificationDriver(
             role = state.user.role
         )
         if (acknowledged != 1) {
+            val active = SessionManager.currentSession.value
+            val outboxAfterSync = state.sender.financialSyncOutboxDao().findByOperationId(context.operationId)
             throw FinancialCertificationExecutionEngine.BlockedDependency(
-                "Normal app sync did not acknowledge the expense; inspect the real Supabase receipt and outbox state"
+                "Normal app sync did not acknowledge the expense: acknowledged=$acknowledged; " +
+                    "activeUserId=${active?.user?.id}; activeRole=${active?.user?.role}; " +
+                    "activeMembershipId=${active?.membership?.id}; activeBusinessId=${active?.business?.id}; " +
+                    "activeBranchId=${active?.branch?.id}; expectedUserId=${state.user.id}; " +
+                    "expectedMembershipId=${state.membership.id}; expectedBusinessId=${state.business.id}; " +
+                    "expectedBranchId=${state.branch.id}; outboxAfterSyncStatus=${outboxAfterSync?.status}; " +
+                    "outboxAfterSyncActor=${outboxAfterSync?.actorUserId}; " +
+                    "outboxAfterSyncBusiness=${outboxAfterSync?.businessId}; " +
+                    "outboxAfterSyncBranch=${outboxAfterSync?.branchId}; " +
+                    "outboxAfterSyncAttempts=${outboxAfterSync?.attemptCount}"
             )
         }
         val uploaded = repository.fetchRemoteEnvelopesV2(
