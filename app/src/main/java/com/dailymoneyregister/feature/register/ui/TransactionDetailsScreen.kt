@@ -490,29 +490,24 @@ fun TransactionDetailsScreen(
                         )
                     }
 
-                    Button(
-                        onClick = {
-                            refundAmountInput.value = transaction.netAmount
-                                .formatDisplay(currency.decimalPlaces, "").trim()
-                            refundReasonInput.value = ""
-                            refundDestination.value =
-                                if (
-                                    creditReturnRoute ==
-                                        CreditReturnUiRoute.UNPAID_CREDIT ||
-                                    creditReturnRoute ==
-                                        CreditReturnUiRoute.REPAID_CREDIT
-                                ) {
-                                    PaymentCategory.CASH
-                                } else {
-                                    transaction.currentPaymentCategory
-                                        ?: PaymentCategory.CASH
-                                }
+                    // Refund is intentionally not offered for Credit sales. Credit returns
+                    // are handled through the credit balance/repayment flow, not the
+                    // generic cash/online refund action.
+                    if (creditReturnRoute == CreditReturnUiRoute.NON_CREDIT) {
+                        Button(
+                            onClick = {
+                                refundAmountInput.value = transaction.netAmount
+                                    .formatDisplay(currency.decimalPlaces, "").trim()
+                                refundReasonInput.value = ""
+                                refundDestination.value =
+                                    transaction.currentPaymentCategory ?: PaymentCategory.CASH
 
-                            showRefundDialog.value = true
-                        },
-                        enabled = canRefund,
-                        modifier = Modifier.weight(1f)
-                    ) { Text(stringResource(R.string.tx_details_refund)) }
+                                showRefundDialog.value = true
+                            },
+                            enabled = canRefund,
+                            modifier = Modifier.weight(1f)
+                        ) { Text(stringResource(R.string.tx_details_refund)) }
+                    }
 
                     Button(
                         onClick = {
