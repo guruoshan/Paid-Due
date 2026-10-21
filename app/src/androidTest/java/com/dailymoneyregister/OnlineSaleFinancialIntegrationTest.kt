@@ -116,9 +116,15 @@ class OnlineSaleFinancialIntegrationTest {
         )
         val result = repository.executeOnlineSale(command(draft = draft))
         assertTrue(result is CommandResult.Success)
-        assertEquals(6050L, (result as CommandResult.Success).data.grandTotalMinor)
+        val transaction = (result as CommandResult.Success).data
+        // Taxable base = 5.000 subtotal + 0.200 item packing + 0.100 item shipping
+        // + 0.200 transaction packing + 0.300 transaction shipping = 5.800 OMR.
+        assertEquals(5800L, transaction.taxableBaseMinor)
+        assertEquals(290L, transaction.taxAmountMinor)
+        assertEquals(6090L, transaction.grandTotalMinor)
         assertEquals(2, database.transactionDao().getItemsForTransaction("online-tx").size)
         assertEquals(1, database.transactionDao().getSettlementsForTransaction("online-tx").size)
+        assertEquals(6090L, database.transactionDao().getSettlementsForTransaction("online-tx").single().amountSignedMinor)
     }
 
     @Test
