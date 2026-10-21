@@ -63,7 +63,17 @@ fi
 # accidentally satisfy this run's evidence check.
 adb shell rm -rf "$device_evidence_path"
 test_status=0
-adb shell am instrument -w -e class "$test_class" "$component" || test_status=$?
+# Pass only this runner's disposable local Supabase endpoint and keys to instrumentation.
+# Never fall back to BuildConfig's production endpoint.
+: "${CERT_SUPABASE_URL:?Local Supabase URL was not exported by the workflow}"
+: "${CERT_SUPABASE_ANON_KEY:?Local Supabase anon key was not exported by the workflow}"
+: "${CERT_SUPABASE_SERVICE_ROLE_KEY:?Local Supabase service-role key was not exported by the workflow}"
+adb shell am instrument -w \
+  -e class "$test_class" \
+  -e supabase_url "$CERT_SUPABASE_URL" \
+  -e supabase_anon_key "$CERT_SUPABASE_ANON_KEY" \
+  -e supabase_service_role_key "$CERT_SUPABASE_SERVICE_ROLE_KEY" \
+  "$component" || test_status=$?
 
 pull_status=0
 if [[ "$test_status" -eq 0 ]] && adb shell "test -f '$device_evidence_path/manifest.json'"; then
