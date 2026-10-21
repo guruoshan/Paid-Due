@@ -144,8 +144,14 @@ print('All 13 operation lifecycles explicitly PASS.')
 PY
 gate_status=$?
 if [[ "$gate_status" -ne 0 ]]; then
-  printf '{"status":"CERTIFICATION_NOT_PASSED","test_exit_code":0,"manifest":"financial-certification-evidence/manifest.json"}\n' > certification-artifacts/evidence-pull-status.json
+  printf '{"status":"CERTIFICATION_NOT_PASSED","test_exit_code":%s,"manifest":"financial-certification-evidence/manifest.json"}\n' "$test_status" > certification-artifacts/evidence-pull-status.json
   exit "$gate_status"
+fi
+
+# A passing manifest never overrides a failed instrumentation/JUnit process.
+if [[ "$test_status" -ne 0 ]]; then
+  printf '{"status":"INSTRUMENTATION_FAILED","test_exit_code":%s,"manifest":"financial-certification-evidence/manifest.json"}\n' "$test_status" > certification-artifacts/evidence-pull-status.json
+  exit "$test_status"
 fi
 
 printf '{"status":"CERTIFIED_PASS","test_exit_code":0,"evidence_manifest":"financial-certification-evidence/manifest.json"}\n' > certification-artifacts/evidence-pull-status.json
