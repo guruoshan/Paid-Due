@@ -305,8 +305,16 @@ class SupabaseCertificationDriver(
         if (acknowledged != 1) {
             val active = SessionManager.currentSession.value
             val outboxAfterSync = state.sender.financialSyncOutboxDao().findByOperationId(context.operationId)
+            val adminScopeAuthorized = repository.isAdminSessionAuthorized(
+                expectedMembershipId = state.membership.id,
+                expectedBusinessId = state.business.id,
+                expectedBranchId = state.branch.id
+            )
             throw FinancialCertificationExecutionEngine.BlockedDependency(
                 "Normal app sync did not acknowledge the expense: acknowledged=$acknowledged; " +
+                    "supabaseUserId=" + supabase.auth.currentUserOrNull()?.id + "; " +
+                    "supabaseSessionPresent=" + (supabase.auth.currentSessionOrNull() != null) + "; " +
+                    "adminScopeAuthorized=$adminScopeAuthorized; " +
                     "activeUserId=${active?.user?.id}; activeRole=${active?.user?.role}; " +
                     "activeMembershipId=${active?.membership?.id}; activeBusinessId=${active?.business?.id}; " +
                     "activeBranchId=${active?.branch?.id}; expectedUserId=${state.user.id}; " +
