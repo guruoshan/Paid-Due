@@ -178,9 +178,9 @@ class SupabaseCertificationDriver(
         }
         val repository = RemoteFinancialSyncRepository(supabase)
         val syncEngine = FinancialSyncEngine(
-            database = state.sender,
-            remoteSyncRepository = repository,
-            inboundEnvelopeApplier = MaterializingInboundEnvelopeApplier()
+            state.sender,
+            repository,
+            MaterializingInboundEnvelopeApplier()
         )
         // The reused real command fixture is a cashier. The current production outbound
         // engine is Admin-only; invoke it unchanged and block unless it acknowledges this ID.
@@ -246,9 +246,9 @@ class SupabaseCertificationDriver(
         }
         val repository = RemoteFinancialSyncRepository(supabase)
         val syncEngine = FinancialSyncEngine(
-            database = state.receiver,
-            remoteSyncRepository = repository,
-            inboundEnvelopeApplier = MaterializingInboundEnvelopeApplier()
+            state.receiver,
+            repository,
+            MaterializingInboundEnvelopeApplier()
         )
         // Use the production inbound orchestration; no direct table writes or fake receipt.
         val applied = syncEngine.syncInbound(
@@ -283,7 +283,7 @@ class SupabaseCertificationDriver(
     override suspend fun snapshotSender(context: FinancialCertificationExecutionEngine.OperationContext): String {
         val state = context.opaque as? ExpenseSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Sender fixture is unavailable for snapshot")
-        return FinancialSnapshotCollector.capture(state.sender, context.operationId)
+        return FinancialSnapshotCollector.capture(state.sender, context.operationId, context.operationId)
     }
     override suspend fun materializeOnReceiver(context: FinancialCertificationExecutionEngine.OperationContext, downloadedEnvelope: JSONObject): JSONObject {
         val state = context.opaque as? ExpenseSenderState
@@ -324,7 +324,7 @@ class SupabaseCertificationDriver(
     override suspend fun snapshotReceiver(context: FinancialCertificationExecutionEngine.OperationContext): String {
         val state = context.opaque as? ExpenseSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Receiver fixture is unavailable for snapshot")
-        return FinancialSnapshotCollector.capture(state.receiver, context.operationId)
+        return FinancialSnapshotCollector.capture(state.receiver, context.operationId, context.operationId)
     }
     override suspend fun replayOnReceiver(context: FinancialCertificationExecutionEngine.OperationContext, downloadedEnvelope: JSONObject): JSONObject {
         val state = context.opaque as? ExpenseSenderState
