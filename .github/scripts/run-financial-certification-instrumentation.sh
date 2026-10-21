@@ -7,7 +7,9 @@ bash ./gradlew --no-daemon :app:connectedDebugAndroidTest \
   -Pandroid.testInstrumentationRunnerArguments.class=com.dailymoneyregister.core.cloud.sync.TwoDatabaseFinancialCertificationTest
 test_status=$?
 
-evidence_path="/sdcard/Android/data/com.dailymoneyregister/files/financial-certification-evidence"
+# The debug variant declares applicationIdSuffix = ".debug", so Android stores
+# targetContext.getExternalFilesDir(null) under the debug package, not the release ID.
+evidence_path="/sdcard/Android/data/com.dailymoneyregister.debug/files/financial-certification-evidence"
 pull_status=0
 
 if adb shell "test -d '$evidence_path'"; then
