@@ -20,6 +20,7 @@ import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.SupabaseClient
 import com.dailymoneyregister.core.cloud.RemoteAdminAuthRepository
 import com.dailymoneyregister.core.cloud.RemoteAdminAuthResult
