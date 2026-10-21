@@ -582,6 +582,7 @@ class CashSaleFinancialCharacterizationTest {
             appendLine("taxRoundingMode=HALF_UP")
             appendLine("txShipping=0")
             appendLine("txPacking=0")
+            appendLine("taxableBaseMinor=1500")
             appendLine("itemCount=1")
             appendLine("item[0].id=item-$transactionId")
             appendLine("item[0].name=Characterization Item")
