@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - test/financial-certification-13-operation-gate
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -50,7 +53,7 @@ jobs:
           {
             echo "# Latest compile result"
             echo
-            echo "- Commit SHA: ${{ github.sha }}"
+            echo "- Commit SHA: ${{ github.event.pull_request.head.sha || github.sha }}"
             echo "- Time (UTC): $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             echo "- Gradle result: $(cat "$RUNNER_TEMP/compile-latest-status" 2>/dev/null || echo FAILED)"
             echo
