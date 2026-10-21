@@ -102,4 +102,24 @@ class DraftStateTest {
 
         assertEquals(MoneyMinorUnits(775L), displayedShipPack)
     }
+    @Test
+    fun legacyPersistedTaxableBaseDoesNotRepricePendingSale() {
+        val draft = DraftState(
+            items = listOf(
+                DraftItem("1", "Milk", unitPrice = MoneyMinorUnits(1000L)),
+                DraftItem("2", "Biscuits", unitPrice = MoneyMinorUnits(2000L)),
+                DraftItem("3", "Tea", unitPrice = MoneyMinorUnits(3000L))
+            ),
+            taxRateBps = 500,
+            isTaxEnabled = true,
+            txPacking = MoneyMinorUnits(2000L),
+            txShipping = MoneyMinorUnits(1000L),
+            taxableBaseOverride = MoneyMinorUnits(6000L)
+        )
+
+        assertEquals(MoneyMinorUnits(6000L), draft.taxableBase)
+        assertEquals(MoneyMinorUnits(300L), draft.taxAmount)
+        assertEquals(MoneyMinorUnits(9300L), draft.grandTotal)
+    }
+
 }
