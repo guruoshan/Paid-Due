@@ -159,6 +159,7 @@
     <string name="inv_pdf_bill_to">بل موصول کنندہ</string>
     <string name="inv_pdf_item_charges">فی آئٹم - شپنگ %1$s • پیکنگ %2$s</string>
     <string name="inv_pdf_subtotal">ذیلی مجموعہ</string>
+    <string name="inv_pdf_taxable_value">قابلِ ٹیکس قدر</string>
     <string name="inv_pdf_tax">ٹیکس (%1$s%%)</string>
     <string name="inv_pdf_item_shipping">آئٹم شپنگ</string>
     <string name="inv_pdf_item_packing">آئٹم پیکنگ</string>
