@@ -28,6 +28,7 @@ object CreditSalePayloadCodec {
 
     const val LEGACY_SCHEMA_VERSION = 1
     const val LEGACY_CURRENT_SCHEMA_VERSION = 2
+    const val LEGACY_BACKSLASH_SCHEMA_VERSION = 3
     const val CURRENT_SCHEMA_VERSION = 4
 
     fun encode(cmd: CreditSaleCommand): String {
@@ -110,6 +111,10 @@ object CreditSalePayloadCodec {
 
         sb.append("txPacking=")
             .append(d.txPacking.amount)
+            .append("\n")
+
+        sb.append("taxableBaseMinor=")
+            .append(d.taxableBase.amount)
             .append("\n")
 
         sb.append("itemCount=")
@@ -404,20 +409,18 @@ object CreditSalePayloadCodec {
                     .ifBlank { null }
 
             val itemPacking =
-                MoneyMinorUnits(
-                    requiredLong(
-                        map,
-                        "item[$i].itemPacking"
-                    )
-                )
+                if (schemaVersion >= CURRENT_SCHEMA_VERSION) {
+                    MoneyMinorUnits(requiredLong(map, "item[$i].itemPacking"))
+                } else {
+                    MoneyMinorUnits.ZERO
+                }
 
             val itemShipping =
-                MoneyMinorUnits(
-                    requiredLong(
-                        map,
-                        "item[$i].itemShipping"
-                    )
-                )
+                if (schemaVersion >= CURRENT_SCHEMA_VERSION) {
+                    MoneyMinorUnits(requiredLong(map, "item[$i].itemShipping"))
+                } else {
+                    MoneyMinorUnits.ZERO
+                }
 
             items.add(
                 DraftItem(
@@ -442,7 +445,7 @@ object CreditSalePayloadCodec {
             taxRoundingMode = taxRoundingMode,
             txShipping = txShipping,
             txPacking = txPacking
-        )
+        ).withPersistedTaxableBase(map)
 
         val command = CreditSaleCommand(
             operationId = OperationId(operationId),
@@ -521,6 +524,7 @@ object CreditSalePayloadCodec {
             }
 
             LEGACY_CURRENT_SCHEMA_VERSION,
+            LEGACY_BACKSLASH_SCHEMA_VERSION,
             CURRENT_SCHEMA_VERSION -> {
 
                 require(
@@ -575,6 +579,7 @@ object CreditSalePayloadCodec {
         require(
             version == LEGACY_SCHEMA_VERSION ||
                 version == LEGACY_CURRENT_SCHEMA_VERSION ||
+                version == LEGACY_BACKSLASH_SCHEMA_VERSION ||
                 version == CURRENT_SCHEMA_VERSION
         ) {
             "Unsupported Credit Sale payload schema version: $version"
