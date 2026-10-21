@@ -57,6 +57,31 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "emulator" "system-images;android-36;google_apis;x86_64"
           ln -sfn "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
 
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start disposable local Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This is a fresh Docker-backed local stack on the GitHub runner, never production.
+          supabase start
+          supabase status -o env > "$RUNNER_TEMP/supabase-status.env"
+          set -a
+          source "$RUNNER_TEMP/supabase-status.env"
+          set +a
+          : "${API_URL:?Supabase status did not provide API_URL}"
+          : "${ANON_KEY:?Supabase status did not provide ANON_KEY}"
+          : "${SERVICE_ROLE_KEY:?Supabase status did not provide SERVICE_ROLE_KEY}"
+          echo "::add-mask::$ANON_KEY"
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          # Emulator loopback maps to the host through 10.0.2.2.
+          echo "CERT_SUPABASE_URL=http://10.0.2.2:54321" >> "$GITHUB_ENV"
+          echo "CERT_SUPABASE_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+          echo "CERT_SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
+
       - name: Start isolated Android API 36 emulator
         shell: bash
         run: |
