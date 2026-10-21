@@ -3,20 +3,37 @@ set -uo pipefail
 
 mkdir -p certification-artifacts
 
+test_class="com.dailymoneyregister.core.cloud.sync.TwoDatabaseFinancialCertificationTest"
 bash ./gradlew --no-daemon :app:connectedDebugAndroidTest \
-  -Pandroid.testInstrumentationRunnerArguments.class=com.dailymoneyregister.core.cloud.sync.TwoDatabaseFinancialCertificationTest
+  "-Pandroid.testInstrumentationRunnerArguments.class=$test_class"
 test_status=$?
 
-# Resolve the path from the installed package rather than assuming the debug
-# applicationId suffix. Gradle flavors/applicationId overrides can change it.
-evidence_path=""
-for package_name in $(adb shell pm list packages | tr -d '\r' | sed 's/^package://g' | grep '^com\.dailymoneyregister' || true); do
-  candidate="/sdcard/Android/data/$package_name/files/financial-certification-evidence"
-  if adb shell "test -d '$candidate'"; then
-    evidence_path="$candidate"
-    break
+find_evidence_path() {
+  for package_name in $(adb shell pm list packages | tr -d '\r' | sed 's/^package://g' | grep '^com\.dailymoneyregister' || true); do
+    candidate="/sdcard/Android/data/$package_name/files/financial-certification-evidence"
+    if adb shell "test -d '$candidate'"; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+evidence_path="$(find_evidence_path || true)"
+
+# Some AGP/device combinations report a successful connected task without
+# honoring the class filter. If the expected side-effect is absent, run only
+# the certification class directly on the already-installed instrumentation.
+if [ -z "$evidence_path" ]; then
+  component="$(adb shell pm list instrumentation | tr -d '\r' | sed -n 's/^instrumentation:\([^ ]*\).*/\1/p' | grep 'com\.dailymoneyregister' | head -1 || true)"
+  if [ -n "$component" ]; then
+    echo "Evidence absent after Gradle task; explicitly running only $test_class via $component"
+    adb shell am instrument -w -e class "$test_class" "$component" || test_status=$?
+    evidence_path="$(find_evidence_path || true)"
+  else
+    echo "::error::No installed Paid&Due instrumentation runner was found."
   fi
-done
+fi
 
 pull_status=0
 if [ -n "$evidence_path" ]; then
@@ -25,6 +42,8 @@ else
   echo "::error::Certification evidence directory was not created by instrumentation."
   echo "Installed Paid&Due packages:"
   adb shell pm list packages | grep 'com.dailymoneyregister' || true
+  echo "Installed instrumentation runners:"
+  adb shell pm list instrumentation || true
   echo "Connected instrumentation test result files:"
   find app/build/outputs/androidTest-results app/build/reports/androidTests -type f 2>/dev/null | sort | head -100 || true
   echo "Instrumentation logcat (matching test runner/errors):"
