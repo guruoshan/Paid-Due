@@ -46,6 +46,35 @@ class RecordExpenseCertificationTest {
     }
 
     @Test
+    fun recordSale_passes_through_real_driver() = runBlocking {
+        // Certification is meaningful only when the workflow supplies the disposable local Supabase stack.
+        assumeTrue(
+            "requires the isolated local Supabase fixture",
+            InstrumentationRegistry.getArguments().getString("supabase_url")?.isNotBlank() == true
+        )
+        val engine = FinancialCertificationExecutionEngine(
+            driver = FinancialCertificationDriverSelector(missingIntegration),
+            runId = "record-sale-certification-test",
+            commitSha = "instrumentation"
+        )
+        val result = engine.executeAll()
+        val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
+        val output = File(requireNotNull(context.getExternalFilesDir(null)), "financial-certification-evidence")
+        engine.writeEvidenceBundle(output, result)
+        val sale = result.operations.single { it.operationType == "RECORD_SALE" }
+        assertEquals(
+            "RECORD_SALE must pass every real execution stage; blocker=" + sale.failure,
+            FinancialCertificationExecutionEngine.Status.PASS,
+            sale.status
+        )
+        assertNotNull(sale.operationId)
+        assertTrue(
+            "A passing sale cannot contain unexecuted stages",
+            sale.stages.values.none { it.status == FinancialCertificationExecutionEngine.Status.NOT_RUN }
+        )
+    }
+
+    @Test
     fun blocked_when_supabase_args_missing() = runBlocking {
         // An empty argument bundle is the explicit no-credentials fixture; no production URL can be inherited.
         val driver = FinancialCertificationDriverSelector(
