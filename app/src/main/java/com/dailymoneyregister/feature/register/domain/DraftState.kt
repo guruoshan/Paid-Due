@@ -32,7 +32,12 @@ data class DraftState(
     val isTaxEnabled: Boolean = false,
     val taxRoundingMode: TaxRoundingMode = TaxRoundingMode.HALF_UP,
     val txShipping: MoneyMinorUnits = MoneyMinorUnits.ZERO,
-    val txPacking: MoneyMinorUnits = MoneyMinorUnits.ZERO
+    val txPacking: MoneyMinorUnits = MoneyMinorUnits.ZERO,
+    /**
+     * Explicit persisted base for durable payload replay. Missing values in legacy
+     * payloads are decoded as subtotal-only so recovery never reprices an old operation.
+     */
+    val taxableBaseOverride: MoneyMinorUnits? = null
 ) {
     val isItemized: Boolean get() = items.isNotEmpty()
 
@@ -49,8 +54,14 @@ data class DraftState(
     val itemPackingTotal: MoneyMinorUnits
         get() = items.fold(MoneyMinorUnits.ZERO) { acc, item -> acc + item.totalPackingCharge }
 
+    /**
+     * Oman VAT taxable value includes incidental packing/shipping charges charged by
+     * the supplier. Legacy durable payloads may provide a subtotal-only override so
+     * replay uses the exact historical calculation rather than repricing a pending sale.
+     */
     val taxableBase: MoneyMinorUnits
-        get() = subtotal
+        get() = taxableBaseOverride
+            ?: (subtotal + txShipping + txPacking + itemShippingTotal + itemPackingTotal)
 
     val taxAmount: MoneyMinorUnits
         get() = if (isTaxEnabled && taxRateBps > 0) {
