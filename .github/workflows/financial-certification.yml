@@ -251,6 +251,9 @@ jobs:
           # Diagnostic publishing must not alter the original job result.
           (
             set -euo pipefail
+            # Drop checkout/build worktree state only after reports and evidence were uploaded.
+            git reset --hard HEAD
+            git clean -fd
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             if git ls-remote --exit-code --heads origin ci-results >/dev/null 2>&1; then
