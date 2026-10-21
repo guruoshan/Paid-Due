@@ -84,6 +84,8 @@ object FinancialSnapshotCollector {
         val transactionIds = mutableSetOf<String>()
         val expenseIds = mutableSetOf<String>()
         val customerIds = mutableSetOf<String>()
+        val repaymentIds = mutableSetOf<String>()
+        val walletIds = mutableSetOf<String>()
         val shiftIds = mutableSetOf<String>()
         operation?.optString("transaction_id")?.takeIf { it.isNotBlank() }?.let(transactionIds::add)
         operation?.optString("cash_shift_id")?.takeIf { it.isNotBlank() }?.let(shiftIds::add)
@@ -102,6 +104,36 @@ object FinancialSnapshotCollector {
             val row = expenses.getJSONObject(i)
             if (row.optString("operation_id") == operationId || row.optString("id") in expenseIds) {
                 row.optString("id").takeIf { it.isNotBlank() }?.let(expenseIds::add)
+            }
+        }
+        val repayments = tables.optJSONObject("credit_repayments")?.optJSONArray("rows") ?: JSONArray()
+        for (i in 0 until repayments.length()) {
+            val row = repayments.getJSONObject(i)
+            if (row.optString("operation_id") == operationId) {
+                row.optString("id").takeIf { it.isNotBlank() }?.let(repaymentIds::add)
+                row.optString("customer_id").takeIf { it.isNotBlank() }?.let(customerIds::add)
+            }
+        }
+        val creditEvents = tables.optJSONObject("credit_ledger_events")?.optJSONArray("rows") ?: JSONArray()
+        for (i in 0 until creditEvents.length()) {
+            val row = creditEvents.getJSONObject(i)
+            if (row.optString("operation_id") == operationId) {
+                row.optString("customer_id").takeIf { it.isNotBlank() }?.let(customerIds::add)
+                row.optString("repayment_id").takeIf { it.isNotBlank() }?.let(repaymentIds::add)
+            }
+        }
+        val couponEvents = tables.optJSONObject("coupon_ledger_events")?.optJSONArray("rows") ?: JSONArray()
+        for (i in 0 until couponEvents.length()) {
+            val row = couponEvents.getJSONObject(i)
+            if (row.optString("operation_id") == operationId) {
+                row.optString("wallet_id").takeIf { it.isNotBlank() }?.let(walletIds::add)
+            }
+        }
+        val shiftEvents = tables.optJSONObject("cash_shift_events")?.optJSONArray("rows") ?: JSONArray()
+        for (i in 0 until shiftEvents.length()) {
+            val row = shiftEvents.getJSONObject(i)
+            if (row.optString("operation_id") == operationId) {
+                row.optString("shift_id").takeIf { it.isNotBlank() }?.let(shiftIds::add)
             }
         }
         val shifts = tables.optJSONObject("cash_shifts")?.optJSONArray("rows") ?: JSONArray()
@@ -132,7 +164,8 @@ object FinancialSnapshotCollector {
                         row.optString("id") in expenseIds || row.optString("expense_id") in expenseIds
                     in customerTables -> row.optString("operation_id") == operationId ||
                         row.optString("customer_id") in customerIds ||
-                        row.optString("repayment_id") in transactionIds ||
+                        row.optString("repayment_id") in repaymentIds ||
+                        row.optString("id") in walletIds || row.optString("wallet_id") in walletIds ||
                         row.optString("transaction_id") in transactionIds
                     in shiftTables -> row.optString("operation_id") == operationId ||
                         row.optString("id") in shiftIds || row.optString("shift_id") in shiftIds ||
