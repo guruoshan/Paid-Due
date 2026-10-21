@@ -44,6 +44,6 @@
     <string name="reporting_amount_correction">Amount correction</string>
     <string name="reporting_payment_method_change">Payment method change</string>
     <string name="reporting_invalid_custom_period">Enter a valid custom date range.</string>
-    <string name="reporting_today_snapshot">Today’s CFO Snapshot</string>
+    <string name="reporting_today_snapshot">Today’s Snapshot</string>
     <string name="reporting_summary_unavailable">Financial summary unavailable.</string>
 </resources>
