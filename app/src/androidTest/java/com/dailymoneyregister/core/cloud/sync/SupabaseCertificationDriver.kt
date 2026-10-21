@@ -283,9 +283,7 @@ class SupabaseCertificationDriver(
     override suspend fun snapshotSender(context: FinancialCertificationExecutionEngine.OperationContext): String {
         val state = context.opaque as? ExpenseSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Sender fixture is unavailable for snapshot")
-        return FinancialSnapshotCollector.canonical(
-            FinancialSnapshotCollector.capture(state.sender, context.operationId)
-        )
+        return FinancialSnapshotCollector.capture(state.sender, context.operationId)
     }
     override suspend fun materializeOnReceiver(context: FinancialCertificationExecutionEngine.OperationContext, downloadedEnvelope: JSONObject): JSONObject {
         val state = context.opaque as? ExpenseSenderState
@@ -326,9 +324,7 @@ class SupabaseCertificationDriver(
     override suspend fun snapshotReceiver(context: FinancialCertificationExecutionEngine.OperationContext): String {
         val state = context.opaque as? ExpenseSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Receiver fixture is unavailable for snapshot")
-        return FinancialSnapshotCollector.canonical(
-            FinancialSnapshotCollector.capture(state.receiver, context.operationId)
-        )
+        return FinancialSnapshotCollector.capture(state.receiver, context.operationId)
     }
     override suspend fun replayOnReceiver(context: FinancialCertificationExecutionEngine.OperationContext, downloadedEnvelope: JSONObject): JSONObject {
         val state = context.opaque as? ExpenseSenderState
