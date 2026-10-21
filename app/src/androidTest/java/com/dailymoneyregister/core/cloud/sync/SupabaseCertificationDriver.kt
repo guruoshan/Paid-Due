@@ -20,8 +20,9 @@ import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
 import io.github.jan.supabase.auth.Auth
-import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.SupabaseClient
+import com.dailymoneyregister.core.cloud.RemoteAdminAuthRepository
+import com.dailymoneyregister.core.cloud.RemoteAdminAuthResult
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
@@ -88,7 +89,7 @@ class SupabaseCertificationDriver(
         val anon = requireNotNull(arguments.getString("supabase_anon_key")).trim()
         val service = requireNotNull(arguments.getString("supabase_service_role_key")).trim()
         val suffix = java.util.UUID.randomUUID().toString().replace("-", "")
-        val email = "cert-admin-\${suffix}@example.test"
+        val email = "cert-admin-${suffix}@example.test"
         val password = "Cert!\${suffix}aA9"
         val createdUser = localHttpJson(
             "$url/auth/v1/admin/users", service, service,
@@ -113,15 +114,12 @@ class SupabaseCertificationDriver(
                 .put("branch_id", branchId).put("auth_user_id", authUserId)
                 .put("role", "ADMIN").put("is_active", true).put("staff_identity_id", JSONObject.NULL))
         val client = supabaseClient(url, anon)
-        client.auth.signInWith(Email) {
-            this.email = email
-            this.password = password
+        val login = RemoteAdminAuthRepository(client).signIn(email, password)
+        check(login is RemoteAdminAuthResult.Authenticated && login.authUserId == authUserId) {
+            "Real RemoteAdminAuthRepository sign-in did not authenticate the provisioned local Admin: $login"
         }
         check(client.auth.currentSessionOrNull() != null) {
-            "Local Admin password sign-in returned no real Supabase Auth session"
-        }
-        check(client.auth.currentUserOrNull()?.id == authUserId) {
-            "Signed-in Supabase Auth user differs from the provisioned Admin"
+            "Local Admin login returned no real Supabase Auth session"
         }
         return client to authUserId
     }
@@ -264,8 +262,8 @@ class SupabaseCertificationDriver(
             repository,
             MaterializingInboundEnvelopeApplier()
         )
-        // The reused real command fixture is a cashier. The current production outbound
-        // engine is Admin-only; invoke it unchanged and block unless it acknowledges this ID.
+        // The real local Admin and matching Room session satisfy production outbound authorization;
+        // invoke the engine unchanged and require its real acknowledgement for this operation.
         val acknowledged = syncEngine.syncOutbound(
             actorMembershipId = state.membership.id,
             role = state.user.role
