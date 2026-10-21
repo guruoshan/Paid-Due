@@ -171,6 +171,7 @@ class SupabaseCertificationDriver(
         val appContext = ApplicationProvider.getApplicationContext<Context>()
         val sender = DmrDatabase.createInMemory(appContext)
         val receiver = DmrDatabase.createInMemory(appContext)
+        val downloadProbe = DmrDatabase.createInMemory(appContext)
         val business = BusinessEntity("cert-business", "Certification Business", 0L, 0L)
         val branch = BranchEntity(
             id = "cert-branch", businessId = business.id, name = "Main", code = "MAIN",
@@ -188,7 +189,7 @@ class SupabaseCertificationDriver(
             canCreateCreditSale = true, canUseCoupon = true, canRefund = true, createdAt = 0L
         )
         try {
-            listOf(sender, receiver).forEach { database ->
+            listOf(sender, receiver, downloadProbe).forEach { database ->
                 database.businessBranchDao().insertBusiness(business)
                 database.businessBranchDao().insertBranch(branch)
                 database.userDao().insertUser(user)
@@ -219,12 +220,13 @@ class SupabaseCertificationDriver(
             return FinancialCertificationExecutionEngine.OperationContext(
                 operationType = operationType,
                 operationId = command.operationId.value,
-                opaque = ExpenseSenderState(sender, receiver, business, branch, user, membership, command, adminClient)
+                opaque = ExpenseSenderState(sender, receiver, downloadProbe, business, branch, user, membership, command, adminClient)
             )
         } catch (error: Throwable) {
             SessionManager.clearSession()
             sender.close()
             receiver.close()
+            downloadProbe.close()
             throw error
         }
     }
@@ -331,31 +333,27 @@ class SupabaseCertificationDriver(
     override suspend fun downloadThroughNormalSync(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject {
         val state = context.opaque as? ExpenseSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Sender fixture is unavailable for inbound sync")
-        val args = InstrumentationRegistry.getArguments()
-        val url = args.getString("supabase_url")?.trim().orEmpty()
-        val anon = args.getString("supabase_anon_key")?.trim().orEmpty()
-        if (url.isBlank() || anon.isBlank()) {
-            throw FinancialCertificationExecutionEngine.BlockedDependency("Local Supabase URL/anon key missing for normal download")
-        }
-        val supabase = createSupabaseClient(supabaseUrl = url, supabaseKey = anon) {
-            install(Postgrest)
-            install(Realtime)
-            install(Auth) {
-                scheme = "paiddue"
-                host = "invite"
-            }
+        // Keep the certification receiver empty for the separately measured materialization stage.
+        // The production inbound engine runs unchanged against a third disposable probe database.
+        val supabase = state.supabaseClient
+        check(supabase.auth.currentSessionOrNull() != null) {
+            "Normal inbound sync requires the real signed-in Admin session created for this fixture"
         }
         val repository = RemoteFinancialSyncRepository(supabase)
         val syncEngine = FinancialSyncEngine(
-            state.receiver,
+            state.downloadProbe,
             repository,
             MaterializingInboundEnvelopeApplier()
         )
-        // Use the production inbound orchestration; no direct table writes or fake receipt.
         val applied = syncEngine.syncInbound(
             businessId = state.business.id,
             adminAccountId = state.user.id
         )
+        if (applied < 1 && state.downloadProbe.operationDao().getOperationById(context.operationId) == null) {
+            throw FinancialCertificationExecutionEngine.BlockedDependency(
+                "Normal inbound sync did not download/materialize the expense in the isolated probe database"
+            )
+        }
         val downloaded = repository.fetchRemoteEnvelopesV2(
             businessId = state.business.id,
             afterReceivedAt = null,
@@ -363,13 +361,8 @@ class SupabaseCertificationDriver(
             limit = 100
         ).firstOrNull { it.operationId == context.operationId }
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency(
-                "Normal inbound sync did not expose the expense envelope for verification"
+                "Normal inbound repository did not return the real expense envelope for verification"
             )
-        if (applied < 1 && state.receiver.operationDao().getOperationById(context.operationId) == null) {
-            throw FinancialCertificationExecutionEngine.BlockedDependency(
-                "Normal inbound sync did not materialize the expense on the receiver"
-            )
-        }
         return JSONObject()
             .put("downloaded", true)
             .put("operation_id", downloaded.operationId)
@@ -379,7 +372,7 @@ class SupabaseCertificationDriver(
             .put("occurred_at", downloaded.occurredAtIso)
             .put("received_at", downloaded.receivedAtIso)
             .put("canonical_text", downloaded.canonicalText)
-            .put("canonical_sha256", downloaded.canonicalSha256)
+            .put("canonical_sha256", downloaded.canonicalSha256 ?: "")
     }
     override suspend fun snapshotSender(context: FinancialCertificationExecutionEngine.OperationContext): String {
         val state = context.opaque as? ExpenseSenderState
@@ -519,6 +512,7 @@ class SupabaseCertificationDriver(
 private data class ExpenseSenderState(
     val sender: DmrDatabase,
     val receiver: DmrDatabase,
+    val downloadProbe: DmrDatabase,
     val business: BusinessEntity,
     val branch: BranchEntity,
     val user: UserAccountEntity,
