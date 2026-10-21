@@ -82,5 +82,41 @@ if [[ "$pull_status" -ne 0 || ! -f certification-artifacts/financial-certificati
   exit 1
 fi
 
-printf '{"status":"COLLECTED","test_exit_code":0,"evidence_manifest":"financial-certification-evidence/manifest.json"}\n' > certification-artifacts/evidence-pull-status.json
-echo "Certification evidence bundle collected. Inspect manifest operation statuses separately; collection does not mean financial certification PASS."
+# Evidence collection is not certification. Fail unless all thirteen operations
+# completed the full lifecycle and are explicitly PASS.
+python3 - <<'PY'
+import json
+import sys
+from pathlib import Path
+
+manifest_path = Path('certification-artifacts/financial-certification-evidence/manifest.json')
+try:
+    manifest = json.loads(manifest_path.read_text())
+except Exception as exc:
+    print('::error::Cannot parse certification manifest: ' + str(exc))
+    sys.exit(1)
+
+operations = manifest.get('operations')
+expected = 13
+if manifest.get('operation_count') != expected or not isinstance(operations, list) or len(operations) != expected:
+    count = len(operations) if isinstance(operations, list) else 'missing'
+    print('::error::Expected exactly 13 operation results; found count=' + str(manifest.get('operation_count')) + ' list=' + str(count))
+    sys.exit(1)
+
+failures = [op for op in operations if op.get('status') != 'PASS']
+if manifest.get('overall_status') != 'PASS' or failures:
+    print('::error::Financial certification did not PASS. Evidence collection alone cannot satisfy the release gate.')
+    for op in failures:
+        print('::error::' + str(op.get('operation_type', '<unknown>')) + ': ' + str(op.get('status', 'MISSING')))
+    sys.exit(1)
+
+print('All 13 operation lifecycles explicitly PASS.')
+PY
+gate_status=$?
+if [[ "$gate_status" -ne 0 ]]; then
+  printf '{"status":"CERTIFICATION_NOT_PASSED","test_exit_code":0,"manifest":"financial-certification-evidence/manifest.json"}\n' > certification-artifacts/evidence-pull-status.json
+  exit "$gate_status"
+fi
+
+printf '{"status":"CERTIFIED_PASS","test_exit_code":0,"evidence_manifest":"financial-certification-evidence/manifest.json"}\n' > certification-artifacts/evidence-pull-status.json
+echo "Financial certification PASS: all 13 operation lifecycles verified."
