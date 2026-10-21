@@ -39,10 +39,15 @@ import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.enums.PaymentChannel
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.model.ids.OperationId
+import com.dailymoneyregister.core.model.ids.TransactionId
+import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.feature.register.data.ExpenseCategory
 import com.dailymoneyregister.feature.register.data.ExpenseCommand
+import com.dailymoneyregister.feature.register.data.CashSaleCommand
+import com.dailymoneyregister.feature.register.domain.DraftItem
+import com.dailymoneyregister.feature.register.domain.DraftState
 import com.dailymoneyregister.feature.register.data.RegisterRepository
 import com.dailymoneyregister.feature.reporting.data.ReportingAggregator
 import com.dailymoneyregister.feature.reporting.data.RoomReportingReadRepository
@@ -167,8 +172,9 @@ class SupabaseCertificationDriver(
         throw FinancialCertificationExecutionEngine.BlockedDependency("not implemented yet")
 
     override suspend fun createOnSender(operationType: String): FinancialCertificationExecutionEngine.OperationContext {
+        if (operationType == "RECORD_SALE") return createSaleOnSender()
         if (operationType != "RECORD_EXPENSE") {
-            throw FinancialCertificationExecutionEngine.BlockedDependency("This real driver currently supports RECORD_EXPENSE only")
+            throw FinancialCertificationExecutionEngine.BlockedDependency("This real driver currently supports RECORD_EXPENSE and RECORD_SALE only")
         }
         val admin = createAuthenticatedAdmin()
         val adminClient = admin.supabaseClient
@@ -284,6 +290,118 @@ class SupabaseCertificationDriver(
             throw error
         }
     }
+    private suspend fun createSaleOnSender(): FinancialCertificationExecutionEngine.OperationContext {
+        val admin = createAuthenticatedAdmin()
+        val adminClient = admin.supabaseClient
+        val authUserId = admin.authUserId
+        val appContext = ApplicationProvider.getApplicationContext<Context>()
+        val sender = DmrDatabase.createInMemory(appContext)
+        val receiver = DmrDatabase.createInMemory(appContext)
+        val downloadProbe = DmrDatabase.createInMemory(appContext)
+        val business = BusinessEntity("cert-business", "Certification Business", 0L, 0L)
+        val branch = BranchEntity(
+            id = "cert-branch", businessId = business.id, name = "Main", code = "MAIN",
+            countryCode = "OM", currencyCode = "OMR", currencyDecimalPlaces = 3,
+            currencySymbol = "OMR", timezoneId = "Asia/Muscat", createdAt = 0L, updatedAt = 0L
+        )
+        val localPasswordSalt = PasswordHasher.generateSalt()
+        val user = UserAccountEntity(
+            id = authUserId, businessId = business.id, displayName = "Certification Admin",
+            username = admin.email, role = UserRole.ADMIN, authType = AuthType.PASSWORD,
+            credentialHash = PasswordHasher.hashPassword(admin.password, localPasswordSalt),
+            credentialSalt = localPasswordSalt, createdAt = 0L, updatedAt = 0L
+        )
+        val membership = UserBranchMembershipEntity(
+            id = "cert-membership", userId = user.id, branchId = branch.id, role = UserRole.ADMIN,
+            canCreateSale = true, canAcceptCash = true, canAcceptOnline = true,
+            canCreateCreditSale = true, canUseCoupon = true, canRefund = true, createdAt = 0L
+        )
+        try {
+            listOf(sender, receiver, downloadProbe).forEach { database ->
+                database.businessBranchDao().insertBusiness(business)
+                database.businessBranchDao().insertBranch(branch)
+                database.userDao().insertUser(user)
+                database.userDao().insertMembership(membership)
+            }
+            val remoteSignIn = RemoteAdminAuthRepository(adminClient).signIn(admin.email, admin.password)
+            check(remoteSignIn is com.dailymoneyregister.core.cloud.RemoteAdminAuthResult.Authenticated &&
+                remoteSignIn.authUserId == authUserId) {
+                "Local Supabase Auth did not issue a real session for the throwaway Admin"
+            }
+            val authRepository = AuthRepository(
+                database = sender,
+                pinThrottler = PinThrottler(appContext),
+                languageManager = LanguageManager(appContext),
+                trustedSessionStore = TrustedSessionStore(appContext),
+                remoteBusinessRestorer = RemoteBusinessRestorer(
+                    database = sender,
+                    supabase = adminClient,
+                    remoteAdminAuthRepository = RemoteAdminAuthRepository(adminClient)
+                )
+            )
+            val login = authRepository.loginAdmin(admin.email, admin.password)
+            check(login is AuthResult.Success && login.session.user.id == authUserId) {
+                "Real AuthRepository Admin login failed or returned the wrong local user: " + login
+            }
+            check(adminClient.auth.currentSessionOrNull() != null) {
+                "AuthRepository returned success without a real Supabase Auth session"
+            }
+            check(RemoteFinancialSyncRepository(adminClient).isAdminSessionAuthorized(
+                expectedMembershipId = membership.id,
+                expectedBusinessId = business.id,
+                expectedBranchId = branch.id
+            )) { "AuthRepository login did not establish server-verified Admin scope for sale fixture" }
+            val occurredAt = System.currentTimeMillis()
+            val command = CashSaleCommand(
+                operationId = OperationId("cert-sale-operation"),
+                businessId = business.id,
+                branchId = branch.id,
+                actorUserId = user.id,
+                transactionIdVal = TransactionId("cert-sale-transaction"),
+                draftState = DraftState(items = listOf(
+                    DraftItem(
+                        id = "cert-sale-item",
+                        name = "Certification Item",
+                        unitPrice = MoneyMinorUnits(1250L),
+                        quantity = 1
+                    )
+                )),
+                currencyCode = branch.currencyCode,
+                currencyDecimalPlaces = branch.currencyDecimalPlaces,
+                deviceId = "cert-device-a",
+                occurredAt = occurredAt
+            )
+            val result = RegisterRepository(sender, CommandExecutor(sender)).executeCashSale(
+                command = command,
+                actorUser = user,
+                actorMembership = membership
+            )
+            if (result !is CommandResult.Success) {
+                throw IllegalStateException("Real cash sale command failed: " + result)
+            }
+            val operation = sender.operationDao().getOperationById(command.operationId.value)
+                ?: error("Real sale command did not persist its operation")
+            check(operation.status == OperationStatus.SUCCEEDED) {
+                "Real sale operation status was " + operation.status
+            }
+            check(sender.transactionDao().getTransactionById(command.transactionIdVal.value) != null) {
+                "Real sale command did not persist its transaction"
+            }
+            operation.cashShiftId?.let { shiftId -> copyCashShiftBaseline(sender, receiver, shiftId) }
+            return FinancialCertificationExecutionEngine.OperationContext(
+                operationType = "RECORD_SALE",
+                operationId = command.operationId.value,
+                opaque = SaleSenderState(sender, receiver, downloadProbe, business, branch, user, membership, command, adminClient)
+            )
+        } catch (error: Throwable) {
+            SessionManager.clearSession()
+            sender.close()
+            receiver.close()
+            downloadProbe.close()
+            throw error
+        }
+    }
+
     /**
      * Copy only the already-existing shift prerequisite produced during local command admission.
      * The tested envelope remains the sole source for the expense under certification.
@@ -308,7 +426,7 @@ class SupabaseCertificationDriver(
     }
 
     override suspend fun verifyOutbox(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject {
-        val state = context.opaque as? ExpenseSenderState
+        val state = context.opaque as? CertificationSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Sender fixture is unavailable for outbox verification")
         val operation = state.sender.operationDao().getOperationById(context.operationId)
             ?: throw IllegalStateException("Created operation is missing from sender database")
@@ -555,16 +673,35 @@ class SupabaseCertificationDriver(
     override suspend fun expectedFixture(context: FinancialCertificationExecutionEngine.OperationContext): List<FinancialReportOracle.Entry> {
         val state = context.opaque as? ExpenseSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Expense fixture is unavailable for report oracle")
-        val expense = state.sender.expenseDao().getExpenseByOperationId(context.operationId)
-            ?: throw IllegalStateException("Authoritative expense is missing from sender")
+        if (context.operationType == "RECORD_EXPENSE") {
+            val expense = state.sender.expenseDao().getExpenseByOperationId(context.operationId)
+                ?: throw IllegalStateException("Authoritative expense is missing from sender")
+            return listOf(
+                FinancialReportOracle.Entry(
+                    operationType = "RECORD_EXPENSE",
+                    amountMinor = expense.amountMinor,
+                    expenseOriginalMinor = expense.amountMinor,
+                    expenseCorrectionsMinor = 0L,
+                    expenseVoidsMinor = 0L,
+                    expenseCurrentMinor = expense.amountMinor
+                )
+            )
+        }
+        val sale = state.sender.transactionDao().getTransactionById(state.subjectId)
+            ?: throw IllegalStateException("Authoritative sale transaction is missing from sender")
+        val fundedMinor = state.sender.openHelper.readableDatabase.query(
+            "SELECT COALESCE(SUM(amount_signed_minor), 0) FROM settlement_entries WHERE operation_id = ?",
+            arrayOf(context.operationId)
+        ).use { cursor ->
+            check(cursor.moveToFirst()) { "Cannot read authoritative sale funding" }
+            cursor.getLong(0)
+        }
         return listOf(
             FinancialReportOracle.Entry(
-                operationType = "RECORD_EXPENSE",
-                amountMinor = expense.amountMinor,
-                expenseOriginalMinor = expense.amountMinor,
-                expenseCorrectionsMinor = 0L,
-                expenseVoidsMinor = 0L,
-                expenseCurrentMinor = expense.amountMinor
+                operationType = "RECORD_SALE",
+                amountMinor = sale.grandTotalMinor,
+                paymentMethod = "CASH",
+                fundingMinor = fundedMinor
             )
         )
     }
@@ -580,7 +717,7 @@ class SupabaseCertificationDriver(
                 currencyCode = state.branch.currencyCode,
                 period = ReportingPeriod(
                     fromInclusive = 0L,
-                    toExclusive = state.command.occurredAt + 1L
+                    toExclusive = state.commandOccurredAt + 1L
                 )
             )
         )
@@ -601,7 +738,9 @@ class SupabaseCertificationDriver(
             .put("cash_open_minor", 0L)
             .put("cash_movements_minor", 0L)
             .put("cash_close_minor", 0L)
-            .put("payment_method_sales_minor", JSONObject())
+            .put("payment_method_sales_minor", JSONObject().apply {
+                if (context.operationType == "RECORD_SALE") put("CASH", summary.cashSalesCollected.amount)
+            })
     }
 }
 
@@ -612,17 +751,48 @@ private data class AdminAuthFixture(
     val password: String
 )
 
-private data class ExpenseSenderState(
-    val sender: DmrDatabase,
-    val receiver: DmrDatabase,
-    val downloadProbe: DmrDatabase,
-    val business: BusinessEntity,
-    val branch: BranchEntity,
-    val user: UserAccountEntity,
-    val membership: UserBranchMembershipEntity,
-    val command: ExpenseCommand,
+private interface CertificationSenderState {
+    val sender: DmrDatabase
+    val receiver: DmrDatabase
+    val downloadProbe: DmrDatabase
+    val business: BusinessEntity
+    val branch: BranchEntity
+    val user: UserAccountEntity
+    val membership: UserBranchMembershipEntity
     val supabaseClient: SupabaseClient
-)
+    val commandOccurredAt: Long
+    val subjectId: String
+}
+
+private data class ExpenseSenderState(
+    override val sender: DmrDatabase,
+    override val receiver: DmrDatabase,
+    override val downloadProbe: DmrDatabase,
+    override val business: BusinessEntity,
+    override val branch: BranchEntity,
+    override val user: UserAccountEntity,
+    override val membership: UserBranchMembershipEntity,
+    val command: ExpenseCommand,
+    override val supabaseClient: SupabaseClient
+) : CertificationSenderState {
+    override val commandOccurredAt: Long get() = command.occurredAt
+    override val subjectId: String get() = command.expenseId
+}
+
+private data class SaleSenderState(
+    override val sender: DmrDatabase,
+    override val receiver: DmrDatabase,
+    override val downloadProbe: DmrDatabase,
+    override val business: BusinessEntity,
+    override val branch: BranchEntity,
+    override val user: UserAccountEntity,
+    override val membership: UserBranchMembershipEntity,
+    val command: CashSaleCommand,
+    override val supabaseClient: SupabaseClient
+) : CertificationSenderState {
+    override val commandOccurredAt: Long get() = command.occurredAt
+    override val subjectId: String get() = command.transactionIdVal.value
+}
 
 /** Selects only explicitly supported operations; all others remain honestly blocked. */
 class FinancialCertificationDriverSelector(
@@ -632,7 +802,7 @@ class FinancialCertificationDriverSelector(
     private val missing = MissingCertificationDriver(missingReason)
 
     private fun forType(type: String): FinancialCertificationExecutionEngine.Driver =
-        if (type == "RECORD_EXPENSE") expense else missing
+        if (type == "RECORD_EXPENSE" || type == "RECORD_SALE") expense else missing
 
     override suspend fun createOnSender(operationType: String) = forType(operationType).createOnSender(operationType)
     override suspend fun verifyOutbox(context: FinancialCertificationExecutionEngine.OperationContext) = forType(context.operationType).verifyOutbox(context)
