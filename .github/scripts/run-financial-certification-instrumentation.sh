@@ -89,6 +89,10 @@ adb shell am instrument -w \
   -e supabase_service_role_key "$CERT_SUPABASE_SERVICE_ROLE_KEY" \
   "$component" || test_status=$?
 
+# Preserve the real auth/sync rejection reason for failed certification without changing verdict logic.
+mkdir -p certification-artifacts
+adb logcat -d -t 20000 | grep -E 'PaidDueFinancialSync|RemoteFinancialSync|RemoteBusinessRestorer|AuthRepository|FATAL EXCEPTION|AndroidJUnitRunner|Test run failed' | tail -400 > certification-artifacts/financial-certification-logcat.txt || true
+
 pull_status=0
 if [[ "$test_status" -eq 0 ]] && adb shell "test -f '$device_evidence_path/manifest.json'"; then
   adb pull "$device_evidence_path" certification-artifacts/financial-certification-evidence || pull_status=$?
