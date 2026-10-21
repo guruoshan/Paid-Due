@@ -30,6 +30,7 @@ class UniversalReceiptImageTest {
             shippingMinor = 0L,
             packingMinor = 0L,
             totalMinor = 9_000L,
+            note = "Less sugar, please",
             items = listOf(ReceiptReadModel.Item("Tea", 1, 9_000L)),
             tenders = emptyList()
         )
@@ -66,6 +67,13 @@ class UniversalReceiptImageTest {
         assertEquals(listOf("Test Shop", "RECEIPT"), sale.take(2))
         assertEquals(sale.takeLast(2), event.takeLast(2))
         assertEquals(UniversalWhatsAppMessageComposer.FOOTER, event.last())
+    }
+
+    @Test
+    fun saleReceiptImage_includesTheSaleNote() {
+        val lines = ReceiptRenderer.buildLines(saleReceipt()).map { it.text }
+
+        assertTrue(lines.contains("Note: Less sugar, please"))
     }
 
     @Test
