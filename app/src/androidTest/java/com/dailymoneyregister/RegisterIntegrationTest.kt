@@ -215,10 +215,12 @@ class RegisterIntegrationTest {
 
         val transaction = (result as CommandResult.Success).data
 
-        // Grand Total = 6.000 + 0.300 + 2.000 + 1.000 = 9.300 OMR (9300 baisa)
-        assertEquals(9300L, transaction.grandTotalMinor)
+        // Taxable base = 6.000 subtotal + 2.000 packing + 1.000 shipping.
+        assertEquals(9000L, transaction.taxableBaseMinor)
+        // VAT = 5% of 9.000 = 0.450 OMR; total = 9.450 OMR.
+        assertEquals(9450L, transaction.grandTotalMinor)
         assertEquals(6000L, transaction.subtotalMinor)
-        assertEquals(300L, transaction.taxAmountMinor)
+        assertEquals(450L, transaction.taxAmountMinor)
         assertEquals(1000L, transaction.txShippingMinor)
         assertEquals(2000L, transaction.txPackingMinor)
 
@@ -232,7 +234,7 @@ class RegisterIntegrationTest {
         // Verify Settlement Entry
         val settlements = database.transactionDao().getSettlementsForTransaction(txId.value)
         assertEquals(1, settlements.size)
-        assertEquals(9300L, settlements.first().amountSignedMinor)
+        assertEquals(9450L, settlements.first().amountSignedMinor)
     }
 
     @Test
