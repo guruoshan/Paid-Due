@@ -1,7 +1,7 @@
 # Latest financial certification result
 
-- Commit SHA: b8dcd943888f7689b3655430e2e7b69b53a9d5e0
-- Time (UTC): 2026-10-21T11:37:53Z
+- Commit SHA: 3d2c9fbef466e70f34ca3bc724ae61b61d267d01
+- Time (UTC): 2026-10-21T11:50:29Z
 - overall_status: BLOCKED_OR_FAIL
 
 ## Operation results
@@ -42,14 +42,14 @@
 - generate_reports: NOT_RUN — Stage did not execute
 
 ### RECORD_EXPENSE
-- status: BLOCKED
-- failure reason: Normal app sync did not acknowledge the expense: acknowledged=0; supabaseUserId=c489406c-71b9-4dfd-9e3a-a39ebbf41ec9; supabaseSessionPresent=true; adminScopeAuthorized=true; activeUserId=c489406c-71b9-4dfd-9e3a-a39ebbf41ec9; activeRole=ADMIN; activeMembershipId=cert-membership; activeBusinessId=cert-business; activeBranchId=cert-branch; expectedUserId=c489406c-71b9-4dfd-9e3a-a39ebbf41ec9; expectedMembershipId=cert-membership; expectedBusinessId=cert-business; expectedBranchId=cert-branch; outboxAfterSyncStatus=WAITING_RETRY; outboxAfterSyncActor=c489406c-71b9-4dfd-9e3a-a39ebbf41ec9; outboxAfterSyncBusiness=cert-business; outboxAfterSyncBranch=cert-branch; outboxAfterSyncAttempts=1
+- status: FAIL
+- failure reason: Sender/receiver parity failed: cash_shift_events[*].row_count: row counts differ sender=1 receiver=0; cash_shift_events[01a15e4c-590a-714d-8c27-fcab6d8bafc2:OPENED].id: primary ID missing on one side sender={"actor_user_id":"04ef545c-44cc-491f-9c41-357f8813b4d8","amount_minor":0,"id":"01a15e4c-590a-714d-8c27-fcab6d8bafc2:OPENED","occurred_at":1792583424248,"operation_id":"01a15e4c-590a-714d-8c27-fcab6d8bafc2","shift_id":"01a15e4c-590a-7564-94e7-71c73c4ecaa8","type":"OPENED"} receiver=null; cash_shifts[*].row_count: row counts differ sender=1 receiver=0; cash_shifts[01a15e4c-590a-7564-94e7-71c73c4ecaa8].id: primary ID missing on one side sender={"branch_id":"cert-branch","created_at":1792583424248,"id":"01a15e4c-590a-7564-94e7-71c73c4ecaa8","user_id":"04ef545c-44cc-491f-9c41-357f8813b4d8"} receiver=null; operations[cert-expense-operation].cash_shift_id: relationship/link differs sender="01a15e4c-590a-7564-94e7-71c73c4ecaa8" receiver=null
 - verify_outbox: PASS
-- upload: NOT_RUN — Stage did not execute
-- verify_digest: NOT_RUN — Stage did not execute
-- download: NOT_RUN — Stage did not execute
-- before: NOT_RUN — Stage did not execute
-- after: NOT_RUN — Stage did not execute
+- upload: PASS
+- verify_digest: PASS
+- download: PASS
+- before: PASS
+- after: PASS
 - replay: NOT_RUN — Stage did not execute
 - generate_reports: NOT_RUN — Stage did not execute
 
@@ -166,10 +166,10 @@
 	at com.dailymoneyregister.core.cloud.sync.RecordExpenseCertificationTest.recordExpense_passes_through_real_driver(RecordExpenseCertificationTest.kt:23)
 
 
-Time: 8.652
+Time: 11.151
 There was 1 failure:
 1) recordExpense_passes_through_real_driver(com.dailymoneyregister.core.cloud.sync.RecordExpenseCertificationTest)
-java.lang.AssertionError: RECORD_EXPENSE must pass every real execution stage; blocker=Normal app sync did not acknowledge the expense: acknowledged=0; supabaseUserId=c489406c-71b9-4dfd-9e3a-a39ebbf41ec9; supabaseSessionPresent=true; adminScopeAuthorized=true; activeUserId=c489406c-71b9-4dfd-9e3a-a39ebbf41ec9; activeRole=ADMIN; activeMembershipId=cert-membership; activeBusinessId=cert-business; activeBranchId=cert-branch; expectedUserId=c489406c-71b9-4dfd-9e3a-a39ebbf41ec9; expectedMembershipId=cert-membership; expectedBusinessId=cert-business; expectedBranchId=cert-branch; outboxAfterSyncStatus=WAITING_RETRY; outboxAfterSyncActor=c489406c-71b9-4dfd-9e3a-a39ebbf41ec9; outboxAfterSyncBusiness=cert-business; outboxAfterSyncBranch=cert-branch; outboxAfterSyncAttempts=1 expected:<PASS> but was:<BLOCKED>
+java.lang.AssertionError: RECORD_EXPENSE must pass every real execution stage; blocker=Sender/receiver parity failed: cash_shift_events[*].row_count: row counts differ sender=1 receiver=0; cash_shift_events[01a15e4c-590a-714d-8c27-fcab6d8bafc2:OPENED].id: primary ID missing on one side sender={"actor_user_id":"04ef545c-44cc-491f-9c41-357f8813b4d8","amount_minor":0,"id":"01a15e4c-590a-714d-8c27-fcab6d8bafc2:OPENED","occurred_at":1792583424248,"operation_id":"01a15e4c-590a-714d-8c27-fcab6d8bafc2","shift_id":"01a15e4c-590a-7564-94e7-71c73c4ecaa8","type":"OPENED"} receiver=null; cash_shifts[*].row_count: row counts differ sender=1 receiver=0; cash_shifts[01a15e4c-590a-7564-94e7-71c73c4ecaa8].id: primary ID missing on one side sender={"branch_id":"cert-branch","created_at":1792583424248,"id":"01a15e4c-590a-7564-94e7-71c73c4ecaa8","user_id":"04ef545c-44cc-491f-9c41-357f8813b4d8"} receiver=null; operations[cert-expense-operation].cash_shift_id: relationship/link differs sender="01a15e4c-590a-7564-94e7-71c73c4ecaa8" receiver=null expected:<PASS> but was:<FAIL>
 	at org.junit.Assert.fail(Assert.java:89)
 	at org.junit.Assert.failNotEquals(Assert.java:835)
 	at org.junit.Assert.assertEquals(Assert.java:120)
@@ -188,12 +188,12 @@ FAILURES!!!
 Tests run: 2,  Failures: 1
 
 
-/sdcard/Android/data/com.dailymoneyregister.debug/files/financial-certification-evidence/: 131 files pulled, 0 skipped. 0.0 MB/s (12258 bytes in 0.663s)
+/sdcard/Android/data/com.dailymoneyregister.debug/files/financial-certification-evidence/: 131 files pulled, 0 skipped. 0.0 MB/s (27038 bytes in 0.674s)
 ::error::Financial certification did not PASS. Evidence collection alone cannot satisfy the release gate.
 ::error::RECORD_SALE: BLOCKED
 ::error::RECORD_REFUND: BLOCKED
 ::error::RECORD_VOID: BLOCKED
-::error::RECORD_EXPENSE: BLOCKED
+::error::RECORD_EXPENSE: FAIL
 ::error::RECORD_CREDIT_REPAYMENT: BLOCKED
 ::error::RECORD_COUPON_PURCHASE: BLOCKED
 ::error::RECORD_PAYMENT_METHOD_CHANGE: BLOCKED
