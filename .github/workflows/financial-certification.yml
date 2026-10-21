@@ -149,6 +149,27 @@ jobs:
           script_status=${PIPESTATUS[0]}
           exit "$script_status"
 
+      - name: Upload Android test reports on failure
+        if: failure() && hashFiles('app/build/reports/androidTests/connected/debug/**', 'app/build/outputs/androidTest-results/connected/debug/**', 'app/build/test-results/testDebugUnitTest/**/*.xml') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: financial-certification-test-reports-${{ github.run_id }}
+          path: |
+            app/build/reports/androidTests/connected/debug
+            app/build/outputs/androidTest-results/connected/debug
+            app/build/test-results/testDebugUnitTest
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Preserve certification evidence bundle
+        if: always() && hashFiles('certification-artifacts/**') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: financial-certification-evidence-${{ github.run_id }}
+          path: certification-artifacts
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Publish financial certification result to ci-results branch
         if: always()
         shell: bash
@@ -245,24 +266,3 @@ jobs:
             git commit -m "ci: publish results to ci-results branch"
             git push --force origin HEAD:ci-results
           ) || echo "::warning::Could not publish ci-results/cert-latest.md; certification result is unchanged."
-
-      - name: Upload Android test reports on failure
-        if: failure() && hashFiles('app/build/reports/androidTests/connected/debug/**', 'app/build/outputs/androidTest-results/connected/debug/**', 'app/build/test-results/testDebugUnitTest/**/*.xml') != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: financial-certification-test-reports-${{ github.run_id }}
-          path: |
-            app/build/reports/androidTests/connected/debug
-            app/build/outputs/androidTest-results/connected/debug
-            app/build/test-results/testDebugUnitTest
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Preserve certification evidence bundle
-        if: always() && hashFiles('certification-artifacts/**') != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: financial-certification-evidence-${{ github.run_id }}
-          path: certification-artifacts
-          if-no-files-found: error
-          retention-days: 90
