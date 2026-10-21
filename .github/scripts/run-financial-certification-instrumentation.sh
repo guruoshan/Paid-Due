@@ -3,7 +3,7 @@ set -uo pipefail
 
 mkdir -p certification-artifacts
 
-test_class="com.dailymoneyregister.core.cloud.sync.TwoDatabaseFinancialCertificationTest"
+test_class="com.dailymoneyregister.core.cloud.sync.TwoDatabaseFinancialCertificationTest,com.dailymoneyregister.core.cloud.sync.RecordExpenseCertificationTest"
 target_package="com.dailymoneyregister.debug"
 app_apk="app/build/outputs/apk/debug/app-debug.apk"
 test_apk="app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
