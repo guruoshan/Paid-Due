@@ -66,7 +66,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # This is a fresh Docker-backed local stack on the GitHub runner, never production.
+          # The repository's migrations are incremental against an existing backend schema.
+          # Start a fresh local project with an empty migration directory, then apply the explicit
+          # isolated schema/RPC fixtures. This prevents any production endpoint or production data.
+          CERT_PROJECT="$RUNNER_TEMP/financial-certification-supabase"
+          mkdir -p "$CERT_PROJECT/supabase/migrations"
+          cp "$GITHUB_WORKSPACE/supabase/config.toml" "$CERT_PROJECT/supabase/config.toml"
+          cd "$CERT_PROJECT"
           supabase start
           supabase status -o env > "$RUNNER_TEMP/supabase-status.env"
           set -a
@@ -82,7 +88,8 @@ jobs:
             sudo apt-get install -y postgresql-client
           fi
           DB_URL="${DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -f .github/fixtures/financial-certification-local-rpcs.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$GITHUB_WORKSPACE/.github/fixtures/financial-certification-local-schema.sql"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$GITHUB_WORKSPACE/.github/fixtures/financial-certification-local-rpcs.sql"
           echo "::add-mask::$ANON_KEY"
           echo "::add-mask::$SERVICE_ROLE_KEY"
           # Emulator loopback maps to the host through 10.0.2.2.
