@@ -193,6 +193,7 @@
     <string name="inv_pdf_bill_to">Bill to</string>
     <string name="inv_pdf_item_charges">Per item - Shipping %1$s â€¢ Packing %2$s</string>
     <string name="inv_pdf_subtotal">Subtotal</string>
+    <string name="inv_pdf_taxable_value">Taxable value</string>
     <string name="inv_pdf_tax">Tax (%1$s%%)</string>
     <string name="inv_pdf_item_shipping">Item shipping</string>
     <string name="inv_pdf_item_packing">Item packing</string>
