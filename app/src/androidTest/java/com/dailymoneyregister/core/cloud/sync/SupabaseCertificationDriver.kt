@@ -587,6 +587,9 @@ class SupabaseCertificationDriver(
             .put("received_at", downloaded.receivedAtIso)
             .put("canonical_text", downloaded.canonicalText)
             .put("canonical_sha256", downloaded.canonicalSha256 ?: "")
+            .put("actor_membership_id", downloaded.actorMembershipId ?: "")
+            .put("actor_local_user_id", downloaded.actorLocalUserId ?: "")
+            .put("actor_role", downloaded.actorRole ?: "")
     }
     override suspend fun snapshotSender(context: FinancialCertificationExecutionEngine.OperationContext): String {
         val state = context.opaque as? CertificationSenderState
@@ -610,7 +613,10 @@ class SupabaseCertificationDriver(
             receivedAtIso = downloadedEnvelope.getString("received_at"),
             canonicalText = canonicalText,
             payloadJson = payload,
-            canonicalSha256 = downloadedEnvelope.optString("canonical_sha256").ifBlank { null }
+            canonicalSha256 = downloadedEnvelope.optString("canonical_sha256").ifBlank { null },
+            actorMembershipId = downloadedEnvelope.optString("actor_membership_id").ifBlank { null },
+            actorLocalUserId = downloadedEnvelope.optString("actor_local_user_id").ifBlank { null },
+            actorRole = downloadedEnvelope.optString("actor_role").ifBlank { null }
         )
         check(envelope.operationId == context.operationId && envelope.operationType == context.operationType) {
             "Downloaded envelope identity does not match certification context"
