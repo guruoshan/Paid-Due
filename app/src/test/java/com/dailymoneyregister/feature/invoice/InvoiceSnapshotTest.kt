@@ -4,6 +4,7 @@ import com.dailymoneyregister.feature.invoice.domain.InvoiceBusinessSnapshot
 import com.dailymoneyregister.feature.invoice.domain.InvoiceCustomerSnapshot
 import com.dailymoneyregister.feature.invoice.domain.InvoiceItemSnapshot
 import com.dailymoneyregister.feature.invoice.domain.InvoiceSnapshot
+import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import com.dailymoneyregister.feature.invoice.domain.InvoiceSnapshotCodec
 import com.dailymoneyregister.feature.invoice.domain.validationError
 import org.junit.Assert.assertEquals
@@ -39,7 +40,10 @@ class InvoiceSnapshotTest {
         itemPackingTotalMinor = 200L,
         grandTotalMinor = 10_815L,
         note = "Thanks",
-        createdAt = 1_700_000_000_000L
+        createdAt = 1_700_000_000_000L,
+        taxableBaseMinor = 10_300L,
+        taxRoundingMode = TaxRoundingMode.HALF_UP,
+        taxBaseIncludesCharges = true
     )
 
     @Test
@@ -62,6 +66,24 @@ class InvoiceSnapshotTest {
     @Test
     fun wrongGrandTotalIsRejected() {
         assertNotNull(valid().copy(grandTotalMinor = 10_801L).validationError())
+    }
+
+    @Test
+    fun incorrectTaxAmountForPersistedTaxableBaseIsRejected() {
+        val bad = valid().copy(taxAmountMinor = 500L, grandTotalMinor = 10_800L)
+        assertNotNull(bad.validationError())
+    }
+
+    @Test
+    fun legacySnapshotWithoutTaxBaseMetadataRemainsValid() {
+        val legacy = valid().copy(
+            taxAmountMinor = 500L,
+            grandTotalMinor = 10_800L,
+            taxableBaseMinor = null,
+            taxRoundingMode = null,
+            taxBaseIncludesCharges = null
+        )
+        assertNull(legacy.validationError())
     }
 
     @Test
