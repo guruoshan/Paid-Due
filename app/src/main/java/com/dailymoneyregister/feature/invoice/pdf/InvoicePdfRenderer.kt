@@ -309,7 +309,6 @@ object InvoicePdfRenderer {
             }
 
             // ---- Totals ----
-            ensureHeight(150f)
             val totalsLeft = 330f
             val totalsRight = right
             val totals = mutableListOf<Pair<String, String>>()
@@ -333,6 +332,7 @@ object InvoicePdfRenderer {
             if (s.txPackingMinor > 0L) {
                 totals += context.getString(R.string.inv_pdf_packing) to money(s.txPackingMinor)
             }
+            ensureHeight(totals.size * 18f + 42f)
             totals.forEach { (label, value) ->
                 checkNotNull(page).canvas.drawText(label, totalsLeft, y, totalLabelPaint)
                 drawRight(value, totalsRight, y, totalValuePaint)
