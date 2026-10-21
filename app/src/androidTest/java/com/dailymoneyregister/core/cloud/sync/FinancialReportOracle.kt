@@ -11,6 +11,7 @@ object FinancialReportOracle {
         val operationType: String,
         val amountMinor: Long = 0,
         val paymentMethod: String? = null,
+        val previousPaymentMethod: String? = null,
         val fundingMinor: Long? = null,
         val refundableBalanceBeforeMinor: Long? = null,
         val voidableBalanceBeforeMinor: Long? = null,
@@ -22,6 +23,7 @@ object FinancialReportOracle {
         val couponWalletBalanceMinor: Long? = null,
         val paymentMethodValueBeforeMinor: Long? = null,
         val paymentMethodValueAfterMinor: Long? = null,
+        val paymentMethodDeltaMinor: Long? = null,
         val correctionDeltaMinor: Long? = null,
         val expenseOriginalMinor: Long? = null,
         val expenseCorrectionsMinor: Long? = null,
@@ -53,10 +55,24 @@ object FinancialReportOracle {
         )
         val credits = sum(entries.filter { it.operationType == "RECORD_CREDIT_REPAYMENT" }.map { it.amountMinor })
         val coupons = sum(entries.filter { it.operationType == "RECORD_COUPON_PURCHASE" }.map { it.amountMinor })
-        val byMethod = entries.filter { it.operationType == "RECORD_SALE" && it.paymentMethod != null }
-            .groupBy { requireNotNull(it.paymentMethod) }
-            .toSortedMap()
-            .mapValues { (_, rows) -> sum(rows.map { it.amountMinor }) }
+        val byMethod = sortedMapOf<String, Long>()
+        entries.filter { it.operationType == "RECORD_SALE" && it.paymentMethod != null }.forEach {
+            val method = requireNotNull(it.paymentMethod)
+            byMethod[method] = Math.addExact(byMethod[method] ?: 0L, it.amountMinor)
+        }
+        entries.filter { it.operationType == "RECORD_PAYMENT_METHOD_CHANGE" }.forEach { entry ->
+            val previous = entry.previousPaymentMethod
+            val current = entry.paymentMethod
+            val beforeValue = entry.paymentMethodValueBeforeMinor
+            val afterValue = entry.paymentMethodValueAfterMinor
+            if (previous != null && beforeValue != null) byMethod[previous] = Math.subtractExact(byMethod[previous] ?: 0L, beforeValue)
+            if (current != null && afterValue != null) byMethod[current] = Math.addExact(byMethod[current] ?: 0L, afterValue)
+        }
+        val creditBalance = sum(entries.mapNotNull { it.creditCurrentBalanceMinor })
+        val couponWalletBalance = sum(entries.mapNotNull { it.couponWalletBalanceMinor })
+        val cashOpening = sum(entries.mapNotNull { it.cashOpeningMinor })
+        val cashMovements = sum(entries.mapNotNull { it.cashMovementsMinor })
+        val cashClosing = sum(entries.mapNotNull { it.cashClosingMinor })
 
         val assertions = mutableListOf<Assertion>()
         entries.forEachIndexed { index, e ->
@@ -125,7 +141,12 @@ object FinancialReportOracle {
             .put("voids_minor", voids)
             .put("expenses_minor", expenses)
             .put("credit_repayments_minor", credits)
+            .put("credit_balance_minor", creditBalance)
             .put("coupon_purchases_minor", coupons)
+            .put("coupon_wallet_balance_minor", couponWalletBalance)
+            .put("cash_open_minor", cashOpening)
+            .put("cash_movements_minor", cashMovements)
+            .put("cash_close_minor", cashClosing)
             .put("payment_method_sales_minor", JSONObject().also { obj -> byMethod.forEach { (k, v) -> obj.put(k, v) } })
         return Result(FinancialSnapshotCollector.canonical(report), assertions)
     }
