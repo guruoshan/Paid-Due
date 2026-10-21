@@ -262,6 +262,12 @@ class SupabaseCertificationDriver(
             check(sender.expenseDao().getExpenseByOperationId(command.operationId.value) != null) {
                 "Real expense command did not persist its expense"
             }
+            // Expense admission assigns an immutable cashier shift and can open one as a
+            // legitimate local prerequisite. Seed that same pre-existing shift baseline on
+            // the receiver so parity measures the downloaded expense, not unrelated setup.
+            operation.cashShiftId?.let { shiftId ->
+                copyCashShiftBaseline(sender, receiver, shiftId)
+            }
             return FinancialCertificationExecutionEngine.OperationContext(
                 operationType = operationType,
                 operationId = command.operationId.value,
@@ -275,6 +281,29 @@ class SupabaseCertificationDriver(
             throw error
         }
     }
+    /**
+     * Copy only the already-existing shift prerequisite produced during local command admission.
+     * The tested envelope remains the sole source for the expense under certification.
+     */
+    private suspend fun copyCashShiftBaseline(
+        source: DmrDatabase,
+        destination: DmrDatabase,
+        shiftId: String
+    ) {
+        val shift = source.cashShiftDao().getShiftById(shiftId)
+            ?: error("Expense references missing sender cash shift " + shiftId)
+        val events = source.cashShiftDao().getEventsForShift(shiftId)
+        val eventOperations = events.map { event ->
+            source.operationDao().getOperationById(event.operationId)
+                ?: error("Cash-shift event " + event.id + " references missing operation " + event.operationId)
+        }.distinctBy { it.id }
+        eventOperations.forEach { operation ->
+            destination.operationDao().insertOperationIfAbsent(operation)
+        }
+        destination.cashShiftDao().insertShift(shift)
+        events.forEach { event -> destination.cashShiftDao().insertShiftEvent(event) }
+    }
+
     override suspend fun verifyOutbox(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject {
         val state = context.opaque as? ExpenseSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Sender fixture is unavailable for outbox verification")
