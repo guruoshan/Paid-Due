@@ -1,5 +1,8 @@
 package com.dailymoneyregister.feature.invoice.domain
 
+import com.dailymoneyregister.core.model.money.MoneyMinorUnits
+import com.dailymoneyregister.core.model.tax.TaxPolicyRegistry
+import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import com.dailymoneyregister.feature.register.domain.DraftState
 
 /**
@@ -54,7 +57,11 @@ data class InvoiceSnapshot(
     val itemPackingTotalMinor: Long,
     val grandTotalMinor: Long,
     val note: String? = null,
-    val createdAt: Long
+    val createdAt: Long,
+    /** Present on snapshots created with the explicit taxable-base contract. */
+    val taxableBaseMinor: Long? = null,
+    val taxRoundingMode: TaxRoundingMode? = null,
+    val taxBaseIncludesCharges: Boolean? = null
 ) {
     companion object {
         /**
@@ -97,7 +104,11 @@ data class InvoiceSnapshot(
             itemPackingTotalMinor = draft.itemPackingTotal.amount,
             grandTotalMinor = draft.grandTotal.amount,
             note = note?.trim()?.takeIf { it.isNotEmpty() },
-            createdAt = createdAt
+            createdAt = createdAt,
+            taxableBaseMinor = draft.taxableBase.amount,
+            taxRoundingMode = draft.taxRoundingMode,
+            taxBaseIncludesCharges = draft.taxableBase ==
+                (draft.subtotal + draft.txShipping + draft.txPacking + draft.itemShippingTotal + draft.itemPackingTotal)
         )
     }
 }
@@ -113,13 +124,19 @@ fun InvoiceSnapshot.validationError(): String? {
     if (items.isEmpty()) return "Invoice must contain at least one item"
     if (items.map { it.id }.toSet().size != items.size) return "Invoice item ids must be unique"
     if (taxRateBps !in 0..10_000) return "Invoice tax rate is invalid"
+    if (currencyDecimalPlaces !in 0..6) return "Invoice currency precision is invalid"
     if (taxRateBps == 0 && taxAmountMinor != 0L) return "Invoice tax amount requires a tax rate"
 
-    val nonNegative = listOf(
+    val nonNegative = listOfNotNull(
         subtotalMinor, taxAmountMinor, txShippingMinor, txPackingMinor,
-        itemShippingTotalMinor, itemPackingTotalMinor, grandTotalMinor
+        itemShippingTotalMinor, itemPackingTotalMinor, grandTotalMinor, taxableBaseMinor
     )
     if (nonNegative.any { it < 0L }) return "Invoice amounts cannot be negative"
+
+    val hasTaxBaseMetadata = taxableBaseMinor != null || taxRoundingMode != null || taxBaseIncludesCharges != null
+    if (hasTaxBaseMetadata && (taxableBaseMinor == null || taxRoundingMode == null || taxBaseIncludesCharges == null)) {
+        return "Invoice tax-base metadata is incomplete"
+    }
 
     return try {
         var lineSum = 0L
@@ -140,6 +157,19 @@ fun InvoiceSnapshot.validationError(): String? {
         if (lineSum != subtotalMinor) return "Invoice subtotal is inconsistent"
         if (packSum != itemPackingTotalMinor) return "Invoice item packing total is inconsistent"
         if (shipSum != itemShippingTotalMinor) return "Invoice item shipping total is inconsistent"
+
+        if (taxableBaseMinor != null && taxRoundingMode != null && taxBaseIncludesCharges != null) {
+            val expectedTaxableBase = if (taxBaseIncludesCharges) {
+                listOf(subtotalMinor, txShippingMinor, txPackingMinor, itemShippingTotalMinor, itemPackingTotalMinor)
+                    .fold(0L) { acc, value -> Math.addExact(acc, value) }
+            } else {
+                subtotalMinor
+            }
+            if (taxableBaseMinor != expectedTaxableBase) return "Invoice taxable base is inconsistent"
+            val expectedTax = TaxPolicyRegistry.getPolicy(taxRoundingMode)
+                .calculateTax(MoneyMinorUnits(taxableBaseMinor), taxRateBps).amount
+            if (taxAmountMinor != expectedTax) return "Invoice tax amount is inconsistent"
+        }
 
         val expectedGrand = listOf(
             subtotalMinor, taxAmountMinor, txShippingMinor, txPackingMinor,
