@@ -314,6 +314,9 @@ object InvoicePdfRenderer {
             val totalsRight = right
             val totals = mutableListOf<Pair<String, String>>()
             totals += context.getString(R.string.inv_pdf_subtotal) to money(s.subtotalMinor)
+            s.taxableBaseMinor?.let { taxableBase ->
+                totals += context.getString(R.string.inv_pdf_taxable_value) to money(taxableBase)
+            }
             if (s.taxRateBps > 0 || s.taxAmountMinor > 0L) {
                 totals += context.getString(R.string.inv_pdf_tax, formatRateBps(s.taxRateBps)) to
                     money(s.taxAmountMinor)
