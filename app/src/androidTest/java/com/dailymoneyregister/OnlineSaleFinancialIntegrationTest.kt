@@ -28,6 +28,7 @@ import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.feature.register.data.OnlineSaleCommand
+import com.dailymoneyregister.feature.register.data.OnlineSalePayloadCodec
 import com.dailymoneyregister.feature.register.data.RegisterRepository
 import com.dailymoneyregister.feature.register.domain.DraftItem
 import com.dailymoneyregister.feature.register.domain.DraftState
@@ -201,6 +202,34 @@ class OnlineSaleFinancialIntegrationTest {
         assertEquals(OperationStatus.SUCCEEDED, database.operationDao().getOperationById("pending-op")?.status)
         assertEquals(1, database.transactionDao().getSettlementsForTransaction("pending-tx").size)
         assertEquals(0, repository.recoverPendingOnlineSales().size)
+    }
+
+    @Test
+    fun legacyV1OnlinePayloadKeepsHistoricalSubtotalOnlyTaxBase() {
+        val legacyDraft = DraftState(
+            manualAmount = MoneyMinorUnits(6000L),
+            taxRateBps = 500,
+            isTaxEnabled = true,
+            txPacking = MoneyMinorUnits(2000L),
+            txShipping = MoneyMinorUnits(1000L),
+            taxableBaseOverride = MoneyMinorUnits(6000L)
+        )
+        val encoded = OnlineSalePayloadCodec.encode(
+            command(operation = "legacy-v1-op", transaction = "legacy-v1-tx", draft = legacyDraft)
+        )
+        val legacyPayload = encoded.lineSequence()
+            .filterNot {
+                it.startsWith("customerName=") ||
+                    it.startsWith("customerPhone=") ||
+                    it.startsWith("taxableBaseMinor=")
+            }
+            .joinToString("\n", postfix = "\n")
+            .replaceFirst("v=2", "v=1")
+
+        val decoded = OnlineSalePayloadCodec.decode(legacyPayload)
+        assertEquals(MoneyMinorUnits(6000L), decoded.draftState.taxableBase)
+        assertEquals(MoneyMinorUnits(300L), decoded.draftState.taxAmount)
+        assertEquals(MoneyMinorUnits(9300L), decoded.draftState.grandTotal)
     }
 
     @Test
