@@ -5,6 +5,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dailymoneyregister.core.database.DmrDatabase
 import kotlinx.coroutines.runBlocking
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -61,6 +62,36 @@ class TwoDatabaseFinancialCertificationTest {
             databaseA.close()
             databaseB.close()
         }
+    }
+
+
+    @Test
+    fun parityAssertionReportsExactFinancialFieldMismatch() {
+        fun snapshot(amount: Long): String {
+            val row = JSONObject().put("id", "op-1").put("amount_minor", amount)
+            val table = JSONObject().put("primary_key", "id").put("row_count", 1)
+                .put("rows", JSONArray().put(row))
+            return FinancialSnapshotCollector.canonical(JSONObject().put("tables", JSONObject().put("operations", table)))
+        }
+        val result = FinancialParityAssertions.compare(snapshot(1250), snapshot(1240))
+        assertFalse(result.passed)
+        assertTrue(result.mismatches.any {
+            it.table == "operations" && it.primaryId == "op-1" &&
+                it.field == "amount_minor" && it.senderValue == "1250" && it.receiverValue == "1240"
+        })
+    }
+
+    @Test
+    fun reportOracleRejectsUnbalancedSaleFunding() {
+        val balanced = FinancialReportOracle.calculate(listOf(
+            FinancialReportOracle.Entry(operationType = "RECORD_SALE", amountMinor = 1250, fundingMinor = 1250)
+        ))
+        val unbalanced = FinancialReportOracle.calculate(listOf(
+            FinancialReportOracle.Entry(operationType = "RECORD_SALE", amountMinor = 1250, fundingMinor = 1249)
+        ))
+        assertTrue(balanced.passed)
+        assertFalse(unbalanced.passed)
+        assertTrue(unbalanced.assertions.any { it.name.endsWith("sale-funding-conservation") && !it.passed })
     }
 
     private class MissingDriver(private val reason: String) : FinancialCertificationExecutionEngine.Driver {
