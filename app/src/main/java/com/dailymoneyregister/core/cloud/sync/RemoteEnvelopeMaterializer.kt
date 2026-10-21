@@ -1172,6 +1172,8 @@ object RemoteEnvelopeMaterializer {
                 subjectType = if (txId != null) SubjectType.valueOf(txType) else SubjectType.TRANSACTION,
                 subjectId = txId ?: opId,
                 transactionId = if (txType == "EXPENSE") null else txId,
+                // Preserve immutable cashier-shift attribution carried by the real sender envelope.
+                cashShiftId = jsonPayload.optString("cash_shift_id").ifBlank { null },
                 actorUserId = actorUserId,
                 deviceId = deviceId,
                 occurredAt = occurredAt,
