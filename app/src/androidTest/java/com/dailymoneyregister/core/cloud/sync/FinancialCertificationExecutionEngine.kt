@@ -76,7 +76,7 @@ class FinancialCertificationExecutionEngine(
             pass("outbox", outbox)
 
             val envelope = driver.uploadThroughNormalSync(activeContext)
-            require(envelope.optString("operation_id") == context.operationId) {
+            require(envelope.optString("operation_id") == activeContext.operationId) {
                 "Uploaded envelope operation ID does not match created operation"
             }
             pass("upload", envelope)
