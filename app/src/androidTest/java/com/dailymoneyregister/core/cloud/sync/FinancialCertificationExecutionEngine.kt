@@ -140,7 +140,7 @@ class FinancialCertificationExecutionEngine(
             pass("assertions", JSONObject().put("passed", true)
                 .put("assertions", org.json.JSONArray(oracle.assertions.map { it.name + ": PASS" }))
                 .put("parity", "PASS").put("replay_invariance", "PASS"))
-            OperationResult(operationType, Status.PASS, context.operationId, stages, assertions)
+            OperationResult(operationType, Status.PASS, activeContext.operationId, stages, assertions)
         } catch (e: BlockedDependency) {
             blocked("blocked", e.message ?: "Required certification dependency is unavailable")
             OperationResult(operationType, Status.BLOCKED, context?.operationId, stages, assertions, e.message)
