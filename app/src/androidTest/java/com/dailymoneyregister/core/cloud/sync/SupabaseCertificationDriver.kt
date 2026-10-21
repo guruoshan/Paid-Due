@@ -292,10 +292,10 @@ class SupabaseCertificationDriver(
             .put("business_id", uploaded.businessId)
             .put("branch_id", uploaded.branchId)
             .put("operation_type", uploaded.operationType)
-            .put("occurred_at", uploaded.occurredAt)
-            .put("received_at", uploaded.receivedAt)
+            .put("occurred_at", uploaded.occurredAtIso)
+            .put("received_at", uploaded.receivedAtIso)
             .put("canonical_text", uploaded.canonicalText)
-            .put("canonical_sha256", uploaded.canonicalSha256)
+            .put("canonical_sha256", uploaded.canonicalSha256 ?: "")
     }
     override suspend fun verifyEnvelopeAndDigest(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject {
         val canonicalText = envelope.optString("canonical_text")
