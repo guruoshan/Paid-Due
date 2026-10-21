@@ -61,6 +61,7 @@ object ReceiptRenderer {
         if (receipt.packingMinor != 0L) add(Line("Packing: ${receipt.formattedMoney(receipt.packingMinor)}"))
         add(Line("Total: ${receipt.formattedMoney(receipt.totalMinor)}", bold = true))
         add(Line("Payment: ${receipt.paymentSummary()}"))
+        receipt.note?.takeIf(String::isNotBlank)?.let { add(Line("Note: $it")) }
         addFooter()
     }
 

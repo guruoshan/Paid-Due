@@ -43,7 +43,8 @@ object ReceiptSharing {
                 formattedAmount = receipt.formattedMoney(receipt.totalMinor),
                 paymentSummary = receipt.paymentSummary(),
                 reference = receipt.reference,
-                transactionDateTime = receipt.formattedTransactionDateTime()
+                transactionDateTime = receipt.formattedTransactionDateTime(),
+                note = receipt.note
             )
         )
 

@@ -24,6 +24,7 @@ data class ReceiptReadModel(
     val shippingMinor: Long,
     val packingMinor: Long,
     val totalMinor: Long,
+    val note: String?,
     val items: List<Item>,
     val tenders: List<Tender>
 ) {
@@ -84,6 +85,7 @@ data class ReceiptReadModel(
                 shippingMinor = transaction.txShippingMinor,
                 packingMinor = transaction.txPackingMinor,
                 totalMinor = transaction.grandTotalMinor,
+                note = transaction.description?.trim()?.takeIf(String::isNotBlank),
                 items = details.items.map {
                     Item(
                         name = it.productNameSnapshot.takeIf(String::isNotBlank)

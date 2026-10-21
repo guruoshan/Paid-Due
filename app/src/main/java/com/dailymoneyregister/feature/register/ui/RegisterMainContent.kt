@@ -581,7 +581,8 @@ onClick = {
                                                             receipt.formattedMoney(totalOutstandingMinor),
                                                         reference = receipt.reference,
                                                         transactionDateTime =
-                                                            receipt.formattedTransactionDateTime()
+                                                            receipt.formattedTransactionDateTime(),
+                                                        note = receipt.note
                                                     )
                                                 )
 

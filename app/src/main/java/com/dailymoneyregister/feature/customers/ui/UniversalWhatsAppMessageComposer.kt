@@ -75,7 +75,8 @@ object UniversalWhatsAppMessageComposer {
         val formattedPurchaseOutstanding: String,
         val formattedTotalOutstanding: String,
         val reference: String,
-        val transactionDateTime: String
+        val transactionDateTime: String,
+        val note: String? = null
     ) : Message
 
     data class Expense(
@@ -101,7 +102,8 @@ object UniversalWhatsAppMessageComposer {
         val formattedAmount: String,
         val paymentSummary: String,
         val reference: String,
-        val transactionDateTime: String
+        val transactionDateTime: String,
+        val note: String? = null
     ) : Message
     /** Customer paid back (part of) their Credit. */
     data class PaymentReceived(
@@ -275,6 +277,7 @@ object UniversalWhatsAppMessageComposer {
         line("Credit Given: ${message.formattedCreditGiven}")
         line("Pending for This Purchase: ${message.formattedPurchaseOutstanding}")
         line("Total Credit Pending: ${message.formattedTotalOutstanding}")
+        message.note?.takeIf(String::isNotBlank)?.let { line("Note: $it") }
         line("Reference: ${message.reference}")
         line("Transaction Date & Time: ${message.transactionDateTime}")
         blank()
@@ -321,6 +324,7 @@ object UniversalWhatsAppMessageComposer {
         line("Receipt: ${message.reference}")
         line("Amount: ${message.formattedAmount}")
         line("Payment: ${message.paymentSummary}")
+        message.note?.takeIf(String::isNotBlank)?.let { line("Note: $it") }
         line("Transaction Date & Time: ${message.transactionDateTime}")
         blank()
         line("Your receipt image is attached.")
