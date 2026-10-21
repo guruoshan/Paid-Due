@@ -64,43 +64,44 @@ class FinancialCertificationExecutionEngine(
             stages[name] = Stage(Status.PASS, json.toString())
         }
         return try {
-            context = driver.createOnSender(operationType)
-            require(context.operationType == operationType) {
-                "Driver created " + context.operationType + " while requested " + operationType
+            val activeContext = driver.createOnSender(operationType)
+            context = activeContext
+            require(activeContext.operationType == operationType) {
+                "Driver created " + activeContext.operationType + " while requested " + operationType
             }
-            pass("create", JSONObject().put("operation_id", context.operationId).put("operation_type", operationType))
+            pass("create", JSONObject().put("operation_id", activeContext.operationId).put("operation_type", operationType))
 
-            val outbox = driver.verifyOutbox(context)
-            require(outbox.optBoolean("present", false)) { "Outbox row missing for operation " + context.operationId }
+            val outbox = driver.verifyOutbox(activeContext)
+            require(outbox.optBoolean("present", false)) { "Outbox row missing for operation " + activeContext.operationId }
             pass("outbox", outbox)
 
-            val envelope = driver.uploadThroughNormalSync(context)
+            val envelope = driver.uploadThroughNormalSync(activeContext)
             require(envelope.optString("operation_id") == context.operationId) {
                 "Uploaded envelope operation ID does not match created operation"
             }
             pass("upload", envelope)
 
-            val digest = driver.verifyEnvelopeAndDigest(context, envelope)
+            val digest = driver.verifyEnvelopeAndDigest(activeContext, envelope)
             require(digest.optBoolean("verified", false)) { "Independent envelope digest/identity verification failed" }
             pass("digest-check", digest)
 
-            val downloaded = driver.downloadThroughNormalSync(context, envelope)
+            val downloaded = driver.downloadThroughNormalSync(activeContext, envelope)
             require(downloaded.optBoolean("downloaded", false)) { "Envelope was not downloaded through normal sync" }
             pass("download", downloaded)
 
-            val senderSnapshot = driver.snapshotSender(context)
+            val senderSnapshot = driver.snapshotSender(activeContext)
             val before = JSONObject()
                 .put("sha256", sha256(senderSnapshot))
                 .put("canonical_snapshot", JSONObject(senderSnapshot))
             pass("before", before)
 
-            val materialize = driver.materializeOnReceiver(context, downloaded)
+            val materialize = driver.materializeOnReceiver(activeContext, downloaded)
             require(materialize.optString("result") == "Applied") {
                 "First materialization did not apply exactly once: " + materialize.optString("result")
             }
             pass("materialize", materialize)
 
-            val receiverSnapshot = driver.snapshotReceiver(context)
+            val receiverSnapshot = driver.snapshotReceiver(activeContext)
             pass("after", JSONObject().put("sha256", sha256(receiverSnapshot))
                 .put("canonical_snapshot", JSONObject(receiverSnapshot)))
 
@@ -114,24 +115,24 @@ class FinancialCertificationExecutionEngine(
             require(parity.passed) { "Sender/receiver parity failed: " + assertions.joinToString("; ") }
             pass("parity", JSONObject().put("passed", true).put("mismatch_count", 0))
 
-            val replay = driver.replayOnReceiver(context, downloaded)
+            val replay = driver.replayOnReceiver(activeContext, downloaded)
             require(replay.optString("result") == "Skipped") {
                 "Replay was not idempotently skipped: " + replay.optString("result")
             }
             pass("replay", replay)
 
-            val afterReplay = driver.snapshotReceiverAfterReplay(context)
+            val afterReplay = driver.snapshotReceiverAfterReplay(activeContext)
             require(receiverSnapshot == afterReplay) {
                 "Replay changed the canonical receiver snapshot; see before/after hashes"
             }
             pass("replay-invariance", JSONObject().put("passed", true)
                 .put("before_sha256", sha256(receiverSnapshot)).put("after_sha256", sha256(afterReplay)))
 
-            val oracle = FinancialReportOracle.calculate(driver.expectedFixture(context))
+            val oracle = FinancialReportOracle.calculate(driver.expectedFixture(activeContext))
             require(oracle.passed) { "Independent conservation assertions failed: " +
                 oracle.assertions.filterNot { it.passed }.joinToString { it.name + ": " + it.detail } }
-            val actualReports = driver.actualReportsFromApp(context)
-            require(actualReports.toString() == JSONObject(oracle.expectedReportsJson).toString()) {
+            val actualReports = driver.actualReportsFromApp(activeContext)
+            require(FinancialSnapshotCollector.canonical(actualReports) == FinancialSnapshotCollector.canonical(JSONObject(oracle.expectedReportsJson))) {
                 "Actual app reports differ from independently calculated fixture oracle"
             }
             pass("reports", JSONObject().put("expected", JSONObject(oracle.expectedReportsJson))
