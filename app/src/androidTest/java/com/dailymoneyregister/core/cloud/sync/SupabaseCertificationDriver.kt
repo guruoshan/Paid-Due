@@ -23,7 +23,13 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.SupabaseClient
 import com.dailymoneyregister.core.cloud.RemoteAdminAuthRepository
-import com.dailymoneyregister.core.cloud.RemoteAdminAuthResult
+import com.dailymoneyregister.core.cloud.RemoteBusinessRestorer
+import com.dailymoneyregister.core.security.PinThrottler
+import com.dailymoneyregister.core.security.PasswordHasher
+import com.dailymoneyregister.core.security.TrustedSessionStore
+import com.dailymoneyregister.core.i18n.LanguageManager
+import com.dailymoneyregister.feature.auth.data.AuthRepository
+import com.dailymoneyregister.feature.auth.data.AuthResult
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
@@ -84,7 +90,7 @@ class SupabaseCertificationDriver(
      * Provision only on the guarded disposable local stack. Service role is limited to fixture
      * setup; normal app sync uses an anon-key client signed in through the same Email API as login.
      */
-    private suspend fun createAuthenticatedAdmin(): Pair<SupabaseClient, String> {
+    private suspend fun createAuthenticatedAdmin(): AdminAuthFixture {
         localSupabase()
         val url = requireNotNull(arguments.getString("supabase_url")).trim()
         val anon = requireNotNull(arguments.getString("supabase_anon_key")).trim()
@@ -119,15 +125,14 @@ class SupabaseCertificationDriver(
                 .put("can_issue_receipt", true).put("can_refund", true).put("can_void", true)
                 .put("can_correct_amount", true).put("can_change_payment_method", true)
                 .put("can_view_broad_history", true).put("can_manage_products", true).put("can_view_reports", true))
-        val client = supabaseClient(url, anon)
-        val login = RemoteAdminAuthRepository(client).signIn(email, password)
-        check(login is RemoteAdminAuthResult.Authenticated && login.authUserId == authUserId) {
-            "Real RemoteAdminAuthRepository sign-in did not authenticate the provisioned local Admin: $login"
-        }
-        check(client.auth.currentSessionOrNull() != null) {
-            "Local Admin login returned no real Supabase Auth session"
-        }
-        return client to authUserId
+        // AuthRepository.loginAdmin performs the local credential check, invokes the real
+        // RemoteBusinessRestorer, signs in remotely, validates tenant scope, and stores session.
+        return AdminAuthFixture(
+            supabaseClient = supabaseClient(url, anon),
+            authUserId = authUserId,
+            email = email,
+            password = password
+        )
     }
 
     private fun localHttpJson(url: String, apiKey: String, bearer: String, body: JSONObject): JSONObject {
@@ -165,7 +170,9 @@ class SupabaseCertificationDriver(
         if (operationType != "RECORD_EXPENSE") {
             throw FinancialCertificationExecutionEngine.BlockedDependency("This real driver currently supports RECORD_EXPENSE only")
         }
-        val (adminClient, authUserId) = createAuthenticatedAdmin()
+        val admin = createAuthenticatedAdmin()
+        val adminClient = admin.supabaseClient
+        val authUserId = admin.authUserId
         // Reuse the established single-operation expense fixture, with fresh in-memory Room
         // databases so this stage cannot read or write production or a user's business data.
         val appContext = ApplicationProvider.getApplicationContext<Context>()
@@ -178,10 +185,12 @@ class SupabaseCertificationDriver(
             countryCode = "OM", currencyCode = "OMR", currencyDecimalPlaces = 3,
             currencySymbol = "OMR", timezoneId = "Asia/Muscat", createdAt = 0L, updatedAt = 0L
         )
+        val localPasswordSalt = PasswordHasher.generateSalt()
         val user = UserAccountEntity(
             id = authUserId, businessId = business.id, displayName = "Certification Admin",
-            username = "cert_admin", role = UserRole.ADMIN, authType = AuthType.PIN,
-            credentialHash = "test-hash", credentialSalt = "test-salt", createdAt = 0L, updatedAt = 0L
+            username = admin.email, role = UserRole.ADMIN, authType = AuthType.PASSWORD,
+            credentialHash = PasswordHasher.hashPassword(admin.password, localPasswordSalt),
+            credentialSalt = localPasswordSalt, createdAt = 0L, updatedAt = 0L
         )
         val membership = UserBranchMembershipEntity(
             id = "cert-membership", userId = user.id, branchId = branch.id, role = UserRole.ADMIN,
@@ -195,7 +204,24 @@ class SupabaseCertificationDriver(
                 database.userDao().insertUser(user)
                 database.userDao().insertMembership(membership)
             }
-            SessionManager.setSession(ActiveSession(business, branch, user, membership))
+            val authRepository = AuthRepository(
+                database = sender,
+                pinThrottler = PinThrottler(appContext),
+                languageManager = LanguageManager(appContext),
+                trustedSessionStore = TrustedSessionStore(appContext),
+                remoteBusinessRestorer = RemoteBusinessRestorer(
+                    database = sender,
+                    supabase = adminClient,
+                    remoteAdminAuthRepository = RemoteAdminAuthRepository(adminClient)
+                )
+            )
+            val login = authRepository.loginAdmin(admin.email, admin.password)
+            check(login is AuthResult.Success && login.session.user.id == authUserId) {
+                "Real AuthRepository Admin login failed or returned the wrong local user: " + login
+            }
+            check(adminClient.auth.currentSessionOrNull() != null) {
+                "AuthRepository returned success without a real Supabase Auth session"
+            }
             val command = ExpenseCommand(
                 operationId = OperationId("cert-expense-operation"),
                 businessId = business.id, branchId = branch.id, actorUserId = user.id,
@@ -508,6 +534,13 @@ class SupabaseCertificationDriver(
             .put("payment_method_sales_minor", JSONObject())
     }
 }
+
+private data class AdminAuthFixture(
+    val supabaseClient: SupabaseClient,
+    val authUserId: String,
+    val email: String,
+    val password: String
+)
 
 private data class ExpenseSenderState(
     val sender: DmrDatabase,
