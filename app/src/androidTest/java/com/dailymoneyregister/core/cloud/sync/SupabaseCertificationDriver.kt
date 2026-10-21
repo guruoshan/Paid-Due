@@ -274,7 +274,42 @@ class SupabaseCertificationDriver : FinancialCertificationExecutionEngine.Driver
             .put("canonical_sha256", downloaded.canonicalSha256)
     }
     override suspend fun snapshotSender(context: FinancialCertificationExecutionEngine.OperationContext): String = unavailable()
-    override suspend fun materializeOnReceiver(context: FinancialCertificationExecutionEngine.OperationContext, downloadedEnvelope: JSONObject): JSONObject = unavailable()
+    override suspend fun materializeOnReceiver(context: FinancialCertificationExecutionEngine.OperationContext, downloadedEnvelope: JSONObject): JSONObject {
+        val state = context.opaque as? ExpenseSenderState
+            ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Receiver fixture is unavailable for materialization")
+        val canonicalText = downloadedEnvelope.optString("canonical_text")
+        if (canonicalText.isBlank()) {
+            throw FinancialCertificationExecutionEngine.BlockedDependency("Downloaded envelope has no canonical payload")
+        }
+        val payload = JSONObject(canonicalText)
+        val envelope = RemoteEnvelopeV2(
+            operationId = downloadedEnvelope.getString("operation_id"),
+            businessId = downloadedEnvelope.getString("business_id"),
+            branchId = downloadedEnvelope.optString("branch_id").ifBlank { null },
+            operationType = downloadedEnvelope.getString("operation_type"),
+            occurredAtIso = downloadedEnvelope.getString("occurred_at"),
+            receivedAtIso = downloadedEnvelope.getString("received_at"),
+            canonicalText = canonicalText,
+            payloadJson = payload,
+            canonicalSha256 = downloadedEnvelope.optString("canonical_sha256").ifBlank { null }
+        )
+        check(envelope.operationId == context.operationId && envelope.operationType == context.operationType) {
+            "Downloaded envelope identity does not match certification context"
+        }
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database = state.receiver,
+            envelope = envelope,
+            sessionBusinessId = state.business.id,
+            sessionBranchId = null
+        )
+        check(result == InboundProcessResult.Applied) {
+            "Real receiver materializer did not apply envelope: $result"
+        }
+        return JSONObject()
+            .put("result", "Applied")
+            .put("operation_id", envelope.operationId)
+            .put("operation_type", envelope.operationType)
+    }
     override suspend fun snapshotReceiver(context: FinancialCertificationExecutionEngine.OperationContext): String = unavailable()
     override suspend fun replayOnReceiver(context: FinancialCertificationExecutionEngine.OperationContext, downloadedEnvelope: JSONObject): JSONObject = unavailable()
     override suspend fun snapshotReceiverAfterReplay(context: FinancialCertificationExecutionEngine.OperationContext): String = unavailable()
