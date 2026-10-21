@@ -90,7 +90,7 @@ class SupabaseCertificationDriver(
         val service = requireNotNull(arguments.getString("supabase_service_role_key")).trim()
         val suffix = java.util.UUID.randomUUID().toString().replace("-", "")
         val email = "cert-admin-${suffix}@example.test"
-        val password = "Cert!\${suffix}aA9"
+        val password = "Cert!${suffix}aA9"
         val createdUser = localHttpJson(
             "$url/auth/v1/admin/users", service, service,
             JSONObject().put("email", email).put("password", password).put("email_confirm", true)
@@ -111,8 +111,13 @@ class SupabaseCertificationDriver(
                 .put("display_name", "Certification Admin").put("is_active", true))
         localHttpJson("$url/rest/v1/business_memberships", service, service,
             JSONObject().put("id", "cert-membership").put("business_id", businessId)
-                .put("branch_id", branchId).put("auth_user_id", authUserId)
-                .put("role", "ADMIN").put("is_active", true).put("staff_identity_id", JSONObject.NULL))
+                .put("branch_id", branchId).put("auth_user_id", authUserId).put("local_user_id", authUserId)
+                .put("role", "ADMIN").put("is_active", true).put("staff_identity_id", JSONObject.NULL)
+                .put("can_create_sale", true).put("can_accept_cash", true).put("can_accept_online", true)
+                .put("can_create_credit_sale", true).put("can_use_coupon", true).put("can_issue_invoice", true)
+                .put("can_issue_receipt", true).put("can_refund", true).put("can_void", true)
+                .put("can_correct_amount", true).put("can_change_payment_method", true)
+                .put("can_view_broad_history", true).put("can_manage_products", true).put("can_view_reports", true))
         val client = supabaseClient(url, anon)
         val login = RemoteAdminAuthRepository(client).signIn(email, password)
         check(login is RemoteAdminAuthResult.Authenticated && login.authUserId == authUserId) {
@@ -270,12 +275,27 @@ class SupabaseCertificationDriver(
         )
         if (acknowledged != 1) {
             throw FinancialCertificationExecutionEngine.BlockedDependency(
-                "Normal app sync did not acknowledge the expense; current sync authorization/session requirements must be satisfied"
+                "Normal app sync did not acknowledge the expense; inspect the real Supabase receipt and outbox state"
             )
         }
-        throw FinancialCertificationExecutionEngine.BlockedDependency(
-            "Normal app sync acknowledged the operation but the upload response envelope is not exposed by FinancialSyncEngine"
-        )
+        val uploaded = repository.fetchRemoteEnvelopesV2(
+            businessId = state.business.id,
+            afterReceivedAt = null,
+            afterOperationId = null,
+            limit = 100
+        ).firstOrNull { it.operationId == context.operationId }
+            ?: throw FinancialCertificationExecutionEngine.BlockedDependency(
+                "Normal sync acknowledged the expense but the real uploaded envelope was not returned by the download RPC"
+            )
+        return JSONObject()
+            .put("operation_id", uploaded.operationId)
+            .put("business_id", uploaded.businessId)
+            .put("branch_id", uploaded.branchId)
+            .put("operation_type", uploaded.operationType)
+            .put("occurred_at", uploaded.occurredAt)
+            .put("received_at", uploaded.receivedAt)
+            .put("canonical_text", uploaded.canonicalText)
+            .put("canonical_sha256", uploaded.canonicalSha256)
     }
     override suspend fun verifyEnvelopeAndDigest(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject {
         val canonicalText = envelope.optString("canonical_text")
