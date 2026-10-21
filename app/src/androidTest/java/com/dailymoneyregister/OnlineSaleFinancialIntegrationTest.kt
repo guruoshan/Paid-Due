@@ -207,7 +207,7 @@ class OnlineSaleFinancialIntegrationTest {
     @Test
     fun legacyV1OnlinePayloadKeepsHistoricalSubtotalOnlyTaxBase() {
         val legacyDraft = DraftState(
-            manualAmount = MoneyMinorUnits(6000L),
+            items = listOf(DraftItem("legacy-item", "Tea", unitPrice = MoneyMinorUnits(6000L))),
             taxRateBps = 500,
             isTaxEnabled = true,
             txPacking = MoneyMinorUnits(2000L),
@@ -221,12 +221,17 @@ class OnlineSaleFinancialIntegrationTest {
             .filterNot {
                 it.startsWith("customerName=") ||
                     it.startsWith("customerPhone=") ||
-                    it.startsWith("taxableBaseMinor=")
+                    it.startsWith("taxableBaseMinor=") ||
+                    it.matches(Regex("item\\[\\d+\\]\\.itemPacking=.*")) ||
+                    it.matches(Regex("item\\[\\d+\\]\\.itemShipping=.*"))
             }
             .joinToString("\n", postfix = "\n")
             .replaceFirst("v=2", "v=1")
 
         val decoded = OnlineSalePayloadCodec.decode(legacyPayload)
+        assertEquals(1, decoded.draftState.items.size)
+        assertEquals(MoneyMinorUnits.ZERO, decoded.draftState.itemPackingTotal)
+        assertEquals(MoneyMinorUnits.ZERO, decoded.draftState.itemShippingTotal)
         assertEquals(MoneyMinorUnits(6000L), decoded.draftState.taxableBase)
         assertEquals(MoneyMinorUnits(300L), decoded.draftState.taxAmount)
         assertEquals(MoneyMinorUnits(9300L), decoded.draftState.grandTotal)
