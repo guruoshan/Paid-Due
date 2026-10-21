@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: financial-certification-contract-\${{ github.ref }}
+  group: financial-certification-contract-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -37,12 +37,12 @@ jobs:
         with:
           cache-read-only: true
       - name: Run registry contract tests
-        run: ./gradlew --no-daemon :app:testDebugUnitTest --tests com.dailymoneyregister.core.cloud.sync.FinancialCertificationCaseRegistryTest
+        run: bash ./gradlew --no-daemon :app:testDebugUnitTest --tests com.dailymoneyregister.core.cloud.sync.FinancialCertificationCaseRegistryTest
       - name: Preserve test report
-        if: always()
+        if: always() && hashFiles('app/build/test-results/testDebugUnitTest/**/*.xml') != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: financial-certification-contract-\${{ github.run_id }}
+          name: financial-certification-contract-${{ github.run_id }}
           path: app/build/test-results/testDebugUnitTest
           if-no-files-found: error
           retention-days: 30
