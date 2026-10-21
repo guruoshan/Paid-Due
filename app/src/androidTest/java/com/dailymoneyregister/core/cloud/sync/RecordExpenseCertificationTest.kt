@@ -1,6 +1,10 @@
 package com.dailymoneyregister.core.cloud.sync
 
 import android.os.Bundle
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.platform.app.InstrumentationRegistry
+import java.io.File
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -16,11 +20,15 @@ class RecordExpenseCertificationTest {
 
     @Test
     fun recordExpense_passes_through_real_driver() = runBlocking {
-        val result = FinancialCertificationExecutionEngine(
+        val engine = FinancialCertificationExecutionEngine(
             driver = FinancialCertificationDriverSelector(missingIntegration),
             runId = "record-expense-certification-test",
             commitSha = "instrumentation"
-        ).executeAll()
+        )
+        val result = engine.executeAll()
+        val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
+        val output = File(requireNotNull(context.getExternalFilesDir(null)), "financial-certification-evidence")
+        engine.writeEvidenceBundle(output, result)
         val expense = result.operations.single { it.operationType == "RECORD_EXPENSE" }
         assertEquals("RECORD_EXPENSE must pass every real execution stage", FinancialCertificationExecutionEngine.Status.PASS, expense.status)
         assertNotNull(expense.operationId)
