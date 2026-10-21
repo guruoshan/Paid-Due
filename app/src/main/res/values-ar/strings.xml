@@ -171,6 +171,7 @@
     <string name="inv_pdf_bill_to">إلى العميل</string>
     <string name="inv_pdf_item_charges">لكل صنف - الشحن %1$s • التغليف %2$s</string>
     <string name="inv_pdf_subtotal">المجموع الفرعي</string>
+    <string name="inv_pdf_taxable_value">القيمة الخاضعة للضريبة</string>
     <string name="inv_pdf_tax">الضريبة (%1$s%%)</string>
     <string name="inv_pdf_item_shipping">شحن الأصناف</string>
     <string name="inv_pdf_item_packing">تغليف الأصناف</string>
