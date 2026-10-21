@@ -174,8 +174,8 @@ class TwoDatabaseFinancialCertificationTest {
             assertEquals(InboundProcessResult.Applied, firstApply)
             val receivedOperation = receiver.operationDao().getOperationById(command.operationId.value)
             assertTrue("Materializer must persist the received operation", receivedOperation != null)
-            assertEquals(operation.operationType, receivedOperation!!.operationType)
-            assertEquals(operation.requestFingerprint, receivedOperation.requestFingerprint)
+            assertEquals(requireNotNull(operation).operationType, receivedOperation!!.operationType)
+            assertEquals(requireNotNull(operation).requestFingerprint, receivedOperation.requestFingerprint)
             assertEquals(
                 1250L,
                 receiver.expenseDao().getExpenseByOperationId(command.operationId.value)?.amountMinor
