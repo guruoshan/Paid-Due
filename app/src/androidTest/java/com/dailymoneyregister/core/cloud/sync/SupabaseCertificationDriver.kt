@@ -20,6 +20,8 @@ import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
@@ -65,6 +67,93 @@ class SupabaseCertificationDriver(
         return true
     }
 
+
+    private fun supabaseClient(url: String, anonKey: String): SupabaseClient =
+        createSupabaseClient(supabaseUrl = url, supabaseKey = anonKey) {
+            install(Postgrest)
+            install(Realtime)
+            install(Auth) {
+                scheme = "paiddue"
+                host = "invite"
+            }
+        }
+
+    /**
+     * Provision only on the guarded disposable local stack. Service role is limited to fixture
+     * setup; normal app sync uses an anon-key client signed in through the same Email API as login.
+     */
+    private suspend fun createAuthenticatedAdmin(): Pair<SupabaseClient, String> {
+        localSupabase()
+        val url = requireNotNull(arguments.getString("supabase_url")).trim()
+        val anon = requireNotNull(arguments.getString("supabase_anon_key")).trim()
+        val service = requireNotNull(arguments.getString("supabase_service_role_key")).trim()
+        val suffix = java.util.UUID.randomUUID().toString().replace("-", "")
+        val email = "cert-admin-\${suffix}@example.test"
+        val password = "Cert!\${suffix}aA9"
+        val createdUser = localHttpJson(
+            "$url/auth/v1/admin/users", service, service,
+            JSONObject().put("email", email).put("password", password).put("email_confirm", true)
+        )
+        val authUserId = createdUser.optString("id").takeIf { it.isNotBlank() }
+            ?: error("Local Supabase Auth admin endpoint returned no user ID")
+        val businessId = "cert-business"
+        val branchId = "cert-branch"
+        localHttpJson("$url/rest/v1/businesses", service, service,
+            JSONObject().put("id", businessId).put("name", "Certification Business").put("is_active", true))
+        localHttpJson("$url/rest/v1/branches", service, service,
+            JSONObject().put("id", branchId).put("business_id", businessId).put("name", "Main")
+                .put("code", "MAIN").put("country_code", "OM").put("currency_code", "OMR")
+                .put("currency_decimal_places", 3).put("currency_symbol", "OMR")
+                .put("timezone_id", "Asia/Muscat").put("is_active", true))
+        localHttpJson("$url/rest/v1/profiles", service, service,
+            JSONObject().put("auth_user_id", authUserId).put("email", email)
+                .put("display_name", "Certification Admin").put("is_active", true))
+        localHttpJson("$url/rest/v1/business_memberships", service, service,
+            JSONObject().put("id", "cert-membership").put("business_id", businessId)
+                .put("branch_id", branchId).put("auth_user_id", authUserId)
+                .put("role", "ADMIN").put("is_active", true).put("staff_identity_id", JSONObject.NULL))
+        val client = supabaseClient(url, anon)
+        client.auth.signInWith(Email) {
+            this.email = email
+            this.password = password
+        }
+        check(client.auth.currentSessionOrNull() != null) {
+            "Local Admin password sign-in returned no real Supabase Auth session"
+        }
+        check(client.auth.currentUserOrNull()?.id == authUserId) {
+            "Signed-in Supabase Auth user differs from the provisioned Admin"
+        }
+        return client to authUserId
+    }
+
+    private fun localHttpJson(url: String, apiKey: String, bearer: String, body: JSONObject): JSONObject {
+        // Every URL is derived from localSupabase()-validated instrumentation arguments.
+        val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        try {
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 15_000
+            connection.doOutput = true
+            connection.setRequestProperty("apikey", apiKey)
+            connection.setRequestProperty("Authorization", "Bearer $bearer")
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("Prefer", "return=representation")
+            connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            check(status in 200..299) { "Local Supabase fixture request failed (HTTP $status): $response" }
+            val trimmed = response.trim()
+            return when {
+                trimmed.startsWith("{") -> JSONObject(trimmed)
+                trimmed.startsWith("[") -> JSONObject().put("rows", org.json.JSONArray(trimmed))
+                else -> JSONObject()
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     private fun unavailable(): Nothing =
         throw FinancialCertificationExecutionEngine.BlockedDependency("not implemented yet")
 
@@ -72,7 +161,7 @@ class SupabaseCertificationDriver(
         if (operationType != "RECORD_EXPENSE") {
             throw FinancialCertificationExecutionEngine.BlockedDependency("This real driver currently supports RECORD_EXPENSE only")
         }
-        localSupabase()
+        val (adminClient, authUserId) = createAuthenticatedAdmin()
         // Reuse the established single-operation expense fixture, with fresh in-memory Room
         // databases so this stage cannot read or write production or a user's business data.
         val appContext = ApplicationProvider.getApplicationContext<Context>()
@@ -85,12 +174,12 @@ class SupabaseCertificationDriver(
             currencySymbol = "OMR", timezoneId = "Asia/Muscat", createdAt = 0L, updatedAt = 0L
         )
         val user = UserAccountEntity(
-            id = "cert-cashier", businessId = business.id, displayName = "Certification Cashier",
-            username = "cert_cashier", role = UserRole.CASHIER, authType = AuthType.PIN,
+            id = authUserId, businessId = business.id, displayName = "Certification Admin",
+            username = "cert_admin", role = UserRole.ADMIN, authType = AuthType.PIN,
             credentialHash = "test-hash", credentialSalt = "test-salt", createdAt = 0L, updatedAt = 0L
         )
         val membership = UserBranchMembershipEntity(
-            id = "cert-membership", userId = user.id, branchId = branch.id, role = UserRole.CASHIER,
+            id = "cert-membership", userId = user.id, branchId = branch.id, role = UserRole.ADMIN,
             canCreateSale = true, canAcceptCash = true, canAcceptOnline = true,
             canCreateCreditSale = true, canUseCoupon = true, canRefund = true, createdAt = 0L
         )
@@ -126,7 +215,7 @@ class SupabaseCertificationDriver(
             return FinancialCertificationExecutionEngine.OperationContext(
                 operationType = operationType,
                 operationId = command.operationId.value,
-                opaque = ExpenseSenderState(sender, receiver, business, branch, user, membership, command)
+                opaque = ExpenseSenderState(sender, receiver, business, branch, user, membership, command, adminClient)
             )
         } catch (error: Throwable) {
             SessionManager.clearSession()
@@ -164,24 +253,10 @@ class SupabaseCertificationDriver(
     override suspend fun uploadThroughNormalSync(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject {
         val state = context.opaque as? ExpenseSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Sender fixture is unavailable for outbound sync")
-        val args = InstrumentationRegistry.getArguments()
-        val url = args.getString("supabase_url")?.trim().orEmpty()
-        val anon = args.getString("supabase_anon_key")?.trim().orEmpty()
-        // The local service-role key is intentionally not installed in the app client:
-        // normal sync must run with the same least-privilege client as the application.
-        if (url.isBlank() || anon.isBlank()) {
-            throw FinancialCertificationExecutionEngine.BlockedDependency("Local Supabase URL/anon key missing for normal sync")
-        }
-        val supabase = createSupabaseClient(
-            supabaseUrl = url,
-            supabaseKey = anon
-        ) {
-            install(Postgrest)
-            install(Realtime)
-            install(Auth) {
-                scheme = "paiddue"
-                host = "invite"
-            }
+        // Reuse the signed-in anon-key client; a new client would lose its in-memory Auth session.
+        val supabase = state.supabaseClient
+        check(supabase.auth.currentSessionOrNull() != null) {
+            "Normal app sync requires the real signed-in Admin session created for this fixture"
         }
         val repository = RemoteFinancialSyncRepository(supabase)
         val syncEngine = FinancialSyncEngine(
@@ -429,7 +504,8 @@ private data class ExpenseSenderState(
     val branch: BranchEntity,
     val user: UserAccountEntity,
     val membership: UserBranchMembershipEntity,
-    val command: ExpenseCommand
+    val command: ExpenseCommand,
+    val supabaseClient: SupabaseClient
 )
 
 /** Selects only explicitly supported operations; all others remain honestly blocked. */
