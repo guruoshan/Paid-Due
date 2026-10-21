@@ -116,7 +116,32 @@ class SupabaseCertificationDriver : FinancialCertificationExecutionEngine.Driver
             throw error
         }
     }
-    override suspend fun verifyOutbox(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject = unavailable()
+    override suspend fun verifyOutbox(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject {
+        val state = context.opaque as? ExpenseSenderState
+            ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Sender fixture is unavailable for outbox verification")
+        val operation = state.sender.operationDao().getOperationById(context.operationId)
+            ?: throw IllegalStateException("Created operation is missing from sender database")
+        val outbox = state.sender.financialSyncOutboxDao().findByOperationId(context.operationId)
+            ?: throw IllegalStateException("Financial sync outbox row is missing for " + context.operationId)
+        check(outbox.operationId == operation.id) { "Outbox operation ID does not match authoritative operation" }
+        check(outbox.businessId == operation.businessId && outbox.branchId == operation.branchId) {
+            "Outbox tenant identity does not match authoritative operation"
+        }
+        check(outbox.actorUserId == operation.actorUserId && outbox.deviceId == operation.deviceId) {
+            "Outbox actor/device identity does not match authoritative operation"
+        }
+        check(outbox.requestFingerprint == operation.requestFingerprint &&
+            outbox.commandSchemaVersion == operation.commandSchemaVersion) {
+            "Outbox fingerprint/schema does not match authoritative operation"
+        }
+        return JSONObject()
+            .put("present", true)
+            .put("operation_id", outbox.operationId)
+            .put("status", outbox.status)
+            .put("attempt_count", outbox.attemptCount)
+            .put("request_fingerprint", outbox.requestFingerprint)
+            .put("command_schema_version", outbox.commandSchemaVersion)
+    }
     override suspend fun uploadThroughNormalSync(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject = unavailable()
     override suspend fun verifyEnvelopeAndDigest(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject = unavailable()
     override suspend fun downloadThroughNormalSync(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject = unavailable()
