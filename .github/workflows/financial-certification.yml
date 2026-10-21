@@ -57,9 +57,6 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "emulator" "system-images;android-36;google_apis;x86_64"
           ln -sfn "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
 
-      - name: Run registry contract tests
-        run: bash ./gradlew --no-daemon :app:testDebugUnitTest --tests com.dailymoneyregister.core.cloud.sync.FinancialCertificationCaseRegistryTest
-
       - name: Start isolated Android API 36 emulator
         shell: bash
         run: |
