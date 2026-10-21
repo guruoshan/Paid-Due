@@ -325,7 +325,8 @@ begin
     p_operation_type, p_schema_version, p_occurred_at, p_branch_timezone_id,
     p_business_local_date, p_canonical_text, p_canonical_sha256, p_canonical_payload
   )
-  on conflict (business_id, operation_id) do nothing
+  -- Use the declared primary-key constraint by name: operation_id is also a RETURNS TABLE output variable.
+  on conflict on constraint financial_operation_envelopes_pkey do nothing
   returning e.canonical_sha256 into v_inserted_hash;
 
   if v_inserted_hash is not null then
