@@ -114,6 +114,7 @@ class FinancialCertificationExecutionEngine(
             }
             require(parity.passed) { "Sender/receiver parity failed: " + assertions.joinToString("; ") }
             pass("parity", JSONObject().put("passed", true).put("mismatch_count", 0))
+            val reportsBeforeReplay = driver.actualReportsFromApp(activeContext)
 
             val replay = driver.replayOnReceiver(activeContext, downloaded)
             require(replay.optString("result") == "Skipped") {
@@ -122,8 +123,11 @@ class FinancialCertificationExecutionEngine(
             pass("replay", replay)
 
             val afterReplay = driver.snapshotReceiverAfterReplay(activeContext)
-            require(receiverSnapshot == afterReplay) {
-                "Replay changed the canonical receiver snapshot; see before/after hashes"
+            val replayParity = FinancialParityAssertions.compare(receiverSnapshot, afterReplay)
+            require(replayParity.passed) {
+                "Replay changed receiver financial rows: " + replayParity.mismatches.joinToString {
+                    it.table + "[" + it.primaryId + "]." + it.field + ": " + it.assertion
+                }
             }
             pass("replay-invariance", JSONObject().put("passed", true)
                 .put("before_sha256", sha256(receiverSnapshot)).put("after_sha256", sha256(afterReplay)))
@@ -154,11 +158,14 @@ class FinancialCertificationExecutionEngine(
             require(oracle.passed) { "Independent conservation assertions failed: " +
                 oracle.assertions.filterNot { it.passed }.joinToString { it.name + ": " + it.detail } }
             val actualReports = driver.actualReportsFromApp(activeContext)
+            require(FinancialSnapshotCollector.canonical(reportsBeforeReplay) == FinancialSnapshotCollector.canonical(actualReports)) {
+                "Replay changed report totals"
+            }
             require(FinancialSnapshotCollector.canonical(actualReports) == FinancialSnapshotCollector.canonical(JSONObject(oracle.expectedReportsJson))) {
                 "Actual app reports differ from independently calculated fixture oracle"
             }
             pass("reports", JSONObject().put("expected", JSONObject(oracle.expectedReportsJson))
-                .put("actual", actualReports))
+                .put("before_replay", reportsBeforeReplay).put("after_replay", actualReports))
             pass("assertions", JSONObject().put("passed", true)
                 .put("assertions", org.json.JSONArray(oracle.assertions.map { it.name + ": PASS" }))
                 .put("parity", "PASS").put("replay_invariance", "PASS"))
