@@ -37,7 +37,7 @@ class RecordExpenseCertificationTest {
         val output = File(requireNotNull(context.getExternalFilesDir(null)), "financial-certification-evidence")
         engine.writeEvidenceBundle(output, result)
         val expense = result.operations.single { it.operationType == "RECORD_EXPENSE" }
-        assertEquals("RECORD_EXPENSE must pass every real execution stage", FinancialCertificationExecutionEngine.Status.PASS, expense.status)
+        assertEquals("RECORD_EXPENSE must pass every real execution stage; blocker=" + expense.failure, FinancialCertificationExecutionEngine.Status.PASS, expense.status)
         assertNotNull(expense.operationId)
         assertTrue(
             "A passing operation cannot contain unexecuted stages",
