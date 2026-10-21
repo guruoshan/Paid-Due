@@ -13,6 +13,7 @@ object FinancialReportOracle {
         val paymentMethod: String? = null,
         val fundingMinor: Long? = null,
         val refundableBalanceBeforeMinor: Long? = null,
+        val voidableBalanceBeforeMinor: Long? = null,
         val creditOpeningBalanceMinor: Long? = null,
         val creditRepaymentsMinor: Long? = null,
         val creditCurrentBalanceMinor: Long? = null,
@@ -43,7 +44,13 @@ object FinancialReportOracle {
         val sales = sum(entries.filter { it.operationType == "RECORD_SALE" }.map { it.amountMinor })
         val refunds = sum(entries.filter { it.operationType == "RECORD_REFUND" }.map { it.amountMinor })
         val voids = sum(entries.filter { it.operationType == "RECORD_VOID" }.map { it.amountMinor })
-        val expenses = sum(entries.filter { it.operationType == "RECORD_EXPENSE" }.map { it.amountMinor })
+        val expenses = Math.subtractExact(
+            Math.addExact(
+                sum(entries.filter { it.operationType == "RECORD_EXPENSE" }.map { it.amountMinor }),
+                sum(entries.filter { it.operationType == "RECORD_EXPENSE_CORRECTION" }.map { it.amountMinor })
+            ),
+            sum(entries.filter { it.operationType == "RECORD_EXPENSE_VOID" }.map { it.amountMinor })
+        )
         val credits = sum(entries.filter { it.operationType == "RECORD_CREDIT_REPAYMENT" }.map { it.amountMinor })
         val coupons = sum(entries.filter { it.operationType == "RECORD_COUPON_PURCHASE" }.map { it.amountMinor })
         val byMethod = entries.filter { it.operationType == "RECORD_SALE" && it.paymentMethod != null }
@@ -56,6 +63,22 @@ object FinancialReportOracle {
             val prefix = "entry[$index]/" + e.operationType
             e.fundingMinor?.let { assertions += equal(prefix + "/sale-funding-conservation", e.amountMinor, it,
                 "sale funding must equal transaction total") }
+            if (e.operationType == "RECORD_VOID" && e.voidableBalanceBeforeMinor != null) {
+                assertions += Assertion(prefix + "/void-limit",
+                    e.amountMinor >= 0 && e.amountMinor <= e.voidableBalanceBeforeMinor,
+                    e.voidableBalanceBeforeMinor, e.amountMinor,
+                    "void amount must be non-negative and no greater than remaining voidable balance")
+            }
+            if (e.operationType == "OPEN_CASH_SHIFT" && e.cashOpeningMinor != null) {
+                assertions += equal(prefix + "/cash-opening", e.amountMinor, e.cashOpeningMinor,
+                    "opening shift amount must match the opening cash fixture")
+            }
+            if (e.operationType == "RECORD_EXPENSE" && e.expenseOriginalMinor != null &&
+                e.expenseCorrectionsMinor != null && e.expenseVoidsMinor != null && e.expenseCurrentMinor != null) {
+                val expected = Math.subtractExact(Math.addExact(e.expenseOriginalMinor, e.expenseCorrectionsMinor), e.expenseVoidsMinor)
+                assertions += equal(prefix + "/expense-create-conservation", expected, e.expenseCurrentMinor,
+                    "expense create amount must reconcile to current expense value")
+            }
             if (e.operationType == "RECORD_REFUND" && e.refundableBalanceBeforeMinor != null) {
                 assertions += Assertion(prefix + "/refund-limit",
                     e.amountMinor >= 0 && e.amountMinor <= e.refundableBalanceBeforeMinor,
