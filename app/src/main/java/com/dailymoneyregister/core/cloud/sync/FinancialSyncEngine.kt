@@ -318,10 +318,24 @@ class FinancialSyncEngine @Inject constructor(
     }
 
     private fun persistAttention(operationId: String, message: String) {
-        context?.getSharedPreferences("dmr_financial_sync_attention", Context.MODE_PRIVATE)
-            ?.edit()
-            ?.putString(operationId, message)
-            ?.apply()
+        val attention = context?.getSharedPreferences(
+            "dmr_financial_sync_attention",
+            Context.MODE_PRIVATE
+        )
+        if (operationId == LEGACY_RETIRED_CASHIER_OPERATION_ID) {
+            // Older builds stored this retired alert under the raw operation ID.
+            // Remove both historical key formats and never re-raise this alert.
+            attention?.edit()
+                ?.remove(operationId)
+                ?.remove("inbound_$operationId")
+                ?.commit()
+            if (FinancialSyncStatus.adminVisibleProblem.value?.operationId == operationId) {
+                FinancialSyncStatus.clearVisibleProblem()
+            }
+            Log.i("PaidDueFinancialSync", "INBOUND_LEGACY_REJECTION_NOTIFICATION_SUPPRESSED operation=$operationId")
+            return
+        }
+        attention?.edit()?.putString(operationId, message)?.apply()
         FinancialSyncStatus.report(FinancialSyncProblem(operationId, message))
     }
 
@@ -628,7 +642,8 @@ class FinancialSyncEngine @Inject constructor(
         // flow. Continue through the rejection logging below; do not change the
         // rejection decision, envelope, cursor, or handling of other operations.
         if (operationId == LEGACY_RETIRED_CASHIER_OPERATION_ID) {
-            attention?.edit()?.remove(key)?.commit()
+            // Clear both the current inbound key and the raw key written by older builds.
+            attention?.edit()?.remove(operationId)?.remove(key)?.commit()
             if (FinancialSyncStatus.adminVisibleProblem.value?.operationId == operationId) {
                 FinancialSyncStatus.clearVisibleProblem()
             }
