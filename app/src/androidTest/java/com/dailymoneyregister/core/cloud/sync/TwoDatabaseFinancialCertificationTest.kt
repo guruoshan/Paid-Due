@@ -43,7 +43,7 @@ class TwoDatabaseFinancialCertificationTest {
             assertTrue(result.operations.all { it.status == FinancialCertificationExecutionEngine.Status.BLOCKED })
             assertTrue(result.operations.all { it.failure == missingIntegration })
 
-            val output = File(context.cacheDir, "financial-certification-evidence")
+            val output = File(requireNotNull(context.getExternalFilesDir(null)), "financial-certification-evidence")
             engine.writeEvidenceBundle(output, result)
             val manifest = JSONObject(File(output, "manifest.json").readText())
             assertEquals(13, manifest.getInt("operation_count"))
