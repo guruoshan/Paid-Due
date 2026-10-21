@@ -9,6 +9,7 @@ on:
       - 'app/src/androidTest/java/com/dailymoneyregister/core/cloud/sync/**'
       - 'docs/financial-certification/**'
       - '.github/workflows/financial-certification.yml'
+      - '.github/scripts/run-financial-certification-instrumentation.sh'
   workflow_dispatch:
 
 permissions:
