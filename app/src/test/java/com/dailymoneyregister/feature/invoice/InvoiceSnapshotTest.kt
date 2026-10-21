@@ -77,6 +77,7 @@ class InvoiceSnapshotTest {
     @Test
     fun legacySnapshotWithoutTaxBaseMetadataRemainsValid() {
         val legacy = valid().copy(
+            schemaVersion = 1,
             taxAmountMinor = 500L,
             grandTotalMinor = 10_800L,
             taxableBaseMinor = null,
@@ -84,6 +85,16 @@ class InvoiceSnapshotTest {
             taxBaseIncludesCharges = null
         )
         assertNull(legacy.validationError())
+    }
+
+    @Test
+    fun currentSnapshotCannotOmitTaxBaseMetadata() {
+        val bad = valid().copy(
+            taxableBaseMinor = null,
+            taxRoundingMode = null,
+            taxBaseIncludesCharges = null
+        )
+        assertNotNull(bad.validationError())
     }
 
     @Test
