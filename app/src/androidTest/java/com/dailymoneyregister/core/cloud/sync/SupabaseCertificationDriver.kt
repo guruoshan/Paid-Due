@@ -352,7 +352,13 @@ class SupabaseCertificationDriver : FinancialCertificationExecutionEngine.Driver
         }
         return JSONObject().put("result", "Skipped").put("operation_id", envelope.operationId)
     }
-    override suspend fun snapshotReceiverAfterReplay(context: FinancialCertificationExecutionEngine.OperationContext): String = unavailable()
+    override suspend fun snapshotReceiverAfterReplay(context: FinancialCertificationExecutionEngine.OperationContext): String {
+        val state = context.opaque as? ExpenseSenderState
+            ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Receiver fixture is unavailable for replay-invariance snapshot")
+        return FinancialSnapshotCollector.canonical(
+            FinancialSnapshotCollector.capture(state.receiver, context.operationId)
+        )
+    }
     override suspend fun expectedFixture(context: FinancialCertificationExecutionEngine.OperationContext): List<FinancialReportOracle.Entry> = unavailable()
     override suspend fun actualReportsFromApp(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject = unavailable()
 }
