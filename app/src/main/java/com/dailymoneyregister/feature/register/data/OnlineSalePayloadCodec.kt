@@ -39,6 +39,7 @@ object OnlineSalePayloadCodec {
         appendLine("taxRoundingMode=${d.taxRoundingMode.name}")
         appendLine("txShipping=${d.txShipping.amount}")
         appendLine("txPacking=${d.txPacking.amount}")
+        appendLine("taxableBaseMinor=${d.taxableBase.amount}")
         appendLine("itemCount=${d.items.size}")
         d.items.forEachIndexed { index, item ->
             appendLine("item[$index].id=${DurableEnvelopeCodec.escape(item.id)}")
@@ -135,7 +136,7 @@ object OnlineSalePayloadCodec {
                 taxRoundingMode = TaxRoundingMode.valueOf(required(map, "taxRoundingMode")),
                 txShipping = MoneyMinorUnits(requiredLong(map, "txShipping")),
                 txPacking = MoneyMinorUnits(requiredLong(map, "txPacking"))
-            ),
+            ).withPersistedTaxableBase(map),
             currencyCode = currencyCode,
             currencyDecimalPlaces = decimalPlaces,
             deviceId = deviceId,
@@ -153,7 +154,10 @@ object OnlineSalePayloadCodec {
         require(op.operationType == OperationType.RECORD_SALE) { "Operation '${op.id}' is not a sale operation." }
         require(op.subjectType == SubjectType.TRANSACTION) { "Online Sale operation subject type mismatch." }
         val map = parse(op.intentPayload)
-        require(requiredInt(map, "v") == CURRENT_SCHEMA_VERSION) { "Unsupported Online Sale payload schema version." }
+        val payloadVersion = requiredInt(map, "v")
+        require(payloadVersion == LEGACY_SCHEMA_VERSION || payloadVersion == CURRENT_SCHEMA_VERSION) {
+            "Unsupported Online Sale payload schema version."
+        }
         require(required(map, "commandType") == COMMAND_TYPE) { "Operation '${op.id}' is not an ONLINE_SALE command." }
         require(op.commandSchemaVersion == LEGACY_SCHEMA_VERSION || op.commandSchemaVersion == CURRENT_SCHEMA_VERSION) { "Online Sale schema version mismatch." }
         return map
