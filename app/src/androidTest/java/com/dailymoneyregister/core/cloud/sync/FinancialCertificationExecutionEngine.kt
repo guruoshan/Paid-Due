@@ -69,21 +69,22 @@ class FinancialCertificationExecutionEngine(
             require(activeContext.operationType == operationType) {
                 "Driver created " + activeContext.operationType + " while requested " + operationType
             }
-            pass("create", JSONObject().put("operation_id", activeContext.operationId).put("operation_type", operationType))
+            pass("create_operation", JSONObject().put("operation_id", activeContext.operationId).put("operation_type", operationType))
 
             val outbox = driver.verifyOutbox(activeContext)
             require(outbox.optBoolean("present", false)) { "Outbox row missing for operation " + activeContext.operationId }
-            pass("outbox", outbox)
+            pass("verify_outbox", outbox)
 
             val envelope = driver.uploadThroughNormalSync(activeContext)
             require(envelope.optString("operation_id") == activeContext.operationId) {
                 "Uploaded envelope operation ID does not match created operation"
             }
             pass("upload", envelope)
+            pass("verify_envelope", JSONObject().put("operation_id", activeContext.operationId).put("identity_matched", true))
 
             val digest = driver.verifyEnvelopeAndDigest(activeContext, envelope)
             require(digest.optBoolean("verified", false)) { "Independent envelope digest/identity verification failed" }
-            pass("digest-check", digest)
+            pass("verify_digest", digest)
 
             val downloaded = driver.downloadThroughNormalSync(activeContext, envelope)
             require(downloaded.optBoolean("downloaded", false)) { "Envelope was not downloaded through normal sync" }
@@ -113,7 +114,7 @@ class FinancialCertificationExecutionEngine(
                 }
             }
             require(parity.passed) { "Sender/receiver parity failed: " + assertions.joinToString("; ") }
-            pass("parity", JSONObject().put("passed", true).put("mismatch_count", 0))
+            pass("compare_records", JSONObject().put("passed", true).put("mismatch_count", 0))
             val reportsBeforeReplay = driver.actualReportsFromApp(activeContext)
 
             val replay = driver.replayOnReceiver(activeContext, downloaded)
@@ -164,7 +165,7 @@ class FinancialCertificationExecutionEngine(
             require(FinancialSnapshotCollector.canonical(actualReports) == FinancialSnapshotCollector.canonical(JSONObject(oracle.expectedReportsJson))) {
                 "Actual app reports differ from independently calculated fixture oracle"
             }
-            pass("reports", JSONObject().put("expected", JSONObject(oracle.expectedReportsJson))
+            pass("generate_reports", JSONObject().put("expected", JSONObject(oracle.expectedReportsJson))
                 .put("before_replay", reportsBeforeReplay).put("after_replay", actualReports))
             pass("assertions", JSONObject().put("passed", true)
                 .put("assertions", org.json.JSONArray(oracle.assertions.map { it.name + ": PASS" }))
@@ -199,15 +200,15 @@ class FinancialCertificationExecutionEngine(
             val files = mapOf(
                 "operation.json" to JSONObject().put("operation_type", operation.operationType)
                     .put("operation_id", operation.operationId).put("status", operation.status.name),
-                "outbox.json" to stageJson(operation, "outbox"),
+                "outbox.json" to stageJson(operation, "verify_outbox"),
                 "envelope.json" to stageJson(operation, "upload"),
-                "digest-check.json" to stageJson(operation, "digest-check"),
+                "digest-check.json" to stageJson(operation, "verify_digest"),
                 "download.json" to stageJson(operation, "download"),
                 "before.json" to stageJson(operation, "before"),
                 "after.json" to stageJson(operation, "after"),
                 "replay.json" to JSONObject().put("replay", stageJson(operation, "replay"))
                     .put("invariance", stageJson(operation, "replay-invariance")),
-                "reports.json" to stageJson(operation, "reports"),
+                "reports.json" to stageJson(operation, "generate_reports"),
                 "assertions.json" to JSONObject().put("status", operation.status.name)
                     .put("assertions", org.json.JSONArray(operation.assertions))
                     .put("failure", operation.failure)
