@@ -125,7 +125,7 @@ object InvoiceSnapshotCodec {
             } else {
                 null
             },
-            taxRoundingMode = r.optNullable("taxRoundingMode")?.let(TaxRoundingMode::valueOf),
+            taxRoundingMode = r.optNullable("taxRoundingMode")?.let { TaxRoundingMode.valueOf(it) },
             taxBaseIncludesCharges = if (r.has("taxBaseIncludesCharges") && !r.isNull("taxBaseIncludesCharges")) {
                 r.getBoolean("taxBaseIncludesCharges")
             } else {
