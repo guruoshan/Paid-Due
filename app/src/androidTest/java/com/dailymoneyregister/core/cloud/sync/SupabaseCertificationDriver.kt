@@ -10,6 +10,10 @@ import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
+import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.realtime.Realtime
 import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.OperationStatus
 import com.dailymoneyregister.core.model.enums.PaymentCategory
@@ -142,7 +146,49 @@ class SupabaseCertificationDriver : FinancialCertificationExecutionEngine.Driver
             .put("request_fingerprint", outbox.requestFingerprint)
             .put("command_schema_version", outbox.commandSchemaVersion)
     }
-    override suspend fun uploadThroughNormalSync(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject = unavailable()
+    override suspend fun uploadThroughNormalSync(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject {
+        val state = context.opaque as? ExpenseSenderState
+            ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Sender fixture is unavailable for outbound sync")
+        val args = InstrumentationRegistry.getArguments()
+        val url = args.getString("supabase_url")?.trim().orEmpty()
+        val anon = args.getString("supabase_anon_key")?.trim().orEmpty()
+        // The local service-role key is intentionally not installed in the app client:
+        // normal sync must run with the same least-privilege client as the application.
+        if (url.isBlank() || anon.isBlank()) {
+            throw FinancialCertificationExecutionEngine.BlockedDependency("Local Supabase URL/anon key missing for normal sync")
+        }
+        val supabase = createSupabaseClient(
+            supabaseUrl = url,
+            supabaseKey = anon
+        ) {
+            install(Postgrest)
+            install(Realtime)
+            install(Auth) {
+                scheme = "paiddue"
+                host = "invite"
+            }
+        }
+        val repository = RemoteFinancialSyncRepository(supabase)
+        val syncEngine = FinancialSyncEngine(
+            database = state.sender,
+            remoteSyncRepository = repository,
+            inboundEnvelopeApplier = MaterializingInboundEnvelopeApplier()
+        )
+        // The reused real command fixture is a cashier. The current production outbound
+        // engine is Admin-only; invoke it unchanged and block unless it acknowledges this ID.
+        val acknowledged = syncEngine.syncOutbound(
+            actorMembershipId = state.membership.id,
+            role = state.user.role
+        )
+        if (acknowledged != 1) {
+            throw FinancialCertificationExecutionEngine.BlockedDependency(
+                "Normal app sync did not acknowledge the expense; current sync authorization/session requirements must be satisfied"
+            )
+        }
+        throw FinancialCertificationExecutionEngine.BlockedDependency(
+            "Normal app sync acknowledged the operation but the upload response envelope is not exposed by FinancialSyncEngine"
+        )
+    }
     override suspend fun verifyEnvelopeAndDigest(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject = unavailable()
     override suspend fun downloadThroughNormalSync(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject = unavailable()
     override suspend fun snapshotSender(context: FinancialCertificationExecutionEngine.OperationContext): String = unavailable()
