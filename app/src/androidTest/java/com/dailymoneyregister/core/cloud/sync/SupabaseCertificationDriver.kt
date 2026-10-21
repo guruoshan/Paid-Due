@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import com.dailymoneyregister.core.command.CommandExecutor
+import com.dailymoneyregister.core.command.CommandFingerprint
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.BranchEntity
@@ -189,7 +190,36 @@ class SupabaseCertificationDriver : FinancialCertificationExecutionEngine.Driver
             "Normal app sync acknowledged the operation but the upload response envelope is not exposed by FinancialSyncEngine"
         )
     }
-    override suspend fun verifyEnvelopeAndDigest(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject = unavailable()
+    override suspend fun verifyEnvelopeAndDigest(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject {
+        val canonicalText = envelope.optString("canonical_text")
+        val suppliedDigest = envelope.optString("canonical_sha256")
+        if (canonicalText.isBlank() || suppliedDigest.isBlank()) {
+            throw FinancialCertificationExecutionEngine.BlockedDependency(
+                "Envelope canonical text/digest is missing from normal sync evidence"
+            )
+        }
+        val canonical = JSONObject(canonicalText)
+        val operationId = canonical.optString("operation_id")
+        val operationType = canonical.optString("operation_type")
+        val businessId = canonical.optString("business_id")
+        val branchId = canonical.optString("branch_id")
+        val computedDigest = CommandFingerprint.sha256(canonicalText)
+        val verified = computedDigest == suppliedDigest &&
+            operationId == context.operationId &&
+            operationType == context.operationType &&
+            businessId.isNotBlank() && branchId.isNotBlank()
+        check(verified) {
+            "Canonical digest or envelope identity did not match the real app envelope"
+        }
+        return JSONObject()
+            .put("verified", true)
+            .put("operation_id", operationId)
+            .put("operation_type", operationType)
+            .put("business_id", businessId)
+            .put("branch_id", branchId)
+            .put("computed_sha256", computedDigest)
+            .put("supplied_sha256", suppliedDigest)
+    }
     override suspend fun downloadThroughNormalSync(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject {
         val state = context.opaque as? ExpenseSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Sender fixture is unavailable for inbound sync")
