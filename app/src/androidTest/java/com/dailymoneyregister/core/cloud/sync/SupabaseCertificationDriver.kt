@@ -1,6 +1,7 @@
 package com.dailymoneyregister.core.cloud.sync
 
 import android.content.Context
+import android.os.Bundle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import com.dailymoneyregister.core.command.CommandExecutor
