@@ -159,6 +159,7 @@
     <string name="inv_pdf_bill_to">बिल प्राप्तकर्ता</string>
     <string name="inv_pdf_item_charges">प्रति आइटम - शिपिंग %1$s • पैकिंग %2$s</string>
     <string name="inv_pdf_subtotal">उप-योग</string>
+    <string name="inv_pdf_taxable_value">कर योग्य मूल्य</string>
     <string name="inv_pdf_tax">कर (%1$s%%)</string>
     <string name="inv_pdf_item_shipping">आइटम शिपिंग</string>
     <string name="inv_pdf_item_packing">आइटम पैकिंग</string>
