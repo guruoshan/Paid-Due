@@ -65,17 +65,25 @@ jobs:
             fi
           } > "$report"
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git ls-remote --exit-code --heads origin ci-results >/dev/null 2>&1; then
-            git fetch origin ci-results
-            git checkout -B ci-results origin/ci-results
-          else
-            git checkout --orphan ci-results
-            git rm -rf --ignore-unmatch .
+          if ! (
+            set -euo pipefail
+            # Gradle's chmod of gradlew changes the worktree mode; clean it before branch switch.
+            git reset --hard HEAD
+            git clean -fd
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            if git ls-remote --exit-code --heads origin ci-results >/dev/null 2>&1; then
+              git fetch origin ci-results
+              git checkout -B ci-results origin/ci-results
+            else
+              git checkout --orphan ci-results
+              git rm -rf --ignore-unmatch .
+            fi
+            mkdir -p ci-results
+            cp "$report" ci-results/compile-latest.md
+            git add ci-results/compile-latest.md
+            git commit -m "ci: publish results to ci-results branch"
+            git push --force origin HEAD:ci-results
+          ); then
+            echo "::warning::Could not publish ci-results/compile-latest.md; compile result is unchanged."
           fi
-          mkdir -p ci-results
-          cp "$report" ci-results/compile-latest.md
-          git add ci-results/compile-latest.md
-          git commit -m "ci: publish results to ci-results branch"
-          git push --force origin HEAD:ci-results
