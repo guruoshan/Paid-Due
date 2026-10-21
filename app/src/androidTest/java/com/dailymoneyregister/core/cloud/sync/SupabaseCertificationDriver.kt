@@ -222,6 +222,17 @@ class SupabaseCertificationDriver(
             check(adminClient.auth.currentSessionOrNull() != null) {
                 "AuthRepository returned success without a real Supabase Auth session"
             }
+            // Validate the signed-in token against the same server-side Admin/tenant RPC
+            // used by production sync before creating the financial operation.
+            val authenticatedScope = RemoteFinancialSyncRepository(adminClient).isAdminSessionAuthorized(
+                expectedMembershipId = membership.id,
+                expectedBusinessId = business.id,
+                expectedBranchId = branch.id
+            )
+            check(authenticatedScope) {
+                "AuthRepository login did not establish a server-verified Admin scope for " +
+                    "the fixture membership/business/branch"
+            }
             val command = ExpenseCommand(
                 operationId = OperationId("cert-expense-operation"),
                 businessId = business.id, branchId = branch.id, actorUserId = user.id,
