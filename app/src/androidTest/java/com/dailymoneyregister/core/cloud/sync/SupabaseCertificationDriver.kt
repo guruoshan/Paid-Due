@@ -26,6 +26,10 @@ import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.feature.register.data.ExpenseCategory
 import com.dailymoneyregister.feature.register.data.ExpenseCommand
 import com.dailymoneyregister.feature.register.data.RegisterRepository
+import com.dailymoneyregister.feature.reporting.data.ReportingAggregator
+import com.dailymoneyregister.feature.reporting.data.RoomReportingReadRepository
+import com.dailymoneyregister.feature.reporting.domain.ReportingPeriod
+import com.dailymoneyregister.feature.reporting.domain.ReportingScope
 import org.json.JSONObject
 
 /**
@@ -375,7 +379,41 @@ class SupabaseCertificationDriver : FinancialCertificationExecutionEngine.Driver
             )
         )
     }
-    override suspend fun actualReportsFromApp(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject = unavailable()
+    override suspend fun actualReportsFromApp(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject {
+        val state = context.opaque as? ExpenseSenderState
+            ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Expense fixture is unavailable for app reporting")
+        val reportRepository = RoomReportingReadRepository(state.sender)
+        val report = reportRepository.read(
+            ReportingScope(
+                businessId = state.business.id,
+                branchId = state.branch.id,
+                cashierUserId = null,
+                currencyCode = state.branch.currencyCode,
+                period = ReportingPeriod(
+                    fromInclusive = 0L,
+                    toExclusive = state.command.occurredAt + 1L
+                )
+            )
+        )
+        val summary = ReportingAggregator.build(report.rows)
+        return JSONObject()
+            .put("currency_unit", "minor")
+            .put("sales_minor", summary.periodSaleInflow.amount)
+            .put("refunds_minor", Math.negateExact(summary.periodRefundEffect.amount))
+            .put("voids_minor", Math.negateExact(summary.periodVoidEffect.amount))
+            .put("expenses_minor", summary.totalExpenses.amount)
+            .put("credit_repayments_minor", Math.addExact(
+                Math.addExact(summary.cashCreditRepayments.amount, summary.onlineCreditRepayments.amount),
+                summary.couponCreditRepayments.amount
+            ))
+            .put("credit_balance_minor", summary.creditOutstanding.amount)
+            .put("coupon_purchases_minor", summary.couponPurchased.amount)
+            .put("coupon_wallet_balance_minor", 0L)
+            .put("cash_open_minor", 0L)
+            .put("cash_movements_minor", 0L)
+            .put("cash_close_minor", 0L)
+            .put("payment_method_sales_minor", JSONObject())
+    }
 }
 
 private data class ExpenseSenderState(
