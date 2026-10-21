@@ -347,3 +347,6 @@ $function$;
 
 revoke all on function public.ingest_financial_envelope(text,text,text,text,text,text,integer,timestamptz,text,date,text,text,jsonb) from public, anon;
 grant execute on function public.ingest_financial_envelope(text,text,text,text,text,text,integer,timestamptz,text,date,text,text,jsonb) to authenticated;
+
+-- Make newly created public RPCs visible to the local PostgREST schema cache.
+NOTIFY pgrst, 'reload schema';
