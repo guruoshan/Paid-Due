@@ -113,6 +113,10 @@ object CashSalePayloadCodec {
             .append(d.txPacking.amount)
             .append("\n")
 
+        sb.append("taxableBaseMinor=")
+            .append(d.taxableBase.amount)
+            .append("\n")
+
         sb.append("itemCount=")
             .append(d.items.size)
             .append("\n")
@@ -408,20 +412,18 @@ object CashSalePayloadCodec {
                     .ifBlank { null }
 
             val itemPacking =
-                MoneyMinorUnits(
-                    requiredLong(
-                        map,
-                        "item[$i].itemPacking"
-                    )
-                )
+                if (schemaVersion >= CURRENT_SCHEMA_VERSION) {
+                    MoneyMinorUnits(requiredLong(map, "item[$i].itemPacking"))
+                } else {
+                    MoneyMinorUnits.ZERO
+                }
 
             val itemShipping =
-                MoneyMinorUnits(
-                    requiredLong(
-                        map,
-                        "item[$i].itemShipping"
-                    )
-                )
+                if (schemaVersion >= CURRENT_SCHEMA_VERSION) {
+                    MoneyMinorUnits(requiredLong(map, "item[$i].itemShipping"))
+                } else {
+                    MoneyMinorUnits.ZERO
+                }
 
             items.add(
                 DraftItem(
@@ -446,7 +448,7 @@ object CashSalePayloadCodec {
             taxRoundingMode = taxRoundingMode,
             txShipping = txShipping,
             txPacking = txPacking
-        )
+        ).withPersistedTaxableBase(map)
 
         val command = CashSaleCommand(
             operationId = OperationId(operationId),
