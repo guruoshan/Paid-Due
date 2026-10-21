@@ -133,9 +133,18 @@ fun InvoiceSnapshot.validationError(): String? {
     )
     if (nonNegative.any { it < 0L }) return "Invoice amounts cannot be negative"
 
+    if (schemaVersion !in 1..InvoiceSnapshotCodec.CURRENT_SCHEMA_VERSION) {
+        return "Invoice snapshot schema version is invalid"
+    }
     val hasTaxBaseMetadata = taxableBaseMinor != null || taxRoundingMode != null || taxBaseIncludesCharges != null
     if (hasTaxBaseMetadata && (taxableBaseMinor == null || taxRoundingMode == null || taxBaseIncludesCharges == null)) {
         return "Invoice tax-base metadata is incomplete"
+    }
+    if (schemaVersion >= 2 && !hasTaxBaseMetadata) {
+        return "Current invoice snapshots require tax-base metadata"
+    }
+    if (schemaVersion >= 2 && taxBaseIncludesCharges != true) {
+        return "Current invoice taxable base must include charges"
     }
 
     return try {
