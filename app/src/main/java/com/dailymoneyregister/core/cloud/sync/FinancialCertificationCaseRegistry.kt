@@ -10,8 +10,9 @@ internal object FinancialCertificationCaseRegistry {
     )
 
     val requiredStages = listOf(
-        "create_operation", "verify_outbox", "verify_envelope", "verify_digest",
-        "download", "materialize", "generate_reports", "replay", "compare_records"
+        "create_operation", "verify_outbox", "upload", "verify_envelope", "verify_digest",
+        "download", "before", "materialize", "after", "compare_records", "replay",
+        "replay-invariance", "generate_reports", "assertions"
     )
     val requiredRecordFamilies = listOf(
         "operation_and_outbox", "transaction_and_items", "settlements",
