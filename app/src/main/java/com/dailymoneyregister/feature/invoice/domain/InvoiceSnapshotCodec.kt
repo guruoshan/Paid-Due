@@ -1,5 +1,6 @@
 package com.dailymoneyregister.feature.invoice.domain
 
+import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -60,6 +61,10 @@ object InvoiceSnapshotCodec {
         root.put("grandTotalMinor", s.grandTotalMinor)
         root.put("note", s.note ?: JSONObject.NULL)
         root.put("createdAt", s.createdAt)
+        // Omit absent fields so re-encoding a legacy snapshot preserves its old payload shape.
+        s.taxableBaseMinor?.let { root.put("taxableBaseMinor", it) }
+        s.taxRoundingMode?.let { root.put("taxRoundingMode", it.name) }
+        s.taxBaseIncludesCharges?.let { root.put("taxBaseIncludesCharges", it) }
         return root.toString()
     }
 
@@ -101,20 +106,31 @@ object InvoiceSnapshotCodec {
                     quantity = i.getInt("quantity"),
                     unitPriceMinor = i.getLong("unitPriceMinor"),
                     lineTotalMinor = i.getLong("lineTotalMinor"),
-                    itemPackingMinor = i.getLong("itemPackingMinor"),
-                    itemShippingMinor = i.getLong("itemShippingMinor")
+                    itemPackingMinor = i.optLong("itemPackingMinor", 0L),
+                    itemShippingMinor = i.optLong("itemShippingMinor", 0L)
                 )
             },
             subtotalMinor = r.getLong("subtotalMinor"),
             taxRateBps = r.getInt("taxRateBps"),
             taxAmountMinor = r.getLong("taxAmountMinor"),
-            txShippingMinor = r.getLong("txShippingMinor"),
-            txPackingMinor = r.getLong("txPackingMinor"),
-            itemShippingTotalMinor = r.getLong("itemShippingTotalMinor"),
-            itemPackingTotalMinor = r.getLong("itemPackingTotalMinor"),
+            txShippingMinor = r.optLong("txShippingMinor", 0L),
+            txPackingMinor = r.optLong("txPackingMinor", 0L),
+            itemShippingTotalMinor = r.optLong("itemShippingTotalMinor", 0L),
+            itemPackingTotalMinor = r.optLong("itemPackingTotalMinor", 0L),
             grandTotalMinor = r.getLong("grandTotalMinor"),
             note = r.optNullable("note"),
-            createdAt = r.getLong("createdAt")
+            createdAt = r.getLong("createdAt"),
+            taxableBaseMinor = if (r.has("taxableBaseMinor") && !r.isNull("taxableBaseMinor")) {
+                r.getLong("taxableBaseMinor")
+            } else {
+                null
+            },
+            taxRoundingMode = r.optNullable("taxRoundingMode")?.let(TaxRoundingMode::valueOf),
+            taxBaseIncludesCharges = if (r.has("taxBaseIncludesCharges") && !r.isNull("taxBaseIncludesCharges")) {
+                r.getBoolean("taxBaseIncludesCharges")
+            } else {
+                null
+            }
         )
     }
 
