@@ -107,9 +107,22 @@ object OnlineSalePayloadCodec {
         require(occurredAt == op.occurredAt) { "Online Sale payload occurredAt does not match Operation row." }
         require(currencyCode.isNotBlank()) { "Online Sale currencyCode is blank." }
         require(decimalPlaces in 0..6) { "Online Sale currencyDecimalPlaces is invalid." }
+        val payloadVersion = requiredInt(map, "v")
         val itemCount = requiredInt(map, "itemCount")
         require(itemCount >= 0) { "Online Sale itemCount cannot be negative." }
         val items = (0 until itemCount).map { index ->
+            val packingKey = "item[$index].itemPacking"
+            val shippingKey = "item[$index].itemShipping"
+            val itemPacking = if (payloadVersion >= CURRENT_SCHEMA_VERSION || map.containsKey(packingKey)) {
+                MoneyMinorUnits(requiredLong(map, packingKey))
+            } else {
+                MoneyMinorUnits.ZERO
+            }
+            val itemShipping = if (payloadVersion >= CURRENT_SCHEMA_VERSION || map.containsKey(shippingKey)) {
+                MoneyMinorUnits(requiredLong(map, shippingKey))
+            } else {
+                MoneyMinorUnits.ZERO
+            }
             DraftItem(
                 id = required(map, "item[$index].id"),
                 name = required(map, "item[$index].name"),
@@ -117,8 +130,8 @@ object OnlineSalePayloadCodec {
                 unitPrice = MoneyMinorUnits(requiredLong(map, "item[$index].unitPrice")),
                 quantity = requiredInt(map, "item[$index].qty"),
                 barcode = required(map, "item[$index].barcode").ifBlank { null },
-                itemPackingCharge = MoneyMinorUnits(requiredLong(map, "item[$index].itemPacking")),
-                itemShippingCharge = MoneyMinorUnits(requiredLong(map, "item[$index].itemShipping"))
+                itemPackingCharge = itemPacking,
+                itemShippingCharge = itemShipping
             )
         }
         val command = OnlineSaleCommand(
