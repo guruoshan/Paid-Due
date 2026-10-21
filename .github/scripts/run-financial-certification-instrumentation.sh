@@ -94,7 +94,9 @@ mkdir -p certification-artifacts
 adb logcat -d -t 20000 | grep -E 'PaidDueFinancialSync|RemoteFinancialSync|RemoteBusinessRestorer|AuthRepository|FATAL EXCEPTION|AndroidJUnitRunner|Test run failed' | tail -400 > certification-artifacts/financial-certification-logcat.txt || true
 
 pull_status=0
-if [[ "$test_status" -eq 0 ]] && adb shell "test -f '$device_evidence_path/manifest.json'"; then
+# Pull a manifest even when JUnit assertions fail: the engine writes stage evidence
+# before the test asserts PASS, and CI must preserve that honest BLOCKED/FAIL diagnosis.
+if adb shell "test -f '$device_evidence_path/manifest.json'"; then
   adb pull "$device_evidence_path" certification-artifacts/financial-certification-evidence || pull_status=$?
 else
   echo "::error::Certification test did not produce a manifest at $device_evidence_path."
