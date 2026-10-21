@@ -1,3 +1,10 @@
+/*
+ * Admin sync requires: (1) Supabase Auth's persisted signed-in access/refresh-token session;
+ * (2) SessionManager's active local user and membership both have role ADMIN;
+ * (3) the session user/membership/business/branch IDs match the same active cloud tenant rows;
+ * (4) public.profiles.auth_user_id links to auth.uid(), and the profile is active;
+ * (5) public.business_memberships is active ADMIN with no staff_identity_id, under active business/branch.
+ */
 package com.dailymoneyregister.core.cloud.sync
 
 import android.content.Context
