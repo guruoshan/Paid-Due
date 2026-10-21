@@ -3,7 +3,25 @@ package com.dailymoneyregister.core.cloud.sync
 import android.content.Context
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.core.app.ApplicationProvider
+import com.dailymoneyregister.core.command.CommandExecutor
+import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.entity.BranchEntity
+import com.dailymoneyregister.core.database.entity.BusinessEntity
+import com.dailymoneyregister.core.database.entity.UserAccountEntity
+import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
+import com.dailymoneyregister.core.model.enums.AuthType
+import com.dailymoneyregister.core.model.enums.OperationStatus
+import com.dailymoneyregister.core.model.enums.PaymentCategory
+import com.dailymoneyregister.core.model.enums.PaymentChannel
+import com.dailymoneyregister.core.model.enums.UserRole
+import com.dailymoneyregister.core.model.ids.OperationId
+import com.dailymoneyregister.core.security.ActiveSession
+import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.feature.register.data.ExpenseCategory
+import com.dailymoneyregister.feature.register.data.ExpenseCommand
+import com.dailymoneyregister.feature.register.data.RegisterRepository
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
@@ -64,6 +82,80 @@ class TwoDatabaseFinancialCertificationTest {
         }
     }
 
+
+
+    @Test
+    fun realExpenseCommandExecutesOnSenderAndDoesNotAppearOnIndependentReceiver() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val sender = DmrDatabase.createInMemory(context)
+        val receiver = DmrDatabase.createInMemory(context)
+        val business = BusinessEntity("cert-business", "Certification Business", 0L, 0L)
+        val branch = BranchEntity(
+            id = "cert-branch", businessId = business.id, name = "Main", code = "MAIN",
+            countryCode = "OM", currencyCode = "OMR", currencyDecimalPlaces = 3,
+            currencySymbol = "OMR", timezoneId = "Asia/Muscat", createdAt = 0L, updatedAt = 0L
+        )
+        val user = UserAccountEntity(
+            id = "cert-cashier", businessId = business.id, displayName = "Certification Cashier",
+            username = "cert_cashier", role = UserRole.CASHIER, authType = AuthType.PIN,
+            credentialHash = "test-hash", credentialSalt = "test-salt", createdAt = 0L, updatedAt = 0L
+        )
+        val membership = UserBranchMembershipEntity(
+            id = "cert-membership", userId = user.id, branchId = branch.id, role = UserRole.CASHIER,
+            canCreateSale = true, canAcceptCash = true, canAcceptOnline = true,
+            canCreateCreditSale = true, canUseCoupon = true, canRefund = true, createdAt = 0L
+        )
+        try {
+            sender.businessBranchDao().insertBusiness(business)
+            sender.businessBranchDao().insertBranch(branch)
+            sender.userDao().insertUser(user)
+            sender.userDao().insertMembership(membership)
+            SessionManager.setSession(ActiveSession(business, branch, user, membership))
+
+            val command = ExpenseCommand(
+                operationId = OperationId("cert-expense-operation"),
+                businessId = business.id,
+                branchId = branch.id,
+                actorUserId = user.id,
+                expenseId = "cert-expense",
+                amountMinor = 1250L,
+                currencyCode = branch.currencyCode,
+                category = ExpenseCategory.SUPPLIES,
+                paymentCategory = PaymentCategory.CASH,
+                paymentChannel = PaymentChannel.CASH_TENDER,
+                payeeNameSnapshot = "Certification Supplier",
+                reference = "CERT-EXPENSE",
+                note = "Synthetic certification fixture",
+                deviceId = "cert-device-a",
+                occurredAt = 1_800_000_000_000L
+            )
+            val repository = RegisterRepository(sender, CommandExecutor(sender))
+            val result = repository.executeExpense(command)
+            assertTrue("Real repository command failed: $result", result is CommandResult.Success)
+
+            val operation = sender.operationDao().getOperationById(command.operationId.value)
+            assertTrue("The command must persist a successful authoritative operation", operation != null)
+            assertEquals(OperationStatus.SUCCEEDED, operation!!.status)
+            val expense = sender.expenseDao().getExpenseByOperationId(command.operationId.value)
+            assertTrue("The real command path must persist the expense", expense != null)
+            assertEquals(1250L, expense!!.amountMinor)
+
+            assertEquals(
+                "An independent receiver must not contain sender data before normal sync/materialization",
+                null,
+                receiver.operationDao().getOperationById(command.operationId.value)
+            )
+            assertEquals(
+                "An independent receiver must not contain the sender expense before materialization",
+                null,
+                receiver.expenseDao().getExpenseByOperationId(command.operationId.value)
+            )
+        } finally {
+            SessionManager.clearSession()
+            sender.close()
+            receiver.close()
+        }
+    }
 
     @Test
     fun parityAssertionReportsExactFinancialFieldMismatch() {
