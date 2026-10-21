@@ -107,7 +107,7 @@ class SupabaseCertificationDriver(
                 .put("code", "MAIN").put("country_code", "OM").put("currency_code", "OMR")
                 .put("currency_decimal_places", 3).put("currency_symbol", "OMR")
                 .put("timezone_id", "Asia/Muscat").put("is_active", true))
-        localHttpJson("$url/rest/v1/profiles", service, service,
+        localHttpJson("$url/rest/v1/profiles?on_conflict=auth_user_id", service, service,
             JSONObject().put("auth_user_id", authUserId).put("email", email)
                 .put("display_name", "Certification Admin").put("is_active", true))
         localHttpJson("$url/rest/v1/business_memberships", service, service,
