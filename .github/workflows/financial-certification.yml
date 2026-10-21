@@ -71,7 +71,9 @@ jobs:
           # isolated schema/RPC fixtures. This prevents any production endpoint or production data.
           CERT_PROJECT="$RUNNER_TEMP/financial-certification-supabase"
           mkdir -p "$CERT_PROJECT/supabase/migrations"
-          cp "$GITHUB_WORKSPACE/supabase/config.toml" "$CERT_PROJECT/supabase/config.toml"
+          cat > "$CERT_PROJECT/supabase/config.toml" <<'EOF'
+          project_id = "paid-due-financial-certification-local"
+          EOF
           cd "$CERT_PROJECT"
           supabase start
           supabase status -o env > "$RUNNER_TEMP/supabase-status.env"
