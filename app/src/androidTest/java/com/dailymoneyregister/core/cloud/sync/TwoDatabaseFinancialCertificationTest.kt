@@ -55,7 +55,7 @@ class TwoDatabaseFinancialCertificationTest {
             val parity = FinancialParityAssertions.compare(snapshotA, snapshotB)
             assertTrue("Fresh independent database schemas should have equal authoritative rows", parity.passed)
 
-            val engine = FinancialCertificationExecutionEngine(MissingDriver(missingIntegration), "blocked-schema-probe", "instrumentation")
+            val engine = FinancialCertificationExecutionEngine(FinancialCertificationDriverSelector(missingIntegration), "blocked-schema-probe", "instrumentation")
             val result = engine.executeAll()
             assertEquals(13, result.operations.size)
             assertFalse("No operation may be marked PASS without live execution", result.passed)
