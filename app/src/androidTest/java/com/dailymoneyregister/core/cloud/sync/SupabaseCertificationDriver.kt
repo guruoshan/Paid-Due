@@ -204,6 +204,14 @@ class SupabaseCertificationDriver(
                 database.userDao().insertUser(user)
                 database.userDao().insertMembership(membership)
             }
+            // Sign in through the real local Supabase Auth API before local login. This
+            // keeps token acquisition outside AuthRepository's offline-first timeout; the
+            // production AuthRepository still owns the local Admin session installation.
+            val remoteSignIn = RemoteAdminAuthRepository(adminClient).signIn(admin.email, admin.password)
+            check(remoteSignIn is com.dailymoneyregister.core.cloud.RemoteAdminAuthResult.Authenticated &&
+                remoteSignIn.authUserId == authUserId) {
+                "Local Supabase Auth did not issue a real session for the throwaway Admin"
+            }
             val authRepository = AuthRepository(
                 database = sender,
                 pinThrottler = PinThrottler(appContext),
