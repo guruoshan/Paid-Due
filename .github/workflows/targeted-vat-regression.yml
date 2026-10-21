@@ -1,0 +1,98 @@
+name: Targeted VAT regression tests
+
+on:
+  push:
+    branches: [fix/vat-taxable-base-and-recovery-compat]
+    paths:
+      - '.github/workflows/targeted-vat-regression.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: targeted-vat-regression-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  targeted-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up JDK 17
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+      - name: Install Android SDK 37
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          set -o pipefail
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "emulator" "system-images;android-36;google_apis;x86_64"
+          ln -sfn "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
+      - name: Start isolated Android API 36 emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          export ANDROID_USER_HOME="$HOME/.android"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --name paid-due-api36 --package "system-images;android-36;google_apis;x86_64" \
+            --device pixel_2 --force
+          adb start-server
+          if [[ -e /dev/kvm ]]; then sudo chmod 666 /dev/kvm; fi
+          nohup "$ANDROID_HOME/emulator/emulator" -avd paid-due-api36 \
+            -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel auto \
+            > "$RUNNER_TEMP/paid-due-emulator.log" 2>&1 &
+          if ! timeout 180 adb wait-for-device; then
+            cat "$RUNNER_TEMP/paid-due-emulator.log" || true
+            exit 1
+          fi
+          booted=""
+          for attempt in $(seq 1 90); do
+            booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+            if [[ "$booted" == "1" ]]; then break; fi
+            sleep 5
+          done
+          [[ "$booted" == "1" ]] || {
+            cat "$RUNNER_TEMP/paid-due-emulator.log"
+            echo "::error::Android emulator did not finish booting."
+            exit 1
+          }
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+      - name: Run only VAT and payload compatibility unit tests
+        run: |
+          ./gradlew --no-daemon :app:testDebugUnitTest \
+            --tests com.dailymoneyregister.feature.register.domain.DraftStateTest \
+            --tests com.dailymoneyregister.feature.invoice.InvoiceSnapshotTest
+      - name: Run only affected financial instrumentation classes
+        run: |
+          ./gradlew --no-daemon :app:connectedDebugAndroidTest \
+            -Pandroid.testInstrumentationRunnerArguments.class=com.dailymoneyregister.CashSaleFinancialCharacterizationTest,com.dailymoneyregister.CreditSaleFinancialIntegrationTest,com.dailymoneyregister.OnlineSaleFinancialIntegrationTest,com.dailymoneyregister.RegisterIntegrationTest
+      - name: Upload targeted test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: targeted-vat-regression-reports-\${{ github.run_id }}
+          path: |
+            app/build/reports/androidTests/connected/debug
+            app/build/outputs/androidTest-results/connected/debug
+            app/build/test-results/testDebugUnitTest
+          if-no-files-found: warn
+          retention-days: 7
