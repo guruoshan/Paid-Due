@@ -265,7 +265,10 @@ class SupabaseCertificationDriver(
             // Expense admission assigns an immutable cashier shift and can open one as a
             // legitimate local prerequisite. Seed that same pre-existing shift baseline on
             // the receiver so parity measures the downloaded expense, not unrelated setup.
-            operation.cashShiftId?.let { shiftId ->
+            val expenseShiftId = sender.expenseDao()
+                .getExpenseByOperationId(command.operationId.value)
+                ?.cashShiftId
+            expenseShiftId?.let { shiftId ->
                 copyCashShiftBaseline(sender, receiver, shiftId)
             }
             return FinancialCertificationExecutionEngine.OperationContext(
