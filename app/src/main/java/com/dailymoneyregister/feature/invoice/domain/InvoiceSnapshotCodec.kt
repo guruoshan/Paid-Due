@@ -12,7 +12,7 @@ import org.json.JSONObject
  */
 object InvoiceSnapshotCodec {
 
-    const val CURRENT_SCHEMA_VERSION = 1
+    const val CURRENT_SCHEMA_VERSION = 2
 
     fun encode(s: InvoiceSnapshot): String {
         val root = JSONObject()
@@ -71,7 +71,7 @@ object InvoiceSnapshotCodec {
     fun decode(json: String): InvoiceSnapshot {
         val r = JSONObject(json)
         val version = r.getInt("schemaVersion")
-        require(version == CURRENT_SCHEMA_VERSION) {
+        require(version in 1..CURRENT_SCHEMA_VERSION) {
             "Unsupported invoice snapshot schema version: $version"
         }
 
