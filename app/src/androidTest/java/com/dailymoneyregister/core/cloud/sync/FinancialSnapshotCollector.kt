@@ -43,11 +43,10 @@ object FinancialSnapshotCollector {
         val tables = JSONObject()
         tableSpecs.forEach { spec ->
             val rows = JSONArray()
-            val sql = "SELECT * FROM `" + spec.table + "`" +
-                (if (operationId == null) "" else " WHERE " + whereClause(spec.table)) +
-                " ORDER BY `" + spec.primaryKey + "`"
-            val args = if (operationId == null) emptyArray() else argsFor(spec.table, operationId)
-            database.query(sql, args).use { cursor ->
+            // Capture the full authoritative table set. This avoids silently omitting linked
+            // rows whose relationship column differs by entity; operationId remains run metadata.
+            val sql = "SELECT * FROM `" + spec.table + "` ORDER BY `" + spec.primaryKey + "`"
+            database.query(sql, emptyArray()).use { cursor ->
                 val columns = (0 until cursor.columnCount).map { cursor.getColumnName(it) }
                 require(spec.primaryKey in columns) {
                     "Snapshot schema mismatch: " + spec.table + " has no primary key column " + spec.primaryKey
