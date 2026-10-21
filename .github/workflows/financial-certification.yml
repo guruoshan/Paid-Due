@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'app/src/test/java/com/dailymoneyregister/core/cloud/sync/FinancialCertificationCaseRegistry.kt'
+      - 'app/src/main/java/com/dailymoneyregister/core/cloud/sync/FinancialCertificationCaseRegistry.kt'
       - 'app/src/test/java/com/dailymoneyregister/core/cloud/sync/FinancialCertificationCaseRegistryTest.kt'
       - 'app/src/androidTest/java/com/dailymoneyregister/core/cloud/sync/**'
       - 'docs/financial-certification/**'
