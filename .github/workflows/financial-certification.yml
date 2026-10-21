@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: financial-certification-contract-${{ github.ref }}
@@ -31,7 +31,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          persist-credentials: false
+          persist-credentials: true
       - name: Set up JDK 17
         uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v4.7.1
         with:
@@ -143,7 +143,108 @@ jobs:
 
       - name: Run two-database certification instrumentation test and collect evidence
         shell: bash
-        run: bash .github/scripts/run-financial-certification-instrumentation.sh
+        run: |
+          set +e
+          bash .github/scripts/run-financial-certification-instrumentation.sh 2>&1 | tee "$RUNNER_TEMP/financial-certification-script.log"
+          script_status=${PIPESTATUS[0]}
+          exit "$script_status"
+
+      - name: Publish financial certification result to ci-results branch
+        if: always()
+        shell: bash
+        env:
+          TESTED_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          report="$RUNNER_TEMP/cert-latest.md"
+          export MANIFEST_PATH="$GITHUB_WORKSPACE/certification-artifacts/financial-certification-evidence/manifest.json"
+          export EVIDENCE_ROOT="$GITHUB_WORKSPACE/certification-artifacts/financial-certification-evidence"
+          export SCRIPT_LOG="$RUNNER_TEMP/financial-certification-script.log"
+          {
+            echo "# Latest financial certification result"
+            echo
+            echo "- Commit SHA: $TESTED_COMMIT_SHA"
+            echo "- Time (UTC): $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > "$report"
+
+          python3 - <<'PY' >> "$report"
+          import json, os
+          from pathlib import Path
+          manifest_path = Path(os.environ["MANIFEST_PATH"])
+          root = Path(os.environ["EVIDENCE_ROOT"])
+          if not manifest_path.is_file():
+              print("- overall_status: MANIFEST_MISSING")
+              print()
+              print("## Operation results")
+              print("No manifest was collected. Instrumentation may have failed before evidence collection.")
+              raise SystemExit(0)
+          try:
+              manifest = json.loads(manifest_path.read_text())
+          except Exception as exc:
+              print("- overall_status: MANIFEST_INVALID")
+              print(f"- manifest parse error: {exc}")
+              raise SystemExit(0)
+          print(f"- overall_status: {manifest.get('overall_status', 'MISSING')}")
+          print()
+          print("## Operation results")
+          stage_files = {
+              "verify_outbox": "outbox.json", "upload": "envelope.json",
+              "verify_digest": "digest-check.json", "download": "download.json",
+              "before": "before.json", "after": "after.json",
+              "replay": "replay.json", "generate_reports": "reports.json",
+          }
+          operations = manifest.get("operations", [])
+          for operation in operations:
+              op_type = operation.get("operation_type", "<unknown>")
+              op_dir = root / op_type
+              assertions = {}
+              try:
+                  assertions = json.loads((op_dir / "assertions.json").read_text())
+              except Exception:
+                  pass
+              print(f"### {op_type}")
+              print(f"- status: {operation.get('status', 'MISSING')}")
+              print(f"- failure reason: {assertions.get('failure') or 'none recorded'}")
+              for stage, filename in stage_files.items():
+                  try:
+                      stage_data = json.loads((op_dir / filename).read_text())
+                      status = stage_data.get("status", "MISSING")
+                      detail = stage_data.get("detail")
+                      if stage == "replay" and status == "MISSING":
+                          status = stage_data.get("replay", {}).get("status", "MISSING")
+                          detail = stage_data.get("replay", {}).get("detail", detail)
+                      print(f"- {stage}: {status}" + (f" — {detail}" if detail else ""))
+                  except Exception:
+                      print(f"- {stage}: MISSING")
+              print()
+          if not operations:
+              print("No operation entries were present in the manifest.")
+          PY
+
+          {
+            echo "## Last 40 lines of certification script log"
+            echo '```text'
+            if [[ -f "$SCRIPT_LOG" ]]; then tail -40 "$SCRIPT_LOG"; else echo "No script log was produced."; fi
+            echo '```'
+          } >> "$report"
+
+          # Diagnostic publishing must not alter the original job result.
+          (
+            set -euo pipefail
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            if git ls-remote --exit-code --heads origin ci-results >/dev/null 2>&1; then
+              git fetch origin ci-results
+              git checkout -B ci-results origin/ci-results
+            else
+              git checkout --orphan ci-results
+              git rm -rf --ignore-unmatch .
+            fi
+            mkdir -p ci-results
+            cp "$report" ci-results/cert-latest.md
+            git add ci-results/cert-latest.md
+            git commit -m "ci: publish results to ci-results branch"
+            git push --force origin HEAD:ci-results
+          ) || echo "::warning::Could not publish ci-results/cert-latest.md; certification result is unchanged."
 
       - name: Upload Android test reports on failure
         if: failure() && hashFiles('app/build/reports/androidTests/connected/debug/**', 'app/build/outputs/androidTest-results/connected/debug/**', 'app/build/test-results/testDebugUnitTest/**/*.xml') != ''
