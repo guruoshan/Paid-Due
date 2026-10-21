@@ -323,7 +323,35 @@ class SupabaseCertificationDriver : FinancialCertificationExecutionEngine.Driver
             FinancialSnapshotCollector.capture(state.receiver, context.operationId)
         )
     }
-    override suspend fun replayOnReceiver(context: FinancialCertificationExecutionEngine.OperationContext, downloadedEnvelope: JSONObject): JSONObject = unavailable()
+    override suspend fun replayOnReceiver(context: FinancialCertificationExecutionEngine.OperationContext, downloadedEnvelope: JSONObject): JSONObject {
+        val state = context.opaque as? ExpenseSenderState
+            ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Receiver fixture is unavailable for replay")
+        val canonicalText = downloadedEnvelope.optString("canonical_text")
+        if (canonicalText.isBlank()) {
+            throw FinancialCertificationExecutionEngine.BlockedDependency("Downloaded envelope has no canonical payload for replay")
+        }
+        val envelope = RemoteEnvelopeV2(
+            operationId = downloadedEnvelope.getString("operation_id"),
+            businessId = downloadedEnvelope.getString("business_id"),
+            branchId = downloadedEnvelope.optString("branch_id").ifBlank { null },
+            operationType = downloadedEnvelope.getString("operation_type"),
+            occurredAtIso = downloadedEnvelope.getString("occurred_at"),
+            receivedAtIso = downloadedEnvelope.getString("received_at"),
+            canonicalText = canonicalText,
+            payloadJson = JSONObject(canonicalText),
+            canonicalSha256 = downloadedEnvelope.optString("canonical_sha256").ifBlank { null }
+        )
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database = state.receiver,
+            envelope = envelope,
+            sessionBusinessId = state.business.id,
+            sessionBranchId = null
+        )
+        check(result == InboundProcessResult.Skipped) {
+            "Replaying the same real envelope was not skipped: $result"
+        }
+        return JSONObject().put("result", "Skipped").put("operation_id", envelope.operationId)
+    }
     override suspend fun snapshotReceiverAfterReplay(context: FinancialCertificationExecutionEngine.OperationContext): String = unavailable()
     override suspend fun expectedFixture(context: FinancialCertificationExecutionEngine.OperationContext): List<FinancialReportOracle.Entry> = unavailable()
     override suspend fun actualReportsFromApp(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject = unavailable()
