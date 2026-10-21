@@ -36,13 +36,15 @@ import org.json.JSONObject
  * Certification driver skeleton. Every stage intentionally fails closed until its real
  * application-path implementation is added in follow-up commits.
  */
-class SupabaseCertificationDriver : FinancialCertificationExecutionEngine.Driver {
+class SupabaseCertificationDriver(
+    private val arguments: Bundle = InstrumentationRegistry.getArguments()
+) : FinancialCertificationExecutionEngine.Driver {
     // Repository RPC inventory: ingest_financial_envelope, restore_admin_by_auth_id,
     // fetch_financial_envelopes_v3, and legacy fetch_financial_envelopes. The repository
     // calls no tables or storage buckets directly; RPC migrations reference businesses,
     // branches, profiles, business_memberships, and private.financial_operation_envelopes.
     private fun localSupabase(): Boolean {
-        val args = InstrumentationRegistry.getArguments()
+        val args = arguments
         val url = args.getString("supabase_url")?.trim().orEmpty()
         val anon = args.getString("supabase_anon_key")?.trim().orEmpty()
         val service = args.getString("supabase_service_role_key")?.trim().orEmpty()
@@ -428,9 +430,9 @@ private data class ExpenseSenderState(
 
 /** Selects only explicitly supported operations; all others remain honestly blocked. */
 class FinancialCertificationDriverSelector(
-    private val missingReason: String
+    private val missingReason: String,
+    private val expense: FinancialCertificationExecutionEngine.Driver = SupabaseCertificationDriver()
 ) : FinancialCertificationExecutionEngine.Driver {
-    private val expense = SupabaseCertificationDriver()
     private val missing = MissingCertificationDriver(missingReason)
 
     private fun forType(type: String): FinancialCertificationExecutionEngine.Driver =
