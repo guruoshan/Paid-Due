@@ -32,7 +32,6 @@ object FinancialSnapshotCollector {
         TableSpec("coupon_ledger_events", "id"),
         TableSpec("cash_shifts", "id"),
         TableSpec("cash_shift_events", "id"),
-        TableSpec("financial_sync_outbox", "id")
     )
 
     fun capture(database: DmrDatabase, runId: String, operationId: String? = null): String =
@@ -65,6 +64,7 @@ object FinancialSnapshotCollector {
                 .put("row_count", rows.length())
                 .put("rows", rows))
         }
+        if (operationId != null) filterToOperation(tables, operationId)
         return canonical(JSONObject()
             .put("schema_version", 1)
             .put("run_id", runId)
@@ -72,28 +72,78 @@ object FinancialSnapshotCollector {
             .put("tables", tables))
     }
 
-    private fun whereClause(table: String): String = when (table) {
-        "operations", "financial_sync_outbox" -> "id = ? OR operation_id = ?"
-        "transactions" -> "id = ? OR id IN (SELECT transaction_id FROM operations WHERE id = ?)"
-        "transaction_items", "settlement_entries", "refund_events", "void_events",
-        "amount_correction_events", "payment_method_change_events" ->
-            "transaction_id IN (SELECT transaction_id FROM operations WHERE id = ?) OR operation_id = ?"
-        "expenses" -> "operation_id = ? OR id IN (SELECT subject_id FROM operations WHERE id = ?)"
-        "expense_events" -> "operation_id = ? OR expense_id IN (SELECT id FROM expenses WHERE operation_id = ?)"
-        "credit_repayments", "credit_repayment_allocations", "credit_ledger_events",
-        "coupon_wallets", "coupon_ledger_events", "cash_shifts", "cash_shift_events" ->
-            "operation_id = ? OR id = ?"
-        else -> "id = ?"
-    }
+    /**
+     * Keep the operation and all rows linked through stable transaction, expense,
+     * customer, and cash-shift identifiers. Relationships are read from the actual
+     * entity rows rather than inferred from report aggregates.
+     */
+    private fun filterToOperation(tables: JSONObject, operationId: String) {
+        val operationRows = tables.optJSONObject("operations")?.optJSONArray("rows") ?: JSONArray()
+        val operation = (0 until operationRows.length()).map { operationRows.getJSONObject(it) }
+            .firstOrNull { it.optString("id") == operationId }
+        val transactionIds = mutableSetOf<String>()
+        val expenseIds = mutableSetOf<String>()
+        val customerIds = mutableSetOf<String>()
+        val shiftIds = mutableSetOf<String>()
+        operation?.optString("transaction_id")?.takeIf { it.isNotBlank() }?.let(transactionIds::add)
+        operation?.optString("cash_shift_id")?.takeIf { it.isNotBlank() }?.let(shiftIds::add)
+        operation?.optString("subject_id")?.takeIf { it.isNotBlank() }?.let(expenseIds::add)
 
-    private fun argsFor(table: String, operationId: String): Array<String> =
-        if (table in setOf("operations", "financial_sync_outbox", "transactions", "transaction_items",
-                "settlement_entries", "refund_events", "void_events", "amount_correction_events",
-                "payment_method_change_events", "expenses", "expense_events", "credit_repayments",
-                "credit_repayment_allocations", "credit_ledger_events", "coupon_wallets",
-                "coupon_ledger_events", "cash_shifts", "cash_shift_events")) {
-            arrayOf(operationId, operationId)
-        } else arrayOf(operationId)
+        val transactions = tables.optJSONObject("transactions")?.optJSONArray("rows") ?: JSONArray()
+        for (i in 0 until transactions.length()) {
+            val row = transactions.getJSONObject(i)
+            if (row.optString("id") in transactionIds || row.optString("operation_id") == operationId) {
+                row.optString("id").takeIf { it.isNotBlank() }?.let(transactionIds::add)
+                row.optString("customer_id").takeIf { it.isNotBlank() }?.let(customerIds::add)
+            }
+        }
+        val expenses = tables.optJSONObject("expenses")?.optJSONArray("rows") ?: JSONArray()
+        for (i in 0 until expenses.length()) {
+            val row = expenses.getJSONObject(i)
+            if (row.optString("operation_id") == operationId || row.optString("id") in expenseIds) {
+                row.optString("id").takeIf { it.isNotBlank() }?.let(expenseIds::add)
+            }
+        }
+        val shifts = tables.optJSONObject("cash_shifts")?.optJSONArray("rows") ?: JSONArray()
+        for (i in 0 until shifts.length()) {
+            val row = shifts.getJSONObject(i)
+            if (row.optString("id") in shiftIds || row.optString("operation_id") == operationId) {
+                row.optString("id").takeIf { it.isNotBlank() }?.let(shiftIds::add)
+            }
+        }
+
+        val transactionTables = setOf("transactions", "transaction_items", "settlement_entries",
+            "refund_events", "void_events", "amount_correction_events", "payment_method_change_events")
+        val expenseTables = setOf("expenses", "expense_events")
+        val customerTables = setOf("credit_repayments", "credit_repayment_allocations",
+            "credit_ledger_events", "coupon_wallets", "coupon_ledger_events")
+        val shiftTables = setOf("cash_shifts", "cash_shift_events")
+        tableSpecs.forEach { spec ->
+            val tableObject = tables.getJSONObject(spec.table)
+            val source = tableObject.getJSONArray("rows")
+            val kept = JSONArray()
+            for (i in 0 until source.length()) {
+                val row = source.getJSONObject(i)
+                val keep = when (spec.table) {
+                    "operations" -> row.optString("id") == operationId
+                    in transactionTables -> row.optString("operation_id") == operationId ||
+                        row.optString("id") in transactionIds || row.optString("transaction_id") in transactionIds
+                    in expenseTables -> row.optString("operation_id") == operationId ||
+                        row.optString("id") in expenseIds || row.optString("expense_id") in expenseIds
+                    in customerTables -> row.optString("operation_id") == operationId ||
+                        row.optString("customer_id") in customerIds ||
+                        row.optString("repayment_id") in transactionIds ||
+                        row.optString("transaction_id") in transactionIds
+                    in shiftTables -> row.optString("operation_id") == operationId ||
+                        row.optString("id") in shiftIds || row.optString("shift_id") in shiftIds ||
+                        row.optString("cash_shift_id") in shiftIds
+                    else -> row.optString("operation_id") == operationId || row.optString("id") == operationId
+                }
+                if (keep) kept.put(row)
+            }
+            tableObject.put("rows", kept).put("row_count", kept.length())
+        }
+    }
 
     private fun cursorValue(cursor: Cursor, index: Int): Any = when (cursor.getType(index)) {
         Cursor.FIELD_TYPE_NULL -> JSONObject.NULL
