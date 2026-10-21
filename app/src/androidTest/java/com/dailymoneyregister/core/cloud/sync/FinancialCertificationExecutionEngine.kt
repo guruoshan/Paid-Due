@@ -128,7 +128,29 @@ class FinancialCertificationExecutionEngine(
             pass("replay-invariance", JSONObject().put("passed", true)
                 .put("before_sha256", sha256(receiverSnapshot)).put("after_sha256", sha256(afterReplay)))
 
-            val oracle = FinancialReportOracle.calculate(driver.expectedFixture(activeContext))
+            val fixture = driver.expectedFixture(activeContext)
+            require(fixture.isNotEmpty()) { "Independent report oracle fixture is empty" }
+            require(fixture.any { it.operationType == operationType }) {
+                "Independent fixture does not cover operation type " + operationType
+            }
+            val oracle = FinancialReportOracle.calculate(fixture)
+            val requiredAssertion = when (operationType) {
+                "RECORD_SALE" -> "sale-funding-conservation"
+                "RECORD_REFUND" -> "refund-limit"
+                "RECORD_VOID" -> "void-limit"
+                "RECORD_EXPENSE" -> "expense-create-conservation"
+                "RECORD_CREDIT_REPAYMENT" -> "credit-balance-conservation"
+                "RECORD_COUPON_PURCHASE" -> "coupon-wallet-conservation"
+                "RECORD_PAYMENT_METHOD_CHANGE" -> "payment-method-value-conservation"
+                "RECORD_AMOUNT_CORRECTION" -> "correction-delta"
+                "OPEN_CASH_SHIFT" -> "cash-opening"
+                "COUNT_CASH_SHIFT", "CLOSE_CASH_SHIFT" -> "cash-shift-conservation"
+                "RECORD_EXPENSE_CORRECTION", "RECORD_EXPENSE_VOID" -> "expense-reconciliation"
+                else -> error("No conservation assertion defined for " + operationType)
+            }
+            require(oracle.assertions.any { it.name.endsWith(requiredAssertion) }) {
+                "Fixture lacks required conservation assertion " + requiredAssertion
+            }
             require(oracle.passed) { "Independent conservation assertions failed: " +
                 oracle.assertions.filterNot { it.passed }.joinToString { it.name + ": " + it.detail } }
             val actualReports = driver.actualReportsFromApp(activeContext)
