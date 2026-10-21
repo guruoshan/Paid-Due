@@ -412,14 +412,14 @@ object CashSalePayloadCodec {
                     .ifBlank { null }
 
             val itemPacking =
-                if (schemaVersion >= CURRENT_SCHEMA_VERSION) {
+                if (schemaVersion >= LEGACY_BACKSLASH_SCHEMA_VERSION) {
                     MoneyMinorUnits(requiredLong(map, "item[$i].itemPacking"))
                 } else {
                     MoneyMinorUnits.ZERO
                 }
 
             val itemShipping =
-                if (schemaVersion >= CURRENT_SCHEMA_VERSION) {
+                if (schemaVersion >= LEGACY_BACKSLASH_SCHEMA_VERSION) {
                     MoneyMinorUnits(requiredLong(map, "item[$i].itemShipping"))
                 } else {
                     MoneyMinorUnits.ZERO
