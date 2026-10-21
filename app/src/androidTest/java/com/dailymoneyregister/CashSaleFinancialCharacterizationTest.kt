@@ -62,6 +62,46 @@ class CashSaleFinancialCharacterizationTest {
     }
 
     @Test
+    fun legacyV3ItemizedPayloadPreservesChargesWithoutRepricingTax() {
+        val draft = DraftState(
+            items = listOf(
+                DraftItem(
+                    id = "legacy-item",
+                    name = "Tea",
+                    unitPrice = MoneyMinorUnits(2000L),
+                    quantity = 2,
+                    itemPackingCharge = MoneyMinorUnits(100L),
+                    itemShippingCharge = MoneyMinorUnits(50L)
+                )
+            ),
+            taxRateBps = 500,
+            isTaxEnabled = true,
+            taxRoundingMode = TaxRoundingMode.HALF_UP,
+            txShipping = MoneyMinorUnits(300L),
+            txPacking = MoneyMinorUnits(200L),
+            taxableBaseOverride = MoneyMinorUnits(4000L)
+        )
+        val currentPayload = CashSalePayloadCodec.encode(
+            v3Command("op-v3-tax-compat", "tx-v3-tax-compat").copy(draftState = draft)
+        )
+        val legacyV3Payload = currentPayload.lineSequence()
+            .filterNot {
+                it.startsWith("customerName=") ||
+                    it.startsWith("customerPhone=") ||
+                    it.startsWith("taxableBaseMinor=")
+            }
+            .joinToString("\\n", postfix = "\\n")
+            .replaceFirst("v=4", "v=3")
+
+        val decoded = CashSalePayloadCodec.decode(legacyV3Payload)
+        assertEquals(MoneyMinorUnits(4000L), decoded.draftState.taxableBase)
+        assertEquals(MoneyMinorUnits(200L), decoded.draftState.taxAmount)
+        assertEquals(MoneyMinorUnits(5000L), decoded.draftState.grandTotal)
+        assertEquals(MoneyMinorUnits(200L), decoded.draftState.itemPackingTotal)
+        assertEquals(MoneyMinorUnits(100L), decoded.draftState.itemShippingTotal)
+    }
+
+    @Test
     fun captureNormalV3() {
         runBlocking {
             val operationId = "op-normal-v3"
