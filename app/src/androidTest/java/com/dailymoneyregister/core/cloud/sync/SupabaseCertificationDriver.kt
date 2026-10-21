@@ -550,7 +550,7 @@ class SupabaseCertificationDriver(
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Receiver fixture is unavailable for replay-invariance snapshot")
         // capture() already returns canonical JSON; wrapping that String with canonical()
         // would JSON-quote the entire document and make replay parity parse a JSON string.
-        return FinancialSnapshotCollector.capture(state.receiver, context.operationId)
+        return FinancialSnapshotCollector.capture(state.receiver, context.operationId, context.operationId)
     }
     override suspend fun expectedFixture(context: FinancialCertificationExecutionEngine.OperationContext): List<FinancialReportOracle.Entry> {
         val state = context.opaque as? ExpenseSenderState
