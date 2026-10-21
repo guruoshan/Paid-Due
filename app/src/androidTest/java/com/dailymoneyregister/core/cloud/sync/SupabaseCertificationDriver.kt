@@ -190,7 +190,59 @@ class SupabaseCertificationDriver : FinancialCertificationExecutionEngine.Driver
         )
     }
     override suspend fun verifyEnvelopeAndDigest(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject = unavailable()
-    override suspend fun downloadThroughNormalSync(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject = unavailable()
+    override suspend fun downloadThroughNormalSync(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject {
+        val state = context.opaque as? ExpenseSenderState
+            ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Sender fixture is unavailable for inbound sync")
+        val args = InstrumentationRegistry.getArguments()
+        val url = args.getString("supabase_url")?.trim().orEmpty()
+        val anon = args.getString("supabase_anon_key")?.trim().orEmpty()
+        if (url.isBlank() || anon.isBlank()) {
+            throw FinancialCertificationExecutionEngine.BlockedDependency("Local Supabase URL/anon key missing for normal download")
+        }
+        val supabase = createSupabaseClient(supabaseUrl = url, supabaseKey = anon) {
+            install(Postgrest)
+            install(Realtime)
+            install(Auth) {
+                scheme = "paiddue"
+                host = "invite"
+            }
+        }
+        val repository = RemoteFinancialSyncRepository(supabase)
+        val syncEngine = FinancialSyncEngine(
+            database = state.receiver,
+            remoteSyncRepository = repository,
+            inboundEnvelopeApplier = MaterializingInboundEnvelopeApplier()
+        )
+        // Use the production inbound orchestration; no direct table writes or fake receipt.
+        val applied = syncEngine.syncInbound(
+            businessId = state.business.id,
+            adminAccountId = state.user.id
+        )
+        val downloaded = repository.fetchRemoteEnvelopesV2(
+            businessId = state.business.id,
+            afterReceivedAt = null,
+            afterOperationId = null,
+            limit = 100
+        ).firstOrNull { it.operationId == context.operationId }
+            ?: throw FinancialCertificationExecutionEngine.BlockedDependency(
+                "Normal inbound sync did not expose the expense envelope for verification"
+            )
+        if (applied < 1 && state.receiver.operationDao().getOperationById(context.operationId) == null) {
+            throw FinancialCertificationExecutionEngine.BlockedDependency(
+                "Normal inbound sync did not materialize the expense on the receiver"
+            )
+        }
+        return JSONObject()
+            .put("downloaded", true)
+            .put("operation_id", downloaded.operationId)
+            .put("business_id", downloaded.businessId)
+            .put("branch_id", downloaded.branchId)
+            .put("operation_type", downloaded.operationType)
+            .put("occurred_at", downloaded.occurredAtIso)
+            .put("received_at", downloaded.receivedAtIso)
+            .put("canonical_text", downloaded.canonicalText)
+            .put("canonical_sha256", downloaded.canonicalSha256)
+    }
     override suspend fun snapshotSender(context: FinancialCertificationExecutionEngine.OperationContext): String = unavailable()
     override suspend fun materializeOnReceiver(context: FinancialCertificationExecutionEngine.OperationContext, downloadedEnvelope: JSONObject): JSONObject = unavailable()
     override suspend fun snapshotReceiver(context: FinancialCertificationExecutionEngine.OperationContext): String = unavailable()
