@@ -452,7 +452,7 @@ class SupabaseCertificationDriver(
             .put("command_schema_version", outbox.commandSchemaVersion)
     }
     override suspend fun uploadThroughNormalSync(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject {
-        val state = context.opaque as? ExpenseSenderState
+        val state = context.opaque as? CertificationSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Sender fixture is unavailable for outbound sync")
         // Reuse the signed-in anon-key client; a new client would lose its in-memory Auth session.
         val supabase = state.supabaseClient
@@ -545,7 +545,7 @@ class SupabaseCertificationDriver(
             .put("supplied_sha256", suppliedDigest)
     }
     override suspend fun downloadThroughNormalSync(context: FinancialCertificationExecutionEngine.OperationContext, envelope: JSONObject): JSONObject {
-        val state = context.opaque as? ExpenseSenderState
+        val state = context.opaque as? CertificationSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Sender fixture is unavailable for inbound sync")
         // Keep the certification receiver empty for the separately measured materialization stage.
         // The production inbound engine runs unchanged against a third disposable probe database.
@@ -589,12 +589,12 @@ class SupabaseCertificationDriver(
             .put("canonical_sha256", downloaded.canonicalSha256 ?: "")
     }
     override suspend fun snapshotSender(context: FinancialCertificationExecutionEngine.OperationContext): String {
-        val state = context.opaque as? ExpenseSenderState
+        val state = context.opaque as? CertificationSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Sender fixture is unavailable for snapshot")
         return FinancialSnapshotCollector.capture(state.sender, context.operationId, context.operationId)
     }
     override suspend fun materializeOnReceiver(context: FinancialCertificationExecutionEngine.OperationContext, downloadedEnvelope: JSONObject): JSONObject {
-        val state = context.opaque as? ExpenseSenderState
+        val state = context.opaque as? CertificationSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Receiver fixture is unavailable for materialization")
         val canonicalText = downloadedEnvelope.optString("canonical_text")
         if (canonicalText.isBlank()) {
@@ -630,12 +630,12 @@ class SupabaseCertificationDriver(
             .put("operation_type", envelope.operationType)
     }
     override suspend fun snapshotReceiver(context: FinancialCertificationExecutionEngine.OperationContext): String {
-        val state = context.opaque as? ExpenseSenderState
+        val state = context.opaque as? CertificationSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Receiver fixture is unavailable for snapshot")
         return FinancialSnapshotCollector.capture(state.receiver, context.operationId, context.operationId)
     }
     override suspend fun replayOnReceiver(context: FinancialCertificationExecutionEngine.OperationContext, downloadedEnvelope: JSONObject): JSONObject {
-        val state = context.opaque as? ExpenseSenderState
+        val state = context.opaque as? CertificationSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Receiver fixture is unavailable for replay")
         val canonicalText = downloadedEnvelope.optString("canonical_text")
         if (canonicalText.isBlank()) {
@@ -664,14 +664,14 @@ class SupabaseCertificationDriver(
         return JSONObject().put("result", "Skipped").put("operation_id", envelope.operationId)
     }
     override suspend fun snapshotReceiverAfterReplay(context: FinancialCertificationExecutionEngine.OperationContext): String {
-        val state = context.opaque as? ExpenseSenderState
+        val state = context.opaque as? CertificationSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Receiver fixture is unavailable for replay-invariance snapshot")
         // capture() already returns canonical JSON; wrapping that String with canonical()
         // would JSON-quote the entire document and make replay parity parse a JSON string.
         return FinancialSnapshotCollector.capture(state.receiver, context.operationId, context.operationId)
     }
     override suspend fun expectedFixture(context: FinancialCertificationExecutionEngine.OperationContext): List<FinancialReportOracle.Entry> {
-        val state = context.opaque as? ExpenseSenderState
+        val state = context.opaque as? CertificationSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Expense fixture is unavailable for report oracle")
         if (context.operationType == "RECORD_EXPENSE") {
             val expense = state.sender.expenseDao().getExpenseByOperationId(context.operationId)
@@ -706,7 +706,7 @@ class SupabaseCertificationDriver(
         )
     }
     override suspend fun actualReportsFromApp(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject {
-        val state = context.opaque as? ExpenseSenderState
+        val state = context.opaque as? CertificationSenderState
             ?: throw FinancialCertificationExecutionEngine.BlockedDependency("Expense fixture is unavailable for app reporting")
         val reportRepository = RoomReportingReadRepository(state.sender)
         val report = reportRepository.read(
