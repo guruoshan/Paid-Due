@@ -75,6 +75,14 @@ jobs:
           : "${API_URL:?Supabase status did not provide API_URL}"
           : "${ANON_KEY:?Supabase status did not provide ANON_KEY}"
           : "${SERVICE_ROLE_KEY:?Supabase status did not provide SERVICE_ROLE_KEY}"
+          # The authenticated digest-bearing download RPC is still staged, not a production
+          # migration. Install its unchanged auth/digest contract only in this disposable local DB.
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client
+          fi
+          DB_URL="${DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f .github/fixtures/financial-certification-local-rpcs.sql
           echo "::add-mask::$ANON_KEY"
           echo "::add-mask::$SERVICE_ROLE_KEY"
           # Emulator loopback maps to the host through 10.0.2.2.
