@@ -1,7 +1,26 @@
 package com.dailymoneyregister.core.cloud.sync
 
-import android.os.Bundle
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
+import com.dailymoneyregister.core.command.CommandExecutor
+import com.dailymoneyregister.core.command.CommandResult
+import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.entity.BranchEntity
+import com.dailymoneyregister.core.database.entity.BusinessEntity
+import com.dailymoneyregister.core.database.entity.UserAccountEntity
+import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
+import com.dailymoneyregister.core.model.enums.AuthType
+import com.dailymoneyregister.core.model.enums.OperationStatus
+import com.dailymoneyregister.core.model.enums.PaymentCategory
+import com.dailymoneyregister.core.model.enums.PaymentChannel
+import com.dailymoneyregister.core.model.enums.UserRole
+import com.dailymoneyregister.core.model.ids.OperationId
+import com.dailymoneyregister.core.security.ActiveSession
+import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.feature.register.data.ExpenseCategory
+import com.dailymoneyregister.feature.register.data.ExpenseCommand
+import com.dailymoneyregister.feature.register.data.RegisterRepository
 import org.json.JSONObject
 
 /**
@@ -31,8 +50,71 @@ class SupabaseCertificationDriver : FinancialCertificationExecutionEngine.Driver
         throw FinancialCertificationExecutionEngine.BlockedDependency("not implemented yet")
 
     override suspend fun createOnSender(operationType: String): FinancialCertificationExecutionEngine.OperationContext {
+        if (operationType != "RECORD_EXPENSE") {
+            throw FinancialCertificationExecutionEngine.BlockedDependency("This real driver currently supports RECORD_EXPENSE only")
+        }
         localSupabase()
-        return unavailable()
+        // Reuse the established single-operation expense fixture, with fresh in-memory Room
+        // databases so this stage cannot read or write production or a user's business data.
+        val appContext = ApplicationProvider.getApplicationContext<Context>()
+        val sender = DmrDatabase.createInMemory(appContext)
+        val receiver = DmrDatabase.createInMemory(appContext)
+        val business = BusinessEntity("cert-business", "Certification Business", 0L, 0L)
+        val branch = BranchEntity(
+            id = "cert-branch", businessId = business.id, name = "Main", code = "MAIN",
+            countryCode = "OM", currencyCode = "OMR", currencyDecimalPlaces = 3,
+            currencySymbol = "OMR", timezoneId = "Asia/Muscat", createdAt = 0L, updatedAt = 0L
+        )
+        val user = UserAccountEntity(
+            id = "cert-cashier", businessId = business.id, displayName = "Certification Cashier",
+            username = "cert_cashier", role = UserRole.CASHIER, authType = AuthType.PIN,
+            credentialHash = "test-hash", credentialSalt = "test-salt", createdAt = 0L, updatedAt = 0L
+        )
+        val membership = UserBranchMembershipEntity(
+            id = "cert-membership", userId = user.id, branchId = branch.id, role = UserRole.CASHIER,
+            canCreateSale = true, canAcceptCash = true, canAcceptOnline = true,
+            canCreateCreditSale = true, canUseCoupon = true, canRefund = true, createdAt = 0L
+        )
+        try {
+            listOf(sender, receiver).forEach { database ->
+                database.businessBranchDao().insertBusiness(business)
+                database.businessBranchDao().insertBranch(branch)
+                database.userDao().insertUser(user)
+                database.userDao().insertMembership(membership)
+            }
+            SessionManager.setSession(ActiveSession(business, branch, user, membership))
+            val command = ExpenseCommand(
+                operationId = OperationId("cert-expense-operation"),
+                businessId = business.id, branchId = branch.id, actorUserId = user.id,
+                expenseId = "cert-expense", amountMinor = 1250L, currencyCode = branch.currencyCode,
+                category = ExpenseCategory.SUPPLIES, paymentCategory = PaymentCategory.CASH,
+                paymentChannel = PaymentChannel.CASH_TENDER, payeeNameSnapshot = "Certification Supplier",
+                reference = "CERT-EXPENSE", note = "Synthetic certification fixture",
+                deviceId = "cert-device-a", occurredAt = 1_800_000_000_000L
+            )
+            val result = RegisterRepository(sender, CommandExecutor(sender)).executeExpense(command)
+            if (result !is CommandResult.Success) {
+                throw IllegalStateException("Real expense command failed: $result")
+            }
+            val operation = sender.operationDao().getOperationById(command.operationId.value)
+                ?: error("Real expense command did not persist its operation")
+            check(operation.status == OperationStatus.SUCCEEDED) {
+                "Real expense operation status was ${operation.status}"
+            }
+            check(sender.expenseDao().getExpenseByOperationId(command.operationId.value) != null) {
+                "Real expense command did not persist its expense"
+            }
+            return FinancialCertificationExecutionEngine.OperationContext(
+                operationType = operationType,
+                operationId = command.operationId.value,
+                opaque = ExpenseSenderState(sender, receiver, business, branch, user, membership, command)
+            )
+        } catch (error: Throwable) {
+            SessionManager.clearSession()
+            sender.close()
+            receiver.close()
+            throw error
+        }
     }
     override suspend fun verifyOutbox(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject = unavailable()
     override suspend fun uploadThroughNormalSync(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject = unavailable()
@@ -46,6 +128,16 @@ class SupabaseCertificationDriver : FinancialCertificationExecutionEngine.Driver
     override suspend fun expectedFixture(context: FinancialCertificationExecutionEngine.OperationContext): List<FinancialReportOracle.Entry> = unavailable()
     override suspend fun actualReportsFromApp(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject = unavailable()
 }
+
+private data class ExpenseSenderState(
+    val sender: DmrDatabase,
+    val receiver: DmrDatabase,
+    val business: BusinessEntity,
+    val branch: BranchEntity,
+    val user: UserAccountEntity,
+    val membership: UserBranchMembershipEntity,
+    val command: ExpenseCommand
+)
 
 /** Selects only explicitly supported operations; all others remain honestly blocked. */
 class FinancialCertificationDriverSelector(
