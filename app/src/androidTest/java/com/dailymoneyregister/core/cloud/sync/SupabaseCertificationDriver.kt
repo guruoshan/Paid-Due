@@ -408,7 +408,6 @@ class SupabaseCertificationDriver(
             check(sender.transactionDao().getTransactionById(command.transactionIdVal.value) != null) {
                 "Real sale command did not persist its transaction"
             }
-            operation.cashShiftId?.let { shiftId -> copyCashShiftBaseline(sender, receiver, shiftId) }
             return FinancialCertificationExecutionEngine.OperationContext(
                 operationType = "RECORD_SALE",
                 operationId = command.operationId.value,
@@ -565,9 +564,6 @@ class SupabaseCertificationDriver(
                 else -> error("Unsupported cash-shift operation " + operationType)
             }
 
-            if (operationType != "OPEN_CASH_SHIFT") {
-                copyCashShiftBaseline(sender, receiver, shiftId.value, targetOperationId)
-            }
             return FinancialCertificationExecutionEngine.OperationContext(
                 operationType = operationType,
                 operationId = targetOperationId,
@@ -840,8 +836,13 @@ class SupabaseCertificationDriver(
             restored.userId == state.user.id) {
             "Production receiver Admin restoration failed: $restored"
         }
-        val shiftId = state.sender.expenseDao().getExpenseByOperationId(context.operationId)?.cashShiftId
-        shiftId?.let { copyCashShiftBaseline(state.sender, state.receiver, it) }
+        val baselineShiftId = when (context.operationType) {
+            "COUNT_CASH_SHIFT", "CLOSE_CASH_SHIFT" -> state.subjectId
+            else -> state.sender.operationDao().getOperationById(context.operationId)?.cashShiftId
+        }
+        baselineShiftId?.let {
+            copyCashShiftBaseline(state.sender, state.receiver, it, context.operationId)
+        }
         val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
             database = state.receiver,
             envelope = envelope,
