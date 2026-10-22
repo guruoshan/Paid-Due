@@ -177,12 +177,12 @@ jobs:
         env:
           TESTED_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          report="$RUNNER_TEMP/cert-latest.md"
+          report="$RUNNER_TEMP/cert.md"
           export MANIFEST_PATH="$GITHUB_WORKSPACE/certification-artifacts/financial-certification-evidence/manifest.json"
           export EVIDENCE_ROOT="$GITHUB_WORKSPACE/certification-artifacts/financial-certification-evidence"
           export SCRIPT_LOG="$RUNNER_TEMP/financial-certification-script.log"
           {
-            echo "# Latest financial certification result"
+            echo "# Financial certification result"
             echo
             echo "- Commit SHA: $TESTED_COMMIT_SHA"
             echo "- Time (UTC): $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
@@ -264,9 +264,27 @@ jobs:
               git checkout --orphan ci-results
               git rm -rf --ignore-unmatch .
             fi
-            mkdir -p ci-results
-            cp "$report" ci-results/cert-latest.md
-            git add ci-results/cert-latest.md
-            git commit -m "ci: publish results to ci-results branch"
+            result_dir="ci-results/$TESTED_COMMIT_SHA"
+            mkdir -p "$result_dir"
+            cp "$report" "$result_dir/cert.md"
+            compile_report="$result_dir/compile.md"
+            {
+              echo "# Compile and build result"
+              echo
+              echo "- Commit SHA: $TESTED_COMMIT_SHA"
+              echo "- Time (UTC): $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+              if [[ -f "$SCRIPT_LOG" ]] && grep -q "BUILD SUCCESSFUL" "$SCRIPT_LOG"; then
+                echo "- compile_status: PASS"
+                grep -E "BUILD SUCCESSFUL|BUILD FAILED" "$SCRIPT_LOG" | tail -10 || true
+              elif [[ -f "$SCRIPT_LOG" ]] && grep -q "BUILD FAILED" "$SCRIPT_LOG"; then
+                echo "- compile_status: FAIL"
+                grep -E "BUILD SUCCESSFUL|BUILD FAILED" "$SCRIPT_LOG" | tail -10 || true
+              else
+                echo "- compile_status: NOT_RECORDED"
+                echo "- detail: No Gradle build summary found in the certification script log."
+              fi
+            } > "$compile_report"
+            git add "$result_dir/cert.md" "$result_dir/compile.md"
+            git commit -m "ci: publish certification result for $TESTED_COMMIT_SHA"
             git push --force origin HEAD:ci-results
-          ) || echo "::warning::Could not publish ci-results/cert-latest.md; certification result is unchanged."
+          ) || echo "::warning::Could not publish SHA-scoped ci-results reports; certification result is unchanged."
