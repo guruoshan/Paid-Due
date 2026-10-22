@@ -111,8 +111,13 @@ class SupabaseCertificationDriver(
         )
         val authUserId = createdUser.optString("id").takeIf { it.isNotBlank() }
             ?: error("Local Supabase Auth admin endpoint returned no user ID")
-        val businessId = "cert-business"
-        val branchId = "cert-branch"
+        // Scope each fixture to its own throwaway Auth identity. The workflow shares one
+        // disposable local Supabase process across JUnit methods, so fixed tenant IDs would
+        // let one test's membership/envelopes contaminate the next test's actor resolution.
+        val fixtureSuffix = authUserId.replace("-", "").take(12)
+        val businessId = "cert-business-$fixtureSuffix"
+        val branchId = "cert-branch-$fixtureSuffix"
+        val membershipId = "cert-membership-$fixtureSuffix"
         localHttpJson("$url/rest/v1/businesses", service, service,
             JSONObject().put("id", businessId).put("name", "Certification Business").put("is_active", true))
         localHttpJson("$url/rest/v1/branches", service, service,
@@ -124,7 +129,7 @@ class SupabaseCertificationDriver(
             JSONObject().put("auth_user_id", authUserId).put("email", email)
                 .put("display_name", "Certification Admin").put("is_active", true))
         localHttpJson("$url/rest/v1/business_memberships", service, service,
-            JSONObject().put("id", "cert-membership").put("business_id", businessId)
+            JSONObject().put("id", membershipId).put("business_id", businessId)
                 .put("branch_id", branchId).put("auth_user_id", authUserId).put("local_user_id", authUserId)
                 .put("role", "ADMIN").put("is_active", true).put("staff_identity_id", JSONObject.NULL)
                 .put("can_create_sale", true).put("can_accept_cash", true).put("can_accept_online", true)
@@ -174,6 +179,8 @@ class SupabaseCertificationDriver(
         throw FinancialCertificationExecutionEngine.BlockedDependency("not implemented yet")
 
     override suspend fun createOnSender(operationType: String): FinancialCertificationExecutionEngine.OperationContext {
+        // SessionManager is process-wide; clear any prior test/operation's Admin before login.
+        SessionManager.clearSession()
         if (operationType == "RECORD_SALE") return createSaleOnSender()
         if (operationType != "RECORD_EXPENSE") {
             throw FinancialCertificationExecutionEngine.BlockedDependency("This real driver currently supports RECORD_EXPENSE and RECORD_SALE only")
@@ -187,9 +194,10 @@ class SupabaseCertificationDriver(
         val sender = DmrDatabase.createInMemory(appContext)
         val receiver = DmrDatabase.createInMemory(appContext)
         val downloadProbe = DmrDatabase.createInMemory(appContext)
-        val business = BusinessEntity("cert-business", "Certification Business", 0L, 0L)
+        val fixtureSuffix = authUserId.replace("-", "").take(12)
+        val business = BusinessEntity("cert-business-$fixtureSuffix", "Certification Business", 0L, 0L)
         val branch = BranchEntity(
-            id = "cert-branch", businessId = business.id, name = "Main", code = "MAIN",
+            id = "cert-branch-$fixtureSuffix", businessId = business.id, name = "Main", code = "MAIN",
             countryCode = "OM", currencyCode = "OMR", currencyDecimalPlaces = 3,
             currencySymbol = "OMR", timezoneId = "Asia/Muscat", createdAt = 0L, updatedAt = 0L
         )
@@ -201,7 +209,7 @@ class SupabaseCertificationDriver(
             credentialSalt = localPasswordSalt, createdAt = 0L, updatedAt = 0L
         )
         val membership = UserBranchMembershipEntity(
-            id = "cert-membership", userId = user.id, branchId = branch.id, role = UserRole.ADMIN,
+            id = "cert-membership-$fixtureSuffix", userId = user.id, branchId = branch.id, role = UserRole.ADMIN,
             canCreateSale = true, canAcceptCash = true, canAcceptOnline = true,
             canCreateCreditSale = true, canUseCoupon = true, canRefund = true, createdAt = 0L
         )
@@ -300,9 +308,10 @@ class SupabaseCertificationDriver(
         val sender = DmrDatabase.createInMemory(appContext)
         val receiver = DmrDatabase.createInMemory(appContext)
         val downloadProbe = DmrDatabase.createInMemory(appContext)
-        val business = BusinessEntity("cert-business", "Certification Business", 0L, 0L)
+        val fixtureSuffix = authUserId.replace("-", "").take(12)
+        val business = BusinessEntity("cert-business-$fixtureSuffix", "Certification Business", 0L, 0L)
         val branch = BranchEntity(
-            id = "cert-branch", businessId = business.id, name = "Main", code = "MAIN",
+            id = "cert-branch-$fixtureSuffix", businessId = business.id, name = "Main", code = "MAIN",
             countryCode = "OM", currencyCode = "OMR", currencyDecimalPlaces = 3,
             currencySymbol = "OMR", timezoneId = "Asia/Muscat", createdAt = 0L, updatedAt = 0L
         )
@@ -314,7 +323,7 @@ class SupabaseCertificationDriver(
             credentialSalt = localPasswordSalt, createdAt = 0L, updatedAt = 0L
         )
         val membership = UserBranchMembershipEntity(
-            id = "cert-membership", userId = user.id, branchId = branch.id, role = UserRole.ADMIN,
+            id = "cert-membership-$fixtureSuffix", userId = user.id, branchId = branch.id, role = UserRole.ADMIN,
             canCreateSale = true, canAcceptCash = true, canAcceptOnline = true,
             canCreateCreditSale = true, canUseCoupon = true, canRefund = true, createdAt = 0L
         )
