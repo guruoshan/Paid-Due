@@ -39,6 +39,7 @@ import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.enums.PaymentChannel
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.model.ids.OperationId
+import com.dailymoneyregister.core.model.ids.CashShiftId
 import com.dailymoneyregister.core.model.ids.TransactionId
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.security.ActiveSession
@@ -189,6 +190,9 @@ class SupabaseCertificationDriver(
         // SessionManager is process-wide; clear any prior test/operation's Admin before login.
         SessionManager.clearSession()
         if (operationType == "RECORD_SALE") return createSaleOnSender()
+        if (operationType in setOf("OPEN_CASH_SHIFT", "COUNT_CASH_SHIFT", "CLOSE_CASH_SHIFT")) {
+            return createCashShiftOnSender(operationType)
+        }
         if (operationType != "RECORD_EXPENSE") {
             throw FinancialCertificationExecutionEngine.BlockedDependency("This real driver currently supports RECORD_EXPENSE and RECORD_SALE only")
         }
@@ -423,14 +427,174 @@ class SupabaseCertificationDriver(
      * Copy only the already-existing shift prerequisite produced during local command admission.
      * The tested envelope remains the sole source for the expense under certification.
      */
+    private suspend fun createCashShiftOnSender(
+        operationType: String
+    ): FinancialCertificationExecutionEngine.OperationContext {
+        val admin = createAuthenticatedAdmin()
+        val adminClient = admin.supabaseClient
+        val authUserId = admin.authUserId
+        val appContext = ApplicationProvider.getApplicationContext<Context>()
+        val sender = DmrDatabase.createInMemory(appContext)
+        val receiver = DmrDatabase.createInMemory(appContext)
+        val downloadProbe = DmrDatabase.createInMemory(appContext)
+        val fixtureSuffix = authUserId.replace("-", "").take(12)
+        val business = BusinessEntity("cert-business-$fixtureSuffix", "Certification Business", 0L, 0L)
+        val branch = BranchEntity(
+            id = "cert-branch-$fixtureSuffix", businessId = business.id, name = "Main", code = "MAIN",
+            countryCode = "OM", currencyCode = "OMR", currencyDecimalPlaces = 3,
+            currencySymbol = "OMR", timezoneId = "Asia/Muscat", createdAt = 0L, updatedAt = 0L
+        )
+        val salt = PasswordHasher.generateSalt()
+        val user = UserAccountEntity(
+            id = authUserId, businessId = business.id, displayName = "Certification Admin",
+            username = admin.email, role = UserRole.ADMIN, authType = AuthType.PASSWORD,
+            credentialHash = PasswordHasher.hashPassword(admin.password, salt),
+            credentialSalt = salt, createdAt = 0L, updatedAt = 0L
+        )
+        val membership = UserBranchMembershipEntity(
+            id = "cert-membership-$fixtureSuffix", userId = user.id, branchId = branch.id, role = UserRole.ADMIN,
+            canCreateSale = true, canAcceptCash = true, canAcceptOnline = true,
+            canCreateCreditSale = true, canUseCoupon = true, canRefund = true, createdAt = 0L
+        )
+        try {
+            listOf(sender, downloadProbe).forEach { database ->
+                database.businessBranchDao().insertBusiness(business)
+                database.businessBranchDao().insertBranch(branch)
+                database.userDao().insertUser(user)
+                database.userDao().insertMembership(membership)
+            }
+            val remoteSignIn = RemoteAdminAuthRepository(adminClient).signIn(admin.email, admin.password)
+            check(remoteSignIn is com.dailymoneyregister.core.cloud.RemoteAdminAuthResult.Authenticated &&
+                remoteSignIn.authUserId == authUserId) {
+                "Local Supabase Auth did not issue a real session for cash-shift fixture"
+            }
+            val authRepository = AuthRepository(
+                database = sender,
+                pinThrottler = PinThrottler(appContext),
+                languageManager = LanguageManager(appContext),
+                trustedSessionStore = TrustedSessionStore(appContext),
+                remoteBusinessRestorer = RemoteBusinessRestorer(
+                    database = sender,
+                    supabase = adminClient,
+                    remoteAdminAuthRepository = RemoteAdminAuthRepository(adminClient)
+                )
+            )
+            val login = authRepository.loginAdmin(admin.email, admin.password)
+            check(login is AuthResult.Success && login.session.user.id == authUserId) {
+                "Real AuthRepository Admin login failed for cash-shift fixture: " + login
+            }
+            check(adminClient.auth.currentSessionOrNull() != null) {
+                "Cash-shift certification has no real Supabase Auth session"
+            }
+            check(RemoteFinancialSyncRepository(adminClient).isAdminSessionAuthorized(
+                expectedMembershipId = membership.id,
+                expectedBusinessId = business.id,
+                expectedBranchId = branch.id
+            )) { "Cash-shift fixture Admin scope is not server-authorized" }
+
+            val repository = RegisterRepository(sender, CommandExecutor(sender))
+            val occurredAt = System.currentTimeMillis()
+            val shiftId = CashShiftId("cert-shift-$fixtureSuffix")
+            val openCommand = OpenRegisterShiftCommand(
+                operationId = OperationId("cert-open-$fixtureSuffix"),
+                businessId = business.id,
+                branchId = branch.id,
+                shiftId = shiftId,
+                actorUserId = user.id,
+                deviceId = "cert-device-a",
+                occurredAt = occurredAt
+            )
+            val opened = repository.openRegisterShift(openCommand)
+            check(opened is CommandResult.Success) {
+                "Real OPEN_CASH_SHIFT prerequisite failed: " + opened
+            }
+
+            val targetOccurredAt = occurredAt + 1L
+            val targetOperationId: String
+            when (operationType) {
+                "OPEN_CASH_SHIFT" -> {
+                    targetOperationId = openCommand.operationId.value
+                }
+                "COUNT_CASH_SHIFT" -> {
+                    val count = CountRegisterShiftCommand(
+                        operationId = OperationId("cert-count-$fixtureSuffix"),
+                        businessId = business.id,
+                        branchId = branch.id,
+                        shiftId = shiftId,
+                        countedCashMinor = 0L,
+                        actorUserId = user.id,
+                        deviceId = "cert-device-a",
+                        occurredAt = targetOccurredAt
+                    )
+                    val counted = repository.countRegisterShift(count)
+                    check(counted is CommandResult.Success) {
+                        "Real COUNT_CASH_SHIFT command failed: " + counted
+                    }
+                    targetOperationId = count.operationId.value
+                }
+                "CLOSE_CASH_SHIFT" -> {
+                    val count = CountRegisterShiftCommand(
+                        operationId = OperationId("cert-count-$fixtureSuffix"),
+                        businessId = business.id,
+                        branchId = branch.id,
+                        shiftId = shiftId,
+                        countedCashMinor = 0L,
+                        actorUserId = user.id,
+                        deviceId = "cert-device-a",
+                        occurredAt = targetOccurredAt
+                    )
+                    val counted = repository.countRegisterShift(count)
+                    check(counted is CommandResult.Success) {
+                        "Real COUNT_CASH_SHIFT prerequisite failed for close: " + counted
+                    }
+                    val close = CloseRegisterShiftCommand(
+                        operationId = OperationId("cert-close-$fixtureSuffix"),
+                        businessId = business.id,
+                        branchId = branch.id,
+                        shiftId = shiftId,
+                        actorUserId = user.id,
+                        deviceId = "cert-device-a",
+                        occurredAt = targetOccurredAt + 1L
+                    )
+                    val closed = repository.closeRegisterShift(close)
+                    check(closed is CommandResult.Success) {
+                        "Real CLOSE_CASH_SHIFT command failed: " + closed
+                    }
+                    targetOperationId = close.operationId.value
+                }
+                else -> error("Unsupported cash-shift operation " + operationType)
+            }
+
+            if (operationType != "OPEN_CASH_SHIFT") {
+                copyCashShiftBaseline(sender, receiver, shiftId.value, targetOperationId)
+            }
+            return FinancialCertificationExecutionEngine.OperationContext(
+                operationType = operationType,
+                operationId = targetOperationId,
+                opaque = ShiftSenderState(
+                    sender, receiver, downloadProbe, business, branch, user, membership,
+                    adminClient, admin.password, targetOccurredAt + 2L, shiftId.value
+                )
+            )
+        } catch (error: Throwable) {
+            SessionManager.clearSession()
+            sender.close()
+            receiver.close()
+            downloadProbe.close()
+            throw error
+        }
+    }
+
     private suspend fun copyCashShiftBaseline(
         source: DmrDatabase,
         destination: DmrDatabase,
-        shiftId: String
+        shiftId: String,
+        excludeOperationId: String? = null
     ) {
         val shift = source.cashShiftDao().getShiftById(shiftId)
             ?: error("Financial operation references missing sender cash shift " + shiftId)
         val events = source.cashShiftDao().getEventsForShift(shiftId)
+            .filterNot { it.operationId == excludeOperationId }
         val eventOperations = events.map { event ->
             source.operationDao().getOperationById(event.operationId)
                 ?: error("Cash-shift event " + event.id + " references missing operation " + event.operationId)
@@ -767,6 +931,17 @@ class SupabaseCertificationDriver(
                 )
             )
         }
+        if (context.operationType in setOf("OPEN_CASH_SHIFT", "COUNT_CASH_SHIFT", "CLOSE_CASH_SHIFT")) {
+            return listOf(
+                FinancialReportOracle.Entry(
+                    operationType = context.operationType,
+                    amountMinor = 0L,
+                    cashOpeningMinor = 0L,
+                    cashMovementsMinor = 0L,
+                    cashClosingMinor = 0L
+                )
+            )
+        }
         val sale = state.sender.transactionDao().getTransactionById(state.subjectId)
             ?: throw IllegalStateException("Authoritative sale transaction is missing from sender")
         val fundedMinor = state.sender.openHelper.readableDatabase.query(
@@ -882,6 +1057,20 @@ private data class ExpenseSenderState(
     override val commandOccurredAt: Long get() = command.occurredAt
     override val subjectId: String get() = command.expenseId
 }
+
+private data class ShiftSenderState(
+    override val sender: DmrDatabase,
+    override val receiver: DmrDatabase,
+    override val downloadProbe: DmrDatabase,
+    override val business: BusinessEntity,
+    override val branch: BranchEntity,
+    override val user: UserAccountEntity,
+    override val membership: UserBranchMembershipEntity,
+    override val supabaseClient: SupabaseClient,
+    override val adminPassword: String,
+    override val commandOccurredAt: Long,
+    override val subjectId: String
+) : CertificationSenderState
 
 private data class SaleSenderState(
     override val sender: DmrDatabase,
