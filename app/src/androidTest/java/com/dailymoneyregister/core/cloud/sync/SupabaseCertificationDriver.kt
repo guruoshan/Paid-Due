@@ -56,8 +56,10 @@ import com.dailymoneyregister.feature.reporting.domain.ReportingScope
 import org.json.JSONObject
 
 /**
- * Certification driver skeleton. Every stage intentionally fails closed until its real
- * application-path implementation is added in follow-up commits.
+ * Actor validation reads cloud_staff_identities by local_user_id + business_id + branch_id,
+ * and compares that local_user_id with the operation payload's actor_user_id.
+ * Production DefaultStaffIdentitySync fills cloud_staff_identities from EmployeeDirectoryCloudSource
+ * for CASHIER identities; Admin actors on a fresh device are restored by RemoteBusinessRestorer.
  */
 class SupabaseCertificationDriver(
     private val arguments: Bundle = InstrumentationRegistry.getArguments()
@@ -204,7 +206,9 @@ class SupabaseCertificationDriver(
             canCreateCreditSale = true, canUseCoupon = true, canRefund = true, createdAt = 0L
         )
         try {
-            listOf(sender, receiver, downloadProbe).forEach { database ->
+            // Sender and download probe have an existing Admin session. Keep receiver fresh;
+            // its Admin identity must arrive through the production restoration path.
+            listOf(sender, downloadProbe).forEach { database ->
                 database.businessBranchDao().insertBusiness(business)
                 database.businessBranchDao().insertBranch(branch)
                 database.userDao().insertUser(user)
@@ -274,13 +278,11 @@ class SupabaseCertificationDriver(
             val expenseShiftId = sender.expenseDao()
                 .getExpenseByOperationId(command.operationId.value)
                 ?.cashShiftId
-            expenseShiftId?.let { shiftId ->
-                copyCashShiftBaseline(sender, receiver, shiftId)
-            }
+            // Receiver is restored at materialization time; copy its pre-existing shift baseline then.
             return FinancialCertificationExecutionEngine.OperationContext(
                 operationType = operationType,
                 operationId = command.operationId.value,
-                opaque = ExpenseSenderState(sender, receiver, downloadProbe, business, branch, user, membership, command, adminClient)
+                opaque = ExpenseSenderState(sender, receiver, downloadProbe, business, branch, user, membership, command, adminClient, admin.password)
             )
         } catch (error: Throwable) {
             SessionManager.clearSession()
@@ -317,7 +319,9 @@ class SupabaseCertificationDriver(
             canCreateCreditSale = true, canUseCoupon = true, canRefund = true, createdAt = 0L
         )
         try {
-            listOf(sender, receiver, downloadProbe).forEach { database ->
+            // Sender and download probe have an existing Admin session. Keep receiver fresh;
+            // its Admin identity must arrive through the production restoration path.
+            listOf(sender, downloadProbe).forEach { database ->
                 database.businessBranchDao().insertBusiness(business)
                 database.businessBranchDao().insertBranch(branch)
                 database.userDao().insertUser(user)
@@ -391,7 +395,7 @@ class SupabaseCertificationDriver(
             return FinancialCertificationExecutionEngine.OperationContext(
                 operationType = "RECORD_SALE",
                 operationId = command.operationId.value,
-                opaque = SaleSenderState(sender, receiver, downloadProbe, business, branch, user, membership, command, adminClient)
+                opaque = SaleSenderState(sender, receiver, downloadProbe, business, branch, user, membership, command, adminClient, admin.password)
             )
         } catch (error: Throwable) {
             SessionManager.clearSession()
@@ -621,6 +625,23 @@ class SupabaseCertificationDriver(
         check(envelope.operationId == context.operationId && envelope.operationType == context.operationType) {
             "Downloaded envelope identity does not match certification context"
         }
+        // Reproduce a fresh device using the authenticated production Admin restoration RPC/path.
+        val receiverRestorer = RemoteBusinessRestorer(
+            database = state.receiver,
+            supabase = state.supabaseClient,
+            remoteAdminAuthRepository = RemoteAdminAuthRepository(state.supabaseClient)
+        )
+        val restored = receiverRestorer.restoreAdminIfEmpty(
+            usernameOrEmail = state.user.username,
+            passwordPlain = state.adminPassword
+        )
+        check(restored is com.dailymoneyregister.core.cloud.RemoteBusinessRestorationResult.Success &&
+            restored.businessId == state.business.id && restored.branchId == state.branch.id &&
+            restored.userId == state.user.id) {
+            "Production receiver Admin restoration failed: $restored"
+        }
+        val shiftId = state.sender.expenseDao().getExpenseByOperationId(context.operationId)?.cashShiftId
+        shiftId?.let { copyCashShiftBaseline(state.sender, state.receiver, it) }
         val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
             database = state.receiver,
             envelope = envelope,
@@ -783,6 +804,7 @@ private interface CertificationSenderState {
     val user: UserAccountEntity
     val membership: UserBranchMembershipEntity
     val supabaseClient: SupabaseClient
+    val adminPassword: String
     val commandOccurredAt: Long
     val subjectId: String
 }
@@ -796,7 +818,8 @@ private data class ExpenseSenderState(
     override val user: UserAccountEntity,
     override val membership: UserBranchMembershipEntity,
     val command: ExpenseCommand,
-    override val supabaseClient: SupabaseClient
+    override val supabaseClient: SupabaseClient,
+    override val adminPassword: String
 ) : CertificationSenderState {
     override val commandOccurredAt: Long get() = command.occurredAt
     override val subjectId: String get() = command.expenseId
@@ -811,7 +834,8 @@ private data class SaleSenderState(
     override val user: UserAccountEntity,
     override val membership: UserBranchMembershipEntity,
     val command: CashSaleCommand,
-    override val supabaseClient: SupabaseClient
+    override val supabaseClient: SupabaseClient,
+    override val adminPassword: String
 ) : CertificationSenderState {
     override val commandOccurredAt: Long get() = command.occurredAt
     override val subjectId: String get() = command.transactionIdVal.value
