@@ -362,14 +362,11 @@ class SupabaseCertificationDriver(
                 branchId = branch.id,
                 actorUserId = user.id,
                 transactionIdVal = TransactionId("cert-sale-transaction"),
-                draftState = DraftState(items = listOf(
-                    DraftItem(
-                        id = "cert-sale-item",
-                        name = "Certification Item",
-                        unitPrice = MoneyMinorUnits(1250L),
-                        quantity = 1
-                    )
-                )),
+                draftState = DraftState(
+                    manualAmount = MoneyMinorUnits(1250L),
+                    taxRateBps = 0,
+                    isTaxEnabled = false
+                ),
                 currencyCode = branch.currencyCode,
                 currencyDecimalPlaces = branch.currencyDecimalPlaces,
                 deviceId = "cert-device-a",
