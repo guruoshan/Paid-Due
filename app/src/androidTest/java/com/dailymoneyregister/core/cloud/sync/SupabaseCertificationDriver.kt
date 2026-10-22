@@ -429,17 +429,40 @@ class SupabaseCertificationDriver(
         shiftId: String
     ) {
         val shift = source.cashShiftDao().getShiftById(shiftId)
-            ?: error("Expense references missing sender cash shift " + shiftId)
+            ?: error("Financial operation references missing sender cash shift " + shiftId)
         val events = source.cashShiftDao().getEventsForShift(shiftId)
         val eventOperations = events.map { event ->
             source.operationDao().getOperationById(event.operationId)
                 ?: error("Cash-shift event " + event.id + " references missing operation " + event.operationId)
         }.distinctBy { it.id }
+
+        // The receiver is deliberately empty until inbound restoration. Seed only the
+        // legitimate business/branch prerequisites required by the pre-existing shift
+        // baseline, then satisfy its foreign keys in dependency order.
+        val branch = source.businessBranchDao().getBranchById(shift.branchId)
+            ?: error("Cash-shift baseline references missing branch " + shift.branchId)
+        val business = source.businessBranchDao().getBusinessById(branch.businessId)
+            ?: error("Cash-shift baseline references missing business " + branch.businessId)
+        if (destination.businessBranchDao().getBusinessById(business.id) == null) {
+            destination.businessBranchDao().insertBusiness(business)
+        }
+        if (destination.businessBranchDao().getBranchById(branch.id) == null) {
+            destination.businessBranchDao().insertBranch(branch)
+        }
+
+        // cash_shifts references branches; cash_shift_events references both the shift
+        // and its operation. Insert parents before children while preserving original rows.
+        if (destination.cashShiftDao().getShiftById(shiftId) == null) {
+            destination.cashShiftDao().insertShift(shift)
+        }
         eventOperations.forEach { operation ->
             destination.operationDao().insertOperationIfAbsent(operation)
         }
-        destination.cashShiftDao().insertShift(shift)
-        events.forEach { event -> destination.cashShiftDao().insertShiftEvent(event) }
+        events.forEach { event ->
+            if (destination.cashShiftDao().getEventByOperationId(event.operationId) == null) {
+                destination.cashShiftDao().insertShiftEvent(event)
+            }
+        }
     }
 
     override suspend fun verifyOutbox(context: FinancialCertificationExecutionEngine.OperationContext): JSONObject {
