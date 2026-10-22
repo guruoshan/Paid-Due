@@ -346,7 +346,9 @@ class SupabaseCertificationDriver(
         val membership = UserBranchMembershipEntity(
             id = "cert-membership-$fixtureSuffix", userId = user.id, branchId = branch.id, role = UserRole.ADMIN,
             canCreateSale = true, canAcceptCash = true, canAcceptOnline = true,
-            canCreateCreditSale = true, canUseCoupon = true, canRefund = true, createdAt = 0L
+            canCreateCreditSale = true, canUseCoupon = true, canRefund = true,
+            canVoid = true, canCorrectAmount = true, canChangePaymentMethod = true,
+            createdAt = 0L
         )
         try {
             // Sender and download probe have an existing Admin session. Keep receiver fresh;
