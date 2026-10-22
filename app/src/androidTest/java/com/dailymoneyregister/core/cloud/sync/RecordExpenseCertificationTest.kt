@@ -20,7 +20,7 @@ class RecordExpenseCertificationTest {
         "Missing dependency: isolated non-production Supabase project, protected test credentials, and real app-path CertificationExecutionEngine.Driver. Production project access is intentionally not accepted."
 
     @Test
-    fun recordExpense_passes_through_real_driver() = runBlocking {
+    fun recordExpense_and_recordSale_pass_through_real_driver_in_one_run() = runBlocking {
         // Only the certification workflow provisions local Supabase and passes these args.
         // Ordinary Android PR validation must not claim certification without that dependency.
         assumeTrue(
@@ -29,40 +29,26 @@ class RecordExpenseCertificationTest {
         )
         val engine = FinancialCertificationExecutionEngine(
             driver = FinancialCertificationDriverSelector(missingIntegration),
-            runId = "record-expense-certification-test",
+            runId = "financial-operation-certification-test",
             commitSha = "instrumentation"
         )
         val result = engine.executeAll()
         val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
         val output = File(requireNotNull(context.getExternalFilesDir(null)), "financial-certification-evidence")
         engine.writeEvidenceBundle(output, result)
+
         val expense = result.operations.single { it.operationType == "RECORD_EXPENSE" }
-        assertEquals("RECORD_EXPENSE must pass every real execution stage; blocker=" + expense.failure, FinancialCertificationExecutionEngine.Status.PASS, expense.status)
+        assertEquals(
+            "RECORD_EXPENSE must remain PASS in the same certification run; blocker=" + expense.failure,
+            FinancialCertificationExecutionEngine.Status.PASS,
+            expense.status
+        )
         assertNotNull(expense.operationId)
         assertTrue(
-            "A passing operation cannot contain unexecuted stages",
+            "A passing expense cannot contain unexecuted stages",
             expense.stages.values.none { it.status == FinancialCertificationExecutionEngine.Status.NOT_RUN }
         )
-    }
 
-    @Test
-    fun recordSale_passes_through_real_driver() = runBlocking {
-        // Certification is meaningful only when the workflow supplies the disposable local Supabase stack.
-        assumeTrue(
-            "requires the isolated local Supabase fixture",
-            InstrumentationRegistry.getArguments().getString("supabase_url")?.isNotBlank() == true
-        )
-        val engine = FinancialCertificationExecutionEngine(
-            driver = FinancialCertificationDriverSelector(missingIntegration),
-            runId = "record-sale-certification-test",
-            commitSha = "instrumentation"
-        )
-        val result = engine.executeAll()
-        val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
-        val output = File(requireNotNull(context.getExternalFilesDir(null)), "financial-certification-evidence")
-        engine.writeEvidenceBundle(output, result)
-        val expense = result.operations.single { it.operationType == "RECORD_EXPENSE" }
-        assertEquals("RECORD_EXPENSE must remain PASS in the same certification run; blocker=" + expense.failure, FinancialCertificationExecutionEngine.Status.PASS, expense.status)
         val sale = result.operations.single { it.operationType == "RECORD_SALE" }
         assertEquals(
             "RECORD_SALE must pass every real execution stage; blocker=" + sale.failure,
