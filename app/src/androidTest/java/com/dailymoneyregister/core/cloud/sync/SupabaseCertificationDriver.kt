@@ -47,6 +47,9 @@ import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.feature.register.data.ExpenseCategory
 import com.dailymoneyregister.feature.register.data.ExpenseCommand
 import com.dailymoneyregister.feature.register.data.CashSaleCommand
+import com.dailymoneyregister.feature.register.data.OpenRegisterShiftCommand
+import com.dailymoneyregister.feature.register.data.CountRegisterShiftCommand
+import com.dailymoneyregister.feature.register.data.CloseRegisterShiftCommand
 import com.dailymoneyregister.feature.register.domain.DraftItem
 import com.dailymoneyregister.feature.register.domain.DraftState
 import com.dailymoneyregister.feature.register.data.RegisterRepository
