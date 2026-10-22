@@ -44,7 +44,6 @@ import com.dailymoneyregister.core.model.ids.CashShiftId
 import com.dailymoneyregister.core.model.ids.TransactionId
 import com.dailymoneyregister.feature.customers.data.CreditRepaymentCommand
 import com.dailymoneyregister.feature.register.data.CreditSaleCommand
-import com.dailymoneyregister.core.model.ids.TransactionId
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
