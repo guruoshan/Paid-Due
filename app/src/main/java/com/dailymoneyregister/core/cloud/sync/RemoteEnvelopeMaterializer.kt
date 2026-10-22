@@ -507,12 +507,41 @@ object RemoteEnvelopeMaterializer {
 
             // Insert directly as SUCCEEDED. The outbox trigger only observes local
             // lifecycle UPDATE transitions, so downloaded evidence cannot be requeued.
+            val operationType = OperationType.valueOf(opTypeStr)
+            fun requiredEventId(arrayName: String): String {
+                val events = financialEvidence.optJSONArray(arrayName)
+                    ?: error("Missing $arrayName evidence for $opId")
+                val matching = (0 until events.length())
+                    .map { events.getJSONObject(it) }
+                    .singleOrNull { it.optString("operation_id") == opId }
+                    ?: error("Expected exactly one $arrayName row for $opId")
+                return matching.getString("id")
+            }
+            val resultReference = when (operationType) {
+                OperationType.RECORD_REFUND -> {
+                    val event = financialEvidence.optJSONObject("refund_event")
+                        ?: error("Missing refund event evidence for $opId")
+                    check(event.optString("operation_id") == opId) { "Refund event operation mismatch for $opId" }
+                    "REFUND_EVENT" to event.getString("id")
+                }
+                OperationType.RECORD_VOID -> {
+                    val event = financialEvidence.optJSONObject("void_event")
+                        ?: error("Missing void event evidence for $opId")
+                    check(event.optString("operation_id") == opId) { "Void event operation mismatch for $opId" }
+                    "VOID_EVENT" to event.getString("id")
+                }
+                OperationType.RECORD_AMOUNT_CORRECTION ->
+                    "AMOUNT_CORRECTION_EVENT" to requiredEventId("amount_correction_events")
+                OperationType.RECORD_PAYMENT_METHOD_CHANGE ->
+                    "PAYMENT_METHOD_CHANGE_EVENT" to requiredEventId("payment_method_change_events")
+                else -> "TRANSACTION" to txId
+            }
             operationDao.insertOperationIfAbsent(
                 OperationEntity(
                     id = opId,
                     businessId = sessionBusinessId,
                     branchId = branchId,
-                    operationType = OperationType.valueOf(opTypeStr),
+                    operationType = operationType,
                     subjectType = jsonPayload.optString("subject_type").ifBlank { SubjectType.TRANSACTION.name }
                         .let { SubjectType.valueOf(it) },
                     subjectId = jsonPayload.optString("subject_id").ifBlank { txId },
@@ -525,8 +554,8 @@ object RemoteEnvelopeMaterializer {
                     commandSchemaVersion = envelope.payloadJson.optInt("command_schema_version", 1),
                     intentPayload = envelope.payloadJson.optString("intent_payload", "{}"),
                     status = OperationStatus.SUCCEEDED,
-                    resultReferenceType = "TRANSACTION",
-                    resultReferenceId = txId
+                    resultReferenceType = resultReference.first,
+                    resultReferenceId = resultReference.second
                 )
             )
 

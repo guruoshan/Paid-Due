@@ -8,6 +8,7 @@
 package com.dailymoneyregister.core.cloud.sync
 
 import android.content.Context
+import android.os.ParcelFileDescriptor
 import android.os.Bundle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
@@ -41,6 +42,9 @@ import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.model.ids.OperationId
 import com.dailymoneyregister.core.model.ids.CashShiftId
 import com.dailymoneyregister.core.model.ids.TransactionId
+import com.dailymoneyregister.feature.customers.data.CreditRepaymentCommand
+import com.dailymoneyregister.feature.register.data.CreditSaleCommand
+import com.dailymoneyregister.core.model.ids.TransactionId
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
@@ -54,6 +58,7 @@ import com.dailymoneyregister.feature.register.data.RefundCommand
 import com.dailymoneyregister.feature.register.data.VoidCommand
 import com.dailymoneyregister.feature.register.data.AmountCorrectionCommand
 import com.dailymoneyregister.feature.register.data.PaymentMethodChangeCommand
+import com.dailymoneyregister.feature.register.data.CouponSaleCommand
 import com.dailymoneyregister.feature.register.domain.DraftItem
 import com.dailymoneyregister.feature.register.domain.DraftState
 import com.dailymoneyregister.feature.register.data.RegisterRepository
@@ -200,6 +205,8 @@ class SupabaseCertificationDriver(
         if (operationType in setOf("RECORD_REFUND", "RECORD_VOID", "RECORD_AMOUNT_CORRECTION", "RECORD_PAYMENT_METHOD_CHANGE")) {
             return createPostSaleOnSender(operationType)
         }
+        if (operationType == "RECORD_COUPON_PURCHASE") return createCouponPurchaseOnSender()
+        if (operationType == "RECORD_CREDIT_REPAYMENT") return createCreditRepaymentOnSender()
         if (operationType in setOf("OPEN_CASH_SHIFT", "COUNT_CASH_SHIFT", "CLOSE_CASH_SHIFT")) {
             return createCashShiftOnSender(operationType)
         }
@@ -438,6 +445,173 @@ class SupabaseCertificationDriver(
      * Copy only the already-existing shift prerequisite produced during local command admission.
      * The tested envelope remains the sole source for the expense under certification.
      */
+    private suspend fun createCreditRepaymentOnSender(): FinancialCertificationExecutionEngine.OperationContext {
+        val shiftContext = createCashShiftOnSender("OPEN_CASH_SHIFT")
+        val shift = shiftContext.opaque as? ShiftSenderState
+            ?: error("Cash-shift fixture did not return its sender state")
+        val repository = RegisterRepository(shift.sender, CommandExecutor(shift.sender))
+        val suffix = shift.user.id.takeLast(8)
+        val occurredAt = shift.commandOccurredAt + 10_000L
+        val creditSale = CreditSaleCommand(
+            operationId = OperationId("cert-credit-sale-$suffix"),
+            businessId = shift.business.id,
+            branchId = shift.branch.id,
+            actorUserId = shift.user.id,
+            transactionIdVal = TransactionId("cert-credit-sale-tx-$suffix"),
+            customerPhone = "+96891234567",
+            customerName = "Certification Credit Customer",
+            draftState = DraftState(
+                manualAmount = MoneyMinorUnits(1_000L),
+                taxRateBps = 0,
+                isTaxEnabled = false
+            ),
+            currencyCode = shift.branch.currencyCode,
+            currencyDecimalPlaces = shift.branch.currencyDecimalPlaces,
+            deviceId = "cert-device-a",
+            occurredAt = occurredAt
+        )
+        val repaymentId = "cert-credit-repayment-id-$suffix"
+        val operationId = OperationId("cert-credit-repayment-$suffix")
+        try {
+            val creditSaleResult = repository.executeCreditSale(creditSale)
+            check(creditSaleResult is CommandResult.Success<*>) {
+                "Real credit-sale prerequisite failed: " + creditSaleResult
+            }
+            val saleTransaction = shift.sender.transactionDao().getTransactionById(creditSale.transactionIdVal.value)
+                ?: error("Credit sale did not persist its transaction")
+            val customerId = saleTransaction.customerId
+                ?: error("Credit sale did not resolve its authoritative customer")
+            val repayment = CreditRepaymentCommand(
+                operationId = operationId,
+                businessId = shift.business.id,
+                branchId = shift.branch.id,
+                actorUserId = shift.user.id,
+                repaymentId = repaymentId,
+                customerId = customerId,
+                amountMinor = 250L,
+                currencyCode = shift.branch.currencyCode,
+                paymentCategory = PaymentCategory.CASH,
+                paymentChannel = PaymentChannel.CASH_TENDER,
+                deviceId = "cert-device-a",
+                occurredAt = occurredAt + 10_000L
+            )
+            val repaymentResult = repository.executeCreditRepayment(repayment)
+            check(repaymentResult is CommandResult.Success<*>) {
+                "Real RECORD_CREDIT_REPAYMENT app command failed: " + repaymentResult
+            }
+            val operation = shift.sender.operationDao().getOperationById(operationId.value)
+                ?: error("Credit repayment command did not persist its operation")
+            check(operation.status == OperationStatus.SUCCEEDED) {
+                "Credit repayment operation status was " + operation.status
+            }
+            return FinancialCertificationExecutionEngine.OperationContext(
+                operationType = "RECORD_CREDIT_REPAYMENT",
+                operationId = operationId.value,
+                opaque = CreditRepaymentSenderState(
+                    sender = shift.sender,
+                    receiver = shift.receiver,
+                    downloadProbe = shift.downloadProbe,
+                    business = shift.business,
+                    branch = shift.branch,
+                    user = shift.user,
+                    membership = shift.membership,
+                    supabaseClient = shift.supabaseClient,
+                    adminPassword = shift.adminPassword,
+                    commandOccurredAt = repayment.occurredAt + 1L,
+                    subjectId = repaymentId,
+                    baselineSaleOperationId = creditSale.operationId.value,
+                    saleTransactionId = creditSale.transactionIdVal.value,
+                    customerId = customerId,
+                    creditOpeningBalanceMinor = saleTransaction.grandTotalMinor,
+                    repaymentAmountMinor = repayment.amountMinor
+                )
+            )
+        } catch (error: Throwable) {
+            SessionManager.clearSession()
+            shift.sender.close()
+            shift.receiver.close()
+            shift.downloadProbe.close()
+            throw error
+        }
+    }
+
+    private suspend fun copyCreditSaleBaseline(
+        source: DmrDatabase,
+        destination: DmrDatabase,
+        saleOperationId: String,
+        customerId: String
+    ) {
+        val customer = source.customerDao().getCustomerById(customerId)
+            ?: error("Credit repayment prerequisite customer is missing")
+        if (destination.customerDao().getCustomerById(customerId) == null) {
+            destination.customerDao().insertCustomer(customer)
+        }
+        copySaleBaseline(source, destination, saleOperationId)
+        source.ledgerDao().getCreditEventsForOperations(listOf(saleOperationId)).forEach { event ->
+            destination.ledgerDao().insertCreditEvent(event)
+        }
+    }
+
+    private fun recentFinancialSyncFailures(): String = runCatching {
+        val descriptor = InstrumentationRegistry.getInstrumentation().uiAutomation
+            .executeShellCommand("logcat -d -t 400 -s PaidDueFinancialSync:E")
+        ParcelFileDescriptor.AutoCloseInputStream(descriptor).bufferedReader().use { reader ->
+            reader.readText().takeLast(6000).ifBlank { "No PaidDueFinancialSync error log captured" }
+        }
+    }.getOrElse { "Unable to collect sync diagnostics: ${it.javaClass.simpleName}: ${it.message}" }
+
+    private suspend fun createCouponPurchaseOnSender(): FinancialCertificationExecutionEngine.OperationContext {
+        val shiftContext = createCashShiftOnSender("OPEN_CASH_SHIFT")
+        val shift = shiftContext.opaque as? ShiftSenderState
+            ?: error("Cash-shift fixture did not return its sender state")
+        val repository = RegisterRepository(shift.sender, CommandExecutor(shift.sender))
+        val suffix = shift.user.id.takeLast(8)
+        val occurredAt = shift.commandOccurredAt + 10_000L
+        val command = CouponSaleCommand(
+            operationId = OperationId("cert-coupon-purchase-$suffix"),
+            businessId = shift.business.id,
+            branchId = shift.branch.id,
+            actorUserId = shift.user.id,
+            transactionIdVal = TransactionId("cert-coupon-tx-$suffix"),
+            customerId = "cert-coupon-customer-$suffix",
+            customerName = "Certification Customer",
+            canonicalPhone = "+96891234567",
+            createCustomer = true,
+            amountMinor = 5_000L,
+            currencyCode = shift.branch.currencyCode,
+            currencyDecimalPlaces = shift.branch.currencyDecimalPlaces,
+            fundingCategory = PaymentCategory.CASH,
+            additionalUserNames = listOf("Certification Authorized User"),
+            deviceId = "cert-device-a",
+            occurredAt = occurredAt
+        )
+        try {
+            val result = repository.executeCouponSale(command)
+            check(result is CommandResult.Success<*>) {
+                "Real RECORD_COUPON_PURCHASE app command failed: " + result
+            }
+            val operation = shift.sender.operationDao().getOperationById(command.operationId.value)
+                ?: error("Coupon purchase command did not persist its operation")
+            check(operation.status == OperationStatus.SUCCEEDED) {
+                "Coupon purchase operation status was " + operation.status
+            }
+            return FinancialCertificationExecutionEngine.OperationContext(
+                operationType = "RECORD_COUPON_PURCHASE",
+                operationId = command.operationId.value,
+                opaque = shift.copy(
+                    commandOccurredAt = occurredAt + 1L,
+                    subjectId = command.transactionIdVal.value
+                )
+            )
+        } catch (error: Throwable) {
+            SessionManager.clearSession()
+            shift.sender.close()
+            shift.receiver.close()
+            shift.downloadProbe.close()
+            throw error
+        }
+    }
+
     private suspend fun createPostSaleOnSender(
         operationType: String
     ): FinancialCertificationExecutionEngine.OperationContext {
@@ -843,7 +1017,7 @@ class SupabaseCertificationDriver(
                     "outboxAfterSyncActor=${outboxAfterSync?.actorUserId}; " +
                     "outboxAfterSyncBusiness=${outboxAfterSync?.businessId}; " +
                     "outboxAfterSyncBranch=${outboxAfterSync?.branchId}; " +
-                    "outboxAfterSyncAttempts=${outboxAfterSync?.attemptCount}"
+                    "outboxAfterSyncAttempts=${outboxAfterSync?.attemptCount}; syncFailureLog=${recentFinancialSyncFailures()}"
             )
         }
         val uploaded = repository.fetchRemoteEnvelopesV2(
@@ -997,6 +1171,9 @@ class SupabaseCertificationDriver(
         if (state is FinancialMutationSenderState) {
             copySaleBaseline(state.sender, state.receiver, state.baselineSaleOperationId)
         }
+        if (state is CreditRepaymentSenderState) {
+            copyCreditSaleBaseline(state.sender, state.receiver, state.baselineSaleOperationId, state.customerId)
+        }
         val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
             database = state.receiver,
             envelope = envelope,
@@ -1097,6 +1274,61 @@ class SupabaseCertificationDriver(
                 )
             )
         }
+        if (context.operationType == "RECORD_CREDIT_REPAYMENT" && state is CreditRepaymentSenderState) {
+            val sale = state.sender.transactionDao().getTransactionById(state.saleTransactionId)
+                ?: error("Credit repayment prerequisite sale is missing")
+            val fundedMinor = state.sender.openHelper.readableDatabase.query(
+                "SELECT COALESCE(SUM(amount_signed_minor), 0) FROM settlement_entries WHERE operation_id = ?",
+                arrayOf(state.baselineSaleOperationId)
+            ).use { cursor ->
+                check(cursor.moveToFirst()) { "Cannot read credit sale funding" }
+                cursor.getLong(0)
+            }
+            val currentBalance = state.sender.ledgerDao().getCreditBalance(
+                state.customerId, state.branch.currencyCode
+            )
+            return listOf(
+                FinancialReportOracle.Entry(
+                    operationType = "RECORD_SALE",
+                    amountMinor = sale.grandTotalMinor,
+                    paymentMethod = "CREDIT",
+                    fundingMinor = fundedMinor
+                ),
+                FinancialReportOracle.Entry(
+                    operationType = context.operationType,
+                    amountMinor = state.repaymentAmountMinor,
+                    creditOpeningBalanceMinor = state.creditOpeningBalanceMinor,
+                    creditRepaymentsMinor = state.repaymentAmountMinor,
+                    creditCurrentBalanceMinor = currentBalance
+                )
+            )
+        }
+        if (context.operationType == "RECORD_COUPON_PURCHASE") {
+            val walletId = state.sender.openHelper.readableDatabase.query(
+                "SELECT wallet_id FROM coupon_ledger_events WHERE operation_id = ? LIMIT 1",
+                arrayOf(context.operationId)
+            ).use { cursor ->
+                check(cursor.moveToFirst()) { "Coupon purchase has no authoritative ledger event" }
+                cursor.getString(0)
+            }
+            val balance = state.sender.ledgerDao().getCouponBalance(walletId)
+            val amount = state.sender.openHelper.readableDatabase.query(
+                "SELECT COALESCE(SUM(amount_signed_minor), 0) FROM coupon_ledger_events WHERE operation_id = ?",
+                arrayOf(context.operationId)
+            ).use { cursor ->
+                check(cursor.moveToFirst()) { "Cannot read coupon purchase amount" }
+                cursor.getLong(0)
+            }
+            return listOf(
+                FinancialReportOracle.Entry(
+                    operationType = context.operationType,
+                    amountMinor = amount,
+                    couponPurchasesMinor = amount,
+                    couponRedemptionsMinor = 0L,
+                    couponWalletBalanceMinor = balance
+                )
+            )
+        }
         if (state is FinancialMutationSenderState) {
             val sale = state.sender.transactionDao().getTransactionById(state.subjectId)
                 ?: throw IllegalStateException("Authoritative prerequisite sale is missing from sender")
@@ -1188,7 +1420,16 @@ class SupabaseCertificationDriver(
             ))
             .put("credit_balance_minor", summary.creditOutstanding.amount)
             .put("coupon_purchases_minor", summary.couponPurchased.amount)
-            .put("coupon_wallet_balance_minor", 0L)
+            .put("coupon_wallet_balance_minor", if (context.operationType == "RECORD_COUPON_PURCHASE") {
+                val walletId = state.sender.openHelper.readableDatabase.query(
+                    "SELECT wallet_id FROM coupon_ledger_events WHERE operation_id = ? LIMIT 1",
+                    arrayOf(context.operationId)
+                ).use { cursor ->
+                    check(cursor.moveToFirst()) { "Coupon purchase has no authoritative wallet" }
+                    cursor.getString(0)
+                }
+                state.sender.ledgerDao().getCouponBalance(walletId)
+            } else 0L)
             .put("cash_open_minor", 0L)
             .put("cash_movements_minor", 0L)
             .put("cash_close_minor", 0L)
@@ -1264,6 +1505,25 @@ private data class ExpenseSenderState(
     override val subjectId: String get() = command.expenseId
 }
 
+private data class CreditRepaymentSenderState(
+    override val sender: DmrDatabase,
+    override val receiver: DmrDatabase,
+    override val downloadProbe: DmrDatabase,
+    override val business: BusinessEntity,
+    override val branch: BranchEntity,
+    override val user: UserAccountEntity,
+    override val membership: UserBranchMembershipEntity,
+    override val supabaseClient: SupabaseClient,
+    override val adminPassword: String,
+    override val commandOccurredAt: Long,
+    override val subjectId: String,
+    val baselineSaleOperationId: String,
+    val saleTransactionId: String,
+    val customerId: String,
+    val creditOpeningBalanceMinor: Long,
+    val repaymentAmountMinor: Long
+) : CertificationSenderState
+
 private data class FinancialMutationSenderState(
     override val sender: DmrDatabase,
     override val receiver: DmrDatabase,
@@ -1320,7 +1580,7 @@ class FinancialCertificationDriverSelector(
     private fun forType(type: String): FinancialCertificationExecutionEngine.Driver =
         if (type in setOf(
                 "RECORD_EXPENSE", "RECORD_SALE", "RECORD_REFUND", "RECORD_VOID",
-                "RECORD_AMOUNT_CORRECTION", "RECORD_PAYMENT_METHOD_CHANGE",
+                "RECORD_AMOUNT_CORRECTION", "RECORD_PAYMENT_METHOD_CHANGE", "RECORD_COUPON_PURCHASE", "RECORD_CREDIT_REPAYMENT",
                 "OPEN_CASH_SHIFT", "COUNT_CASH_SHIFT", "CLOSE_CASH_SHIFT"
             )
         ) expense else missing
