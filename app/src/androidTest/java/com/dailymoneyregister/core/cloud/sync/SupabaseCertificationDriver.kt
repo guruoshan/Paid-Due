@@ -627,6 +627,23 @@ class SupabaseCertificationDriver(
             sessionBusinessId = state.business.id,
             sessionBranchId = null
         )
+        if (result is InboundProcessResult.Rejected &&
+            result.reason == "Referenced operation actor is missing from synchronized staff identities"
+        ) {
+            val payloadActorId = payload.optString("actor_user_id")
+            val localActor = state.receiver.userDao().getUserByIdInBusiness(payloadActorId, state.business.id)
+            val cloudActor = state.receiver.cloudStaffIdentityDao().findIdentity(
+                payloadActorId, state.business.id, envelope.branchId.orEmpty()
+            )
+            throw IllegalStateException(
+                "Real receiver actor identity rejection; payloadActorId=$payloadActorId, " +
+                    "fixtureUserId=${state.user.id}, fixtureBusinessId=${state.business.id}, " +
+                    "localActorFound=${localActor != null}, localActorActive=${localActor?.isActive}, " +
+                    "localActorRole=${localActor?.role}, cloudActorFound=${cloudActor != null}, " +
+                    "envelopeActorMembershipId=${envelope.actorMembershipId}, " +
+                    "envelopeActorLocalUserId=${envelope.actorLocalUserId}, envelopeActorRole=${envelope.actorRole}"
+            )
+        }
         check(result == InboundProcessResult.Applied) {
             "Real receiver materializer did not apply envelope: $result"
         }
