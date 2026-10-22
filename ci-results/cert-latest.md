@@ -1,7 +1,7 @@
 # Latest financial certification result
 
-- Commit SHA: d9e95e492736d0f479c372afd2c314f1ada4566e
-- Time (UTC): 2026-10-22T10:48:35Z
+- Commit SHA: fb569e8259c3059c7ed5e1a512216e5fff9f3d52
+- Time (UTC): 2026-10-22T11:00:12Z
 - overall_status: BLOCKED_OR_FAIL
 
 ## Operation results
@@ -43,7 +43,7 @@
 
 ### RECORD_EXPENSE
 - status: FAIL
-- failure reason: Real receiver actor identity rejection; payloadActorId=18d8cbb4-cea5-4a81-a702-d29be9ba35bd, fixtureUserId=adacab6c-f9d7-4c95-9917-f7e365f4557e, fixtureBusinessId=cert-business, localActorFound=false, localActorActive=null, localActorRole=null, cloudActorFound=false, envelopeActorMembershipId=null, envelopeActorLocalUserId=null, envelopeActorRole=null
+- failure reason: Real receiver actor identity rejection; payloadActorId=065b155a-d587-4229-91e7-6ca0e38ebc1c, fixtureUserId=7ae17f96-3d6e-4f76-96a4-6f826197e485, fixtureBusinessId=cert-business, localActorFound=false, localActorActive=null, localActorRole=null, cloudActorFound=false, envelopeActorMembershipId=null, envelopeActorLocalUserId=null, envelopeActorRole=null
 - verify_outbox: PASS
 - upload: PASS
 - verify_digest: PASS
@@ -166,10 +166,10 @@
 	at com.dailymoneyregister.core.cloud.sync.RecordExpenseCertificationTest.recordSale_passes_through_real_driver(RecordExpenseCertificationTest.kt:49)
 
 
-Time: 46.502
+Time: 46.702
 There was 1 failure:
 1) recordSale_passes_through_real_driver(com.dailymoneyregister.core.cloud.sync.RecordExpenseCertificationTest)
-java.lang.AssertionError: RECORD_EXPENSE must remain PASS in the same certification run; blocker=Real receiver actor identity rejection; payloadActorId=18d8cbb4-cea5-4a81-a702-d29be9ba35bd, fixtureUserId=adacab6c-f9d7-4c95-9917-f7e365f4557e, fixtureBusinessId=cert-business, localActorFound=false, localActorActive=null, localActorRole=null, cloudActorFound=false, envelopeActorMembershipId=null, envelopeActorLocalUserId=null, envelopeActorRole=null expected:<PASS> but was:<FAIL>
+java.lang.AssertionError: RECORD_EXPENSE must remain PASS in the same certification run; blocker=Real receiver actor identity rejection; payloadActorId=065b155a-d587-4229-91e7-6ca0e38ebc1c, fixtureUserId=7ae17f96-3d6e-4f76-96a4-6f826197e485, fixtureBusinessId=cert-business, localActorFound=false, localActorActive=null, localActorRole=null, cloudActorFound=false, envelopeActorMembershipId=null, envelopeActorLocalUserId=null, envelopeActorRole=null expected:<PASS> but was:<FAIL>
 	at org.junit.Assert.fail(Assert.java:89)
 	at org.junit.Assert.failNotEquals(Assert.java:835)
 	at org.junit.Assert.assertEquals(Assert.java:120)
@@ -188,7 +188,7 @@ FAILURES!!!
 Tests run: 3,  Failures: 1
 
 
-/sdcard/Android/data/com.dailymoneyregister.debug/files/financial-certification-evidence/: 131 files pulled, 0 skipped. 0.0 MB/s (22110 bytes in 0.754s)
+/sdcard/Android/data/com.dailymoneyregister.debug/files/financial-certification-evidence/: 131 files pulled, 0 skipped. 0.0 MB/s (22110 bytes in 0.680s)
 ::error::Financial certification did not PASS. Evidence collection alone cannot satisfy the release gate.
 ::error::RECORD_SALE: FAIL
 ::error::RECORD_REFUND: BLOCKED
