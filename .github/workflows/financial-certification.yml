@@ -23,7 +23,7 @@ jobs:
   contract-tests:
     name: Certification registry and emulator tests
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 45
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -100,6 +100,7 @@ jobs:
           echo "CERT_SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
 
       - name: Start isolated Android API 36 emulator
+        timeout-minutes: 20
         shell: bash
         run: |
           set -euo pipefail
@@ -115,7 +116,7 @@ jobs:
           adb start-server
           if [[ -e /dev/kvm ]]; then sudo chmod 666 /dev/kvm; fi
           nohup "$ANDROID_HOME/emulator/emulator" -avd paid-due-api36 \
-            -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel auto \
+            -no-snapshot -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel on \
             > "$RUNNER_TEMP/paid-due-emulator.log" 2>&1 &
           if ! timeout 180 adb wait-for-device; then
             echo "::error::Android emulator never registered with adb."
