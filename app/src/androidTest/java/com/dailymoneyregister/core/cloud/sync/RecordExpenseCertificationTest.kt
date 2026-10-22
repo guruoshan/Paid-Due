@@ -45,7 +45,6 @@ class RecordExpenseCertificationTest {
         )
     }
 
-    @org.junit.Ignore("RECORD_SALE remains BLOCKED until its foreign-key prerequisite is created through the real app path")
     @Test
     fun recordSale_passes_through_real_driver() = runBlocking {
         // Certification is meaningful only when the workflow supplies the disposable local Supabase stack.
