@@ -849,7 +849,7 @@ class FinancialCertificationDriverSelector(
     private val missing = MissingCertificationDriver(missingReason)
 
     private fun forType(type: String): FinancialCertificationExecutionEngine.Driver =
-        if (type == "RECORD_EXPENSE" || type == "RECORD_SALE") expense else missing
+        if (type == "RECORD_EXPENSE") expense else missing
 
     override suspend fun createOnSender(operationType: String) = forType(operationType).createOnSender(operationType)
     override suspend fun verifyOutbox(context: FinancialCertificationExecutionEngine.OperationContext) = forType(context.operationType).verifyOutbox(context)
