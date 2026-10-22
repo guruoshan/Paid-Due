@@ -61,6 +61,13 @@ import org.json.JSONObject
  * Production DefaultStaffIdentitySync fills cloud_staff_identities from EmployeeDirectoryCloudSource
  * for CASHIER identities; Admin actors on a fresh device are restored by RemoteBusinessRestorer.
  */
+/**
+ * Certification driver boundaries:
+ * Expense-specific: createOnSender and its createAuthenticatedAdmin, localSupabase,
+ * supabaseClient, localHttpJson and expense-command fixture setup helpers.
+ * Shared lifecycle: verifyOutbox, uploadThroughNormalSync, verifyEnvelopeAndDigest,
+ * downloadThroughNormalSync, receiver restore/materialize, snapshots, replay and reports.
+ */
 class SupabaseCertificationDriver(
     private val arguments: Bundle = InstrumentationRegistry.getArguments()
 ) : FinancialCertificationExecutionEngine.Driver {
@@ -794,7 +801,29 @@ class SupabaseCertificationDriver(
     }
 }
 
-private data class AdminAuthFixture(
+/**
+ * Per-operation fixture environment. Each instance owns its sender, receiver and download
+ * probe databases plus the throwaway Admin identity/session and validated Supabase arguments.
+ */
+internal data class ScenarioEnv(
+    val arguments: Bundle,
+    val sender: DmrDatabase,
+    val receiver: DmrDatabase,
+    val downloadProbe: DmrDatabase,
+    val business: BusinessEntity,
+    val branch: BranchEntity,
+    val user: UserAccountEntity,
+    val membership: UserBranchMembershipEntity,
+    val admin: AdminAuthFixture
+)
+
+internal interface OperationScenario {
+    val operationType: String
+    suspend fun prepare(env: ScenarioEnv)
+    suspend fun execute(env: ScenarioEnv): FinancialCertificationExecutionEngine.OperationContext
+}
+
+internal data class AdminAuthFixture(
     val supabaseClient: SupabaseClient,
     val authUserId: String,
     val email: String,
