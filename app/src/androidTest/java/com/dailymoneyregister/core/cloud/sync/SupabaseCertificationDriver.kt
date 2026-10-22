@@ -50,6 +50,10 @@ import com.dailymoneyregister.feature.register.data.CashSaleCommand
 import com.dailymoneyregister.feature.register.data.OpenRegisterShiftCommand
 import com.dailymoneyregister.feature.register.data.CountRegisterShiftCommand
 import com.dailymoneyregister.feature.register.data.CloseRegisterShiftCommand
+import com.dailymoneyregister.feature.register.data.RefundCommand
+import com.dailymoneyregister.feature.register.data.VoidCommand
+import com.dailymoneyregister.feature.register.data.AmountCorrectionCommand
+import com.dailymoneyregister.feature.register.data.PaymentMethodChangeCommand
 import com.dailymoneyregister.feature.register.domain.DraftItem
 import com.dailymoneyregister.feature.register.domain.DraftState
 import com.dailymoneyregister.feature.register.data.RegisterRepository
@@ -193,6 +197,9 @@ class SupabaseCertificationDriver(
         // SessionManager is process-wide; clear any prior test/operation's Admin before login.
         SessionManager.clearSession()
         if (operationType == "RECORD_SALE") return createSaleOnSender()
+        if (operationType in setOf("RECORD_REFUND", "RECORD_VOID", "RECORD_AMOUNT_CORRECTION", "RECORD_PAYMENT_METHOD_CHANGE")) {
+            return createPostSaleOnSender(operationType)
+        }
         if (operationType in setOf("OPEN_CASH_SHIFT", "COUNT_CASH_SHIFT", "CLOSE_CASH_SHIFT")) {
             return createCashShiftOnSender(operationType)
         }
@@ -429,6 +436,145 @@ class SupabaseCertificationDriver(
      * Copy only the already-existing shift prerequisite produced during local command admission.
      * The tested envelope remains the sole source for the expense under certification.
      */
+    private suspend fun createPostSaleOnSender(
+        operationType: String
+    ): FinancialCertificationExecutionEngine.OperationContext {
+        val saleContext = createSaleOnSender()
+        val sale = saleContext.opaque as? SaleSenderState
+            ?: error("Real sale prerequisite did not return its sender state")
+        val repository = RegisterRepository(sale.sender, CommandExecutor(sale.sender))
+        val saleAmount = sale.command.draftState.grandTotal.amount
+        val occurredAt = sale.command.occurredAt + 10_000L
+        val operationId = OperationId("cert-${operationType.lowercase()}-${sale.user.id.takeLast(8)}")
+        val mutationAmount = when (operationType) {
+            "RECORD_REFUND" -> 250L
+            "RECORD_VOID" -> saleAmount
+            "RECORD_AMOUNT_CORRECTION" -> 250L
+            "RECORD_PAYMENT_METHOD_CHANGE" -> saleAmount
+            else -> error("Unsupported post-sale operation " + operationType)
+        }
+        try {
+            val result: CommandResult<*> = when (operationType) {
+                "RECORD_REFUND" -> repository.executeRefund(
+                    RefundCommand(
+                        operationId = operationId,
+                        businessId = sale.business.id,
+                        branchId = sale.branch.id,
+                        subjectId = sale.command.transactionIdVal.value,
+                        actorUserId = sale.user.id,
+                        deviceId = "cert-device-a",
+                        occurredAt = occurredAt,
+                        refundAmountMinor = mutationAmount,
+                        destinationCategory = PaymentCategory.CASH,
+                        destinationChannel = PaymentChannel.CASH_TENDER,
+                        reason = "Synthetic certification refund"
+                    )
+                )
+                "RECORD_VOID" -> repository.executeVoid(
+                    VoidCommand(
+                        operationId = operationId,
+                        businessId = sale.business.id,
+                        branchId = sale.branch.id,
+                        subjectId = sale.command.transactionIdVal.value,
+                        actorUserId = sale.user.id,
+                        deviceId = "cert-device-a",
+                        occurredAt = occurredAt,
+                        reason = "Synthetic certification void"
+                    )
+                )
+                "RECORD_AMOUNT_CORRECTION" -> repository.executeAmountCorrection(
+                    AmountCorrectionCommand(
+                        operationId = operationId,
+                        businessId = sale.business.id,
+                        branchId = sale.branch.id,
+                        subjectId = sale.command.transactionIdVal.value,
+                        actorUserId = sale.user.id,
+                        deviceId = "cert-device-a",
+                        occurredAt = occurredAt,
+                        correctedAmountMinor = Math.addExact(saleAmount, mutationAmount),
+                        reason = "Synthetic certification amount correction"
+                    )
+                )
+                "RECORD_PAYMENT_METHOD_CHANGE" -> repository.executePaymentMethodChange(
+                    PaymentMethodChangeCommand(
+                        operationId = operationId,
+                        businessId = sale.business.id,
+                        branchId = sale.branch.id,
+                        subjectId = sale.command.transactionIdVal.value,
+                        actorUserId = sale.user.id,
+                        deviceId = "cert-device-a",
+                        occurredAt = occurredAt,
+                        newCategory = PaymentCategory.ONLINE,
+                        newChannel = PaymentChannel.MANUAL_QR,
+                        reason = "Synthetic certification payment-method change"
+                    )
+                )
+                else -> error("Unsupported post-sale operation " + operationType)
+            }
+            check(result is CommandResult.Success<*>) {
+                "Real " + operationType + " app command failed: " + result
+            }
+            val operation = sale.sender.operationDao().getOperationById(operationId.value)
+                ?: error("Real " + operationType + " command did not persist its operation")
+            check(operation.status == OperationStatus.SUCCEEDED) {
+                "Real " + operationType + " operation status was " + operation.status
+            }
+            return FinancialCertificationExecutionEngine.OperationContext(
+                operationType = operationType,
+                operationId = operationId.value,
+                opaque = FinancialMutationSenderState(
+                    sender = sale.sender,
+                    receiver = sale.receiver,
+                    downloadProbe = sale.downloadProbe,
+                    business = sale.business,
+                    branch = sale.branch,
+                    user = sale.user,
+                    membership = sale.membership,
+                    supabaseClient = sale.supabaseClient,
+                    adminPassword = sale.adminPassword,
+                    commandOccurredAt = occurredAt,
+                    subjectId = sale.command.transactionIdVal.value,
+                    baselineSaleOperationId = sale.command.operationId.value,
+                    mutationAmountMinor = mutationAmount
+                )
+            )
+        } catch (error: Throwable) {
+            SessionManager.clearSession()
+            sale.sender.close()
+            sale.receiver.close()
+            sale.downloadProbe.close()
+            throw error
+        }
+    }
+
+    private suspend fun copySaleBaseline(
+        source: DmrDatabase,
+        destination: DmrDatabase,
+        saleOperationId: String
+    ) {
+        val operation = source.operationDao().getOperationById(saleOperationId)
+            ?: error("Prerequisite sale operation is missing: " + saleOperationId)
+        val transactionId = operation.transactionId
+            ?: error("Prerequisite sale has no transaction ID: " + saleOperationId)
+        val transaction = source.transactionDao().getTransactionById(transactionId)
+            ?: error("Prerequisite sale transaction is missing: " + transactionId)
+        if (destination.operationDao().getOperationById(operation.id) == null) {
+            destination.operationDao().insertOperationIfAbsent(operation)
+        }
+        if (destination.transactionDao().getTransactionById(transactionId) == null) {
+            destination.transactionDao().insertTransaction(transaction)
+        }
+        val items = source.transactionDao().getItemsForTransaction(transactionId)
+        if (items.isNotEmpty() && destination.transactionDao().getItemsForTransaction(transactionId).isEmpty()) {
+            destination.transactionDao().insertTransactionItems(items)
+        }
+        val settlements = source.transactionDao().getSettlementsForTransaction(transactionId)
+            .filter { it.operationId == saleOperationId }
+        settlements.forEach { settlement ->
+            destination.transactionDao().insertSettlement(settlement)
+        }
+    }
+
     private suspend fun createCashShiftOnSender(
         operationType: String
     ): FinancialCertificationExecutionEngine.OperationContext {
@@ -846,6 +992,9 @@ class SupabaseCertificationDriver(
         baselineShiftId?.let {
             copyCashShiftBaseline(state.sender, state.receiver, it, context.operationId)
         }
+        if (state is FinancialMutationSenderState) {
+            copySaleBaseline(state.sender, state.receiver, state.baselineSaleOperationId)
+        }
         val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
             database = state.receiver,
             envelope = envelope,
@@ -946,6 +1095,50 @@ class SupabaseCertificationDriver(
                 )
             )
         }
+        if (state is FinancialMutationSenderState) {
+            val sale = state.sender.transactionDao().getTransactionById(state.subjectId)
+                ?: throw IllegalStateException("Authoritative prerequisite sale is missing from sender")
+            val fundedMinor = state.sender.openHelper.readableDatabase.query(
+                "SELECT COALESCE(SUM(amount_signed_minor), 0) FROM settlement_entries WHERE operation_id = ?",
+                arrayOf(state.baselineSaleOperationId)
+            ).use { cursor ->
+                check(cursor.moveToFirst()) { "Cannot read prerequisite sale funding" }
+                cursor.getLong(0)
+            }
+            val saleEntry = FinancialReportOracle.Entry(
+                operationType = "RECORD_SALE",
+                amountMinor = sale.grandTotalMinor,
+                paymentMethod = "CASH",
+                fundingMinor = fundedMinor
+            )
+            val mutationEntry = when (context.operationType) {
+                "RECORD_REFUND" -> FinancialReportOracle.Entry(
+                    operationType = context.operationType,
+                    amountMinor = state.mutationAmountMinor,
+                    refundableBalanceBeforeMinor = sale.grandTotalMinor
+                )
+                "RECORD_VOID" -> FinancialReportOracle.Entry(
+                    operationType = context.operationType,
+                    amountMinor = state.mutationAmountMinor,
+                    voidableBalanceBeforeMinor = sale.grandTotalMinor
+                )
+                "RECORD_AMOUNT_CORRECTION" -> FinancialReportOracle.Entry(
+                    operationType = context.operationType,
+                    amountMinor = state.mutationAmountMinor,
+                    correctionDeltaMinor = state.mutationAmountMinor
+                )
+                "RECORD_PAYMENT_METHOD_CHANGE" -> FinancialReportOracle.Entry(
+                    operationType = context.operationType,
+                    amountMinor = state.mutationAmountMinor,
+                    previousPaymentMethod = "CASH",
+                    paymentMethod = "ONLINE",
+                    paymentMethodValueBeforeMinor = state.mutationAmountMinor,
+                    paymentMethodValueAfterMinor = state.mutationAmountMinor
+                )
+                else -> error("No financial mutation oracle for " + context.operationType)
+            }
+            return listOf(saleEntry, mutationEntry)
+        }
         val sale = state.sender.transactionDao().getTransactionById(state.subjectId)
             ?: throw IllegalStateException("Authoritative sale transaction is missing from sender")
         val fundedMinor = state.sender.openHelper.readableDatabase.query(
@@ -998,7 +1191,14 @@ class SupabaseCertificationDriver(
             .put("cash_movements_minor", 0L)
             .put("cash_close_minor", 0L)
             .put("payment_method_sales_minor", JSONObject().apply {
-                if (context.operationType == "RECORD_SALE") put("CASH", summary.cashSalesCollected.amount)
+                if (context.operationType == "RECORD_PAYMENT_METHOD_CHANGE") {
+                    put("CASH", summary.cashSalesCollected.amount)
+                    put("ONLINE", summary.onlineSalesCollected.amount)
+                } else {
+                    if (summary.cashSalesCollected.amount != 0L) put("CASH", summary.cashSalesCollected.amount)
+                    if (summary.onlineSalesCollected.amount != 0L) put("ONLINE", summary.onlineSalesCollected.amount)
+                    if (summary.creditSalesOriginated.amount != 0L) put("CREDIT", summary.creditSalesOriginated.amount)
+                }
             })
     }
 }
@@ -1062,6 +1262,22 @@ private data class ExpenseSenderState(
     override val subjectId: String get() = command.expenseId
 }
 
+private data class FinancialMutationSenderState(
+    override val sender: DmrDatabase,
+    override val receiver: DmrDatabase,
+    override val downloadProbe: DmrDatabase,
+    override val business: BusinessEntity,
+    override val branch: BranchEntity,
+    override val user: UserAccountEntity,
+    override val membership: UserBranchMembershipEntity,
+    override val supabaseClient: SupabaseClient,
+    override val adminPassword: String,
+    override val commandOccurredAt: Long,
+    override val subjectId: String,
+    val baselineSaleOperationId: String,
+    val mutationAmountMinor: Long
+) : CertificationSenderState
+
 private data class ShiftSenderState(
     override val sender: DmrDatabase,
     override val receiver: DmrDatabase,
@@ -1100,7 +1316,12 @@ class FinancialCertificationDriverSelector(
     private val missing = MissingCertificationDriver(missingReason)
 
     private fun forType(type: String): FinancialCertificationExecutionEngine.Driver =
-        if (type == "RECORD_EXPENSE" || type == "RECORD_SALE") expense else missing
+        if (type in setOf(
+                "RECORD_EXPENSE", "RECORD_SALE", "RECORD_REFUND", "RECORD_VOID",
+                "RECORD_AMOUNT_CORRECTION", "RECORD_PAYMENT_METHOD_CHANGE",
+                "OPEN_CASH_SHIFT", "COUNT_CASH_SHIFT", "CLOSE_CASH_SHIFT"
+            )
+        ) expense else missing
 
     override suspend fun createOnSender(operationType: String) = forType(operationType).createOnSender(operationType)
     override suspend fun verifyOutbox(context: FinancialCertificationExecutionEngine.OperationContext) = forType(context.operationType).verifyOutbox(context)
