@@ -1,10 +1,10 @@
 # Financial certification status
 
-This table is an implementation queue, not a claim of certification. An operation is PASS only when its current commit has a matching `ci-results/cert-latest.md` and every required stage has verified evidence.
+RECORD_EXPENSE is certified PASS for code commit `aafc685e7c85f4e6270586f6d76b003d20e0b3c9`: `ci-results/cert-latest.md` matches that SHA and all eight reported execution stages are PASS. The other 12 operations remain BLOCKED; this table is an implementation queue, not a claim of certification for them.
 
 | Order | Operation | Status | Next required work |
 |---:|---|---|---|
-| 1 | RECORD_EXPENSE | BLOCKED | Complete the real sender → outbox → upload → digest → download → receiver materialization → after-snapshot → replay → reports path; resolve only the first failing stage and require matching-SHA evidence. |
+| 1 | RECORD_EXPENSE | PASS | Complete the real sender → outbox → upload → digest → download → receiver materialization → after-snapshot → replay → reports path; resolve only the first failing stage and require matching-SHA evidence. |
 | 2 | RECORD_SALE | BLOCKED | Build a separate real sale driver; validate sale transaction/items, tender/settlement, ledger/allocation, cash-shift effects, replay invariance, and reporting totals. |
 | 3 | RECORD_REFUND | BLOCKED | Add real refund command/outbox/sync/materialization path; prove append-only refund records, original-sale linkage, totals, replay, and reports. |
 | 4 | RECORD_VOID | BLOCKED | Add real void path; prove append-only void/correction semantics, reversal accounting, replay invariance, and reports. |
