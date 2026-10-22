@@ -10,7 +10,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
-import org.junit.Ignore
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,7 +45,6 @@ class RecordExpenseCertificationTest {
         )
     }
 
-    @Ignore("follow-up work")
     @Test
     fun recordSale_passes_through_real_driver() = runBlocking {
         // Certification is meaningful only when the workflow supplies the disposable local Supabase stack.
@@ -63,6 +61,8 @@ class RecordExpenseCertificationTest {
         val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
         val output = File(requireNotNull(context.getExternalFilesDir(null)), "financial-certification-evidence")
         engine.writeEvidenceBundle(output, result)
+        val expense = result.operations.single { it.operationType == "RECORD_EXPENSE" }
+        assertEquals("RECORD_EXPENSE must remain PASS in the same certification run; blocker=" + expense.failure, FinancialCertificationExecutionEngine.Status.PASS, expense.status)
         val sale = result.operations.single { it.operationType == "RECORD_SALE" }
         assertEquals(
             "RECORD_SALE must pass every real execution stage; blocker=" + sale.failure,
