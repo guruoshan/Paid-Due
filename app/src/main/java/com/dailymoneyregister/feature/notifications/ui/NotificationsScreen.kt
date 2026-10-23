@@ -13,22 +13,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dailymoneyregister.feature.notifications.data.BusinessNotification
-import com.dailymoneyregister.feature.notifications.data.PermissionRequestRecord
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -51,20 +42,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import java.math.BigDecimal
-
-private val permissionLabels = linkedMapOf(
-    "CREATE_SALE" to "Create sales",
-    "ACCEPT_CASH" to "Accept cash",
-    "ACCEPT_ONLINE" to "Accept online payments",
-    "CREATE_CREDIT_SALE" to "Create credit sales",
-    "USE_COUPON" to "Use coupons",
-    "ISSUE_INVOICE" to "Issue invoices",
-    "REFUND" to "Refund transactions",
-    "VOID" to "Void transactions",
-    "CORRECT_AMOUNT" to "Correct amounts",
-    "CHANGE_PAYMENT_METHOD" to "Change payment method",
-    "VIEW_BROAD_HISTORY" to "View full history"
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,14 +51,6 @@ fun NotificationsScreen(
     viewModel: NotificationsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var selectedPermission by remember(requestPermission) {
-        mutableStateOf(requestPermission?.takeIf { it in permissionLabels } ?: "REFUND")
-    }
-    var permissionsMenuOpen by remember { mutableStateOf(false) }
-    var permissionNote by remember { mutableStateOf("") }
-    var reviewingRequest by remember { mutableStateOf<PermissionRequestRecord?>(null) }
-    var additionalPermissions by remember(reviewingRequest?.id) { mutableStateOf(emptySet<String>()) }
-
     LaunchedEffect(Unit) { viewModel.refresh() }
 
     Scaffold(
@@ -122,80 +91,6 @@ fun NotificationsScreen(
                 ) { CircularProgressIndicator() }
             }
 
-            if (!state.isAdmin) {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text("Ask Admin for permission", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "Choose the feature you need. Your request is sent to an Admin for this branch; access is not granted automatically.",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Column {
-                            Button(onClick = { permissionsMenuOpen = true }, modifier = Modifier.fillMaxWidth()) {
-                                Text("Request: ${permissionLabels[selectedPermission] ?: selectedPermission}")
-                            }
-                            DropdownMenu(
-                                expanded = permissionsMenuOpen,
-                                onDismissRequest = { permissionsMenuOpen = false }
-                            ) {
-                                permissionLabels.forEach { (key, label) ->
-                                    DropdownMenuItem(
-                                        text = { Text(label) },
-                                        onClick = {
-                                            selectedPermission = key
-                                            permissionsMenuOpen = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                        OutlinedTextField(
-                            value = permissionNote,
-                            onValueChange = { permissionNote = it.take(500) },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Reason (optional)") },
-                            placeholder = { Text("Why do you need this access?") },
-                            minLines = 2,
-                            maxLines = 4
-                        )
-                        Button(
-                            onClick = {
-                                viewModel.requestPermission(selectedPermission, permissionNote.trim())
-                                permissionNote = ""
-                            },
-                            enabled = !state.isLoading,
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Send permission request") }
-                    }
-                }
-            }
-
-            if (state.isAdmin && state.permissionRequests.isNotEmpty()) {
-                Text("Pending permission requests", style = MaterialTheme.typography.titleLarge)
-                state.permissionRequests.forEach { request ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(request.requesterName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text("Branch: ${request.branchName}")
-                            Text("Requested: ${permissionLabels[request.permissionKey] ?: request.permissionKey}")
-                            request.note?.takeIf { it.isNotBlank() }?.let { Text("Reason: $it") }
-                            Text("Pending review", color = MaterialTheme.colorScheme.tertiary)
-                            Button(
-                                onClick = { reviewingRequest = request },
-                                enabled = !state.isLoading,
-                                modifier = Modifier.fillMaxWidth()
-                            ) { Text("Review request") }
-                        }
-                    }
-                }
-            }
-
             Text("Inbox", style = MaterialTheme.typography.titleLarge)
             if (state.notifications.isEmpty() && !state.isLoading) {
                 Text("No notifications yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -210,58 +105,7 @@ fun NotificationsScreen(
         }
     }
 
-    reviewingRequest?.let { request ->
-        AlertDialog(
-            onDismissRequest = { reviewingRequest = null },
-            title = { Text("Review permission request") },
-            text = {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text("${request.requesterName} requested ${permissionLabels[request.permissionKey] ?: request.permissionKey}.")
-                    Text("You may grant the requested permission only, or also select extra permissions.")
-                    Divider()
-                    permissionLabels.forEach { (key, label) ->
-                        if (key != request.permissionKey) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(
-                                    checked = key in additionalPermissions,
-                                    onCheckedChange = { checked ->
-                                        additionalPermissions =
-                                            if (checked) additionalPermissions + key
-                                            else additionalPermissions - key
-                                    }
-                                )
-                                Text(label)
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = !state.isLoading,
-                    onClick = {
-                        viewModel.resolvePermissionRequest(request.id, true, additionalPermissions)
-                        reviewingRequest = null
-                    }
-                ) { Text("Approve selected") }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(
-                        enabled = !state.isLoading,
-                        onClick = {
-                            viewModel.resolvePermissionRequest(request.id, false, emptySet())
-                            reviewingRequest = null
-                        }
-                    ) { Text("Reject") }
-                    TextButton(onClick = { reviewingRequest = null }) { Text("Cancel") }
-                }
-            }
-        )
-    }
+
 }
 
 @Composable
