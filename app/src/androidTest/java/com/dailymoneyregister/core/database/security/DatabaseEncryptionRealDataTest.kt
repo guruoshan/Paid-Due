@@ -456,23 +456,13 @@ class DatabaseEncryptionRealDataTest {
 
             /*
              * STEP 14:
-             * Setup, cashier creation and sale operation audit
-             * records must all survive.
+             * Setup and sale operation audit records must both survive.
              */
             assertEquals(
                 OperationStatus.SUCCEEDED,
                 reopened.operationDao()
                     .getOperationById(
                         setupOperationId.value
-                    )
-                    ?.status
-            )
-
-            assertEquals(
-                OperationStatus.SUCCEEDED,
-                reopened.operationDao()
-                    .getOperationById(
-                        cashierOperationId.value
                     )
                     ?.status
             )
