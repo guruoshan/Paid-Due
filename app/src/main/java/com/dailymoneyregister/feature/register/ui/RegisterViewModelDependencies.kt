@@ -27,6 +27,8 @@ import com.dailymoneyregister.feature.register.data.ExpenseCategory
 import com.dailymoneyregister.feature.register.data.ExpenseCommand
 import com.dailymoneyregister.feature.register.data.ExpenseCommandFactory
 import com.dailymoneyregister.feature.register.data.ExpenseCommandResult
+import com.dailymoneyregister.feature.register.data.ExpenseLifecycleCommand
+import com.dailymoneyregister.core.database.entity.ExpenseEntity
 import com.dailymoneyregister.feature.register.data.CouponSaleResult
 import com.dailymoneyregister.feature.register.data.CouponSaleCustomerWallet
 import com.dailymoneyregister.feature.register.data.CouponTopUpCommand
@@ -126,7 +128,9 @@ internal class RegisterExpenseDependencies(
             List<com.dailymoneyregister.core.database.entity.ExpenseEntity>,
     val loadExpenseDetails: suspend (String) -> ExpenseReadProjection?,
     val loadExpenseSupportingDocuments: suspend (String) -> List<ExpenseSupportingDocument>,
-    val attachExpenseSupportingDocument: suspend (String, String) -> Unit
+    val attachExpenseSupportingDocument: suspend (String, String) -> Unit,
+    val submitExpenseLifecycle: suspend (ExpenseLifecycleCommand) -> CommandResult<ExpenseEntity> =
+        { CommandResult.Error(UnsupportedOperationException("Expense lifecycle command is not configured.")) }
 )
 
 internal class RegisterShiftDependencies(
