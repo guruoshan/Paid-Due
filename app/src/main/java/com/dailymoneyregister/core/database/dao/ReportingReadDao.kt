@@ -244,6 +244,21 @@ interface ReportingReadDao {
         toExclusive: Long
     ): List<ExpenseEventEntity>
 
+    /** All lifecycle events for the selected expenses, independent of report
+     * activity date, so the current effective state is correct for every range.
+     */
+    @Query(
+        """
+        SELECT *
+        FROM expense_events
+        WHERE expense_id IN (:expenseIds)
+        ORDER BY occurred_at ASC, id ASC
+        """
+    )
+    suspend fun getExpenseEventsForExpenses(
+        expenseIds: List<String>
+    ): List<ExpenseEventEntity>
+
     // ---- Batch lookups -----------------------------------------------------
 
     @Query("SELECT * FROM operations WHERE id IN (:operationIds)")
