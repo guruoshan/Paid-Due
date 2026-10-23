@@ -81,89 +81,6 @@ class RemoteFinancialSyncRepository @Inject constructor(
             return FinancialSyncReceipt.Unauthorized(envelope.operationId)
         }
 
-        if (
-            currentSession?.user?.role ==
-            com.dailymoneyregister.core.model.enums.UserRole.CASHIER
-        ) {
-            return try {
-                val payload = JSONObject()
-                    .put("p_business_id", envelope.businessId)
-                    .put("p_operation_id", envelope.operationId)
-                    .put("p_branch_id", envelope.branchId)
-                    .put("p_actor_membership_id", actorMembershipId)
-                    .put("p_device_id", envelope.deviceId)
-                    .put("p_operation_type", envelope.operationType)
-                    .put("p_schema_version", envelope.commandSchemaVersion)
-                    .put(
-                        "p_occurred_at",
-                        java.time.Instant.ofEpochMilli(
-                            envelope.occurredAt
-                        ).toString()
-                    )
-                    .put("p_branch_timezone_id", branchTimezoneId)
-                    .put("p_business_local_date", businessLocalDate)
-                    .put("p_canonical_text", envelope.canonicalText)
-                    .put("p_canonical_sha256", envelope.canonicalSha256)
-                    .put(
-                        "p_canonical_payload",
-                        JSONObject(envelope.canonicalText)
-                    )
-
-                val result = CashierCloudSession.upload(
-                    actorMembershipId,
-                    payload
-                )
-                
-                val status = result.optString("status")
-                android.util.Log.i(
-                    "PaidDueFinancialSync",
-                    "CASHIER UPLOAD operation=${envelope.operationId} type=${envelope.operationType} http_status=200 receipt_status=$status reason=${result.optString("reason", "none")}"
-                )
-
-                if (
-                    status != "ACKNOWLEDGED" ||
-                    result.optString("operation_id") != envelope.operationId ||
-                    result.optString("canonical_sha256") !=
-                        envelope.canonicalSha256
-                ) {
-                    FinancialSyncReceipt.IntegrityConflict(
-                        envelope.operationId
-                    )
-                } else {
-                    FinancialSyncReceipt.Acknowledged(
-                        operationId = envelope.operationId,
-                        canonicalSha256 = envelope.canonicalSha256,
-                        duplicate = result.optBoolean("duplicate")
-                    )
-                }
-            } catch (e: SecurityException) {
-                android.util.Log.w(
-                    "PaidDueFinancialSync",
-                    "CASHIER UPLOAD operation=${envelope.operationId} type=${envelope.operationType} outcome=UNAUTHORIZED reason=${e.message}"
-                )
-                FinancialSyncReceipt.Unauthorized(
-                    envelope.operationId
-                )
-            } catch (e: FinancialUploadHttpException) {
-                FinancialSyncErrorClassifier.classify(
-                    operationId = envelope.operationId,
-                    statusCode = e.statusCode,
-                    code = null,
-                    outcome = e.outcome,
-                    serverMessage = e.serverMessage
-                )
-            } catch (e: Exception) {
-                android.util.Log.e(
-                    "PaidDueFinancialSync",
-                    "CASHIER UPLOAD operation=${envelope.operationId} type=${envelope.operationType} outcome=RETRYABLE reason=${e.message}"
-                )
-                FinancialSyncReceipt.Retryable(
-                    envelope.operationId,
-                    RetryReason.NETWORK
-                )
-            }
-        }
-
         // The RPC requires auth.uid() and validates this Admin membership server-side.
         // A local Room session is not a Supabase Auth session; fail closed and keep
         // the durable outbox row recoverable until the Admin signs in remotely.
@@ -280,22 +197,6 @@ class RemoteFinancialSyncRepository @Inject constructor(
         if (activeSession?.user?.role != com.dailymoneyregister.core.model.enums.UserRole.ADMIN) {
             throw SecurityException("OWNER_SESSION_REQUIRED")
         }
-        if (activeSession?.user?.role == com.dailymoneyregister.core.model.enums.UserRole.CASHIER) {
-            val cashierMembershipId = activeSession.membership?.id
-                ?: throw SecurityException("CASHIER_MEMBERSHIP_REQUIRED")
-            if (CashierCloudSession.tokenFor(cashierMembershipId) == null) {
-                // Do not fall through to the Admin Supabase RPC with a publishable key.
-                throw SecurityException("CASHIER_CLOUD_SESSION_REQUIRED")
-            }
-            val rows = CashierCloudSession.download(
-                cashierMembershipId,
-                afterReceivedAt,
-                afterOperationId,
-                limit.coerceAtMost(100)
-            )
-            return rows.toEnvelopeList()
-        }
-
         // The Admin download RPC also requires an authenticated Supabase identity.
         if (supabase.auth.currentSessionOrNull() == null) {
             throw SecurityException("ADMIN_SUPABASE_AUTH_REQUIRED")
