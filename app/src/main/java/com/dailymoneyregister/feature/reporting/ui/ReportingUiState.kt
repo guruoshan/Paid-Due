@@ -35,7 +35,8 @@ data class ReportingUiState(
     val rows: List<ReportingRowUiModel> = emptyList(),
     val summaryCards: List<ReportingSummaryUiModel> =
         emptyList(),
-    val error: ReportingUiError? = null
+    val error: ReportingUiError? = null,
+    val errorDetail: String? = null
 ) {
     val isEmpty: Boolean
         get() =

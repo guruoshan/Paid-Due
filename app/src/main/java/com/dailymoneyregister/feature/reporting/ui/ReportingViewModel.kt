@@ -398,15 +398,15 @@ class ReportingViewModel @Inject constructor(
                                 ReportingUiError.ACCESS_DENIED
                         )
                 }
-                catch (_: ReportingIntegrityException) {
+                catch (e: ReportingIntegrityException) {
                     _uiState.value =
                         _uiState.value.copy(
                             isLoading = false,
                             readModel = null,
                             rows = emptyList(),
                             summaryCards = emptyList(),
-                            error =
-                                ReportingUiError.INTEGRITY
+                            error = ReportingUiError.INTEGRITY,
+                            errorDetail = e.message ?: e.javaClass.simpleName
                         )
                 }
                 catch (_: Exception) {

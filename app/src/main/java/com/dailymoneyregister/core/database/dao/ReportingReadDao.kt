@@ -8,6 +8,7 @@ import com.dailymoneyregister.core.database.entity.CreditLedgerEventEntity
 import com.dailymoneyregister.core.database.entity.CreditRepaymentAllocationEntity
 import com.dailymoneyregister.core.database.entity.CreditRepaymentEntity
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
+import com.dailymoneyregister.core.database.entity.ExpenseEventEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.PaymentMethodChangeEventEntity
 import com.dailymoneyregister.core.database.entity.RefundEventEntity
@@ -221,26 +222,27 @@ interface ReportingReadDao {
     ): List<ExpenseEntity>
 
     /**
-     * Guard only. Expense correction/void activity has no Reporting row type
-     * yet, so Reporting fails closed instead of silently ignoring it.
+     * Returns the exact unsupported expense lifecycle records so the integrity
+     * error can identify the evidence instead of presenting a generic failure.
      */
     @Query(
         """
-        SELECT COUNT(*)
+        SELECT ev.*
         FROM expense_events AS ev
         INNER JOIN expenses AS e ON e.id = ev.expense_id
         WHERE e.business_id = :businessId
           AND e.branch_id IN (:branchIds)
           AND ev.occurred_at >= :fromInclusive
           AND ev.occurred_at < :toExclusive
+        ORDER BY ev.occurred_at ASC, ev.id ASC
         """
     )
-    suspend fun countExpenseEventsInPeriod(
+    suspend fun getExpenseEventsInPeriod(
         businessId: String,
         branchIds: List<String>,
         fromInclusive: Long,
         toExclusive: Long
-    ): Int
+    ): List<ExpenseEventEntity>
 
     // ---- Batch lookups -----------------------------------------------------
 

@@ -169,10 +169,15 @@ class RoomReportingReadRepository(
         val expenses =
             reportingDao.getExpensesInPeriod(businessId, branchIds, from, to)
 
-        check(
-            reportingDao.countExpenseEventsInPeriod(businessId, branchIds, from, to) == 0
-        ) {
-            "Expense correction/void activity exists in this period and is not supported by Reporting yet."
+        val unsupportedExpenseEvents =
+            reportingDao.getExpenseEventsInPeriod(businessId, branchIds, from, to)
+        check(unsupportedExpenseEvents.isEmpty()) {
+            val details = unsupportedExpenseEvents.joinToString(separator = "; ") { event ->
+                "event=${event.id}, expense=${event.expenseId}, type=${event.eventType}"
+            }
+            "Unsupported expense correction/void evidence in this report period " +
+                "(${unsupportedExpenseEvents.size} event(s)): $details. " +
+                "Reporting cannot safely summarize these expense lifecycle events yet."
         }
 
         // ---- 4. Parent transactions for lifecycle + coupon rows ----------
