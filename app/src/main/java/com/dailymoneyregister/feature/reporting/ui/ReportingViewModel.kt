@@ -137,7 +137,7 @@ class ReportingViewModel @Inject constructor(
                     branchId = branchId
                 )
                 _uiState.value = _uiState.value.copy(
-                    cashierOptions = options.cashiers,
+                    cashierOptions = emptyList(),
                     isLoading = false,
                     error = null
                 )
@@ -152,26 +152,6 @@ class ReportingViewModel @Inject constructor(
                 )
             }
         }
-    }
-
-    fun selectCashier(
-        cashierId: String?
-    ) {
-        if (
-            cashierId != null &&
-            _uiState.value.cashierOptions
-                .none { it.id == cashierId }
-        ) {
-            return
-        }
-
-        _uiState.value =
-            _uiState.value.copy(
-                selectedCashierId = cashierId,
-                error = null
-            )
-
-        load()
     }
 
     fun updateCustomFromDate(
@@ -290,8 +270,7 @@ class ReportingViewModel @Inject constructor(
                     _uiState.value =
                         _uiState.value.copy(
                             branchOptions = branches,
-                            cashierOptions =
-                                options.cashiers,
+                            cashierOptions = emptyList(),
                             selectedBranchId =
                                 selectedBranch.id,
                             isLoading = false,
@@ -371,9 +350,7 @@ class ReportingViewModel @Inject constructor(
                     session.business.id,
                 branchId =
                     branch.id,
-                cashierUserId =
-                    _uiState.value
-                        .selectedCashierId,
+                cashierUserId = null,
                 currencyCode =
                     branch.currencyCode,
                 period =
