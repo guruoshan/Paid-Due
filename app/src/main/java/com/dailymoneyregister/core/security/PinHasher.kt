@@ -37,7 +37,7 @@ private data class ParsedCredentialHash(
     val isLegacy: Boolean
 )
 
-private object CredentialHasher {
+internal object CredentialHasher {
 
     private val random =
         SecureRandom()
@@ -330,75 +330,6 @@ private object CredentialHasher {
         }
 
         return result == 0
-    }
-}
-
-/**
- * Cashier PIN security.
- *
- * New PIN hashes use the current work factor.
- * Legacy 10,000-iteration hashes remain readable so an
- * existing Cashier is not locked out after upgrade.
- */
-object PinHasher {
-
-    private const val LEGACY_ITERATIONS =
-        10_000
-
-    fun generateSalt(): String =
-        CredentialHasher.generateSalt()
-
-    fun hashPin(
-        pin: String,
-        saltHex: String
-    ): String {
-
-        require(isValidPin(pin)) {
-            "Cashier PIN must be exactly 6 numeric digits"
-        }
-
-        return CredentialHasher.hashCurrent(
-            secret = pin,
-            saltHex = saltHex
-        )
-    }
-
-    fun verifyPin(
-        pin: String,
-        saltHex: String,
-        storedHash: String
-    ): Boolean {
-
-        if (!isValidPin(pin)) {
-            return false
-        }
-
-        return CredentialHasher.verify(
-            secret = pin,
-            saltHex = saltHex,
-            storedHash = storedHash,
-            legacyIterations =
-                LEGACY_ITERATIONS
-        )
-    }
-
-    fun needsUpgrade(
-        storedHash: String
-    ): Boolean {
-
-        return CredentialHasher.needsUpgrade(
-            storedHash = storedHash,
-            legacyIterations =
-                LEGACY_ITERATIONS
-        )
-    }
-
-    fun isValidPin(
-        pin: String
-    ): Boolean {
-
-        return pin.length == 6 &&
-            pin.all { it.isDigit() }
     }
 }
 
