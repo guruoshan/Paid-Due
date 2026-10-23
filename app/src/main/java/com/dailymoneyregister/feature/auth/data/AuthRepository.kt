@@ -7,7 +7,6 @@ import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.PasswordHasher
-import com.dailymoneyregister.core.security.PinHasher
 import com.dailymoneyregister.core.security.PinThrottler
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
@@ -376,14 +375,6 @@ class AuthRepository @Inject constructor(
 
         return AuthResult.Success(session)
     }
-
-    suspend fun loginCashier(
-        username: String,
-        pin: String
-    ): AuthResult = AuthResult.InvalidCredentials("Cashier access has been retired")
-
-    suspend fun changeCashierPin(newPin: String): AuthResult =
-        AuthResult.Error("Cashier access has been retired")
 
     private suspend fun upgradeAdminCredentialIfNeeded(
         user: UserAccountEntity,
