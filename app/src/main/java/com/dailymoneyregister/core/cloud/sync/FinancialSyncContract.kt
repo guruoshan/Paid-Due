@@ -1,7 +1,6 @@
 package com.dailymoneyregister.core.cloud.sync
 
 private val DIGEST_HEX = Regex("^[0-9a-f]{64}$")
-private val UUID_V7 = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 private val UUID = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 /* Existing tenant, membership and device IDs are opaque, non-whitespace
  * server/local identifiers. Do not impose UUID on legacy IDs. */
