@@ -47,11 +47,7 @@ class CustomerDirectorySyncClient @Inject constructor(
         val previous = lastSyncByBusiness[syncKey] ?: 0L
         if (now - previous < MIN_SYNC_INTERVAL_MILLIS) return@withContext
 
-        val token = when (session.user.role) {
-            UserRole.CASHIER -> CashierCloudSession.tokenFor(membershipId)
-            UserRole.ADMIN -> supabase.auth.currentSessionOrNull()?.accessToken
-            else -> null
-        } ?: return@withContext
+        val token = supabase.auth.currentSessionOrNull()?.accessToken ?: return@withContext
 
         val baseUrl = BuildConfig.PAID_DUE_BACKEND_BASE_URL.trimEnd('/')
         require(baseUrl.startsWith("https://")) { "CUSTOMER_SYNC_BACKEND_URL_INVALID" }
