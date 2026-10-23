@@ -1,0 +1,97 @@
+name: Compile Check
+
+on:
+  push:
+    branches:
+      - test/financial-certification-13-operation-gate
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: true
+      - name: Set up JDK 17
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+      - name: Compile app and Android tests
+        shell: bash
+        run: |
+          set +e
+          chmod +x ./gradlew
+          ./gradlew :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin 2>&1 | tee "$RUNNER_TEMP/compile-latest.log"
+          gradle_status=${PIPESTATUS[0]}
+          if [[ "$gradle_status" -eq 0 ]]; then
+            echo "SUCCESS" > "$RUNNER_TEMP/compile-latest-status"
+          else
+            echo "FAILED" > "$RUNNER_TEMP/compile-latest-status"
+          fi
+          exit "$gradle_status"
+
+      - name: Publish compile result to ci-results branch
+        if: always()
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/compile-latest.md"
+          {
+            echo "# Latest compile result"
+            echo
+            echo "- Commit SHA: ${{ github.event.pull_request.head.sha || github.sha }}"
+            echo "- Time (UTC): $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "- Gradle result: $(cat "$RUNNER_TEMP/compile-latest-status" 2>/dev/null || echo FAILED)"
+            echo
+            echo "## Kotlin compiler errors (maximum 60)"
+            if [[ -f "$RUNNER_TEMP/compile-latest.log" ]]; then
+              grep '^e: ' "$RUNNER_TEMP/compile-latest.log" | head -60 || true
+            else
+              echo "No Gradle log was produced."
+            fi
+          } > "$report"
+
+          if ! (
+            set -euo pipefail
+            # Gradle's chmod of gradlew changes the worktree mode; clean it before branch switch.
+            git reset --hard HEAD
+            git clean -fd
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            for attempt in 1 2 3 4 5; do
+              if git ls-remote --exit-code --heads origin ci-results >/dev/null 2>&1; then
+                git fetch origin ci-results
+                git checkout -B ci-results origin/ci-results
+              else
+                git checkout --orphan ci-results
+                git rm -rf --ignore-unmatch .
+              fi
+              mkdir -p ci-results
+              cp "$report" ci-results/compile-latest.md
+              git add ci-results/compile-latest.md
+              git commit -m "ci: publish results to ci-results branch"
+              if git push --force origin HEAD:ci-results; then
+                exit 0
+              fi
+              echo "ci-results ref moved concurrently; retrying publish ($attempt/5)" >&2
+              sleep 2
+            done
+            echo "Could not publish compile-latest.md after five attempts" >&2
+            exit 1
+          ); then
+            echo "::warning::Could not publish ci-results/compile-latest.md; compile result is unchanged."
+          fi
