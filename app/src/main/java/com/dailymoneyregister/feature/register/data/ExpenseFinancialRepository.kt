@@ -13,6 +13,10 @@ import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.enums.SubjectType
+import com.dailymoneyregister.core.model.enums.EntryPurpose
+import com.dailymoneyregister.core.model.enums.ConfirmationType
+import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.core.model.enums.UserRole
 
 internal class ExpenseFinancialRepository(
     private val database: DmrDatabase,
@@ -33,6 +37,113 @@ internal class ExpenseFinancialRepository(
 
     private val transactionDao =
         database.transactionDao()
+
+    suspend fun executeExpenseLifecycle(
+        command: ExpenseLifecycleCommand
+    ): CommandResult<com.dailymoneyregister.core.database.entity.ExpenseEntity> {
+        return try {
+            val session = SessionManager.currentSession.value
+                ?: return CommandResult.PermissionDenied("An authenticated Admin session is required.")
+            if (session.user.id != command.actorUserId ||
+                session.business.id != command.businessId ||
+                session.branch.id != command.branchId) {
+                return CommandResult.PermissionDenied("Expense lifecycle identity does not match the signed-in session.")
+            }
+            val actor = database.userDao().getUserByIdInBusiness(command.actorUserId, command.businessId)
+                ?: return CommandResult.PermissionDenied("Expense lifecycle actor is not a member of this business.")
+            if (!actor.isActive || actor.role != UserRole.ADMIN) {
+                return CommandResult.PermissionDenied("Only an active Admin can correct or void an expense.")
+            }
+            val expense = database.expenseDao().getExpenseById(command.expenseId)
+                ?: return CommandResult.Error(IllegalArgumentException("Expense does not exist."))
+            if (expense.businessId != command.businessId || expense.branchId != command.branchId) {
+                return CommandResult.PermissionDenied("Expense belongs to another business or branch.")
+            }
+            commandExecutor.execute(
+                command = command,
+                cashShiftId = expense.cashShiftId,
+                replayResolver = {
+                    database.expenseDao().getExpenseById(command.expenseId)
+                        ?: error("Expense lifecycle replay references a missing expense.")
+                }
+            ) {
+                val current = database.expenseDao().getExpenseById(command.expenseId)
+                    ?: error("Expense disappeared before lifecycle event commit.")
+                require(current.businessId == command.businessId && current.branchId == command.branchId) {
+                    "Expense tenant identity changed before lifecycle event commit."
+                }
+                val events = database.expenseDao().getEventsForExpense(current.id)
+                require(events.none { it.eventType.uppercase().contains("VOID") }) {
+                    "A voided expense cannot be corrected or voided again."
+                }
+                if (command.action == ExpenseLifecycleCommand.Action.CORRECT) {
+                    require(current.amountMinor != command.correctedAmountMinor) {
+                        "Corrected amount must differ from the current expense amount."
+                    }
+                }
+                val previousAmount = current.amountMinor
+                val nextAmount = command.correctedAmountMinor
+                val delta = if (command.action == ExpenseLifecycleCommand.Action.CORRECT) {
+                    Math.subtractExact(previousAmount, requireNotNull(nextAmount))
+                } else previousAmount
+                val event = com.dailymoneyregister.core.database.entity.ExpenseEventEntity(
+                    id = "${command.operationId.value}:expense-event",
+                    expenseId = current.id,
+                    operationId = command.operationId.value,
+                    eventType = if (command.action == ExpenseLifecycleCommand.Action.CORRECT) "CORRECTED" else "VOIDED",
+                    actorUserId = command.actorUserId,
+                    previousAmountMinor = previousAmount,
+                    newAmountMinor = nextAmount,
+                    previousPaymentCategory = current.paymentCategory,
+                    newPaymentCategory = if (command.action == ExpenseLifecycleCommand.Action.CORRECT) current.paymentCategory else null,
+                    previousCategory = current.category,
+                    newCategory = if (command.action == ExpenseLifecycleCommand.Action.CORRECT) current.category else null,
+                    previousPayeeId = current.payeeId,
+                    newPayeeId = current.payeeId,
+                    reason = command.reason,
+                    occurredAt = command.occurredAt
+                )
+                database.expenseDao().insertExpenseEvent(event)
+                val purpose = if (command.action == ExpenseLifecycleCommand.Action.CORRECT) {
+                    EntryPurpose.EXPENSE_CORRECTION
+                } else EntryPurpose.VOID_REVERSAL
+                transactionDao.insertSettlement(
+                    SettlementEntryEntity(
+                        id = "${command.operationId.value}:expense-lifecycle-settlement",
+                        operationId = command.operationId.value,
+                        subjectType = SubjectType.EXPENSE,
+                        subjectId = current.id,
+                        transactionId = null,
+                        entryPurpose = purpose,
+                        category = com.dailymoneyregister.core.model.enums.PaymentCategory.valueOf(current.paymentCategory),
+                        channel = com.dailymoneyregister.core.model.enums.PaymentChannel.valueOf(
+                            if (current.paymentCategory == "CASH") "CASH_TENDER" else
+                                transactionDao.getSettlementsForOperation(current.operationId).first().channel.name
+                        ),
+                        amountSignedMinor = delta,
+                        currencyCode = current.currencyCode,
+                        confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                        qrProfileIdSnapshot = null,
+                        occurredAt = command.occurredAt,
+                        actorUserId = command.actorUserId,
+                        providerRef = current.reference
+                    )
+                )
+                if (command.action == ExpenseLifecycleCommand.Action.CORRECT) {
+                    check(database.expenseDao().updateExpense(current.copy(amountMinor = requireNotNull(nextAmount))) == 1) {
+                        "Corrected expense snapshot was not updated."
+                    }
+                }
+                val updated = database.expenseDao().getExpenseById(current.id)
+                    ?: error("Expense lifecycle result could not be loaded.")
+                updated to ("EXPENSE" to current.id)
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            CommandResult.Error(e)
+        }
+    }
 
     suspend fun executeExpense(
         command: ExpenseCommand
