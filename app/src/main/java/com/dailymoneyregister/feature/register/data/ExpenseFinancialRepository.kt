@@ -81,12 +81,18 @@ internal class ExpenseFinancialRepository(
                 require(events.none { it.eventType.uppercase().contains("VOID") }) {
                     "A voided expense cannot be corrected or voided again."
                 }
+                val effectiveAmount = events
+                    .asSequence()
+                    .filter { !it.eventType.uppercase().contains("VOID") }
+                    .sortedWith(compareBy<com.dailymoneyregister.core.database.entity.ExpenseEventEntity>({ it.occurredAt }, { it.id }))
+                    .mapNotNull { it.newAmountMinor }
+                    .lastOrNull() ?: current.amountMinor
                 if (command.action == ExpenseLifecycleCommand.Action.CORRECT) {
-                    require(current.amountMinor != command.correctedAmountMinor) {
-                        "Corrected amount must differ from the current expense amount."
+                    require(effectiveAmount != command.correctedAmountMinor) {
+                        "Corrected amount must differ from the current effective expense amount."
                     }
                 }
-                val previousAmount = current.amountMinor
+                val previousAmount = effectiveAmount
                 val nextAmount = command.correctedAmountMinor
                 val delta = if (command.action == ExpenseLifecycleCommand.Action.CORRECT) {
                     Math.subtractExact(previousAmount, requireNotNull(nextAmount))
@@ -134,11 +140,6 @@ internal class ExpenseFinancialRepository(
                         providerRef = current.reference
                     )
                 )
-                if (command.action == ExpenseLifecycleCommand.Action.CORRECT) {
-                    check(database.expenseDao().updateExpense(current.copy(amountMinor = requireNotNull(nextAmount))) == 1) {
-                        "Corrected expense snapshot was not updated."
-                    }
-                }
                 val updated = database.expenseDao().getExpenseById(current.id)
                     ?: error("Expense lifecycle result could not be loaded.")
                 updated to ("EXPENSE" to current.id)
