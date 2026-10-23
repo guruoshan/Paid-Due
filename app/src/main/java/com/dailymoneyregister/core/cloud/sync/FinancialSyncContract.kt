@@ -21,9 +21,10 @@ data class FinancialSyncIdentity(
     val canonicalSha256: String
 ) {
     init {
-        // Financial OperationEntity specifies UUIDv7 IDs; no human-readable
-        // aliases are permitted on the synchronization wire.
-        validId(operationId, "operationId", UUID_V7)
+        // New IDs are UUIDv7, but older persisted financial operations may use another
+        // RFC 4122 UUID version. Accept valid UUIDs for backward-compatible delivery;
+        // never accept human-readable aliases or malformed IDs on the wire.
+        validId(operationId, "operationId", UUID)
         validId(businessId, "businessId", OPAQUE_ID)
         validId(branchId, "branchId", OPAQUE_ID)
         validId(actorMembershipId, "actorMembershipId", OPAQUE_ID)
