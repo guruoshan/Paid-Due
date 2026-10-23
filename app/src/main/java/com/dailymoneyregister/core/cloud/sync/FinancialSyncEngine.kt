@@ -263,15 +263,23 @@ class FinancialSyncEngine @Inject constructor(
                     actorMembershipId = actorMembershipId,
                     branchTimezoneId = branch.timezoneId
                 )
-                val identity = FinancialSyncIdentity(
-                    envelope.operationId,
-                    envelope.businessId,
-                    envelope.branchId,
-                    actorMembershipId,
-                    envelope.deviceId,
-                    envelope.commandSchemaVersion,
-                    envelope.canonicalSha256
-                )
+                val identity = try {
+                    FinancialSyncIdentity(
+                        envelope.operationId,
+                        envelope.businessId,
+                        envelope.branchId,
+                        actorMembershipId,
+                        envelope.deviceId,
+                        envelope.commandSchemaVersion,
+                        envelope.canonicalSha256
+                    )
+                } catch (error: IllegalArgumentException) {
+                    throw IllegalArgumentException(
+                        "FinancialSyncIdentity validation failed: operation=${opEntity.operationType}, " +
+                            "stage=upload, operationId=${envelope.operationId}: ${error.message}",
+                        error
+                    )
+                }
                 val nextState = FinancialSyncOutboxPolicy.applyReceipt(identity, inFlightState, receipt)
                 withContext(NonCancellable) {
                     outboxDao.updateStatus(outboxItem.operationId, nextState.name, incrementAttempt = 1)
