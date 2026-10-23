@@ -27,7 +27,6 @@ class FinancialEvidenceMigrationG4BTest {
         "businesses",
         "branches",
         "customers",
-        "user_accounts",
         "transactions",
         "operations",
         "settlement_entries",
@@ -338,6 +337,7 @@ class FinancialEvidenceMigrationG4BTest {
             }
 
             verifyForeignKeys(current)
+            assertRetiredCashier(current)
 
             val after = snapshots(current)
 
@@ -381,6 +381,7 @@ class FinancialEvidenceMigrationG4BTest {
 
             assertEquals(before, snapshots(reopened))
             verifyForeignKeys(reopened)
+            assertRetiredCashier(reopened)
 
             reopened.query(
                 "SELECT COUNT(*) FROM financial_sync_outbox"
@@ -403,6 +404,20 @@ class FinancialEvidenceMigrationG4BTest {
             )
         }
     }
+
+    private fun assertRetiredCashier(db: SupportSQLiteDatabase) {
+        db.query(
+            "SELECT id, is_active, display_name, username FROM user_accounts WHERE id = 'g4-user'"
+        ).use { cursor ->
+            assertTrue("Historical actor account must be retained", cursor.moveToFirst())
+            assertEquals("g4-user", cursor.getString(0))
+            assertEquals(0, cursor.getInt(1))
+            assertEquals("Retired staff", cursor.getString(2))
+            assertEquals("retired_cashier_g4-user", cursor.getString(3))
+            assertTrue("Only the original historical actor account should match", !cursor.moveToNext())
+        }
+    }
+
 
     private fun snapshots(
         db: SupportSQLiteDatabase
