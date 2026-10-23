@@ -262,7 +262,7 @@ class ReportingRoomIntegrationTest {
         assertEquals(0L, result.summary.onlineSalesCollected.amount)
         assertEquals(0L, result.summary.creditSalesOriginated.amount)
         assertEquals(1, result.summary.counts.sales)
-        assertEquals("Cloud Cashier", (result.rows.single() as SaleReportRow).cashier.displayName)
+        assertNull((result.rows.single() as SaleReportRow).cashier.displayName)
 
         // A payment-method change is a reclassification of the existing sale,
         // not a second sale. The current snapshot must move the tender from cash
@@ -355,7 +355,7 @@ class ReportingRoomIntegrationTest {
         assertEquals(1, afterPaymentChange.summary.counts.sales)
 
         val options = ReportingFilterOptionsRepository(database).load(business.id, branch.currencyCode)
-        assertTrue(options.cashiers.any { it.id == cloudCashierId && it.displayName == "Cloud Cashier" })
+        assertTrue(options.cashiers.isEmpty())
 
         val filtered = repository.read(
             ReportingScope(
