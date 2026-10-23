@@ -607,53 +607,6 @@ class DmrDatabaseIntegrationTest {
     }
 
     @Test
-    fun testCashierEquivalentPhonesShareCanonicalAccountBudget() = runBlocking {
-        val setup = (setupRepository.executeSetup(SetupParams(
-            businessName = "Cashier Throttle Shop",
-            branchName = "Main",
-            branchCode = "CASH",
-            countryCode = "OM",
-            currencyCode = "OMR",
-            currencyDecimalPlaces = 3,
-            currencySymbol = "OMR",
-            timezoneId = "Asia/Muscat",
-            taxRoundingMode = TaxRoundingMode.HALF_UP,
-            defaultTaxRateBps = 0,
-            adminDisplayName = "Cashier Owner",
-            adminUsername = "cashier_owner",
-            adminPasswordPlain = "CashierOwnerPass123",
-            languageCode = "en"
-        )) as CommandResult.Success).data
-        val cashier = (cashierManagementRepository.createCashier(CreateCashierParams(
-            businessId = setup.businessId.value,
-            branchId = setup.branchId.value,
-            adminUserId = setup.adminUserId.value,
-            displayName = "Phone Cashier",
-            username = "phone_cashier",
-            phone = "92345678",
-            pin = "123456",
-            preferredLanguage = "en"
-        )) as CommandResult.Success).data
-        val prefs = context.getSharedPreferences("test_cashier_account_budget", Context.MODE_PRIVATE)
-        prefs.edit().clear().commit()
-        val auth = AuthRepository(
-            database,
-            PinThrottler(context, prefs, maxAttempts = 3, lockoutDurationMillis = 30_000L),
-            LanguageManager(context),
-            trustedSessionStore
-        )
-        repeat(2) { index ->
-            val input = if (index == 0) "+968 9234 5678" else "00968 92345678"
-            assertTrue(auth.loginCashier(input, "999999") is AuthResult.InvalidCredentials)
-        }
-        val locked = auth.loginCashier("+96892345678", "999999")
-        assertTrue(locked is AuthResult.LockedOut)
-        assertTrue((locked as AuthResult.LockedOut).remainingSeconds > 0L)
-        assertTrue(auth.getLoginLockoutRemaining("CASHIER", "00968 92345678") > 0L)
-        assertEquals(cashier.value, database.userDao().getUserByUsername(setup.businessId.value, "phone_cashier")?.id)
-    }
-
-    @Test
     fun testUnknownLoginFailuresUsePreResolutionBudget() = runBlocking {
         val setup = (setupRepository.executeSetup(SetupParams(
             businessName = "Unknown Throttle Shop",
@@ -675,11 +628,11 @@ class DmrDatabaseIntegrationTest {
         prefs.edit().clear().commit()
         val throttler = PinThrottler(context, prefs, maxAttempts = 2, lockoutDurationMillis = 30_000L)
         val auth = AuthRepository(database, throttler, LanguageManager(context), trustedSessionStore)
-        assertTrue(auth.loginCashier("unknown_cashier", "999999") is AuthResult.InvalidCredentials)
-        val locked = auth.loginCashier("unknown_cashier", "999999")
+        assertTrue(auth.loginAdmin("unknown_admin", "999999") is AuthResult.InvalidCredentials)
+        val locked = auth.loginAdmin("unknown_admin", "999999")
         assertTrue(locked is AuthResult.LockedOut)
-        assertTrue(throttler.isLockedOut("pre:v1:CASHIER:${setup.businessId.value}:${setup.branchId.value}:USERNAME:unknown_cashier"))
-        assertNull(database.userDao().getUserByUsername(setup.businessId.value, "unknown_cashier"))
+        assertTrue(throttler.isLockedOut("pre:v1:ADMIN:${setup.businessId.value}:${setup.branchId.value}:USERNAME:unknown_admin"))
+        assertNull(database.userDao().getUserByUsername(setup.businessId.value, "unknown_admin"))
     }
 
     @Test
@@ -753,67 +706,7 @@ class DmrDatabaseIntegrationTest {
     }
 
     @Test
-    fun testAdminCreatesCashierWithSixDigitPinAndBranchMembership() = runBlocking {
-        // First run setup
-        val setupParams = SetupParams(
-            businessName = "Shop 1",
-            branchName = "Branch 1",
-            branchCode = "BR1",
-            countryCode = "OM",
-            currencyCode = "OMR",
-            currencyDecimalPlaces = 3,
-            currencySymbol = "OMR",
-            timezoneId = "Asia/Muscat",
-            taxRoundingMode = TaxRoundingMode.HALF_UP,
-            defaultTaxRateBps = 500,
-            adminDisplayName = "Admin",
-            adminUsername = "admin1",
-            adminPasswordPlain = "pass1234",
-            languageCode = "en"
-        )
-        val setupResult = (setupRepository.executeSetup(setupParams) as CommandResult.Success).data
-
-        // Admin creates a Cashier
-        val cashierParams = CreateCashierParams(
-            businessId = setupResult.businessId.value,
-            branchId = setupResult.branchId.value,
-            adminUserId = setupResult.adminUserId.value,
-            displayName = "Cashier Rahul",
-            username = "rahul",
-            pin = "654321",
-            preferredLanguage = "hi",
-            permissions = CashierPermissionsConfig(
-                canCreateSale = true,
-                canAcceptCash = true,
-                canAcceptOnline = true,
-                canCreateCreditSale = true,
-                canRefund = false,
-                canVoid = false
-            )
-        )
-
-        val cashierResult = cashierManagementRepository.createCashier(cashierParams)
-        assertTrue("Cashier creation should succeed", cashierResult is CommandResult.Success)
-
-        val cashierId = (cashierResult as CommandResult.Success).data
-        val cashierUser = database.userDao().getUserById(cashierId.value)
-        assertNotNull(cashierUser)
-        assertEquals("Cashier Rahul", cashierUser?.displayName)
-        assertEquals("rahul", cashierUser?.username)
-        assertEquals(UserRole.CASHIER, cashierUser?.role)
-        assertEquals("hi", cashierUser?.languageCode)
-        assertNotEquals("654321", cashierUser?.credentialHash) // Salted hash, not plaintext!
-
-        val membership = database.userDao().getMembership(cashierId.value, setupResult.branchId.value)
-        assertNotNull(membership)
-        assertTrue(membership!!.canCreateSale)
-        assertTrue(membership.canCreateCreditSale)
-        assertFalse(membership.canRefund)
-        assertFalse(membership.canVoid)
-    }
-
-    @Test
-    fun testAuthLoginFlowsForAdminAndCashier() = runBlocking {
+    fun testAdminLoginFlowAndCashierRetirement() = runBlocking {
         // Setup
         val setupParams = SetupParams(
             businessName = "Shop Auth",
@@ -833,18 +726,6 @@ class DmrDatabaseIntegrationTest {
         )
         val setupResult = (setupRepository.executeSetup(setupParams) as CommandResult.Success).data
 
-        // Cashier
-        cashierManagementRepository.createCashier(
-            CreateCashierParams(
-                businessId = setupResult.businessId.value,
-                branchId = setupResult.branchId.value,
-                adminUserId = setupResult.adminUserId.value,
-                displayName = "Cashier Bob",
-                username = "bob",
-                pin = "112233"
-            )
-        )
-
         // Admin login success
         val adminLogin = authRepository.loginAdmin("admin_user", "AdminPassSecret")
         assertTrue(adminLogin is AuthResult.Success)
@@ -854,15 +735,7 @@ class DmrDatabaseIntegrationTest {
         val adminFail = authRepository.loginAdmin("admin_user", "WrongPass")
         assertTrue(adminFail is AuthResult.InvalidCredentials)
 
-        // Cashier login success
-        val cashierLogin = authRepository.loginCashier("bob", "112233")
-        assertTrue(cashierLogin is AuthResult.Success)
-        assertEquals((cashierLogin as AuthResult.Success).session.user.id, trustedSessionStore.load()?.userId)
-
-        // Cashier login wrong PIN
-        val cashierFail = authRepository.loginCashier("bob", "999999")
-        assertTrue(cashierFail is AuthResult.InvalidCredentials)
-    }
+        assertTrue(authRepository.loginCashier("bob", "112233") is AuthResult.InvalidCredentials)
 
     @Test
     fun testOperationIdempotencyAndFingerprintIntegrity() = runBlocking {
@@ -1566,7 +1439,7 @@ class DmrDatabaseIntegrationTest {
     }
 
     @Test
-    fun testPhoneAdminLoginAndCashierMustChangePin() = runBlocking {
+    fun testPhoneAdminLoginAndCashierLoginIsRetired() = runBlocking {
         val setup = (setupRepository.executeSetup(SetupParams(
             businessName = "Phone Shop",
             branchName = "Main",
@@ -1596,26 +1469,7 @@ class DmrDatabaseIntegrationTest {
         assertTrue(authRepository.loginAdmin("+968 9123 4567", "PhoneAdminPass123") is AuthResult.Success)
         assertTrue(authRepository.loginAdmin("+968 9123 4567", "wrong-password") is AuthResult.InvalidCredentials)
 
-        val cashierResult = cashierManagementRepository.createCashier(
-            CreateCashierParams(
-                businessId = setup.businessId.value,
-                branchId = setup.branchId.value,
-                adminUserId = setup.adminUserId.value,
-                displayName = "Phone Cashier",
-                username = "+96892345678",
-                phone = "92345678",
-                pin = "123456"
-            )
-        ) as CommandResult.Success
-        val cashier = database.userDao().getUserById(cashierResult.data.value)!!
-        assertTrue(cashier.mustChangePin)
-        assertTrue(cashier.credentialHash != "123456")
-        val cashierLogin = authRepository.loginCashier("00968 92345678", "123456") as AuthResult.Success
-        assertTrue(cashierLogin.session.requiresPinChange)
-        assertTrue(authRepository.changeCashierPin("654321") is AuthResult.Success)
-        assertFalse(database.userDao().getUserById(cashier.id)!!.mustChangePin)
         assertTrue(authRepository.loginCashier("+96892345678", "123456") is AuthResult.InvalidCredentials)
-        assertTrue(authRepository.loginCashier("+96892345678", "654321") is AuthResult.Success)
     }
 
     @Test
@@ -1726,7 +1580,7 @@ class DmrDatabaseIntegrationTest {
     }
 
     @Test
-    fun testRestrictedCashierCannotExecuteSaleUntilPinChangeEvenWithoutSession() = runBlocking {
+    fun testRetiredCashierCannotAuthenticateOrExecuteSale() = runBlocking {
         val setup = (setupRepository.executeSetup(SetupParams(
             businessName = "Restricted Sale Shop",
             branchName = "Main",
@@ -1765,9 +1619,7 @@ class DmrDatabaseIntegrationTest {
         val cashier = database.userDao().getUserById(cashierId)!!
         val branch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
         val membership = database.userDao().getMembership(cashierId, branch.id)!!
-        val auth = authRepository.loginCashier("+96892345678", "246810") as AuthResult.Success
-        assertTrue(cashier.mustChangePin)
-        assertTrue(auth.session.requiresPinChange)
+        assertTrue(authRepository.loginCashier("+96892345678", "246810") is AuthResult.InvalidCredentials)
 
         val registerRepository = RegisterRepository(database, commandExecutor)
         val restrictedOperationId = OperationId.generate()
@@ -1797,35 +1649,5 @@ class DmrDatabaseIntegrationTest {
         assertTrue(database.transactionDao().getSettlementsForTransaction(restrictedTransactionId.value).isEmpty())
         assertNull(database.operationDao().getOperationById(restrictedOperationId.value))
 
-        assertTrue(authRepository.loginCashier("+96892345678", "246810") is AuthResult.Success)
-        assertTrue(authRepository.changeCashierPin("135790") is AuthResult.Success)
-        assertFalse(database.userDao().getUserById(cashierId)!!.mustChangePin)
-        assertTrue(authRepository.loginCashier("+96892345678", "135790") is AuthResult.Success)
-
-        val allowedOperationId = OperationId.generate()
-        val allowedTransactionId = TransactionId.generate()
-        val allowedResult = registerRepository.executeCashSale(
-            CashSaleCommand(
-                operationId = allowedOperationId,
-                businessId = setup.businessId.value,
-                branchId = branch.id,
-                actorUserId = cashierId,
-                transactionIdVal = allowedTransactionId,
-                draftState = DraftState(manualAmount = MoneyMinorUnits(1000L)),
-                currencyCode = branch.currencyCode,
-                currencyDecimalPlaces = branch.currencyDecimalPlaces,
-                deviceId = "test-device"
-            ),
-            database.userDao().getUserById(cashierId)!!,
-            database.userDao().getMembership(cashierId, branch.id)
-        )
-        assertTrue(allowedResult is CommandResult.Success)
-        assertNotNull(database.transactionDao().getTransactionById(allowedTransactionId.value))
-        assertEquals(1, database.transactionDao().getSettlementsForTransaction(allowedTransactionId.value).size)
-        assertTrue(database.operationDao().isOperationSucceeded(allowedOperationId.value))
+        assertTrue(authRepository.loginCashier("+96892345678", "135790") is AuthResult.InvalidCredentials)
     }
-}
-
-
-
-
