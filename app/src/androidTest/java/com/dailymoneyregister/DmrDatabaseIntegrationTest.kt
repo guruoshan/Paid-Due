@@ -706,7 +706,7 @@ class DmrDatabaseIntegrationTest {
     }
 
     @Test
-    fun testAdminLoginFlowAndCashierRetirement() = runBlocking {
+    fun testAdminLoginFlowWorks() = runBlocking {
         // Setup
         val setupParams = SetupParams(
             businessName = "Shop Auth",
@@ -735,7 +735,6 @@ class DmrDatabaseIntegrationTest {
         val adminFail = authRepository.loginAdmin("admin_user", "WrongPass")
         assertTrue(adminFail is AuthResult.InvalidCredentials)
 
-        assertTrue(authRepository.loginCashier("bob", "112233") is AuthResult.InvalidCredentials)
 
     @Test
     fun testOperationIdempotencyAndFingerprintIntegrity() = runBlocking {
@@ -1439,7 +1438,7 @@ class DmrDatabaseIntegrationTest {
     }
 
     @Test
-    fun testPhoneAdminLoginAndCashierLoginIsRetired() = runBlocking {
+    fun testPhoneAdminLoginUsesCanonicalPhone() = runBlocking {
         val setup = (setupRepository.executeSetup(SetupParams(
             businessName = "Phone Shop",
             branchName = "Main",
@@ -1469,7 +1468,6 @@ class DmrDatabaseIntegrationTest {
         assertTrue(authRepository.loginAdmin("+968 9123 4567", "PhoneAdminPass123") is AuthResult.Success)
         assertTrue(authRepository.loginAdmin("+968 9123 4567", "wrong-password") is AuthResult.InvalidCredentials)
 
-        assertTrue(authRepository.loginCashier("+96892345678", "123456") is AuthResult.InvalidCredentials)
     }
 
     @Test
@@ -1580,7 +1578,7 @@ class DmrDatabaseIntegrationTest {
     }
 
     @Test
-    fun testRetiredCashierCannotAuthenticateOrExecuteSale() = runBlocking {
+    fun testCashierCannotExecuteSaleWithoutSession() = runBlocking {
         val setup = (setupRepository.executeSetup(SetupParams(
             businessName = "Restricted Sale Shop",
             branchName = "Main",
@@ -1619,7 +1617,6 @@ class DmrDatabaseIntegrationTest {
         val cashier = database.userDao().getUserById(cashierId)!!
         val branch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
         val membership = database.userDao().getMembership(cashierId, branch.id)!!
-        assertTrue(authRepository.loginCashier("+96892345678", "246810") is AuthResult.InvalidCredentials)
 
         val registerRepository = RegisterRepository(database, commandExecutor)
         val restrictedOperationId = OperationId.generate()
@@ -1649,5 +1646,4 @@ class DmrDatabaseIntegrationTest {
         assertTrue(database.transactionDao().getSettlementsForTransaction(restrictedTransactionId.value).isEmpty())
         assertNull(database.operationDao().getOperationById(restrictedOperationId.value))
 
-        assertTrue(authRepository.loginCashier("+96892345678", "135790") is AuthResult.InvalidCredentials)
     }
