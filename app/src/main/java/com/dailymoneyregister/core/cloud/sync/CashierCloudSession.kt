@@ -55,10 +55,21 @@ object CashierCloudSession {
     @Synchronized
     fun initialize(context: Context) {
         if (OWNER_ONLY_MODE) {
+            val appContext = context.applicationContext
+            appContext.getSharedPreferences(STORE, Context.MODE_PRIVATE)
+                .edit()
+                .clear()
+                .apply()
+            runCatching {
+                KeyStore.getInstance("AndroidKeyStore").apply {
+                    load(null)
+                    deleteEntry(KEY_ALIAS)
+                }
+            }
             credential = null
             pendingRestoration = null
             applicationContext = null
-            Log.i(TAG, "CASHIER_CLOUD_SESSION_DISABLED_OWNER_ONLY")
+            Log.i(TAG, "CASHIER_CLOUD_SESSION_DISABLED_AND_CREDENTIALS_CLEARED")
             return
         }
         applicationContext = context.applicationContext
