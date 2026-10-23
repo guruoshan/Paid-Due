@@ -327,10 +327,20 @@ fun DmrApp(
             LoginScreen(
                 viewModel = loginViewModel,
                 onLoginSuccess = { session ->
-                    // LoginScreen authenticates owners/admins only.
-                    navController.navigate(Routes.ADMIN_HUB) {
-                        popUpTo(0) {
-                            inclusive = true
+                    if (session.user.role == UserRole.ADMIN) {
+                        navController.navigate(Routes.ADMIN_HUB) {
+                            popUpTo(0) {
+                                inclusive = true
+                            }
+                        }
+                    } else {
+                        // Defense in depth: non-admin sessions never enter the operational UI.
+                        trustedSessionStore.clear()
+                        SessionManager.clearSession()
+                        navController.navigate(Routes.WELCOME) {
+                            popUpTo(0) {
+                                inclusive = true
+                            }
                         }
                     }
                 }
@@ -338,7 +348,7 @@ fun DmrApp(
         }
 
         composable(Routes.ADMIN_HUB) {
-
+            if (activeSession?.user?.role == UserRole.ADMIN) {
             AdminHubScreen(
                 onNavigateToRegister = {
                     navController.navigate(Routes.REGISTER)
@@ -363,9 +373,19 @@ fun DmrApp(
                     }
                 }
             )
+            } else {
+                LaunchedEffect(Unit) {
+                    trustedSessionStore.clear()
+                    SessionManager.clearSession()
+                    navController.navigate(Routes.WELCOME) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
         }
 
         composable(Routes.REGISTER) {
+            if (activeSession?.user?.role == UserRole.ADMIN) {
 
             val registerViewModel: RegisterViewModel =
                 hiltViewModel()
@@ -378,6 +398,15 @@ fun DmrApp(
                 onNavigateToCustomers = { navController.navigate(Routes.CUSTOMERS) },
                 onNavigateToNotifications = { navController.navigate(Routes.NOTIFICATIONS) }
             )
+            } else {
+                LaunchedEffect(Unit) {
+                    trustedSessionStore.clear()
+                    SessionManager.clearSession()
+                    navController.navigate(Routes.WELCOME) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
         }
 
         composable(Routes.NOTIFICATIONS) {
