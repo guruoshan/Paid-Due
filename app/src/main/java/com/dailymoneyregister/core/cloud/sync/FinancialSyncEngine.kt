@@ -118,6 +118,9 @@ class FinancialSyncEngine @Inject constructor(
         actorMembershipId: String,
         role: UserRole = SessionManager.currentSession.value?.user?.role ?: UserRole.ADMIN
     ): Int = syncMutex.withLock {
+        val syncStartedAt = System.currentTimeMillis()
+        Log.i("PaidDueFinancialSync", "OUTBOUND_SYNC_START actorMembershipId=$actorMembershipId requestedRole=$role")
+        try {
         require(actorMembershipId.isNotBlank()) { "Financial sync requires an authorized membership" }
         val outboxDao = database.financialSyncOutboxDao()
         val operationDao = database.operationDao()
@@ -297,7 +300,14 @@ class FinancialSyncEngine @Inject constructor(
             }
         }
 
+        Log.i("PaidDueFinancialSync", "OUTBOUND_SYNC_END actorMembershipId=$actorMembershipId acknowledged=$syncedCount elapsedMs=${System.currentTimeMillis() - syncStartedAt}")
         return syncedCount
+        } catch (error: Exception) {
+            Log.e("PaidDueFinancialSync", "OUTBOUND_SYNC_EXCEPTION actorMembershipId=$actorMembershipId elapsedMs=${System.currentTimeMillis() - syncStartedAt}", error)
+            throw error
+        } finally {
+            Log.i("PaidDueFinancialSync", "OUTBOUND_SYNC_FINALLY actorMembershipId=$actorMembershipId elapsedMs=${System.currentTimeMillis() - syncStartedAt}")
+        }
     }
 
     private fun persistAttention(operationId: String, message: String) {
@@ -331,6 +341,9 @@ class FinancialSyncEngine @Inject constructor(
         businessId: String,
         adminAccountId: String
     ): Int = syncMutex.withLock {
+        val syncStartedAt = System.currentTimeMillis()
+        Log.i("PaidDueFinancialSync", "INBOUND_SYNC_START businessId=$businessId adminAccountId=$adminAccountId")
+        try {
         val session = SessionManager.currentSession.value
         if (session?.user?.role != UserRole.ADMIN) {
             Log.i("PaidDueFinancialSync", "INBOUND_SKIPPED_NON_OWNER_SESSION")
@@ -374,12 +387,21 @@ class FinancialSyncEngine @Inject constructor(
         val limit = 100
 
         while (true) {
-            val envelopes = remoteSyncRepository.fetchRemoteEnvelopesV2(
-                businessId = businessId,
-                afterReceivedAt = currentAfterReceivedAt,
-                afterOperationId = currentAfterOperationId,
-                limit = limit
-            )
+            val envelopes = try {
+                remoteSyncRepository.fetchRemoteEnvelopesV2(
+                    businessId = businessId,
+                    afterReceivedAt = currentAfterReceivedAt,
+                    afterOperationId = currentAfterOperationId,
+                    limit = limit
+                )
+            } catch (error: Exception) {
+                Log.e(
+                    "PaidDueFinancialSync",
+                    "INBOUND_FETCH_EXCEPTION businessId=$businessId afterReceivedAt=$currentAfterReceivedAt afterOperationId=$currentAfterOperationId",
+                    error
+                )
+                throw error
+            }
 
             if (envelopes.isEmpty()) {
                 break
@@ -444,6 +466,11 @@ class FinancialSyncEngine @Inject constructor(
                         sessionBranchId = materializationBranchScope
                     )
                 } catch (error: Exception) {
+                    Log.e(
+                        "PaidDueFinancialSync",
+                        "INBOUND_APPLY_EXCEPTION operation=${envelope.operationId} type=${envelope.operationType} businessId=$businessId branchId=${envelope.branchId}",
+                        error
+                    )
                     InboundProcessResult.Rejected(
                         error.message ?: "Inbound envelope processing failed"
                     )
@@ -520,7 +547,14 @@ class FinancialSyncEngine @Inject constructor(
         if (totalApplied > 0) Log.i("PaidDueFinancialSync", "INBOUND_APPLIED $totalApplied")
         if (totalSkipped > 0) Log.i("PaidDueFinancialSync", "INBOUND_SKIPPED $totalSkipped")
 
+        Log.i("PaidDueFinancialSync", "INBOUND_SYNC_END businessId=$businessId fetched=$totalFetched applied=$totalApplied skipped=$totalSkipped unresolved=$unresolvedEnvelopeSeen elapsedMs=${System.currentTimeMillis() - syncStartedAt}")
         return totalApplied
+        } catch (error: Exception) {
+            Log.e("PaidDueFinancialSync", "INBOUND_SYNC_EXCEPTION businessId=$businessId adminAccountId=$adminAccountId elapsedMs=${System.currentTimeMillis() - syncStartedAt}", error)
+            throw error
+        } finally {
+            Log.i("PaidDueFinancialSync", "INBOUND_SYNC_FINALLY businessId=$businessId elapsedMs=${System.currentTimeMillis() - syncStartedAt}")
+        }
     }
 
     suspend fun syncInbound(businessId: String): Int =

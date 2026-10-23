@@ -1,0 +1,295 @@
+name: Financial Certification Contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/src/main/java/com/dailymoneyregister/core/cloud/sync/FinancialCertificationCaseRegistry.kt'
+      - 'app/src/test/java/com/dailymoneyregister/core/cloud/sync/FinancialCertificationCaseRegistryTest.kt'
+      - 'app/src/androidTest/java/com/dailymoneyregister/core/cloud/sync/**'
+      - 'docs/financial-certification/**'
+      - '.github/workflows/financial-certification.yml'
+      - '.github/scripts/run-financial-certification-instrumentation.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: financial-certification-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract-tests:
+    name: Certification registry and emulator tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: true
+      - name: Set up JDK 17
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+
+      - name: Install Android SDK and API 36 system image
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          # Keep adb and emulator available in every later GitHub Actions step,
+          # including the evidence-pull script that runs after emulator startup.
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/emulator" >> "$GITHUB_PATH"
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          set -o pipefail
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "emulator" "system-images;android-36;google_apis;x86_64"
+          ln -sfn "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start disposable local Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The repository's migrations are incremental against an existing backend schema.
+          # Start a fresh local project with an empty migration directory, then apply the explicit
+          # isolated schema/RPC fixtures. This prevents any production endpoint or production data.
+          CERT_PROJECT="$RUNNER_TEMP/financial-certification-supabase"
+          mkdir -p "$CERT_PROJECT/supabase/migrations"
+          cat > "$CERT_PROJECT/supabase/config.toml" <<'EOF'
+          project_id = "paid-due-financial-certification-local"
+          EOF
+          cd "$CERT_PROJECT"
+          supabase start
+          supabase status -o env > "$RUNNER_TEMP/supabase-status.env"
+          set -a
+          source "$RUNNER_TEMP/supabase-status.env"
+          set +a
+          : "${API_URL:?Supabase status did not provide API_URL}"
+          : "${ANON_KEY:?Supabase status did not provide ANON_KEY}"
+          : "${SERVICE_ROLE_KEY:?Supabase status did not provide SERVICE_ROLE_KEY}"
+          # The authenticated digest-bearing download RPC is still staged, not a production
+          # migration. Install its unchanged auth/digest contract only in this disposable local DB.
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client
+          fi
+          DB_URL="${DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$GITHUB_WORKSPACE/.github/fixtures/financial-certification-local-schema.sql"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$GITHUB_WORKSPACE/.github/fixtures/financial-certification-local-rpcs.sql"
+          echo "::add-mask::$ANON_KEY"
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          # Emulator loopback maps to the host through 10.0.2.2.
+          echo "CERT_SUPABASE_URL=http://10.0.2.2:54321" >> "$GITHUB_ENV"
+          echo "CERT_SUPABASE_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+          echo "CERT_SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
+
+      - name: Start isolated Android API 36 emulator
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          export ANDROID_USER_HOME="$HOME/.android"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --name paid-due-api36 --package "system-images;android-36;google_apis;x86_64" \
+            --device pixel_2 --force
+          "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" list avd
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fx "paid-due-api36"
+          adb start-server
+          if [[ -e /dev/kvm ]]; then sudo chmod 666 /dev/kvm; fi
+          nohup "$ANDROID_HOME/emulator/emulator" -avd paid-due-api36 \
+            -no-snapshot -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel on \
+            > "$RUNNER_TEMP/paid-due-emulator.log" 2>&1 &
+          if ! timeout 180 adb wait-for-device; then
+            echo "::error::Android emulator never registered with adb."
+            cat "$RUNNER_TEMP/paid-due-emulator.log" || true
+            ps -ef | grep '[e]mulator' || true
+            exit 1
+          fi
+          booted=""
+          for attempt in $(seq 1 90); do
+            booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+            if [[ "$booted" == "1" ]]; then break; fi
+            sleep 5
+          done
+          [[ "$booted" == "1" ]] || {
+            cat "$RUNNER_TEMP/paid-due-emulator.log"
+            echo "::error::Android emulator did not finish booting."
+            exit 1
+          }
+          # Confirm ADB has a usable device, not merely an emulator process.
+          adb devices -l
+          adb shell getprop sys.boot_completed | grep -Fx "1"
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+
+      - name: Run two-database certification instrumentation test and collect evidence
+        shell: bash
+        run: |
+          set +e
+          bash .github/scripts/run-financial-certification-instrumentation.sh 2>&1 | tee "$RUNNER_TEMP/financial-certification-script.log"
+          script_status=${PIPESTATUS[0]}
+          exit "$script_status"
+
+      - name: Upload Android test reports on failure
+        if: failure() && hashFiles('app/build/reports/androidTests/connected/debug/**', 'app/build/outputs/androidTest-results/connected/debug/**', 'app/build/test-results/testDebugUnitTest/**/*.xml') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: financial-certification-test-reports-${{ github.run_id }}
+          path: |
+            app/build/reports/androidTests/connected/debug
+            app/build/outputs/androidTest-results/connected/debug
+            app/build/test-results/testDebugUnitTest
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Preserve certification evidence bundle
+        if: always() && hashFiles('certification-artifacts/**') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: financial-certification-evidence-${{ github.run_id }}
+          path: certification-artifacts
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish financial certification result to ci-results branch
+        if: always()
+        shell: bash
+        env:
+          TESTED_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          report="$RUNNER_TEMP/cert.md"
+          export MANIFEST_PATH="$GITHUB_WORKSPACE/certification-artifacts/financial-certification-evidence/manifest.json"
+          export EVIDENCE_ROOT="$GITHUB_WORKSPACE/certification-artifacts/financial-certification-evidence"
+          export SCRIPT_LOG="$RUNNER_TEMP/financial-certification-script.log"
+          {
+            echo "# Financial certification result"
+            echo
+            echo "- Commit SHA: $TESTED_COMMIT_SHA"
+            echo "- Time (UTC): $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > "$report"
+
+          python3 - <<'PY' >> "$report"
+          import json, os
+          from pathlib import Path
+          manifest_path = Path(os.environ["MANIFEST_PATH"])
+          root = Path(os.environ["EVIDENCE_ROOT"])
+          if not manifest_path.is_file():
+              print("- overall_status: MANIFEST_MISSING")
+              print()
+              print("## Operation results")
+              print("No manifest was collected. Instrumentation may have failed before evidence collection.")
+              raise SystemExit(0)
+          try:
+              manifest = json.loads(manifest_path.read_text())
+          except Exception as exc:
+              print("- overall_status: MANIFEST_INVALID")
+              print(f"- manifest parse error: {exc}")
+              raise SystemExit(0)
+          print(f"- overall_status: {manifest.get('overall_status', 'MISSING')}")
+          print()
+          print("## Operation results")
+          stage_files = {
+              "verify_outbox": "outbox.json", "upload": "envelope.json",
+              "verify_digest": "digest-check.json", "download": "download.json",
+              "before": "before.json", "after": "after.json",
+              "replay": "replay.json", "generate_reports": "reports.json",
+          }
+          operations = manifest.get("operations", [])
+          for operation in operations:
+              op_type = operation.get("operation_type", "<unknown>")
+              op_dir = root / op_type
+              assertions = {}
+              try:
+                  assertions = json.loads((op_dir / "assertions.json").read_text())
+              except Exception:
+                  pass
+              print(f"### {op_type}")
+              print(f"- status: {operation.get('status', 'MISSING')}")
+              print(f"- failure reason: {assertions.get('failure') or 'none recorded'}")
+              for stage, filename in stage_files.items():
+                  try:
+                      stage_data = json.loads((op_dir / filename).read_text())
+                      status = stage_data.get("status", "MISSING")
+                      detail = stage_data.get("detail")
+                      if stage == "replay" and status == "MISSING":
+                          status = stage_data.get("replay", {}).get("status", "MISSING")
+                          detail = stage_data.get("replay", {}).get("detail", detail)
+                      print(f"- {stage}: {status}" + (f" — {detail}" if detail else ""))
+                  except Exception:
+                      print(f"- {stage}: MISSING")
+              print()
+          if not operations:
+              print("No operation entries were present in the manifest.")
+          PY
+
+          {
+            echo "## Sync diagnostic events"
+            echo '```text'
+            if [[ -f "$SCRIPT_LOG" ]]; then grep -E 'PaidDueFinancialSync.*(OUTBOUND_SYNC_START|OUTBOUND_SYNC_END|OUTBOUND_SYNC_EXCEPTION|OUTBOUND_SYNC_FINALLY|OUTBOUND_ITEM_FAILED|UPLOAD_FAILED|INBOUND_SYNC_START|INBOUND_SYNC_END|INBOUND_SYNC_EXCEPTION|INBOUND_SYNC_FINALLY|INBOUND_FETCH_EXCEPTION|INBOUND_APPLY_EXCEPTION)' "$SCRIPT_LOG" | tail -200 || true; else echo "No script log was produced."; fi
+            echo '```'
+            echo
+            echo "## Last 120 lines of certification script log"
+            echo '```text'
+            if [[ -f "$SCRIPT_LOG" ]]; then tail -120 "$SCRIPT_LOG"; else echo "No script log was produced."; fi
+            echo '```'
+          } >> "$report"
+
+          # Diagnostic publishing must not alter the original job result.
+          (
+            set -euo pipefail
+            # Drop checkout/build worktree state only after reports and evidence were uploaded.
+            git reset --hard HEAD
+            git clean -fd
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            if git ls-remote --exit-code --heads origin ci-results >/dev/null 2>&1; then
+              git fetch origin ci-results
+              git checkout -B ci-results origin/ci-results
+            else
+              git checkout --orphan ci-results
+              git rm -rf --ignore-unmatch .
+            fi
+            result_dir="ci-results/$TESTED_COMMIT_SHA"
+            mkdir -p "$result_dir"
+            cp "$report" "$result_dir/cert.md"
+            compile_report="$result_dir/compile.md"
+            {
+              echo "# Compile and build result"
+              echo
+              echo "- Commit SHA: $TESTED_COMMIT_SHA"
+              echo "- Time (UTC): $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+              if [[ -f "$SCRIPT_LOG" ]] && grep -q "BUILD SUCCESSFUL" "$SCRIPT_LOG"; then
+                echo "- compile_status: PASS"
+                grep -E "BUILD SUCCESSFUL|BUILD FAILED" "$SCRIPT_LOG" | tail -10 || true
+              elif [[ -f "$SCRIPT_LOG" ]] && grep -q "BUILD FAILED" "$SCRIPT_LOG"; then
+                echo "- compile_status: FAIL"
+                grep -E "BUILD SUCCESSFUL|BUILD FAILED" "$SCRIPT_LOG" | tail -10 || true
+              else
+                echo "- compile_status: NOT_RECORDED"
+                echo "- detail: No Gradle build summary found in the certification script log."
+              fi
+            } > "$compile_report"
+            git add "$result_dir/cert.md" "$result_dir/compile.md"
+            git commit -m "ci: publish certification result for $TESTED_COMMIT_SHA"
+            git push --force origin HEAD:ci-results
+          ) || echo "::warning::Could not publish SHA-scoped ci-results reports; certification result is unchanged."
