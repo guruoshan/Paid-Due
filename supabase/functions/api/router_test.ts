@@ -1,69 +1,35 @@
 import { assertEquals } from "https://deno.land/std@0.200.0/assert/mod.ts";
 import { handleRequest } from "./index.ts";
 
-Deno.test("Router: GET health works on /api/health", async () => {
+Deno.test("Router: health works", async () => {
   const response = await handleRequest(new Request("http://localhost/api/health"));
   assertEquals(response.status, 200);
   assertEquals((await response.json()).status, "OK");
 });
-Deno.test("Router: health works via gateway path", async () => {
-  const response = await handleRequest(new Request("http://localhost/functions/v1/api/api/health"));
-  assertEquals(response.status, 200);
-});
-Deno.test("Router: health refuses POST", async () => {
-  const response = await handleRequest(new Request("http://localhost/api/health", {method: "POST"}));
-  assertEquals(response.status, 405);
-});
+
 Deno.test("Router: unknown route returns 404", async () => {
   const response = await handleRequest(new Request("http://localhost/api/not-a-route"));
   assertEquals(response.status, 404);
 });
-Deno.test("Router: unauthenticated financial upload returns 401", async () => {
-  const response = await handleRequest(new Request("http://localhost/api/financial/upload", {
-    method: "POST", headers: {"content-type":"application/json"}, body: "{}",
-  }));
-  assertEquals(response.status, 401);
-});
-Deno.test("Router: unauthenticated cashier metadata returns 401", async () => {
-  const response = await handleRequest(new Request("http://localhost/api/staff/metadata"));
-  assertEquals(response.status, 401);
-});
-Deno.test("Router: legacy unauthenticated staff activation endpoint is removed", async () => {
-  const response = await handleRequest(new Request("http://localhost/api/staff/activate", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ token: "A".repeat(48), pin: "123456", canonical_phone: "+96891234567" }),
-  }));
-  assertEquals(response.status, 404);
-});
 
-Deno.test("Router: canonical staff login route is recognized on the gateway path", async () => {
-  const response = await handleRequest(new Request("http://localhost/functions/v1/api/staff/login", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({}),
-  }));
-  assertEquals(response.status, 400);
-});
-Deno.test("Router: canonical financial upload route is recognized on the gateway path", async () => {
-  const response = await handleRequest(new Request("http://localhost/functions/v1/api/financial/upload", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: "{}",
-  }));
-  assertEquals(response.status, 401);
-});
-Deno.test("Router: canonical financial download route is recognized on the gateway path", async () => {
-  const response = await handleRequest(new Request("http://localhost/functions/v1/api/financial/download"));
-  assertEquals(response.status, 401);
-});
+for (const path of [
+  "/api/staff/login",
+  "/api/staff/activate",
+  "/api/staff/metadata",
+  "/api/staff/notifications",
+  "/api/staff/permission-requests",
+  "/api/financial/upload",
+  "/api/financial/download",
+  "/api/open/invite",
+]) {
+  Deno.test(`Router retires ${path}`, async () => {
+    const response = await handleRequest(new Request(`http://localhost${path}`, { method: "POST", body: "{}" }));
+    assertEquals(response.status, 410);
+    assertEquals((await response.json()).outcome, "FEATURE_RETIRED");
+  });
+}
 
-Deno.test("Router: customer sync duplicate /api prefixes normalize to the handler", async () => {
-  const response = await handleRequest(new Request("http://localhost/api/api/customers/sync"));
-  assertEquals(response.status, 401);
-});
-
-Deno.test("Router: customer sync duplicate gateway prefix normalizes to the handler", async () => {
-  const response = await handleRequest(new Request("http://localhost/functions/v1/api/api/customers/sync"));
+Deno.test("Customer sync without Admin JWT is rejected", async () => {
+  const response = await handleRequest(new Request("http://localhost/api/customers/sync"));
   assertEquals(response.status, 401);
 });
