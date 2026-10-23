@@ -2,6 +2,18 @@
 -- Cashier memberships remain as inactive, anonymized tombstones because financial envelopes,
 -- customer-directory audit references, and historical accounting evidence point to their IDs.
 
+ALTER TABLE public.business_memberships
+  DROP CONSTRAINT business_memberships_principal_role_check;
+
+ALTER TABLE public.business_memberships
+  ADD CONSTRAINT business_memberships_principal_role_check CHECK (
+    (role = 'ADMIN' AND auth_user_id IS NOT NULL AND staff_identity_id IS NULL)
+    OR (role = 'CASHIER' AND auth_user_id IS NULL AND (
+      staff_identity_id IS NOT NULL
+      OR (staff_identity_id IS NULL AND is_active = false AND removed_at IS NOT NULL)
+    ))
+  );
+
 UPDATE public.business_memberships
 SET is_active = false,
     removed_at = COALESCE(removed_at, now()),
