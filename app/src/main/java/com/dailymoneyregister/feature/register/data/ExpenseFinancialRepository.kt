@@ -53,11 +53,11 @@ internal class ExpenseFinancialRepository(
                 return CommandResult.PermissionDenied("Only an active Admin can correct or void an expense.")
             }
             authorizeFinancialMutation(
-                actorUserId = command.actorUserId,
-                businessId = command.businessId,
-                branchId = command.branchId,
-                action = PermissionAction.ACCEPT_CASH,
-                actionLabel = "Expense correction/void"
+                command.actorUserId,
+                command.businessId,
+                command.branchId,
+                PermissionAction.ACCEPT_CASH,
+                "Expense correction/void"
             )?.let { return it }
             val expense = database.expenseDao().getExpenseById(command.expenseId)
                 ?: return CommandResult.Error(IllegalArgumentException("Expense does not exist."))
