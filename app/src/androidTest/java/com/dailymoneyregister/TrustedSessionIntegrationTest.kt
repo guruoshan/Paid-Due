@@ -106,7 +106,7 @@ class TrustedSessionIntegrationTest {
     }
 
     @Test
-    fun authenticationPersistsAdminAndCashierIdsWithoutCredentials() = runBlocking {
+    fun authenticationPersistsAdminIdsWithoutCredentials() = runBlocking {
         Log.i("BOARDLOCK", "TEST: authenticationPersistsAdminAndCashierIdsWithoutCredentials - start")
         Log.i("BOARDLOCK", "test: before createSetup")
         val setup = createSetup()
@@ -149,21 +149,6 @@ class TrustedSessionIntegrationTest {
                 value.toString().contains("salt", ignoreCase = true)
         })
 
-        val cashierId = (cashierRepository.createCashier(
-            CreateCashierParams(
-                businessId = setup.businessId.value,
-                branchId = setup.branchId.value,
-                adminUserId = setup.adminUserId.value,
-                displayName = "Trusted Cashier",
-                username = "cashier@example",
-                phone = "92345678",
-                pin = "246810"
-            )
-        ) as CommandResult.Success).data
-
-        val cashier = authRepository.loginCashier("92345678", "246810")
-        assertTrue(cashier is AuthResult.Success)
-        assertEquals(cashierId.value, trustedSessionStore.load()?.userId)
     }
 
     @Test
@@ -193,9 +178,11 @@ class TrustedSessionIntegrationTest {
             )
         ) as CommandResult.Success).data
         Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after createCashier")
-        val cashier = authRepository.loginCashier("92345678", "246810") as AuthResult.Success
-        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after loginCashier")
-        assertTrue(cashier.session.requiresPinChange)
+        trustedSessionStore.save(
+            setup.businessId.value,
+            setup.branchId.value,
+            cashierId.value
+        )
         SessionManager.clearSession()
 
         val restoredCashier = restorer.restore()

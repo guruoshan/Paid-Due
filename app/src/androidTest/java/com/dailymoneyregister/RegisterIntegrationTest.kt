@@ -1049,47 +1049,7 @@ class RegisterIntegrationTest {
         assertEquals(OperationStatus.SUCCEEDED, database.operationDao().getOperationById("recovery-op")!!.status)
     }
 
-    @Test
-    fun testInactiveUserAccountRejected() = runBlocking {
-        val inactiveUser = testUser.copy(
-            id = "inactive-cashier",
-            username = "inactive_cashier",
-            isActive = false
-        )
-        database.userDao().insertUser(inactiveUser)
 
-        val throttler = com.dailymoneyregister.core.security.PinThrottler(context = context)
-        val langManager = com.dailymoneyregister.core.i18n.LanguageManager(context)
-        val authRepo = com.dailymoneyregister.feature.auth.data.AuthRepository(
-            database = database,
-            pinThrottler = throttler,
-            languageManager = langManager,
-            trustedSessionStore = TrustedSessionStore(context)
-        )
-
-        val authResult = authRepo.loginCashier("inactive_cashier", "123456")
-        assertTrue("Inactive account must be rejected", authResult is com.dailymoneyregister.feature.auth.data.AuthResult.InvalidCredentials)
-    }
-
-    @Test
-    fun testNonAdminCashierCreationRejectedAtDomainBoundary() = runBlocking {
-        // testUser is role = UserRole.CASHIER (non-admin)
-        // It is already seeded by setUp().
-
-        val cashierRepo = com.dailymoneyregister.feature.admin.data.CashierManagementRepository(database, commandExecutor, com.dailymoneyregister.core.device.DeviceIdentityProvider(context))
-        val params = com.dailymoneyregister.feature.admin.data.CreateCashierParams(
-            businessId = "biz-1",
-            branchId = "branch-1",
-            adminUserId = testUser.id, // Cashier attempting to create another cashier
-            displayName = "Sub Cashier",
-            username = "sub_cashier",
-            pin = "654321",
-            preferredLanguage = "ar"
-        )
-
-        val result = cashierRepo.createCashier(params)
-        assertTrue("Non-admin cashier creation must be rejected at domain boundary", result is CommandResult.PermissionDenied)
-    }
 }
 
 

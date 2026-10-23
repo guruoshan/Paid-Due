@@ -12,7 +12,6 @@ import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import com.dailymoneyregister.core.security.PasswordHasher
-import com.dailymoneyregister.core.security.PinHasher
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.SerialName
@@ -61,11 +60,6 @@ sealed interface RemoteBusinessRestorationResult {
 }
 
 interface BusinessRestorer {
-    suspend fun restoreCashierIfEmpty(
-        usernameOrPhone: String,
-        pin: String,
-        countryCode: String = "OM"
-    ): RemoteBusinessRestorationResult
 
     suspend fun restoreAdminIfEmpty(
         usernameOrEmail: String,
@@ -97,128 +91,6 @@ class RemoteBusinessRestorer @Inject constructor(
     private val businessBranchDao = database.businessBranchDao()
     private val userDao = database.userDao()
 
-    override suspend fun restoreCashierIfEmpty(
-        usernameOrPhone: String,
-        pin: String,
-        countryCode: String
-    ): RemoteBusinessRestorationResult {
-        // Owner-only mode keeps the legacy implementation in source but makes the
-        // cashier restoration entry point fail closed before database/network work.
-        return RemoteBusinessRestorationResult.Failed(
-            "Cashier restoration is disabled in owner-only mode"
-        )
-
-        val existingBusiness = businessBranchDao.getFirstBusiness()
-
-        // Existing business is NOT evidence that this cashier is restored.
-        // Remote authority must match the existing tenant; never mix tenants.
-
-        val phone = runCatching {
-            PhoneNumberNormalizer.normalize(usernameOrPhone, countryCode)
-        }.getOrNull() ?: return RemoteBusinessRestorationResult.Failed(
-            "Enter a valid international mobile number"
-        )
-
-        return try {
-            val result = com.dailymoneyregister.core.cloud.sync.CashierCloudSession
-                .authenticateForRestoration(phone, pin)
-                ?: return RemoteBusinessRestorationResult.Failed(
-                    "Cloud cashier authentication failed [" + com.dailymoneyregister.core.cloud.sync.CashierCloudSession.lastAuthStage + "]."
-                )
-
-            val permissionsJson = result.getJSONObject("permissions")
-            val permissionNames = listOf(
-                "CREATE_SALE", "ACCEPT_CASH", "ACCEPT_ONLINE", "CREATE_CREDIT_SALE",
-                "USE_COUPON", "ISSUE_INVOICE", "ISSUE_RECEIPT", "REFUND", "VOID",
-                "CORRECT_AMOUNT", "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY",
-                "MANAGE_PRODUCTS", "VIEW_REPORTS"
-            )
-            val permissions = permissionNames.associateWith { key ->
-                require(permissionsJson.has(key) && !permissionsJson.isNull(key)) {
-                    "Missing cloud cashier permission"
-                }
-                permissionsJson.getBoolean(key)
-            }
-            require(result.getString("canonical_phone") == phone) {
-                "Cashier identity mismatch"
-            }
-            val membershipId = result.getString("membership_id")
-            require(
-                com.dailymoneyregister.core.cloud.sync.CashierCloudSession
-                    .tokenFor(membershipId) != null
-            ) { "Cashier cloud session is not valid" }
-
-            // BOARDLOCK_CASHIER_TENANT_GUARD
-            val remoteBusinessId = result.getString("business_id")
-            val remoteBranchId = result.getString("branch_id")
-            val remoteUserId = result.getString("local_user_id")
-            require(remoteBusinessId.isNotBlank() && remoteBranchId.isNotBlank() && remoteUserId.isNotBlank()) {
-                "Incomplete cashier authority"
-            }
-            if (existingBusiness != null) {
-                require(existingBusiness.id == remoteBusinessId) { "Cashier business conflict" }
-                val localBranch = businessBranchDao.getFirstBranch(existingBusiness.id)
-                require(localBranch?.id == remoteBranchId) { "Cashier branch conflict" }
-            }
-            val existingPhoneOwner = userDao.getHumanIdentityByPhone(phone)
-            require(existingPhoneOwner == null || existingPhoneOwner.id == remoteUserId) {
-                "Phone already belongs to another local identity"
-            }
-            val existingUser = userDao.getUserById(remoteUserId)
-            require(
-                existingUser == null ||
-                    (existingUser.businessId == remoteBusinessId &&
-                        existingUser.identityId == remoteUserId &&
-                        existingUser.role == UserRole.CASHIER &&
-                        existingUser.authType == AuthType.PIN)
-            ) { "Cashier user conflicts with authenticated cloud identity" }
-            val existingIdentity = userDao.getHumanIdentityById(remoteUserId)
-            require(existingIdentity == null || existingIdentity.canonicalPhone == phone) {
-                "Cashier identity conflict"
-            }
-
-            val salt = PinHasher.generateSalt()
-            val localHash = PinHasher.hashPin(pin, salt)
-            val restored = materializeLocal(
-                businessId = result.getString("business_id"),
-                businessName = result.getString("business_name"),
-                branchId = result.getString("branch_id"),
-                branchName = result.getString("branch_name"),
-                branchCode = result.getString("branch_code"),
-                countryCode = result.getString("country_code"),
-                currencyCode = result.getString("currency_code"),
-                currencyDecimalPlaces = result.getInt("currency_decimal_places"),
-                currencySymbol = result.getString("currency_symbol"),
-                timezoneId = result.getString("timezone_id"),
-                taxRoundingMode = result.getString("tax_rounding_mode"),
-                defaultTaxRateBps = result.getInt("default_tax_rate_bps"),
-                branchAddress = result.optString("branch_address").ifBlank { null },
-                branchPhone = result.optString("branch_phone").ifBlank { null },
-                taxRegistrationNumber = result.optString("tax_registration_number").ifBlank { null },
-                userId = result.getString("local_user_id"),
-                displayName = result.getString("display_name"),
-                username = phone,
-                canonicalPhone = phone,
-                role = UserRole.CASHIER,
-                authType = AuthType.PIN,
-                credentialHash = localHash,
-                credentialSalt = salt,
-                membershipId = membershipId,
-                permissions = permissions,
-                activatedAtMillis = System.currentTimeMillis()
-            )
-            if (restored is RemoteBusinessRestorationResult.Failed) {
-                com.dailymoneyregister.core.cloud.sync.CashierCloudSession.clear()
-            }
-            restored
-        } catch (e: Exception) {
-            com.dailymoneyregister.core.cloud.sync.CashierCloudSession.clear()
-            android.util.Log.e("PaidDueFinancialSync", "CASHIER_RESTORATION_FAILED", e)
-            RemoteBusinessRestorationResult.Failed(
-                "Unable to securely restore cashier business from the cloud"
-            )
-        }
-    }
     override suspend fun authenticateAdminForSync(
         usernameOrEmail: String,
         passwordPlain: String,

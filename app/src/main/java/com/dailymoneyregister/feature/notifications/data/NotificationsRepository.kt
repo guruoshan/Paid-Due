@@ -1,7 +1,5 @@
 package com.dailymoneyregister.feature.notifications.data
 
-import com.dailymoneyregister.BuildConfig
-import com.dailymoneyregister.core.cloud.sync.CashierCloudSession
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.model.enums.UserRole
 import io.github.jan.supabase.SupabaseClient
@@ -27,9 +25,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -108,18 +103,10 @@ class NotificationsRepository @Inject constructor(
             }
             return supabase.postgrest.rpc("list_admin_notifications").decodeList()
         }
-        val response = cashierCall("staff/notifications", "GET", null)
-        val array = response.optJSONArray("notifications") ?: org.json.JSONArray()
-        return json.decodeFromString<List<BusinessNotification>>(array.toString())
+        return emptyList()
     }
 
-    suspend fun listPermissionRequests(): List<PermissionRequestRecord> {
-        if (!isAdmin()) return emptyList()
-        check(supabase.auth.currentSessionOrNull() != null) {
-            "Admin sign-in is required to review permission requests."
-        }
-        return supabase.postgrest.rpc("list_admin_permission_requests").decodeList()
-    }
+    suspend fun listPermissionRequests(): List<PermissionRequestRecord> = emptyList()
 
     suspend fun markRead(notificationId: String) {
         if (isAdmin()) {
@@ -128,22 +115,11 @@ class NotificationsRepository @Inject constructor(
                 function = "mark_admin_notification_read",
                 parameters = buildJsonObject { put("p_notification_id", JsonPrimitive(notificationId)) }
             )
-        } else {
-            cashierCall(
-                "staff/notifications/read",
-                "POST",
-                JSONObject().put("notification_id", notificationId)
-            )
         }
     }
 
     suspend fun requestPermission(permissionKey: String, note: String?) {
-        require(permissionKey in ALLOWED_PERMISSION_KEYS) { "Unknown permission." }
-        cashierCall(
-            "staff/permission-requests",
-            "POST",
-            JSONObject().put("permission_key", permissionKey).put("note", note.orEmpty())
-        )
+        throw IllegalStateException("Cashier permissions are retired.")
     }
 
     suspend fun resolvePermissionRequest(
@@ -151,53 +127,9 @@ class NotificationsRepository @Inject constructor(
         approve: Boolean,
         additionalPermissions: Set<String> = emptySet()
     ) {
-        check(isAdmin()) { "Only an Admin can decide permission requests." }
-        check(supabase.auth.currentSessionOrNull() != null) { "Admin sign-in is required." }
-        require(additionalPermissions.all { it in ALLOWED_PERMISSION_KEYS }) { "Unknown additional permission." }
-        val extra = JsonObject(additionalPermissions.associateWith { JsonPrimitive(true) })
-        supabase.postgrest.rpc(
-            function = "resolve_admin_permission_request",
-            parameters = buildJsonObject {
-                put("p_request_id", JsonPrimitive(requestId))
-                put("p_decision", JsonPrimitive(if (approve) "APPROVE" else "REJECT"))
-                put("p_additional_permissions", extra)
-            }
-        )
+        throw IllegalStateException("Cashier permissions are retired.")
     }
 
-    private suspend fun cashierCall(path: String, method: String, body: JSONObject?): JSONObject =
-        withContext(Dispatchers.IO) {
-            val membershipId = CashierCloudSession.currentMembershipId()
-                ?: throw IllegalStateException("Cashier cloud session expired. Sign in again to continue.")
-            val bearer = CashierCloudSession.tokenFor(membershipId)
-                ?: throw IllegalStateException("Cashier cloud session expired. Sign in again to continue.")
-            val baseUrl = BuildConfig.PAID_DUE_SUPABASE_URL.trimEnd('/') + "/functions/v1/api"
-            require(baseUrl.startsWith("https://")) { "Supabase endpoint configuration is invalid." }
-            val connection = URL("$baseUrl/api/$path").openConnection() as HttpURLConnection
-            try {
-                connection.requestMethod = method
-                connection.connectTimeout = 7000
-                connection.readTimeout = 15000
-                connection.setRequestProperty("Accept", "application/json")
-                connection.setRequestProperty("Content-Type", "application/json")
-                connection.setRequestProperty("apikey", BuildConfig.PAID_DUE_SUPABASE_PUBLISHABLE_KEY)
-                connection.setRequestProperty("Authorization", "Bearer $bearer")
-                if (body != null) {
-                    connection.doOutput = true
-                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                }
-                val status = connection.responseCode
-                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-                val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                if (status !in 200..299) {
-                    val outcome = runCatching { JSONObject(raw).optString("outcome") }.getOrNull()
-                    throw IllegalStateException(outcome?.takeIf { it.isNotBlank() } ?: "Notification request failed (HTTP $status).")
-                }
-                if (raw.isBlank()) JSONObject() else JSONObject(raw)
-            } finally {
-                connection.disconnect()
-            }
-        }
 
     companion object {
         val ALLOWED_PERMISSION_KEYS = setOf(

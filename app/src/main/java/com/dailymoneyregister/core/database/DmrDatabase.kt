@@ -9,8 +9,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.dailymoneyregister.core.database.security.FinancialImmutabilityCallback
 import com.dailymoneyregister.core.database.dao.BusinessBranchDao
-import com.dailymoneyregister.core.database.dao.CloudStaffIdentityDao
 import com.dailymoneyregister.core.database.dao.InboundEnvelopeAuditDao
+import com.dailymoneyregister.core.database.dao.CloudStaffIdentityDao
 import com.dailymoneyregister.core.database.dao.CashShiftDao
 import com.dailymoneyregister.core.database.dao.CustomerDao
 import com.dailymoneyregister.core.database.dao.DocumentMediaDao
@@ -23,8 +23,8 @@ import com.dailymoneyregister.core.database.dao.TransactionDao
 import com.dailymoneyregister.core.database.dao.UserDao
 import com.dailymoneyregister.core.database.entity.AmountCorrectionEventEntity
 import com.dailymoneyregister.core.database.entity.BranchEntity
-import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
 import com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity
+import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.CashShiftEntity
 import com.dailymoneyregister.core.database.entity.CashShiftEventEntity
@@ -63,11 +63,11 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
 @Database(
     entities = [
         BusinessEntity::class,
+        CloudStaffIdentityEntity::class,
         BranchEntity::class,
         UserAccountEntity::class,
         HumanIdentityEntity::class,
         UserBranchMembershipEntity::class,
-        CloudStaffIdentityEntity::class,
         InboundEnvelopeAuditEventEntity::class,
         CustomerEntity::class,
         CustomerIdAliasEntity::class,
@@ -99,7 +99,7 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
         CreditRepaymentEntity::class,
         CreditRepaymentAllocationEntity::class
     ],
-    version = 18,
+    version = 19,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -745,6 +745,63 @@ abstract class DmrDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Retire cached cashier access while preserving user/membership IDs
+                // referenced by historical transactions and financial audit records.
+                db.execSQL("""
+                    UPDATE user_accounts
+                    SET is_active = 0,
+                        display_name = 'Retired staff',
+                        username = 'retired_cashier_' || id,
+                        credential_hash = 'retired-disabled-v1',
+                        credential_salt = NULL,
+                        must_change_pin = 0,
+                        updated_at = CAST(strftime('%s','now') AS INTEGER) * 1000
+                    WHERE role = 'CASHIER'
+                """.trimIndent())
+                db.execSQL("""
+                    UPDATE cloud_staff_identities
+                    SET display_name = 'Retired staff',
+                        permissions_json = '{}'
+                    WHERE role = 'CASHIER'
+                """.trimIndent())
+                db.execSQL("""
+                    UPDATE user_branch_memberships
+                    SET can_create_sale = 0,
+                        can_accept_cash = 0,
+                        can_accept_online = 0,
+                        can_create_credit_sale = 0,
+                        can_use_coupon = 0,
+                        can_issue_invoice = 0,
+                        can_issue_receipt = 0,
+                        can_refund = 0,
+                        can_void = 0,
+                        can_correct_amount = 0,
+                        can_change_payment_method = 0,
+                        can_view_broad_history = 0,
+                        can_manage_products = 0,
+                        can_view_reports = 0
+                    WHERE role = 'CASHIER'
+                """.trimIndent())
+                db.execSQL("""
+                    UPDATE human_identities
+                    SET canonical_phone = NULL,
+                        display_name = 'Retired staff',
+                        is_active = 0,
+                        updated_at = CAST(strftime('%s','now') AS INTEGER) * 1000
+                    WHERE id IN (
+                        SELECT identity_id FROM user_accounts
+                        WHERE role = 'CASHIER' AND identity_id IS NOT NULL
+                    )
+                    AND id NOT IN (
+                        SELECT identity_id FROM user_accounts
+                        WHERE role = 'ADMIN' AND identity_id IS NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
+
         val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
@@ -803,7 +860,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
                             .addCallback(FinancialImmutabilityCallback)
                             .build()
                     } catch (e: Exception) {
@@ -829,7 +886,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
                 .addCallback(FinancialImmutabilityCallback)
                 .allowMainThreadQueries()
                 .build()

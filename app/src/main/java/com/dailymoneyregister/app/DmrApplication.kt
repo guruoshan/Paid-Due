@@ -1,6 +1,8 @@
 package com.dailymoneyregister.app
 
 import android.app.Application
+import android.content.Context
+import java.security.KeyStore
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.security.DatabaseEncryptionMigrator
 import com.dailymoneyregister.core.security.DatabasePassphraseManager
@@ -33,5 +35,24 @@ class DmrApplication : Application() {
         }
 
         super.onCreate()
+        retireCashierCredentials()
+    }
+
+    private fun retireCashierCredentials() {
+        getSharedPreferences("paid_due_cashier_sync_credentials", Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .apply()
+        getSharedPreferences("dmr_invite_activation_recovery", Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .apply()
+        runCatching {
+            KeyStore.getInstance("AndroidKeyStore").apply {
+                load(null)
+                deleteEntry("paid_due_cashier_sync_aes_v1")
+                deleteEntry("dmr_invite_activation_recovery_key_v1")
+            }
+        }
     }
 }

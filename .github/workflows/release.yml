@@ -137,8 +137,9 @@ jobs:
         working-directory: supabase/functions/api
         run: deno task test api_test.ts
 
-      - name: Run staff invitation URL security contract tests before signing
-        run: deno test supabase/functions/staff-invite/invite-link_test.ts
+      - name: Run retired staff route contract tests
+        working-directory: supabase/functions/api
+        run: deno task test router_test.ts
 
       - name: Validate required release configuration
         shell: bash

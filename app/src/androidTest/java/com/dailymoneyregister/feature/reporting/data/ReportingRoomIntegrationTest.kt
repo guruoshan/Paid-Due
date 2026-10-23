@@ -34,6 +34,7 @@ import com.dailymoneyregister.feature.reporting.domain.SaleReportRow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -262,7 +263,7 @@ class ReportingRoomIntegrationTest {
         assertEquals(0L, result.summary.onlineSalesCollected.amount)
         assertEquals(0L, result.summary.creditSalesOriginated.amount)
         assertEquals(1, result.summary.counts.sales)
-        assertEquals("Cloud Cashier", (result.rows.single() as SaleReportRow).cashier.displayName)
+        assertNull((result.rows.single() as SaleReportRow).cashier.displayName)
 
         // A payment-method change is a reclassification of the existing sale,
         // not a second sale. The current snapshot must move the tender from cash
@@ -355,7 +356,7 @@ class ReportingRoomIntegrationTest {
         assertEquals(1, afterPaymentChange.summary.counts.sales)
 
         val options = ReportingFilterOptionsRepository(database).load(business.id, branch.currencyCode)
-        assertTrue(options.cashiers.any { it.id == cloudCashierId && it.displayName == "Cloud Cashier" })
+        assertTrue(options.cashiers.isEmpty())
 
         val filtered = repository.read(
             ReportingScope(
@@ -370,63 +371,6 @@ class ReportingRoomIntegrationTest {
         assertEquals(1, filtered.summary.counts.sales)
         assertEquals(0L, filtered.summary.cashSalesCollected.amount)
         assertEquals(1_250L, filtered.summary.onlineSalesCollected.amount)
-    }
-
-    @Test
-    fun cashierFilterOptionsOnlyIncludeCashiersFromSelectedBranch() = runBlocking {
-        val otherBranch = BranchEntity(
-            id = "reporting-phase3b-other-branch",
-            businessId = business.id,
-            name = "Other",
-            code = "OTHER",
-            countryCode = "OM",
-            currencyCode = branch.currencyCode,
-            currencyDecimalPlaces = branch.currencyDecimalPlaces,
-            currencySymbol = branch.currencySymbol,
-            timezoneId = branch.timezoneId,
-            createdAt = 1L,
-            updatedAt = 1L
-        )
-        database.businessBranchDao().insertBranch(otherBranch)
-        database.cloudStaffIdentityDao().upsertAll(
-            listOf(
-                CloudStaffIdentityEntity(
-                    membershipId = "reporting-phase3b-main-membership",
-                    localUserId = "reporting-phase3b-cloud-cashier",
-                    businessId = business.id,
-                    branchId = branch.id,
-                    role = "CASHIER",
-                    permissionsJson = "{}",
-                    isActive = true,
-                    isRemoved = false,
-                    updatedAt = 1L,
-                    displayName = "Cloud Cashier"
-                ),
-                CloudStaffIdentityEntity(
-                    membershipId = "reporting-phase3b-other-membership",
-                    localUserId = "reporting-phase3b-other-cashier",
-                    businessId = business.id,
-                    branchId = otherBranch.id,
-                    role = "CASHIER",
-                    permissionsJson = "{}",
-                    isActive = true,
-                    isRemoved = false,
-                    updatedAt = 1L,
-                    displayName = "Other Branch Cashier"
-                )
-            )
-        )
-
-        val options = ReportingFilterOptionsRepository(database)
-            .load(business.id, branch.currencyCode, branch.id)
-
-        assertTrue(options.cashiers.any {
-            it.id == "reporting-phase3b-cloud-cashier" &&
-                it.displayName == "Cloud Cashier"
-        })
-        assertTrue(options.cashiers.none {
-            it.id == "reporting-phase3b-other-cashier"
-        })
     }
 
     @Test

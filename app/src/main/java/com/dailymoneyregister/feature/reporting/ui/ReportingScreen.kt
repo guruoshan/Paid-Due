@@ -208,10 +208,7 @@ fun ReportingScreen(
 
             ReportingScopeSelectors(
                 state = state,
-                onBranch =
-                    viewModel::selectBranch,
-                onCashier =
-                    viewModel::selectCashier
+                onBranch = viewModel::selectBranch
             )
 
             ReportingActivityFilters(
@@ -362,15 +359,9 @@ private fun periodLabel(
 @Composable
 private fun ReportingScopeSelectors(
     state: ReportingUiState,
-    onBranch: (String) -> Unit,
-    onCashier: (String?) -> Unit
+    onBranch: (String) -> Unit
 ) {
     var branchExpanded by
-        remember {
-            mutableStateOf(false)
-        }
-
-    var cashierExpanded by
         remember {
             mutableStateOf(false)
         }
@@ -380,13 +371,6 @@ private fun ReportingScopeSelectors(
             .firstOrNull {
                 it.id ==
                     state.selectedBranchId
-            }
-
-    val selectedCashier =
-        state.cashierOptions
-            .firstOrNull {
-                it.id ==
-                    state.selectedCashierId
             }
 
     Row(
@@ -435,60 +419,7 @@ private fun ReportingScopeSelectors(
             }
         }
 
-        Column(
-            modifier =
-                Modifier.weight(1f)
-        ) {
-            TextButton(
-                onClick = {
-                    cashierExpanded = true
-                }
-            ) {
-                Text(
-                    selectedCashier
-                        ?.displayName
-                        ?: stringResource(
-                            R.string.reporting_all_cashiers
-                        )
-                )
-            }
 
-            DropdownMenu(
-                expanded = cashierExpanded,
-                onDismissRequest = {
-                    cashierExpanded = false
-                }
-            ) {
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            stringResource(
-                                R.string.reporting_all_cashiers
-                            )
-                        )
-                    },
-                    onClick = {
-                        cashierExpanded = false
-                        onCashier(null)
-                    }
-                )
-
-                state.cashierOptions
-                    .forEach { cashier ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    cashier.displayName
-                                )
-                            },
-                            onClick = {
-                                cashierExpanded = false
-                                onCashier(cashier.id)
-                            }
-                        )
-                    }
-            }
-        }
     }
 }
 
@@ -878,7 +809,7 @@ private fun ReportingRowCard(
             }
 
             Text(
-                text = listOfNotNull(row.branchName, row.cashierName).joinToString(" · "),
+                text = listOfNotNull(row.branchName).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,

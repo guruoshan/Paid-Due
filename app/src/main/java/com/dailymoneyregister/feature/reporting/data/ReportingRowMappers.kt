@@ -65,7 +65,7 @@ internal data class ReportingLookups(
     fun cashier(userId: String): ReportCashier =
         ReportCashier(
             userId = userId,
-            displayName = cashierNamesById[userId] ?: usersById[userId]?.displayName
+            displayName = null
         )
 
     /** Optional person: transactions do not enforce a customer FK. */

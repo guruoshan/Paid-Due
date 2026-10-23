@@ -37,7 +37,7 @@ private data class ParsedCredentialHash(
     val isLegacy: Boolean
 )
 
-private object CredentialHasher {
+internal object CredentialHasher {
 
     private val random =
         SecureRandom()
@@ -333,13 +333,6 @@ private object CredentialHasher {
     }
 }
 
-/**
- * Cashier PIN security.
- *
- * New PIN hashes use the current work factor.
- * Legacy 10,000-iteration hashes remain readable so an
- * existing Cashier is not locked out after upgrade.
- */
 object PinHasher {
 
     private const val LEGACY_ITERATIONS =
@@ -401,6 +394,8 @@ object PinHasher {
             pin.all { it.isDigit() }
     }
 }
+
+
 
 /**
  * Admin / Owner password security.

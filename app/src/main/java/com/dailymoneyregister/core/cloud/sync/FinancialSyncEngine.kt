@@ -23,11 +23,6 @@ class FinancialSyncEngine @Inject constructor(
     private val inboundEnvelopeApplier: InboundEnvelopeApplier,
     @ApplicationContext private val context: Context? = null
 ) {
-    // Owner-only mode must not instantiate the cashier identity/metadata sync service.
-    // Keep its implementation and legacy guarded branches in source, but inject no
-    // cashier runtime dependency into the active financial sync engine.
-    private val staffIdentitySync: StaffIdentitySync = StaffIdentitySync.NoOp
-
     constructor(
         database: DmrDatabase,
         remoteSyncRepository: RemoteFinancialSyncRepository,
@@ -144,18 +139,6 @@ class FinancialSyncEngine @Inject constructor(
         if (role != UserRole.ADMIN || activeSession.user.role != UserRole.ADMIN) {
             Log.i("PaidDueFinancialSync", "OUTBOUND_SKIPPED_NON_OWNER_SESSION")
             return@withLock 0
-        }
-
-        if (activeSession.user.role == UserRole.CASHIER) {
-            // Refresh the authoritative cloud identity before startup reconciliation.
-            // Otherwise a first-sync cloud-only cashier can be misclassified as
-            // NOT_APPLICABLE simply because the local identity cache is still empty.
-            val refreshed = runCatching {
-                staffIdentitySync.refreshCashierPermissions(activeSession)
-            }.onFailure { error ->
-                Log.w("PaidDueFinancialSync", "CASHIER_PERMISSION_REFRESH_DEFERRED", error)
-            }.getOrDefault(false)
-            if (!refreshed) return@withLock 0
         }
 
         if (!outboxInitialized) {
@@ -369,15 +352,9 @@ class FinancialSyncEngine @Inject constructor(
         }
         val sessionBusinessId = session.business.id
         val sessionBranchId = session.membership?.branchId
-        // Owner download is business-scoped across every authorized branch.
-        // Cashier identity-directory refresh is deliberately not launched in owner-only mode.
+        // Admin download is business-scoped across every authorized branch.
         val materializationBranchScope: String? = null
-
-        // Cashier downloads are scoped to one branch and may have no local
-        // user_accounts row. Keep their cursor branch-specific and trust the
-        // matching active session for local cursor ownership.
-        val cursorBranchScopeId =
-            if (session?.user?.role == UserRole.CASHIER) sessionBranchId else null
+        val cursorBranchScopeId: String? = null
         val storedCursor = getStoredCursor(businessId, adminAccountId, cursorBranchScopeId)
         var currentAfterReceivedAt: String? = storedCursor?.let {
             java.time.Instant.parse(it.receivedAtIso).minusSeconds(5).toString()
@@ -393,15 +370,6 @@ class FinancialSyncEngine @Inject constructor(
         // but leave the durable cursor behind the first poison item for the next sync retry.
         var unresolvedEnvelopeSeen = false
         var durableCursorCandidate: VersionedInboundCursor? = storedCursor
-
-        if (session?.user?.role == UserRole.CASHIER) {
-            val refreshed = runCatching {
-                staffIdentitySync.refreshCashierPermissions(session)
-            }.onFailure { error ->
-                Log.w("PaidDueFinancialSync", "CASHIER_PERMISSION_REFRESH_DEFERRED", error)
-            }.getOrDefault(false)
-            if (!refreshed) return@withLock 0
-        }
 
         val limit = 100
 

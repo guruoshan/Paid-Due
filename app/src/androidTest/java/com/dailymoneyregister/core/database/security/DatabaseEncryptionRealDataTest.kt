@@ -18,9 +18,6 @@ import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import com.dailymoneyregister.core.security.PinThrottler
 import com.dailymoneyregister.core.security.TrustedSessionStore
-import com.dailymoneyregister.feature.admin.data.CashierManagementRepository
-import com.dailymoneyregister.feature.admin.data.CashierPermissionsConfig
-import com.dailymoneyregister.feature.admin.data.CreateCashierParams
 import com.dailymoneyregister.feature.auth.data.AuthRepository
 import com.dailymoneyregister.feature.auth.data.AuthResult
 import com.dailymoneyregister.feature.register.data.CashSaleCommand
@@ -97,13 +94,6 @@ class DatabaseEncryptionRealDataTest {
                     TrustedSessionStore(context)
                 )
 
-            val cashierRepository =
-                CashierManagementRepository(
-                    db,
-                    commandExecutor,
-                    DeviceIdentityProvider(context)
-                )
-
             val authRepository =
                 AuthRepository(
                     db,
@@ -171,49 +161,8 @@ class DatabaseEncryptionRealDataTest {
 
             /*
              * STEP 3:
-             * Admin creates a real cashier with permission
-             * to record cash sales.
-             */
-            val cashierOperationId =
-                OperationId.generate()
-
-            val cashierResult =
-                cashierRepository.createCashier(
-                    CreateCashierParams(
-                        businessId =
-                            setupData.businessId.value,
-                        branchId =
-                            setupData.branchId.value,
-                        adminUserId =
-                            setupData.adminUserId.value,
-                        displayName =
-                            "Session 7 Cashier",
-                        username =
-                            "session7_cashier",
-                        pin =
-                            "246810",
-                        permissions =
-                            CashierPermissionsConfig(
-                                canCreateSale = true,
-                                canAcceptCash = true
-                            )
-                    ),
-                    cashierOperationId
-                )
-
-            assertTrue(
-                "Cashier creation must succeed",
-                cashierResult is CommandResult.Success
-            )
-
-            val cashierId =
-                (cashierResult as CommandResult.Success)
-                    .data
-                    .value
-
-            /*
-             * STEP 4:
-             * Prove credentials work BEFORE encryption.
+             * Authenticate the Admin and use the Admin identity for a real cash sale.
+             * Cashier creation is retired; this test verifies supported Admin operations.
              */
             assertTrue(
                 "Admin login must work before encryption",
@@ -223,31 +172,16 @@ class DatabaseEncryptionRealDataTest {
                 ) is AuthResult.Success
             )
 
-            val temporaryLogin = authRepository.loginCashier(
-                "session7_cashier",
-                "246810"
-            )
-            assertTrue("Cashier temporary PIN login must work before encryption", temporaryLogin is AuthResult.Success)
-            assertTrue("Temporary PIN login must require PIN change", (temporaryLogin as AuthResult.Success).session.requiresPinChange)
-            assertTrue("Cashier PIN change must succeed", authRepository.changeCashierPin("135790") is AuthResult.Success)
-            assertTrue("PIN change must clear mustChangePin", db.userDao().getUserById(cashierId)?.mustChangePin == false)
-            assertTrue("Temporary PIN must be rejected after change", authRepository.loginCashier("session7_cashier", "246810") is AuthResult.InvalidCredentials)
-            assertTrue("New cashier PIN must authenticate", authRepository.loginCashier("session7_cashier", "135790") is AuthResult.Success)
+            val admin =
+                db.userDao().getUserById(setupData.adminUserId.value)
+            assertNotNull("Setup must persist the Admin account", admin)
 
-            val cashier =
-                db.userDao()
-                    .getUserById(cashierId)
-
-            assertNotNull(cashier)
-
-            val cashierMembership =
-                db.userDao()
-                    .getMembership(
-                        cashierId,
-                        setupData.branchId.value
-                    )
-
-            assertNotNull(cashierMembership)
+            val adminMembership =
+                db.userDao().getMembership(
+                    setupData.adminUserId.value,
+                    setupData.branchId.value
+                )
+            assertNotNull("Setup must persist the Admin branch membership", adminMembership)
 
             /*
              * STEP 5:
@@ -269,7 +203,7 @@ class DatabaseEncryptionRealDataTest {
                         branchId =
                             setupData.branchId.value,
                         actorUserId =
-                            cashierId,
+                            setupData.adminUserId.value,
                         transactionIdVal =
                             transactionId,
                         draftState =
@@ -288,8 +222,8 @@ class DatabaseEncryptionRealDataTest {
                         deviceId =
                             "session7-survival-device"
                     ),
-                    cashier!!,
-                    cashierMembership
+                    admin!!,
+                    adminMembership!!
                 )
 
             assertTrue(
@@ -439,38 +373,22 @@ class DatabaseEncryptionRealDataTest {
 
             /*
              * STEP 11:
-             * Verify Admin + Cashier + Membership survived.
+             * Verify the Admin identity and membership survived.
              */
-            val admin =
+            val reopenedAdmin =
                 reopened.userDao()
-                    .getUserById(
-                        setupData.adminUserId.value
-                    )
+                    .getUserById(setupData.adminUserId.value)
 
-            assertNotNull(admin)
-
-            val reopenedCashier =
-                reopened.userDao()
-                    .getUserById(
-                        cashierId
-                    )
-
-            assertNotNull(reopenedCashier)
+            assertNotNull(reopenedAdmin)
 
             val reopenedMembership =
                 reopened.userDao()
                     .getMembership(
-                        cashierId,
+                        setupData.adminUserId.value,
                         setupData.branchId.value
                     )
 
             assertNotNull(reopenedMembership)
-            assertTrue(
-                reopenedMembership!!.canCreateSale
-            )
-            assertTrue(
-                reopenedMembership.canAcceptCash
-            )
 
             /*
              * STEP 12:
@@ -492,16 +410,6 @@ class DatabaseEncryptionRealDataTest {
                 ) is AuthResult.Success
             )
 
-            assertNotNull(reopenedCashier)
-            assertTrue("Cashier must not require PIN change after reopen", reopenedCashier!!.mustChangePin == false)
-            assertTrue(
-                "Temporary cashier PIN must remain rejected after encryption",
-                reopenedAuthRepository.loginCashier("session7_cashier", "246810") is AuthResult.InvalidCredentials
-            )
-            assertTrue(
-                "New cashier PIN must survive encryption",
-                reopenedAuthRepository.loginCashier("session7_cashier", "135790") is AuthResult.Success
-            )
 
             /*
              * STEP 13:
@@ -548,23 +456,13 @@ class DatabaseEncryptionRealDataTest {
 
             /*
              * STEP 14:
-             * Setup, cashier creation and sale operation audit
-             * records must all survive.
+             * Setup and sale operation audit records must both survive.
              */
             assertEquals(
                 OperationStatus.SUCCEEDED,
                 reopened.operationDao()
                     .getOperationById(
                         setupOperationId.value
-                    )
-                    ?.status
-            )
-
-            assertEquals(
-                OperationStatus.SUCCEEDED,
-                reopened.operationDao()
-                    .getOperationById(
-                        cashierOperationId.value
                     )
                     ?.status
             )

@@ -143,26 +143,6 @@ class CloudOnlyCashShiftOwnerTest {
         }
     }
 
-    @Test
-    fun doesNotCreateLoginAccountDuringCloudStaffSync() = runTest {
-        val source = mockk<com.dailymoneyregister.feature.admin.data.EmployeeDirectoryCloudSource>()
-        val metadataSynchronizer = mockk<CashierMetadataSynchronizer>(relaxed = true)
-        coEvery { source.listCashiers() } returns listOf(
-            com.dailymoneyregister.feature.admin.data.CloudCashierDirectoryEntry(
-                userId = cashierId, membershipId = "membership-cloud-cashier",
-                branchId = branchId, displayName = "Cloud Cashier",
-                canonicalPhone = "+96890000000", isActive = true,
-                permissions = emptyMap(), isRemoved = false
-            )
-        )
-        DefaultStaffIdentitySync(source, database, metadataSynchronizer)
-            .synchronize(businessId, branchId)
-        assertNull(database.userDao().getUserById(cashierId))
-        assertNotNull(database.cloudStaffIdentityDao().findIdentity(cashierId, businessId, branchId))
-        assertEquals("Cloud Cashier", database.cloudStaffIdentityDao()
-            .findIdentity(cashierId, businessId, branchId)?.displayName)
-    }
-
     private suspend fun applyShift(id: String, eventType: String) {
         val operationId = "operation-$id"
         database.openHelper.writableDatabase.execSQL(

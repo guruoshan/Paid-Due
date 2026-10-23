@@ -143,17 +143,17 @@ class CashShiftEncryptedMigration15To18Test {
                 name
             )
                 .openHelperFactory(SupportOpenHelperFactory(passphrase.copyOf()))
-                .addMigrations(DmrDatabase.MIGRATION_15_16, DmrDatabase.MIGRATION_16_17, DmrDatabase.MIGRATION_17_18)
+                .addMigrations(DmrDatabase.MIGRATION_15_16, DmrDatabase.MIGRATION_16_17, DmrDatabase.MIGRATION_17_18, DmrDatabase.MIGRATION_18_19)
                 .allowMainThreadQueries()
                 .build()
 
             val sql = migrated.openHelper.writableDatabase
             sql.query("PRAGMA user_version").use {
                 assertTrue(it.moveToFirst())
-                assertEquals(18, it.getInt(0))
+                assertEquals(19, it.getInt(0))
             }
             assertEquals(
-                "",
+                "Retired staff",
                 scalarString(sql, "SELECT display_name FROM cloud_staff_identities WHERE local_user_id='shift-cashier'")
             )
             assertEquals(

@@ -100,41 +100,12 @@ class FinancialSyncScheduler @Inject constructor(
             return
         }
         try {
-            when (role) {
-                UserRole.ADMIN -> {
-                    syncCustomerDirectoryBestEffort()
-                    syncEngine.syncOutbound(membershipId, role)
-                    syncEngine.syncInbound(
-                        businessId,
-                        SessionManager.currentSession.value?.user?.id ?: membershipId
-                    )
-                }
-
-                UserRole.CASHIER -> {
-                    syncCustomerDirectoryBestEffort()
-                    if (CashierCloudSession.tokenFor(membershipId) == null) {
-                        Log.w(
-                            "PaidDueFinancialSync",
-                            "CASHIER_CLOUD_SESSION_REQUIRED_PENDING_UPLOAD"
-                        )
-                        return
-                    }
-
-                    val uploaded = syncEngine.syncOutbound(membershipId, role)
-
-                    val applied = syncEngine.syncInbound(
-                        businessId,
-                        SessionManager.currentSession.value?.user?.id ?: membershipId
-                    )
-
-                    Log.i(
-                        "PaidDueFinancialSync",
-                        "CASHIER_UPLOAD_ACKNOWLEDGED=$uploaded INBOUND_APPLIED=$applied"
-                    )
-                }
-
-                else -> Unit
-            }
+            syncCustomerDirectoryBestEffort()
+            syncEngine.syncOutbound(membershipId, UserRole.ADMIN)
+            syncEngine.syncInbound(
+                businessId,
+                SessionManager.currentSession.value?.user?.id ?: membershipId
+            )
         } catch (error: Exception) {
             Log.e(
                 "PaidDueFinancialSync",
