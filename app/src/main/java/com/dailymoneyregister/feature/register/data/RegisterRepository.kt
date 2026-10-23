@@ -270,6 +270,11 @@ class RegisterRepository @Inject constructor(
     ): CommandResult<ExpenseCommandResult> =
         expenseFinancialRepository.executeExpense(command)
 
+    suspend fun executeExpenseLifecycle(
+        command: ExpenseLifecycleCommand
+    ): CommandResult<com.dailymoneyregister.core.database.entity.ExpenseEntity> =
+        expenseFinancialRepository.executeExpenseLifecycle(command)
+
     /**
      * Read-only Expense projection.
      *
