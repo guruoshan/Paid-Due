@@ -54,45 +54,9 @@ class ReportingFilterOptionsRepository @Inject constructor(
                     )
                 }
 
-        val localCashiers = if (branchId == null) {
-            database.userDao().getCashiers(businessId).filter { it.isActive }
-        } else {
-            database.userDao().getCashiersForBranch(businessId, branchId)
-        }
-        val cashiersById = localCashiers
-            .associate { it.id to ReportingCashierOption(it.id, it.displayName) }
-            .toMutableMap()
-
-        val identityBranchIds = if (branchId == null) {
-            branches.map { it.id }
-        } else {
-            listOf(branchId)
-        }
-        val cloudIdentities = identityBranchIds.flatMap { identityBranchId ->
-            database.cloudStaffIdentityDao().listForBranch(businessId, identityBranchId)
-        }
-        cloudIdentities.groupBy { it.localUserId }.forEach { (localUserId, identities) ->
-            val activeIdentity = identities.firstOrNull {
-                it.role == "CASHIER" && it.isActive && !it.isRemoved
-            }
-            if (activeIdentity == null) {
-                // A synchronized tombstone overrides a stale local cashier row.
-                cashiersById.remove(localUserId)
-            } else {
-                cashiersById[localUserId] = ReportingCashierOption(
-                    id = localUserId,
-                    displayName = activeIdentity.displayName.ifBlank {
-                        cashiersById[localUserId]?.displayName ?: localUserId
-                    }
-                )
-            }
-        }
-
-        val cashiers = cashiersById.values.sortedBy { it.displayName.lowercase() }
-
         return ReportingFilterOptions(
             branches = branches,
-            cashiers = cashiers
+            cashiers = emptyList()
         )
     }
 }
