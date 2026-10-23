@@ -53,12 +53,6 @@ class AuthRepository @Inject constructor(
         languageManager,
         trustedSessionStore,
         object : BusinessRestorer {
-            override suspend fun restoreCashierIfEmpty(
-                usernameOrPhone: String,
-                pin: String,
-                countryCode: String
-            ) = RemoteBusinessRestorationResult.Failed("Cloud restoration unavailable in this test fixture")
-
             override suspend fun restoreAdminIfEmpty(
                 usernameOrEmail: String,
                 passwordPlain: String
