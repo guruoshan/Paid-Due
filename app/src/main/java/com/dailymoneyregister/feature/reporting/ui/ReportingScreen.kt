@@ -250,6 +250,7 @@ fun ReportingScreen(
                 state.error != null -> {
                     ReportingErrorState(
                         error = state.error,
+                        detail = state.errorDetail,
                         onRetry =
                             viewModel::retry
                     )
@@ -898,6 +899,7 @@ private fun activityTypeLabel(
 @Composable
 private fun ReportingErrorState(
     error: ReportingUiError,
+    detail: String?,
     onRetry: () -> Unit
 ) {
     val message =
@@ -930,6 +932,13 @@ private fun ReportingErrorState(
             Arrangement.spacedBy(8.dp)
     ) {
         Text(message)
+        if (!detail.isNullOrBlank()) {
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         OutlinedButton(
             onClick = onRetry
