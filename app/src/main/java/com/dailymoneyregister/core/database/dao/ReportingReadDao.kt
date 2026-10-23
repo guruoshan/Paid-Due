@@ -9,7 +9,6 @@ import com.dailymoneyregister.core.database.entity.CreditRepaymentAllocationEnti
 import com.dailymoneyregister.core.database.entity.CreditRepaymentEntity
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
 import com.dailymoneyregister.core.database.entity.ExpenseEventEntity
-import com.dailymoneyregister.core.database.entity.ExpenseEventEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.PaymentMethodChangeEventEntity
 import com.dailymoneyregister.core.database.entity.RefundEventEntity
