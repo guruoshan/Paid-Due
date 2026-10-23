@@ -223,16 +223,14 @@ class DatabaseEncryptionRealDataTest {
                 ) is AuthResult.Success
             )
 
-            val temporaryLogin = authRepository.loginCashier(
-                "session7_cashier",
-                "246810"
+            assertTrue(
+                "Cashier login is retired before encryption",
+                authRepository.loginCashier("session7_cashier", "246810") is AuthResult.InvalidCredentials
             )
-            assertTrue("Cashier temporary PIN login must work before encryption", temporaryLogin is AuthResult.Success)
-            assertTrue("Temporary PIN login must require PIN change", (temporaryLogin as AuthResult.Success).session.requiresPinChange)
-            assertTrue("Cashier PIN change must succeed", authRepository.changeCashierPin("135790") is AuthResult.Success)
-            assertTrue("PIN change must clear mustChangePin", db.userDao().getUserById(cashierId)?.mustChangePin == false)
-            assertTrue("Temporary PIN must be rejected after change", authRepository.loginCashier("session7_cashier", "246810") is AuthResult.InvalidCredentials)
-            assertTrue("New cashier PIN must authenticate", authRepository.loginCashier("session7_cashier", "135790") is AuthResult.Success)
+            assertTrue(
+                "Cashier PIN changes are retired",
+                authRepository.changeCashierPin("135790") is AuthResult.Error
+            )
 
             val cashier =
                 db.userDao()
