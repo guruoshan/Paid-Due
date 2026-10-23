@@ -55,8 +55,6 @@ WHERE notification_type IN (
 
 DELETE FROM private.staff_identities;
 
--- Keep local historical actor IDs usable for replay, but remove staff names and permissions.
-UPDATE public.business_memberships SET display_name = 'Retired staff' WHERE role = 'CASHIER';
 
 -- Remove callable cashier/staff RPCs. Admin financial upload/download and customer-directory
 -- RPCs are intentionally untouched.
