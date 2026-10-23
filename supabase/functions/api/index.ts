@@ -1,4 +1,4 @@
-import { health, uploadFinancial, downloadFinancial, syncCustomerDirectory, json } from "./handlers.ts";
+import { health, syncCustomerDirectory, json } from "./handlers.ts";
 
 function normalizeApiPath(rawPath: string): string {
   const prefix = "/functions/v1/api";
@@ -15,10 +15,9 @@ export async function handleRequest(request: Request): Promise<Response> {
   const path = normalizeApiPath(new URL(request.url).pathname);
   try {
     if (path === "/health" && request.method === "GET") return health();
-    if (path === "/financial/upload") return await uploadFinancial(request);
-    if (path === "/financial/download") return await downloadFinancial(request);
     if (path === "/customers/sync") return await syncCustomerDirectory(request);
-    if (path.startsWith("/staff/") || path === "/open/invite" || path.startsWith("/open/invite/")) {
+    if (path.startsWith("/staff/") || path.startsWith("/financial/") ||
+        path === "/open/invite" || path.startsWith("/open/invite/")) {
       return json({ outcome: "FEATURE_RETIRED" }, 410, { "Cache-Control": "no-store" });
     }
     return json({ outcome: "NOT_FOUND" }, 404);
