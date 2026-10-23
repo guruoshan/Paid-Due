@@ -628,7 +628,7 @@ class DmrDatabaseIntegrationTest {
         prefs.edit().clear().commit()
         val throttler = PinThrottler(context, prefs, maxAttempts = 2, lockoutDurationMillis = 30_000L)
         val auth = AuthRepository(database, throttler, LanguageManager(context), trustedSessionStore)
-        assertTrue(auth.loginAdmin("unknown_admin", "999999") is AuthResult.InvalidCredentials)
+        assertTrue(auth.loginAdmin("unknown_admin", "WrongPassword123") is AuthResult.InvalidCredentials)
         val locked = auth.loginAdmin("unknown_admin", "999999")
         assertTrue(locked is AuthResult.LockedOut)
         assertTrue(throttler.isLockedOut("pre:v1:ADMIN:${setup.businessId.value}:${setup.branchId.value}:USERNAME:unknown_admin"))
