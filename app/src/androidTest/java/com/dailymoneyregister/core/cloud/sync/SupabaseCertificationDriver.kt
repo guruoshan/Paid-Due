@@ -287,7 +287,7 @@ class SupabaseCertificationDriver(
                     "the fixture membership/business/branch"
             }
             val command = ExpenseCommand(
-                operationId = OperationId("cert-expense-operation"),
+                operationId = OperationId.generate(),
                 businessId = business.id, branchId = branch.id, actorUserId = user.id,
                 expenseId = "cert-expense", amountMinor = 1250L, currencyCode = branch.currencyCode,
                 category = ExpenseCategory.SUPPLIES, paymentCategory = PaymentCategory.CASH,
@@ -395,7 +395,7 @@ class SupabaseCertificationDriver(
             )) { "AuthRepository login did not establish server-verified Admin scope for sale fixture" }
             val occurredAt = System.currentTimeMillis()
             val command = CashSaleCommand(
-                operationId = OperationId("cert-sale-operation"),
+                operationId = OperationId.generate(),
                 businessId = business.id,
                 branchId = branch.id,
                 actorUserId = user.id,
@@ -452,7 +452,7 @@ class SupabaseCertificationDriver(
         val suffix = shift.user.id.takeLast(8)
         val occurredAt = shift.commandOccurredAt + 10_000L
         val creditSale = CreditSaleCommand(
-            operationId = OperationId("cert-credit-sale-$suffix"),
+            operationId = OperationId.generate(),
             businessId = shift.business.id,
             branchId = shift.branch.id,
             actorUserId = shift.user.id,
@@ -470,7 +470,7 @@ class SupabaseCertificationDriver(
             occurredAt = occurredAt
         )
         val repaymentId = "cert-credit-repayment-id-$suffix"
-        val operationId = OperationId("cert-credit-repayment-$suffix")
+        val operationId = OperationId.generate()
         try {
             val creditSaleResult = repository.executeCreditSale(creditSale)
             check(creditSaleResult is CommandResult.Success<*>) {
@@ -567,7 +567,7 @@ class SupabaseCertificationDriver(
         val suffix = shift.user.id.takeLast(8)
         val occurredAt = shift.commandOccurredAt + 10_000L
         val command = CouponSaleCommand(
-            operationId = OperationId("cert-coupon-purchase-$suffix"),
+            operationId = OperationId.generate(),
             businessId = shift.business.id,
             branchId = shift.branch.id,
             actorUserId = shift.user.id,
@@ -620,7 +620,7 @@ class SupabaseCertificationDriver(
         val repository = RegisterRepository(sale.sender, CommandExecutor(sale.sender))
         val saleAmount = sale.command.draftState.grandTotal.amount
         val occurredAt = sale.command.occurredAt + 10_000L
-        val operationId = OperationId("cert-${operationType.lowercase()}-${sale.user.id.takeLast(8)}")
+        val operationId = OperationId.generate()
         val mutationAmount = when (operationType) {
             "RECORD_REFUND" -> 250L
             "RECORD_VOID" -> saleAmount
@@ -819,7 +819,7 @@ class SupabaseCertificationDriver(
             val occurredAt = System.currentTimeMillis()
             val shiftId = CashShiftId("cert-shift-$fixtureSuffix")
             val openCommand = OpenRegisterShiftCommand(
-                operationId = OperationId("cert-open-$fixtureSuffix"),
+                operationId = OperationId.generate(),
                 businessId = business.id,
                 branchId = branch.id,
                 shiftId = shiftId,
@@ -840,7 +840,7 @@ class SupabaseCertificationDriver(
                 }
                 "COUNT_CASH_SHIFT" -> {
                     val count = CountRegisterShiftCommand(
-                        operationId = OperationId("cert-count-$fixtureSuffix"),
+                        operationId = OperationId.generate(),
                         businessId = business.id,
                         branchId = branch.id,
                         shiftId = shiftId,
@@ -857,7 +857,7 @@ class SupabaseCertificationDriver(
                 }
                 "CLOSE_CASH_SHIFT" -> {
                     val count = CountRegisterShiftCommand(
-                        operationId = OperationId("cert-count-$fixtureSuffix"),
+                        operationId = OperationId.generate(),
                         businessId = business.id,
                         branchId = branch.id,
                         shiftId = shiftId,
@@ -871,7 +871,7 @@ class SupabaseCertificationDriver(
                         "Real COUNT_CASH_SHIFT prerequisite failed for close: " + counted
                     }
                     val close = CloseRegisterShiftCommand(
-                        operationId = OperationId("cert-close-$fixtureSuffix"),
+                        operationId = OperationId.generate(),
                         businessId = business.id,
                         branchId = branch.id,
                         shiftId = shiftId,
