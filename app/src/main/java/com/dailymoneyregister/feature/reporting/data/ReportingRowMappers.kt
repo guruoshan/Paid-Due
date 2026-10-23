@@ -694,8 +694,8 @@ internal object ReportingRowMappers {
     fun mapExpense(
         expense: ExpenseEntity,
         settlement: SettlementEntryEntity,
-        events: List<com.dailymoneyregister.core.database.entity.ExpenseEventEntity> = emptyList(),
-        lookups: ReportingLookups
+        lookups: ReportingLookups,
+        events: List<com.dailymoneyregister.core.database.entity.ExpenseEventEntity> = emptyList()
     ): ExpenseReportRow {
 
         // Project the authoritative expense plus immutable lifecycle history.
