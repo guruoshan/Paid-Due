@@ -23,6 +23,7 @@ import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.feature.register.data.ExpenseCategory
 import com.dailymoneyregister.feature.register.data.ExpenseCommand
 import com.dailymoneyregister.feature.register.data.ExpenseCommandResult
+import com.dailymoneyregister.feature.register.data.ExpenseLifecycleCommand
 import com.dailymoneyregister.feature.register.data.RegisterRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -1267,5 +1268,70 @@ class ExpenseIntegrationTest {
                 originalExpense.id
             )
         }
-}
 
+    @Test
+    fun adminExpenseCorrectionAndVoidAppendEventsAndQueueExactlyOnce() = runBlocking {
+        val original = command(suffix = "admin-lifecycle", amountMinor = 9_000L)
+        assertTrue(repository.executeExpense(original) is CommandResult.Success)
+
+        val admin = user.copy(
+            id = "expense-test-admin",
+            displayName = "Expense Admin",
+            username = "expense_test_admin",
+            role = UserRole.ADMIN
+        )
+        val adminMembership = membership.copy(
+            id = "expense-test-admin-membership",
+            userId = admin.id,
+            role = UserRole.ADMIN
+        )
+        database.userDao().insertUser(admin)
+        database.userDao().insertMembership(adminMembership)
+        SessionManager.setSession(ActiveSession(business, branch, admin, adminMembership))
+
+        val correction = ExpenseLifecycleCommand(
+            operationId = OperationId("expense-correction-admin-lifecycle"),
+            businessId = business.id,
+            branchId = branch.id,
+            actorUserId = admin.id,
+            deviceId = "expense-test-device",
+            occurredAt = original.occurredAt + 10L,
+            expenseId = original.expenseId,
+            action = ExpenseLifecycleCommand.Action.CORRECT,
+            correctedAmountMinor = 7_500L,
+            reason = "Corrected supplier invoice"
+        )
+        val correctionResult = repository.executeExpenseLifecycle(correction)
+        assertTrue("Correction must succeed: $correctionResult", correctionResult is CommandResult.Success)
+        assertEquals(7_500L, database.expenseDao().getExpenseById(original.expenseId)!!.amountMinor)
+        assertEquals(1, database.expenseDao().getEventsForExpense(original.expenseId).count { it.operationId == correction.operationId.value })
+        assertEquals("QUEUED", database.financialSyncOutboxDao().findByOperationId(correction.operationId.value)!!.status)
+
+        val correctionReplay = repository.executeExpenseLifecycle(correction)
+        assertTrue("Correction replay must be idempotent: $correctionReplay", correctionReplay is CommandResult.Success)
+        assertEquals(1, database.expenseDao().getEventsForExpense(original.expenseId).count { it.operationId == correction.operationId.value })
+        assertEquals(1, database.transactionDao().getSettlementsForOperation(correction.operationId.value).size)
+
+        val void = ExpenseLifecycleCommand(
+            operationId = OperationId("expense-void-admin-lifecycle"),
+            businessId = business.id,
+            branchId = branch.id,
+            actorUserId = admin.id,
+            deviceId = "expense-test-device",
+            occurredAt = original.occurredAt + 20L,
+            expenseId = original.expenseId,
+            action = ExpenseLifecycleCommand.Action.VOID,
+            reason = "Duplicate expense entry"
+        )
+        val voidResult = repository.executeExpenseLifecycle(void)
+        assertTrue("Void must succeed: $voidResult", voidResult is CommandResult.Success)
+        assertEquals(1, database.expenseDao().getEventsForExpense(original.expenseId).count { it.operationId == void.operationId.value })
+        assertEquals("QUEUED", database.financialSyncOutboxDao().findByOperationId(void.operationId.value)!!.status)
+
+        val voidReplay = repository.executeExpenseLifecycle(void)
+        assertTrue("Void replay must be idempotent: $voidReplay", voidReplay is CommandResult.Success)
+        assertEquals(1, database.expenseDao().getEventsForExpense(original.expenseId).count { it.operationId == void.operationId.value })
+        assertEquals(1, database.transactionDao().getSettlementsForOperation(void.operationId.value).size)
+    }
+
+}
