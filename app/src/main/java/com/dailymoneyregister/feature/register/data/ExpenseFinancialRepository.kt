@@ -13,8 +13,6 @@ import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.enums.SubjectType
-import com.dailymoneyregister.core.model.enums.EntryPurpose
-import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.model.enums.UserRole
 
