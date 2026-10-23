@@ -761,6 +761,12 @@ abstract class DmrDatabase : RoomDatabase() {
                     WHERE role = 'CASHIER'
                 """.trimIndent())
                 db.execSQL("""
+                    UPDATE cloud_staff_identities
+                    SET display_name = 'Retired staff',
+                        permissions_json = '{}'
+                    WHERE role = 'CASHIER'
+                """.trimIndent())
+                db.execSQL("""
                     UPDATE user_branch_memberships
                     SET can_create_sale = 0,
                         can_accept_cash = 0,
