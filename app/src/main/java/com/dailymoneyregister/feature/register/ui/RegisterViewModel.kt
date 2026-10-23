@@ -3269,21 +3269,35 @@ if (
                     submitRegisterShiftCount(countCommand)
             ) {
                 is CommandResult.Success -> {
+                    val closingSession = SessionManager.currentSession.value
+                    if (closingSession == null ||
+                        closingSession.business.id != session.business.id ||
+                        closingSession.branch.id != session.branch.id ||
+                        (closingSession.user.role != UserRole.ADMIN && closingSession.user.id != session.user.id)
+                    ) {
+                        _uiState.value = _uiState.value.copy(
+                            isExecuting = false,
+                            inFlightShiftCountCommand = null,
+                            inFlightShiftCloseCommand = null,
+                            errorMessage = UiText.Dynamic("The signed-in identity changed during day closing. Reopen Day Closing and try again.")
+                        )
+                        return@launch
+                    }
                     val closeOccurredAt = System.currentTimeMillis()
                     val closeCommand =
                         CloseRegisterShiftCommand(
                             operationId = OperationId.generate(),
-                            businessId = session.business.id,
-                            branchId = session.branch.id,
+                            businessId = closingSession.business.id,
+                            branchId = closingSession.branch.id,
                             shiftId = report.shift.shiftId,
-                            actorUserId = session.user.id,
+                            actorUserId = closingSession.user.id,
                             deviceId = deviceId(),
                             occurredAt = closeOccurredAt,
                             reportSnapshot = RegisterShiftCloseReportSnapshot(
                                 shiftId = report.shift.shiftId.value,
-                                currencyCode = session.branch.currencyCode,
-                                currencyDecimalPlaces = session.branch.currencyDecimalPlaces,
-                                currencySymbol = session.branch.currencySymbol,
+                                currencyCode = closingSession.branch.currencyCode,
+                                currencyDecimalPlaces = closingSession.branch.currencyDecimalPlaces,
+                                currencySymbol = closingSession.branch.currencySymbol,
                                 operationCount = report.operationCount,
                                 salesCount = report.salesCount,
                                 grossSalesMinor = report.grossSalesMinor,
@@ -3313,7 +3327,7 @@ if (
                                 countedCashMinor = countedMinor,
                                 differenceMinor = Math.subtractExact(countedMinor, report.expectedCashMinor),
                                 cashierUserId = report.shift.actorUserId,
-                                closedByUserId = session.user.id,
+                                closedByUserId = closingSession.user.id,
                                 closedAt = closeOccurredAt
                             )
                         )
