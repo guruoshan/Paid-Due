@@ -2,8 +2,6 @@
 -- Cashier memberships remain as inactive, anonymized tombstones because financial envelopes,
 -- customer-directory audit references, and historical accounting evidence point to their IDs.
 
-BEGIN;
-
 UPDATE public.business_memberships
 SET is_active = false,
     removed_at = COALESCE(removed_at, now()),
@@ -74,4 +72,3 @@ DROP FUNCTION IF EXISTS public.verify_cashier_notification_session(text);
 DROP FUNCTION IF EXISTS public.verify_cashier_sync_session(text);
 DROP FUNCTION IF EXISTS public.ingest_cashier_financial_envelope(text, text, text, text, text, text, integer, timestamptz, text, date, text, text, jsonb);
 
-COMMIT;
