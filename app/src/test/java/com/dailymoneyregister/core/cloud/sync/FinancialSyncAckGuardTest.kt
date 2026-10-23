@@ -9,6 +9,7 @@ import org.junit.Test
 class FinancialSyncAckGuardTest {
     private val op = "0199c001-1234-7abc-8def-0123456789ab"
     private val otherOp = "0199c001-1234-7abc-8def-0123456789ac"
+    private val legacyUuidV4 = "550e8400-e29b-41d4-a716-446655440000"
     private val digest = "a".repeat(64)
     private val otherDigest = "b".repeat(64)
 
@@ -85,10 +86,12 @@ class FinancialSyncAckGuardTest {
     }
 
     @Test fun exactOperationIdValidation() {
-        // Contract uses UUIDv7, so aliases must fail, even without whitespace.
+        // Operation IDs must be canonical lowercase RFC UUIDs; aliases still fail.
         for (id in listOf("OP-1", "op-1 ", " op-1", op.uppercase(), " $op", "$op ")) {
             invalidField("operationId") { copy(operationId = id) }
         }
         assertEquals(op, identity().operationId)
+        // Previously persisted operations may predate UUIDv7 generation.
+        assertEquals(legacyUuidV4, identity().copy(operationId = legacyUuidV4).operationId)
     }
 }

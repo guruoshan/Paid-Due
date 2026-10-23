@@ -241,11 +241,10 @@ class FinancialSyncEngine @Inject constructor(
                     expense = expense,
                     financialEvidence = financialEvidence
                 )
-                val receipt = remoteSyncRepository.uploadEnvelope(
-                    envelope = envelope,
-                    actorMembershipId = actorMembershipId,
-                    branchTimezoneId = branch.timezoneId
-                )
+                // Validate the complete acknowledgement identity BEFORE the remote
+                // side effect. Previously a server-committed upload could be followed by
+                // an identity validation exception, leaving the local outbox unacknowledged
+                // forever even though Supabase already contained the operation.
                 val identity = FinancialSyncIdentity(
                     envelope.operationId,
                     envelope.businessId,
@@ -254,6 +253,15 @@ class FinancialSyncEngine @Inject constructor(
                     envelope.deviceId,
                     envelope.commandSchemaVersion,
                     envelope.canonicalSha256
+                )
+                Log.d(
+                    "PaidDueFinancialSync",
+                    "OUTBOUND_IDENTITY_VALIDATED operation=${envelope.operationId} type=${envelope.operationType}"
+                )
+                val receipt = remoteSyncRepository.uploadEnvelope(
+                    envelope = envelope,
+                    actorMembershipId = actorMembershipId,
+                    branchTimezoneId = branch.timezoneId
                 )
                 val nextState = FinancialSyncOutboxPolicy.applyReceipt(identity, inFlightState, receipt)
                 withContext(NonCancellable) {
