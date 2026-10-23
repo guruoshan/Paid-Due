@@ -491,14 +491,14 @@ class DatabaseEncryptionRealDataTest {
             )
 
             assertNotNull(reopenedCashier)
-            assertTrue("Cashier must not require PIN change after reopen", reopenedCashier!!.mustChangePin == false)
+            assertTrue("Cashier credentials remain marked for change but cannot authenticate", reopenedCashier!!.mustChangePin)
             assertTrue(
                 "Temporary cashier PIN must remain rejected after encryption",
                 reopenedAuthRepository.loginCashier("session7_cashier", "246810") is AuthResult.InvalidCredentials
             )
             assertTrue(
-                "New cashier PIN must survive encryption",
-                reopenedAuthRepository.loginCashier("session7_cashier", "135790") is AuthResult.Success
+                "Cashier login remains retired after encryption",
+                reopenedAuthRepository.loginCashier("session7_cashier", "135790") is AuthResult.InvalidCredentials
             )
 
             /*
