@@ -169,16 +169,11 @@ class RoomReportingReadRepository(
         val expenses =
             reportingDao.getExpensesInPeriod(businessId, branchIds, from, to)
 
-        val unsupportedExpenseEvents =
-            reportingDao.getExpenseEventsInPeriod(businessId, branchIds, from, to)
-        check(unsupportedExpenseEvents.isEmpty()) {
-            val details = unsupportedExpenseEvents.joinToString(separator = "; ") { event ->
-                "event=${event.id}, expense=${event.expenseId}, type=${event.eventType}"
-            }
-            "Unsupported expense correction/void evidence in this report period " +
-                "(${unsupportedExpenseEvents.size} event(s)): $details. " +
-                "Reporting cannot safely summarize these expense lifecycle events yet."
-        }
+        // Expense lifecycle events are immutable audit evidence. Project them
+        // with each expense instead of rejecting the entire report period.
+        val expenseEventsByExpense = reportingDao
+            .getExpenseEventsForExpenses(expenses.map { it.id })
+            .groupBy { it.expenseId }
 
         // ---- 4. Parent transactions for lifecycle + coupon rows ----------
 
@@ -414,6 +409,7 @@ class RoomReportingReadRepository(
                 ReportingRowMappers.mapExpense(
                     expense = expense,
                     settlement = settlements.single(),
+                    events = expenseEventsByExpense[expense.id].orEmpty(),
                     lookups = lookups
                 )
             }
