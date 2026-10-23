@@ -12,7 +12,6 @@ import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import com.dailymoneyregister.core.security.PasswordHasher
-import com.dailymoneyregister.core.security.PinHasher
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.SerialName
@@ -23,6 +22,66 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 
+@Serializable
+private data class RemoteStaffRestorationRpcRow(
+    @SerialName("staff_identity_id") val staffIdentityId: String? = null,
+    @SerialName("membership_id") val membershipId: String,
+    @SerialName("local_user_id") val localUserId: String,
+    @SerialName("business_id") val businessId: String,
+    @SerialName("business_name") val businessName: String,
+    @SerialName("branch_id") val branchId: String,
+    @SerialName("branch_name") val branchName: String,
+    @SerialName("branch_code") val branchCode: String = "MAIN",
+    @SerialName("country_code") val countryCode: String = "OM",
+    @SerialName("currency_code") val currencyCode: String = "OMR",
+    @SerialName("currency_decimal_places") val currencyDecimalPlaces: Int = 3,
+    @SerialName("currency_symbol") val currencySymbol: String = "OMR",
+    @SerialName("timezone_id") val timezoneId: String = "Asia/Muscat",
+    @SerialName("tax_rounding_mode") val taxRoundingMode: String = "HALF_UP",
+    @SerialName("default_tax_rate_bps") val defaultTaxRateBps: Int = 500,
+    @SerialName("branch_address") val branchAddress: String? = null,
+    @SerialName("branch_phone") val branchPhone: String? = null,
+    @SerialName("tax_registration_number") val taxRegistrationNumber: String? = null,
+    @SerialName("display_name") val displayName: String,
+    @SerialName("canonical_phone") val canonicalPhone: String? = null,
+    @SerialName("credential_hash") val credentialHash: String? = null,
+    @SerialName("credential_salt") val credentialSalt: String? = null,
+    val permissions: Map<String, Boolean>? = null
+)
+
+sealed interface RemoteBusinessRestorationResult {
+    data class Success(
+        val businessId: String,
+        val branchId: String,
+        val userId: String
+    ) : RemoteBusinessRestorationResult
+
+    data class Failed(val message: String) : RemoteBusinessRestorationResult
+}
+
+interface BusinessRestorer {
+
+    suspend fun restoreAdminIfEmpty(
+        usernameOrEmail: String,
+        passwordPlain: String
+    ): RemoteBusinessRestorationResult
+
+    /**
+     * Establishes a server-authenticated Admin session for sync without changing
+     * local financial or business records. Implementations must verify tenant,
+     * branch, user, and membership against the authenticated backend identity.
+     */
+    suspend fun authenticateAdminForSync(
+        usernameOrEmail: String,
+        passwordPlain: String,
+        expectedBusinessId: String,
+        expectedBranchId: String,
+        expectedUserId: String,
+        expectedMembershipId: String
+    ): RemoteBusinessRestorationResult =
+        RemoteBusinessRestorationResult.Failed("Admin cloud authentication unavailable")
+}
+
 @Singleton
 class RemoteBusinessRestorer @Inject constructor(
     private val database: DmrDatabase,
@@ -31,13 +90,6 @@ class RemoteBusinessRestorer @Inject constructor(
 ) : BusinessRestorer {
     private val businessBranchDao = database.businessBranchDao()
     private val userDao = database.userDao()
-
-    override suspend fun restoreCashierIfEmpty(
-        usernameOrPhone: String,
-        pin: String,
-        countryCode: String
-    ): RemoteBusinessRestorationResult =
-        RemoteBusinessRestorationResult.Failed("Cashier access has been retired")
 
     override suspend fun authenticateAdminForSync(
         usernameOrEmail: String,
