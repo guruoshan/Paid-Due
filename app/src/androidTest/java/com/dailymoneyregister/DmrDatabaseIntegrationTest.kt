@@ -734,7 +734,7 @@ class DmrDatabaseIntegrationTest {
         // Admin login wrong password
         val adminFail = authRepository.loginAdmin("admin_user", "WrongPass")
         assertTrue(adminFail is AuthResult.InvalidCredentials)
-
+    }
 
     @Test
     fun testOperationIdempotencyAndFingerprintIntegrity() = runBlocking {
@@ -1647,3 +1647,4 @@ class DmrDatabaseIntegrationTest {
         assertNull(database.operationDao().getOperationById(restrictedOperationId.value))
 
     }
+}

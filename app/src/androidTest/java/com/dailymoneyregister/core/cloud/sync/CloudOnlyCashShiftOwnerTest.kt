@@ -5,6 +5,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
+import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import io.mockk.coEvery
 import io.mockk.mockk
