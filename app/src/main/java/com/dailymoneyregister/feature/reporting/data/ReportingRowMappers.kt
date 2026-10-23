@@ -694,14 +694,19 @@ internal object ReportingRowMappers {
     fun mapExpense(
         expense: ExpenseEntity,
         settlement: SettlementEntryEntity,
-        lookups: ReportingLookups
+        lookups: ReportingLookups,
+        events: List<com.dailymoneyregister.core.database.entity.ExpenseEventEntity> = emptyList()
     ): ExpenseReportRow {
 
-        // Single authoritative mapper shared with Recent / Day Closing.
+        // Project the authoritative expense plus immutable lifecycle history.
+        // Corrections resolve to the latest effective amount; voids remain in
+        // audit history but have no active financial impact.
         val projection = ExpenseReadProjectionResolver.resolve(
             expense = expense,
-            settlement = settlement
+            settlement = settlement,
+            events = events
         )
+        val isVoided = events.any { it.eventType.equals("VOIDED", ignoreCase = true) }
 
         val hasPayee =
             expense.payeeId != null ||
@@ -729,7 +734,7 @@ internal object ReportingRowMappers {
                 },
             expenseId = expense.id,
             category = projection.category,
-            amount = projection.amount,
+            amount = if (isVoided) MoneyMinorUnits.ZERO else projection.amount,
             paymentCategory = projection.paymentCategory,
             paymentChannel = projection.paymentChannel,
             note = projection.note,
