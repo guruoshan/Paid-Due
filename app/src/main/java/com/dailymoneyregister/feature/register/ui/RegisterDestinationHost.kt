@@ -1,6 +1,8 @@
 package com.dailymoneyregister.feature.register.ui
 
 import com.dailymoneyregister.core.ui.asString
+import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.core.model.enums.UserRole
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.activity.compose.BackHandler
@@ -139,6 +141,9 @@ internal fun RegisterDestinationHost(
                         onAttachSupportingDocument = { sourceUri ->
                             viewModel.attachSupportingDocumentToExpense(details.expenseId, sourceUri)
                         },
+                        canManageFinancialLifecycle = SessionManager.currentSession.value?.user?.role == UserRole.ADMIN,
+                        onCorrectExpense = viewModel::correctExpenseFromDetails,
+                        onVoidExpense = viewModel::voidExpenseFromDetails,
                         onBack = viewModel::closeExpenseDetails
                     )
                 }
