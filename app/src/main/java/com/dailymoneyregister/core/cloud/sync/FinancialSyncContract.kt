@@ -11,7 +11,7 @@ private fun validId(value: String, field: String, format: Regex) {
     if (value.length > 128 || !format.matches(value)) {
         val rejectedValue = if (value.length <= 128) value else value.take(24) + "…"
         throw IllegalArgumentException(
-            "$field rejected by validId: value=\\\"$rejectedValue\\\", length=${value.length}, maxLength=128, expectedFormat=$format"
+            "$field rejected by validId: value=\"$rejectedValue\", length=${value.length}, maxLength=128, expectedFormat=$format"
         )
     }
 }
