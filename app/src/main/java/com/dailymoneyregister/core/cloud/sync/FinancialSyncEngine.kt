@@ -198,15 +198,27 @@ class FinancialSyncEngine @Inject constructor(
         val statusCounts = outboxDao.getStatusCounts()
         val countsStr = statusCounts.joinToString(", ") { "${it.operationType}[${it.status}]=${it.count}" }
         Log.i("PaidDueFinancialSync", "SYNC CYCLE OUTBOUND start: pending=${pendingList.size} outbox_totals={$countsStr}")
+        // Cash-shift close diagnostics: distinguish not queued from queued-but-filtered
+        // and upload failures without logging financial amounts or customer data.
+        val closeRows = outboxDao.getStatusCounts().filter { it.operationType == "CLOSE_CASH_SHIFT" }
+        Log.i("PaidDueFinancialSync", "CLOSE_SHIFT_OUTBOX_SCAN business=${activeSession.business.id} branch=${activeSession.branch.id} actor=${activeSession.user.id} pending_for_actor=${pendingList.count { item -> operationDao.getOperationById(item.operationId)?.operationType == com.dailymoneyregister.core.model.enums.OperationType.CLOSE_CASH_SHIFT }} status_counts=${closeRows.joinToString { "${it.status}:${it.count}" }}")
 
         var syncedCount = 0
 
         for (outboxItem in pendingList) {
+            var diagnosticOperationType = "UNKNOWN"
             try {
                 val opEntity = operationDao.getOperationById(outboxItem.operationId)
                     ?: error("Operation ${outboxItem.operationId} is missing")
+                diagnosticOperationType = opEntity.operationType.name
+                if (diagnosticOperationType == "CLOSE_CASH_SHIFT") {
+                    Log.i("PaidDueFinancialSync", "CLOSE_SHIFT_UPLOAD_BEGIN operation=${outboxItem.operationId} outbox_status=${outboxItem.status} attempt=${outboxItem.attemptCount}")
+                }
                 val policyState = FinancialSyncOperationPolicy.initialState(role, opEntity.operationType)
                 if (policyState != FinancialSyncDeliveryState.QUEUED) {
+                    if (diagnosticOperationType == "CLOSE_CASH_SHIFT") {
+                        Log.w("PaidDueFinancialSync", "CLOSE_SHIFT_NOT_UPLOADABLE operation=${outboxItem.operationId} policy_state=${policyState.name} role=${role.name}")
+                    }
                     withContext(NonCancellable) {
                         outboxDao.updateStatus(outboxItem.operationId, policyState.name)
                     }
@@ -241,11 +253,17 @@ class FinancialSyncEngine @Inject constructor(
                     expense = expense,
                     financialEvidence = financialEvidence
                 )
+                if (diagnosticOperationType == "CLOSE_CASH_SHIFT") {
+                    Log.i("PaidDueFinancialSync", "CLOSE_SHIFT_UPLOAD_REQUEST operation=${outboxItem.operationId} digest=${envelope.canonicalSha256}")
+                }
                 val receipt = remoteSyncRepository.uploadEnvelope(
                     envelope = envelope,
                     actorMembershipId = actorMembershipId,
                     branchTimezoneId = branch.timezoneId
                 )
+                if (diagnosticOperationType == "CLOSE_CASH_SHIFT") {
+                    Log.i("PaidDueFinancialSync", "CLOSE_SHIFT_UPLOAD_RECEIPT operation=${outboxItem.operationId} receipt=${receipt::class.simpleName}")
+                }
                 val identity = FinancialSyncIdentity(
                     envelope.operationId,
                     envelope.businessId,
@@ -285,6 +303,9 @@ class FinancialSyncEngine @Inject constructor(
                 }
                 throw cancelled
             } catch (error: Exception) {
+                if (diagnosticOperationType == "CLOSE_CASH_SHIFT") {
+                    Log.e("PaidDueFinancialSync", "CLOSE_SHIFT_UPLOAD_FAILED operation=${outboxItem.operationId} type=${error::class.simpleName} message=${error.message}", error)
+                }
                 Log.e("PaidDueFinancialSync", "OUTBOUND_ITEM_FAILED operation=${outboxItem.operationId}", error)
                 withContext(NonCancellable) {
                     outboxDao.updateStatus(
