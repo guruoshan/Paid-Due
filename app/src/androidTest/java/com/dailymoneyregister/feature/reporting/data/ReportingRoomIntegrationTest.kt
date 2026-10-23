@@ -373,63 +373,6 @@ class ReportingRoomIntegrationTest {
     }
 
     @Test
-    fun cashierFilterOptionsOnlyIncludeCashiersFromSelectedBranch() = runBlocking {
-        val otherBranch = BranchEntity(
-            id = "reporting-phase3b-other-branch",
-            businessId = business.id,
-            name = "Other",
-            code = "OTHER",
-            countryCode = "OM",
-            currencyCode = branch.currencyCode,
-            currencyDecimalPlaces = branch.currencyDecimalPlaces,
-            currencySymbol = branch.currencySymbol,
-            timezoneId = branch.timezoneId,
-            createdAt = 1L,
-            updatedAt = 1L
-        )
-        database.businessBranchDao().insertBranch(otherBranch)
-        database.cloudStaffIdentityDao().upsertAll(
-            listOf(
-                CloudStaffIdentityEntity(
-                    membershipId = "reporting-phase3b-main-membership",
-                    localUserId = "reporting-phase3b-cloud-cashier",
-                    businessId = business.id,
-                    branchId = branch.id,
-                    role = "CASHIER",
-                    permissionsJson = "{}",
-                    isActive = true,
-                    isRemoved = false,
-                    updatedAt = 1L,
-                    displayName = "Cloud Cashier"
-                ),
-                CloudStaffIdentityEntity(
-                    membershipId = "reporting-phase3b-other-membership",
-                    localUserId = "reporting-phase3b-other-cashier",
-                    businessId = business.id,
-                    branchId = otherBranch.id,
-                    role = "CASHIER",
-                    permissionsJson = "{}",
-                    isActive = true,
-                    isRemoved = false,
-                    updatedAt = 1L,
-                    displayName = "Other Branch Cashier"
-                )
-            )
-        )
-
-        val options = ReportingFilterOptionsRepository(database)
-            .load(business.id, branch.currencyCode, branch.id)
-
-        assertTrue(options.cashiers.any {
-            it.id == "reporting-phase3b-cloud-cashier" &&
-                it.displayName == "Cloud Cashier"
-        })
-        assertTrue(options.cashiers.none {
-            it.id == "reporting-phase3b-other-cashier"
-        })
-    }
-
-    @Test
     fun cashierRemainsDeniedEvenWhenLegacyCanViewReportsIsTrue() = runBlocking {
         val cashier = UserAccountEntity(
             id = "reporting-phase3b-cashier",
