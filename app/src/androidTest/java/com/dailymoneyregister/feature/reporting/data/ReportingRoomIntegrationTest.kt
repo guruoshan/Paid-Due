@@ -231,6 +231,80 @@ class ReportingRoomIntegrationTest {
             )
         )
 
+        // An opened and counted shift with no CLOSE is a normal operational
+        // state. It must not prevent an Admin from reading financial reports.
+        val unclosedShiftId = "reporting-phase3b-unclosed-shift"
+        database.cashShiftDao().insertShift(
+            CashShiftEntity(
+                id = unclosedShiftId,
+                branchId = branch.id,
+                userId = admin.id,
+                createdAt = 1_410L
+            )
+        )
+        val openOperationId = "reporting-phase3b-open-op"
+        database.operationDao().insertOperation(
+            OperationEntity(
+                id = openOperationId,
+                businessId = business.id,
+                branchId = branch.id,
+                operationType = OperationType.OPEN_CASH_SHIFT,
+                subjectType = SubjectType.CASH_SHIFT,
+                subjectId = unclosedShiftId,
+                transactionId = null,
+                cashShiftId = unclosedShiftId,
+                actorUserId = admin.id,
+                deviceId = "reporting-phase3b-device",
+                occurredAt = 1_410L,
+                requestFingerprint = "reporting-phase3b-open-fingerprint",
+                commandSchemaVersion = 1,
+                intentPayload = "{}",
+                status = OperationStatus.SUCCEEDED
+            )
+        )
+        database.cashShiftDao().insertShiftEvent(
+            CashShiftEventEntity(
+                id = "$openOperationId:OPENED",
+                shiftId = unclosedShiftId,
+                operationId = openOperationId,
+                type = CashShiftEventType.OPENED,
+                amountMinor = 0L,
+                occurredAt = 1_410L,
+                actorUserId = admin.id
+            )
+        )
+        val countOperationId = "reporting-phase3b-count-op"
+        database.operationDao().insertOperation(
+            OperationEntity(
+                id = countOperationId,
+                businessId = business.id,
+                branchId = branch.id,
+                operationType = OperationType.COUNT_CASH_SHIFT,
+                subjectType = SubjectType.CASH_SHIFT,
+                subjectId = unclosedShiftId,
+                transactionId = null,
+                cashShiftId = unclosedShiftId,
+                actorUserId = admin.id,
+                deviceId = "reporting-phase3b-device",
+                occurredAt = 1_700L,
+                requestFingerprint = "reporting-phase3b-count-fingerprint",
+                commandSchemaVersion = 1,
+                intentPayload = "{}",
+                status = OperationStatus.SUCCEEDED
+            )
+        )
+        database.cashShiftDao().insertShiftEvent(
+            CashShiftEventEntity(
+                id = "$countOperationId:COUNTED",
+                shiftId = unclosedShiftId,
+                operationId = countOperationId,
+                type = CashShiftEventType.COUNTED,
+                amountMinor = 1_250L,
+                occurredAt = 1_700L,
+                actorUserId = admin.id
+            )
+        )
+
         val repository = RoomReportingReadRepository(
             database = database,
             sessionProvider = {
