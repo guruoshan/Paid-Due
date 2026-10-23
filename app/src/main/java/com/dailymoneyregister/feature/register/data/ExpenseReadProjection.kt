@@ -185,6 +185,13 @@ object ExpenseReadProjectionResolver {
             "Expense settlement payment channel mismatch for ${expense.id}"
         }
 
+        val effectiveAmountMinor = events
+            .asSequence()
+            .filter { !it.eventType.uppercase().contains("VOID") }
+            .sortedWith(compareBy<ExpenseEventEntity>({ it.occurredAt }, { it.id }))
+            .mapNotNull { it.newAmountMinor }
+            .lastOrNull() ?: expense.amountMinor
+
         return ExpenseReadProjection(
             expenseId =
                 expense.id,
@@ -206,7 +213,7 @@ object ExpenseReadProjectionResolver {
 
             amount =
                 MoneyMinorUnits(
-                    expense.amountMinor
+                    effectiveAmountMinor
                 ),
 
             currencyCode =
