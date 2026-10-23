@@ -18,7 +18,6 @@ UPDATE public.business_memberships
 SET is_active = false,
     removed_at = COALESCE(removed_at, now()),
     auth_user_id = NULL,
-    local_user_id = NULL,
     staff_identity_id = NULL,
     can_create_sale = false,
     can_accept_cash = false,
