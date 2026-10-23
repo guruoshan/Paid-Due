@@ -83,15 +83,22 @@ internal fun ExpenseDetailsScreen(
     supportingDocumentAttaching: Boolean,
     onRefreshSupportingDocuments: () -> Unit,
     onAttachSupportingDocument: (String) -> Unit,
+    canManageFinancialLifecycle: Boolean = false,
+    onCorrectExpense: (String, String) -> Unit = { _, _ -> },
+    onVoidExpense: (String) -> Unit = {},
     onBack: () -> Unit
 ) {
 
     val context =
         LocalContext.current
 
-    var pendingCameraUri by remember {
-        mutableStateOf<Uri?>(null)
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var showExpenseCorrection by rememberSaveable { mutableStateOf(false) }
+    var showExpenseVoid by rememberSaveable { mutableStateOf(false) }
+    var correctedAmountInput by rememberSaveable(details.expenseId) {
+        mutableStateOf(details.amount.formatDisplay(decimalPlaces, "").replace(",", "").trim())
     }
+    var lifecycleReason by rememberSaveable(details.expenseId) { mutableStateOf("") }
 
     val chooseDocumentLauncher =
         rememberLauncherForActivityResult(
@@ -271,6 +278,94 @@ internal fun ExpenseDetailsScreen(
                         )
                 )
             }
+        }
+
+        if (canManageFinancialLifecycle) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        correctedAmountInput = (details.amount.amount.toBigDecimal()
+                            .divide(java.math.BigDecimal.TEN.pow(decimalPlaces))
+                            .stripTrailingZeros().toPlainString())
+                        lifecycleReason = ""
+                        showExpenseCorrection = true
+                    }
+                ) { Text("Correct Expense") }
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        lifecycleReason = ""
+                        showExpenseVoid = true
+                    }
+                ) { Text("Void Expense") }
+            }
+        }
+
+        if (showExpenseCorrection) {
+            AlertDialog(
+                onDismissRequest = { showExpenseCorrection = false },
+                title = { Text("Correct Expense") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = correctedAmountInput,
+                            onValueChange = { correctedAmountInput = it },
+                            label = { Text("Corrected amount") },
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = lifecycleReason,
+                            onValueChange = { lifecycleReason = it },
+                            label = { Text("Reason") }
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = lifecycleReason.isNotBlank() && correctedAmountInput.isNotBlank(),
+                        onClick = {
+                            onCorrectExpense(correctedAmountInput, lifecycleReason)
+                            showExpenseCorrection = false
+                        }
+                    ) { Text("Save correction") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showExpenseCorrection = false }) { Text("Cancel") }
+                }
+            )
+        }
+
+        if (showExpenseVoid) {
+            AlertDialog(
+                onDismissRequest = { showExpenseVoid = false },
+                title = { Text("Void Expense") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("This appends a void event and reversal. The original expense record is retained.")
+                        OutlinedTextField(
+                            value = lifecycleReason,
+                            onValueChange = { lifecycleReason = it },
+                            label = { Text("Reason") }
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = lifecycleReason.isNotBlank(),
+                        onClick = {
+                            onVoidExpense(lifecycleReason)
+                            showExpenseVoid = false
+                        }
+                    ) { Text("Confirm void") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showExpenseVoid = false }) { Text("Cancel") }
+                }
+            )
         }
 
         Button(

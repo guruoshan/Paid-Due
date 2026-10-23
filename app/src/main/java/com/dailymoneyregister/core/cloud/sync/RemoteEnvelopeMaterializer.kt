@@ -885,8 +885,9 @@ object RemoteEnvelopeMaterializer {
                 }
                 val event = operationEvents.single()
                 if (operationType == OperationType.RECORD_EXPENSE_VOID) {
-                    if (total != expenseSnapshot.optLong("amount_minor", 0L)) {
-                        return InboundProcessResult.Rejected("Expense void settlement does not reverse the original outflow")
+                    val amountBeingVoided = event.optLong("previous_amount_minor", 0L)
+                    if (amountBeingVoided <= 0L || total != amountBeingVoided) {
+                        return InboundProcessResult.Rejected("Expense void settlement does not reverse the effective expense outflow")
                     }
                 } else if (
                     event.has("previous_amount_minor") &&
