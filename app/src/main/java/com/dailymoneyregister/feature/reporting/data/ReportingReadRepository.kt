@@ -260,33 +260,13 @@ class RoomReportingReadRepository(
         }.filter { it.businessId == businessId }
             .associateBy { it.id }
 
-        val userIds =
-            transactionsById.values.map { it.createdByUserId } +
-                refunds.map { it.actorUserId } +
-                voids.map { it.actorUserId } +
-                corrections.map { it.actorUserId } +
-                paymentChanges.map { it.actorUserId } +
-                repayments.map { it.actorUserId } +
-                expenses.map { it.actorUserId } +
-                operationsById.values.map { it.actorUserId }
-
-        val usersById = loadChunkedWithBusiness(userIds, businessId) { ids ->
-            reportingDao.getUsersByIdsInBusiness(businessId, ids)
-        }.associateBy { it.id }
-
-        val cloudCashierNamesById = access.branchIds.distinct()
-            .flatMap { database.cloudStaffIdentityDao().listForBranch(businessId, it) }
-            .filter {
-                it.role == "CASHIER" && it.isActive && !it.isRemoved &&
-                    it.displayName.isNotBlank()
-            }
-            .associate { it.localUserId to it.displayName }
-
+        // Staff identity labels are retired; financial actor IDs remain in the
+        // immutable ledger, but the app no longer loads or exposes cashier PII.
         val lookups = ReportingLookups(
             branchesById = access.branchesById,
-            usersById = usersById,
+            usersById = emptyMap(),
             customersById = customersById,
-            cashierNamesById = cloudCashierNamesById
+            cashierNamesById = emptyMap()
         )
 
         // ---- 7. Ordered ledgers for balance evidence ----------------------
