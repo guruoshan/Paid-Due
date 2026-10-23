@@ -238,7 +238,7 @@ class ReportingRowMappersTest {
         assertEquals(MoneyMinorUnits(1000L), row.originalAmount)
         assertEquals("op-1", row.operationId)
         assertEquals("Main", row.branch.name)
-        assertEquals("Cashier One", row.cashier.displayName)
+        assertNull(row.cashier.displayName)
         assertEquals(ReportLifecycleStatus.NORMAL, row.lifecycleStatus)
         assertEquals(
             listOf(
