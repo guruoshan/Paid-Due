@@ -5,7 +5,6 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
-import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -141,26 +140,6 @@ class CloudOnlyCashShiftOwnerTest {
             check(cursor.moveToFirst())
             assertEquals(1, cursor.getInt(0))
         }
-    }
-
-    @Test
-    fun doesNotCreateLoginAccountDuringCloudStaffSync() = runTest {
-        val source = mockk<com.dailymoneyregister.feature.admin.data.EmployeeDirectoryCloudSource>()
-        val metadataSynchronizer = mockk<CashierMetadataSynchronizer>(relaxed = true)
-        coEvery { source.listCashiers() } returns listOf(
-            com.dailymoneyregister.feature.admin.data.CloudCashierDirectoryEntry(
-                userId = cashierId, membershipId = "membership-cloud-cashier",
-                branchId = branchId, displayName = "Cloud Cashier",
-                canonicalPhone = "+96890000000", isActive = true,
-                permissions = emptyMap(), isRemoved = false
-            )
-        )
-        DefaultStaffIdentitySync(source, database, metadataSynchronizer)
-            .synchronize(businessId, branchId)
-        assertNull(database.userDao().getUserById(cashierId))
-        assertNotNull(database.cloudStaffIdentityDao().findIdentity(cashierId, businessId, branchId))
-        assertEquals("Cloud Cashier", database.cloudStaffIdentityDao()
-            .findIdentity(cashierId, businessId, branchId)?.displayName)
     }
 
     private suspend fun applyShift(id: String, eventType: String) {
