@@ -9,7 +9,6 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.dailymoneyregister.core.database.security.FinancialImmutabilityCallback
 import com.dailymoneyregister.core.database.dao.BusinessBranchDao
-import com.dailymoneyregister.core.database.dao.CloudStaffIdentityDao
 import com.dailymoneyregister.core.database.dao.InboundEnvelopeAuditDao
 import com.dailymoneyregister.core.database.dao.CashShiftDao
 import com.dailymoneyregister.core.database.dao.CustomerDao
@@ -23,7 +22,6 @@ import com.dailymoneyregister.core.database.dao.TransactionDao
 import com.dailymoneyregister.core.database.dao.UserDao
 import com.dailymoneyregister.core.database.entity.AmountCorrectionEventEntity
 import com.dailymoneyregister.core.database.entity.BranchEntity
-import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
 import com.dailymoneyregister.core.database.entity.InboundEnvelopeAuditEventEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.CashShiftEntity
@@ -67,7 +65,6 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
         UserAccountEntity::class,
         HumanIdentityEntity::class,
         UserBranchMembershipEntity::class,
-        CloudStaffIdentityEntity::class,
         InboundEnvelopeAuditEventEntity::class,
         CustomerEntity::class,
         CustomerIdAliasEntity::class,
@@ -99,7 +96,7 @@ import com.dailymoneyregister.core.database.dao.ExpenseDao
         CreditRepaymentEntity::class,
         CreditRepaymentAllocationEntity::class
     ],
-    version = 19,
+    version = 20,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -107,7 +104,6 @@ abstract class DmrDatabase : RoomDatabase() {
 
     abstract fun businessBranchDao(): BusinessBranchDao
     abstract fun userDao(): UserDao
-    abstract fun cloudStaffIdentityDao(): CloudStaffIdentityDao
     abstract fun inboundEnvelopeAuditDao(): InboundEnvelopeAuditDao
     abstract fun operationDao(): OperationDao
     abstract fun financialSyncOutboxDao(): FinancialSyncOutboxDao
@@ -797,6 +793,13 @@ abstract class DmrDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // The staff identity cache was purged in 18→19. Remove the now-unused table.
+                db.execSQL("DROP TABLE IF EXISTS cloud_staff_identities")
+            }
+        }
+
         val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
@@ -855,7 +858,7 @@ abstract class DmrDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
                             .addCallback(FinancialImmutabilityCallback)
                             .build()
                     } catch (e: Exception) {
