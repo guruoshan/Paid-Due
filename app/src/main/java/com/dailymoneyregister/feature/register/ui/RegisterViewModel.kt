@@ -28,6 +28,7 @@ import com.dailymoneyregister.feature.register.data.ExpenseCategory
 import com.dailymoneyregister.feature.register.data.ExpenseCommand
 import com.dailymoneyregister.feature.register.data.ExpenseCommandFactory
 import com.dailymoneyregister.feature.register.data.ExpenseCommandResult
+import com.dailymoneyregister.feature.register.data.ExpenseLifecycleCommand
 import com.dailymoneyregister.feature.register.data.CouponSaleResult
 import com.dailymoneyregister.feature.register.data.CouponSaleCustomerWallet
 import com.dailymoneyregister.feature.register.data.CouponTopUpCommand
@@ -39,6 +40,7 @@ import com.dailymoneyregister.feature.register.data.RegisterRepository.CouponWal
 import com.dailymoneyregister.core.database.entity.CustomerEntity
 import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.enums.PaymentChannel
+import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.security.PermissionAction
 import com.dailymoneyregister.core.security.PermissionChecker
 import com.dailymoneyregister.feature.register.data.RegisterRepository
@@ -213,7 +215,8 @@ class RegisterViewModel internal constructor(
             attachExpenseSupportingDocument = { expenseId, sourceUri ->
                 expenseSupportingDocumentRepository.attach(expenseId = expenseId, sourceUri = sourceUri)
                 Unit
-                }
+                },
+            submitExpenseLifecycle = registerRepository::executeExpenseLifecycle
         ),
         shiftDependencies = RegisterShiftDependencies(
             loadCurrentRegisterShiftReport = registerRepository::getCurrentRegisterShiftReport,
@@ -571,6 +574,84 @@ class RegisterViewModel internal constructor(
             }
         }
     }
+    fun correctExpenseFromDetails(correctedAmountInput: String, reason: String) {
+        submitExpenseLifecycleFromDetails(
+            action = ExpenseLifecycleCommand.Action.CORRECT,
+            correctedAmountInput = correctedAmountInput,
+            reason = reason
+        )
+    }
+
+    fun voidExpenseFromDetails(reason: String) {
+        submitExpenseLifecycleFromDetails(
+            action = ExpenseLifecycleCommand.Action.VOID,
+            correctedAmountInput = null,
+            reason = reason
+        )
+    }
+
+    private fun submitExpenseLifecycleFromDetails(
+        action: ExpenseLifecycleCommand.Action,
+        correctedAmountInput: String?,
+        reason: String
+    ) {
+        val session = SessionManager.currentSession.value
+        if (synchronizeFinancialSession(session) || session == null) return
+        if (session.user.role != UserRole.ADMIN) {
+            _uiState.value = _uiState.value.copy(errorMessage = UiText.Dynamic("Only Admin accounts can correct or void expenses."))
+            return
+        }
+        val details = _uiState.value.expenseDetails ?: return
+        if (_uiState.value.isExecuting) return
+        val normalizedReason = reason.trim()
+        if (normalizedReason.isBlank()) {
+            _uiState.value = _uiState.value.copy(errorMessage = UiText.Dynamic("Enter a reason for this expense change."))
+            return
+        }
+        val correctedAmount = if (action == ExpenseLifecycleCommand.Action.CORRECT) {
+            correctedAmountInput?.let { MoneyMinorUnits.parse(it, decimalPlaces).getOrNull()?.amount }
+        } else null
+        if (action == ExpenseLifecycleCommand.Action.CORRECT &&
+            (correctedAmount == null || correctedAmount <= 0L || correctedAmount == details.amount.amount)) {
+            _uiState.value = _uiState.value.copy(errorMessage = UiText.Dynamic("Enter a positive amount different from the current expense amount."))
+            return
+        }
+        val command = ExpenseLifecycleCommand(
+            operationId = OperationId.generate(),
+            businessId = session.business.id,
+            branchId = session.branch.id,
+            actorUserId = session.user.id,
+            deviceId = deviceId(),
+            occurredAt = maxOf(System.currentTimeMillis(), details.occurredAt + 1L),
+            expenseId = details.expenseId,
+            action = action,
+            correctedAmountMinor = correctedAmount,
+            reason = normalizedReason
+        )
+        _uiState.value = _uiState.value.copy(isExecuting = true, errorMessage = null, infoMessage = null)
+        viewModelScope.launch {
+            when (val result = expenseDependencies.submitExpenseLifecycle(command)) {
+                is CommandResult.Success -> {
+                    val refreshed = runCatching {
+                        expenseDependencies.loadExpenseDetails(details.expenseId)
+                    }.getOrNull()
+                    _uiState.value = _uiState.value.copy(
+                        isExecuting = false,
+                        expenseDetails = refreshed ?: _uiState.value.expenseDetails,
+                        infoMessage = UiText.Dynamic(
+                            if (action == ExpenseLifecycleCommand.Action.CORRECT) "Expense correction saved and queued for sync."
+                            else "Expense void saved and queued for sync."
+                        ),
+                        errorMessage = null
+                    )
+                }
+                is CommandResult.PermissionDenied -> _uiState.value = _uiState.value.copy(isExecuting = false, errorMessage = UiText.Dynamic(result.message))
+                is CommandResult.Conflict -> _uiState.value = _uiState.value.copy(isExecuting = false, errorMessage = UiText.Dynamic(result.message))
+                is CommandResult.Error -> _uiState.value = _uiState.value.copy(isExecuting = false, errorMessage = UiText.Dynamic(result.exception.message ?: "Expense lifecycle operation failed."))
+            }
+        }
+    }
+
     fun closeExpenseDetails() {
         expenseDetailsRequestGeneration++
 
