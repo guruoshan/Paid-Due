@@ -8,7 +8,12 @@ private val UUID = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-
 private val OPAQUE_ID = Regex("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 private fun validId(value: String, field: String, format: Regex) {
-    require(value.length <= 128 && format.matches(value)) { "$field has invalid format" }
+    if (value.length > 128 || !format.matches(value)) {
+        val rejectedValue = if (value.length <= 128) value else value.take(24) + "…"
+        throw IllegalArgumentException(
+            "$field rejected by validId: value=\\\"$rejectedValue\\\", length=${value.length}, maxLength=128, expectedFormat=$format"
+        )
+    }
 }
 
 data class FinancialSyncIdentity(
