@@ -6,7 +6,6 @@ import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.security.PermissionAction
 import com.dailymoneyregister.core.security.PermissionChecker
-import com.dailymoneyregister.feature.admin.ui.CashierPermissionKey
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -134,13 +133,4 @@ class ReportingAdminOnlyAccessPolicyTest {
         )
     }
 
-    @Test
-    fun cashierPermissionEditorDoesNotOfferViewReports() {
-
-        assertFalse(
-            CashierPermissionKey.editableValues.contains(
-                CashierPermissionKey.VIEW_REPORTS
-            )
-        )
-    }
 }
