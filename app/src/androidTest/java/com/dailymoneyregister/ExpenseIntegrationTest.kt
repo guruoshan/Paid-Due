@@ -1303,7 +1303,15 @@ class ExpenseIntegrationTest {
         )
         val correctionResult = repository.executeExpenseLifecycle(correction)
         assertTrue("Correction must succeed: $correctionResult", correctionResult is CommandResult.Success)
-        assertEquals(7_500L, database.expenseDao().getExpenseById(original.expenseId)!!.amountMinor)
+        assertEquals(
+            "Expense snapshots are immutable; the correction is represented by the append-only event.",
+            9_000L,
+            database.expenseDao().getExpenseById(original.expenseId)!!.amountMinor
+        )
+        assertEquals(
+            7_500L,
+            repository.getExpenseDetails(original.expenseId)!!.amount.amount
+        )
         assertEquals(1, database.expenseDao().getEventsForExpense(original.expenseId).count { it.operationId == correction.operationId.value })
         assertEquals("QUEUED", database.financialSyncOutboxDao().findByOperationId(correction.operationId.value)!!.status)
 
