@@ -57,6 +57,7 @@ DELETE FROM private.staff_identities;
 
 -- Remove callable cashier/staff RPCs. Admin financial upload/download and customer-directory
 -- RPCs are intentionally untouched.
+DROP TRIGGER IF EXISTS trg_notify_cashier_of_permission_change ON public.business_memberships;
 DROP FUNCTION IF EXISTS private.notify_cashier_of_permission_change();
 DROP FUNCTION IF EXISTS public.activate_staff_invite(text, text, text);
 DROP FUNCTION IF EXISTS public.cashier_login_credential(text);
