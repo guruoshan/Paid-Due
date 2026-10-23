@@ -21,11 +21,11 @@ export function health() {
   });
 }
 
-const PHONE_REGEX = /^\\+[1-9][0-9]{7,14}$/;
+const PHONE_REGEX = /^\+[1-9][0-9]{7,14}$/;
 
 export async function syncCustomerDirectory(request: Request) {
   const authorization = request.headers.get("Authorization") || "";
-  const bearer = /^Bearer\\s+([A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+)$/i.exec(authorization)?.[1];
+  const bearer = /^Bearer\s+([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/i.exec(authorization)?.[1];
   if (!bearer) return json({ outcome: "UNAUTHORIZED" }, 401);
   return await syncCustomerDirectoryAdmin(request, bearer);
 }
