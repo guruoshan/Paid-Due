@@ -359,6 +359,13 @@ class RegisterShiftAuthorizationTest {
                 closeResult is CommandResult.Success
             )
 
+            val closeOutbox = database.financialSyncOutboxDao()
+                .findByOperationId(close.operationId.value)
+            assertEquals(setup.adminUserId.value, closeOutbox?.actorUserId)
+            assertEquals(setup.businessId.value, closeOutbox?.businessId)
+            assertEquals(setup.branchId.value, closeOutbox?.branchId)
+            assertEquals("QUEUED", closeOutbox?.status)
+
             /*
              * RegisterShiftResult.actorUserId is the historical shift owner.
              * It must remain the cashier, not the Admin who closed it.
