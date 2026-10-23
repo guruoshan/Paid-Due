@@ -353,26 +353,49 @@ internal object RemoteEnvelopeEvidenceApplier {
             require(expense.businessId == businessId && expense.branchId == branchId) {
                 "Expense event belongs to another tenant or branch"
             }
-            val existing = database.expenseDao().getEventsForExpense(event.expenseId)
-                .firstOrNull { it.operationId == operationId }
+            val existingEvents = database.expenseDao().getEventsForExpense(event.expenseId)
+            val existing = existingEvents.firstOrNull { it.operationId == operationId }
             if (existing != null) {
                 require(existing == event) { "Expense event conflicts with local history" }
                 continue
             }
 
+            require(existingEvents.none { it.eventType.uppercase().contains("VOID") }) {
+                "A voided expense cannot receive another lifecycle event"
+            }
+            val orderedEvents = existingEvents.sortedWith(compareBy<ExpenseEventEntity>({ it.occurredAt }, { it.id }))
+            val effectiveAmount = orderedEvents
+                .filter { !it.eventType.uppercase().contains("VOID") }
+                .mapNotNull { it.newAmountMinor }
+                .lastOrNull() ?: expense.amountMinor
+            val effectivePaymentCategory = orderedEvents
+                .mapNotNull { it.newPaymentCategory }
+                .lastOrNull() ?: expense.paymentCategory
+            val effectiveCategory = orderedEvents
+                .mapNotNull { it.newCategory }
+                .lastOrNull() ?: expense.category
+            val effectivePayeeId = orderedEvents
+                .mapNotNull { it.newPayeeId }
+                .lastOrNull() ?: expense.payeeId
+
             event.previousAmountMinor?.let { previous ->
-                require(previous == expense.amountMinor) {
-                    "Expense correction previous amount does not match the current authoritative snapshot"
+                require(previous == effectiveAmount) {
+                    "Expense correction previous amount does not match the effective append-only event history"
                 }
             }
             event.previousPaymentCategory?.let { previous ->
-                require(previous == expense.paymentCategory) {
-                    "Expense correction previous payment category does not match the current snapshot"
+                require(previous == effectivePaymentCategory) {
+                    "Expense correction previous payment category does not match the effective event history"
                 }
             }
             event.previousCategory?.let { previous ->
-                require(previous == expense.category) {
-                    "Expense correction previous category does not match the current snapshot"
+                require(previous == effectiveCategory) {
+                    "Expense correction previous category does not match the effective event history"
+                }
+            }
+            event.previousPayeeId?.let { previous ->
+                require(previous == effectivePayeeId) {
+                    "Expense correction previous payee does not match the effective event history"
                 }
             }
             event.newAmountMinor?.let { next ->
@@ -383,32 +406,19 @@ internal object RemoteEnvelopeEvidenceApplier {
                     "Expense supports Cash or Online only"
                 }
             }
+            require(event.previousPaymentCategory == null || event.newPaymentCategory == null ||
+                event.previousPaymentCategory == event.newPaymentCategory) {
+                "Expense payment-method changes must use a dedicated approved lifecycle command"
+            }
+            require(event.previousCategory == null || event.newCategory == null ||
+                event.previousCategory == event.newCategory) {
+                "Expense category changes are not supported by this lifecycle command"
+            }
+            require(event.previousPayeeId == event.newPayeeId) {
+                "Expense payee changes are not supported by this lifecycle command"
+            }
 
             database.expenseDao().insertExpenseEvent(event)
-            if (!event.eventType.uppercase().contains("VOID")) {
-                val payeeChanged = event.previousPayeeId != event.newPayeeId
-                val newPayee = if (payeeChanged) {
-                    event.newPayeeId?.let { database.customerDao().getCustomerById(it) }
-                } else null
-                if (payeeChanged && event.newPayeeId != null) {
-                    require(newPayee?.businessId == businessId) {
-                        "Corrected expense payee is missing or belongs to another business"
-                    }
-                }
-                val updatedExpense = expense.copy(
-                    payeeId = if (payeeChanged) event.newPayeeId else expense.payeeId,
-                    payeeNameSnapshot = if (payeeChanged) newPayee?.name.orEmpty() else expense.payeeNameSnapshot,
-                    payeePhoneSnapshot = if (payeeChanged) newPayee?.canonicalPhone else expense.payeePhoneSnapshot,
-                    category = event.newCategory ?: expense.category,
-                    amountMinor = event.newAmountMinor ?: expense.amountMinor,
-                    paymentCategory = event.newPaymentCategory ?: expense.paymentCategory
-                )
-                if (updatedExpense != expense) {
-                    check(database.expenseDao().updateExpense(updatedExpense) == 1) {
-                        "Corrected expense snapshot could not be updated"
-                    }
-                }
-            }
         }
     }
 }
