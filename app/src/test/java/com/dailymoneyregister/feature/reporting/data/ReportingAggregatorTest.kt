@@ -390,6 +390,105 @@ class ReportingAggregatorTest {
         assertEquals(0L, summary.onlineRefunded.amount)
     }
 
+    private fun expenseLifecycle(
+        id: String,
+        type: String,
+        delta: Long,
+        category: PaymentCategory = PaymentCategory.CASH
+    ) = ExpenseReportRow(
+        stableId = "expense-event:$id",
+        operationId = "expense-op-$id",
+        reference = "EXP-1",
+        occurredAt = 200L,
+        currencyCode = "OMR",
+        branch = branch,
+        cashier = cashier,
+        person = null,
+        expenseId = "expense-1",
+        category = "Supplies",
+        amount = money(delta),
+        paymentCategory = category,
+        paymentChannel = if (category == PaymentCategory.CASH) PaymentChannel.CASH_TENDER else PaymentChannel.MANUAL_QR,
+        note = "test $type",
+        supportingDocumentCount = null,
+        lifecycleEventType = type,
+        lifecycleEventId = id
+    )
+
+    private fun originalExpense(
+        amount: Long = 1_000L,
+        category: PaymentCategory = PaymentCategory.CASH
+    ) = ExpenseReportRow(
+        stableId = "expense:expense-1",
+        operationId = "expense-op-original",
+        reference = "EXP-1",
+        occurredAt = 100L,
+        currencyCode = "OMR",
+        branch = branch,
+        cashier = cashier,
+        person = null,
+        expenseId = "expense-1",
+        category = "Supplies",
+        amount = money(amount),
+        paymentCategory = category,
+        paymentChannel = if (category == PaymentCategory.CASH) PaymentChannel.CASH_TENDER else PaymentChannel.MANUAL_QR,
+        note = null,
+        supportingDocumentCount = null
+    )
+
+    @Test
+    fun expenseCreatedCorrectionAndVoidRemainReportableWithoutDoubleCounting() {
+        val created = ReportingAggregator.build(listOf(originalExpense()))
+        assertEquals(1_000L, created.cashExpenses.amount)
+        assertEquals(1_000L, created.totalExpenses.amount)
+        assertEquals(-1_000L, created.cashInHand.amount)
+
+        // Correcting 1,000 -> 1,250 contributes only +250, not a second full expense.
+        val corrected = ReportingAggregator.build(
+            listOf(originalExpense(), expenseLifecycle("corrected", "CORRECTED", 250L))
+        )
+        assertEquals(1_250L, corrected.cashExpenses.amount)
+        assertEquals(1_250L, corrected.totalExpenses.amount)
+        assertEquals(-1_250L, corrected.cashInHand.amount)
+        assertEquals(2, corrected.counts.expenses)
+
+        // Voiding the corrected 1,250 expense contributes -1,250 and nets to zero.
+        val voided = ReportingAggregator.build(
+            listOf(
+                originalExpense(),
+                expenseLifecycle("corrected", "CORRECTED", 250L),
+                expenseLifecycle("voided", "VOIDED", -1_250L)
+            )
+        )
+        assertEquals(0L, voided.cashExpenses.amount)
+        assertEquals(0L, voided.totalExpenses.amount)
+        assertEquals(0L, voided.cashInHand.amount)
+        assertEquals(3, voided.counts.expenses)
+    }
+
+    @Test
+    fun expenseCorrectionInLaterPeriodProducesOnlyItsSignedDelta() {
+        val correctionOnly = ReportingAggregator.build(
+            listOf(expenseLifecycle("corrected", "CORRECTED", -200L))
+        )
+        assertEquals(-200L, correctionOnly.cashExpenses.amount)
+        assertEquals(-200L, correctionOnly.totalExpenses.amount)
+        assertEquals(200L, correctionOnly.cashInHand.amount)
+    }
+
+    @Test
+    fun expenseCorrectionAndVoidSupportOnlineFundingAsWell() {
+        val corrected = ReportingAggregator.build(
+            listOf(
+                originalExpense(category = PaymentCategory.ONLINE),
+                expenseLifecycle("online-correction", "CORRECTED", 300L, PaymentCategory.ONLINE)
+            )
+        )
+        assertEquals(0L, corrected.cashExpenses.amount)
+        assertEquals(1_300L, corrected.onlineExpenses.amount)
+        assertEquals(1_300L, corrected.totalExpenses.amount)
+    }
+
     @Test
     fun exactArithmeticFailsClosedOnOverflow() {
         val result = runCatching {
