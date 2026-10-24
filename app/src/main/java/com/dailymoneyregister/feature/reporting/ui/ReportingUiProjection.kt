@@ -153,7 +153,11 @@ object ReportingUiProjection {
 
             ReportingRowUiModel(
                 stableId = row.stableId,
-                activityType = row.activityType,
+                activityType = if (row is ExpenseReportRow && row.lifecycleEventType == "VOIDED") {
+                    ReportActivityType.EXPENSE_VOID
+                } else {
+                    row.activityType
+                },
                 amountText =
                     amount?.let {
                         val magnitude = formatMagnitude(
@@ -309,8 +313,10 @@ object ReportingUiProjection {
                     ReportActivityType.REFUND
 
             ReportActivityFilter.EXPENSES ->
-                row.activityType ==
-                    ReportActivityType.EXPENSE
+                row.activityType in setOf(
+                    ReportActivityType.EXPENSE,
+                    ReportActivityType.EXPENSE_VOID
+                )
 
             ReportActivityFilter.VOIDS ->
                 row.activityType ==
