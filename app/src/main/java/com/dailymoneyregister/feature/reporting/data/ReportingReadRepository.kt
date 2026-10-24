@@ -169,16 +169,14 @@ class RoomReportingReadRepository(
         val expenses =
             reportingDao.getExpensesInPeriod(businessId, branchIds, from, to)
 
-        val unsupportedExpenseEvents =
+        val expenseEvents =
             reportingDao.getExpenseEventsInPeriod(businessId, branchIds, from, to)
-        check(unsupportedExpenseEvents.isEmpty()) {
-            val details = unsupportedExpenseEvents.joinToString(separator = "; ") { event ->
-                "event=${event.id}, expense=${event.expenseId}, type=${event.eventType}"
-            }
-            "Unsupported expense correction/void evidence in this report period " +
-                "(${unsupportedExpenseEvents.size} event(s)): $details. " +
-                "Reporting cannot safely summarize these expense lifecycle events yet."
-        }
+        // A lifecycle event may refer to an expense created before this report
+        // period. Load its parent now so the original settlement is included in
+        // the evidence batch used by the lifecycle mapper.
+        val lifecycleExpensesById = expenseEvents.mapNotNull { event ->
+            database.expenseDao().getExpenseById(event.expenseId)
+        }.associateBy { it.id }
 
         // ---- 4. Parent transactions for lifecycle + coupon rows ----------
 
@@ -235,7 +233,9 @@ class RoomReportingReadRepository(
                 corrections.map { it.operationId } +
                 repayments.map { it.operationId } +
                 couponEvents.map { it.operationId } +
-                expenses.map { it.operationId }
+                expenses.map { it.operationId } +
+                lifecycleExpensesById.values.map { it.operationId } +
+                expenseEvents.map { it.operationId }
 
         val settlementsByOperation = loadChunked(settlementOperationIds) {
             transactionDao.getSettlementsForOperations(it)
@@ -411,9 +411,45 @@ class RoomReportingReadRepository(
                 check(expense.businessId == businessId && expense.branchId in access.branchIds) {
                     "Expense ${expense.id} escaped the validated scope."
                 }
+                val history = database.expenseDao().getEventsForExpense(expense.id)
+                val originalAmount = history.minWithOrNull(compareBy({ it.occurredAt }, { it.id }))
+                    ?.previousAmountMinor ?: expense.amountMinor
                 ReportingRowMappers.mapExpense(
                     expense = expense,
                     settlement = settlements.single(),
+                    lookups = lookups,
+                    events = history,
+                    amountOverrideMinor = originalAmount
+                )
+            }
+        }
+
+        // Lifecycle rows are append-only report activity. The original expense
+        // row carries its original amount; each correction/void contributes only
+        // its signed delta, so same-period lifecycle events never double count.
+        for (event in expenseEvents.filterNot { it.eventType.equals("CREATED", ignoreCase = true) }) {
+            rows += guarded("expense lifecycle ${event.id}") {
+                val expense = checkNotNull(lifecycleExpensesById[event.expenseId]) {
+                    "Expense lifecycle event ${event.id} references a missing expense."
+                }
+                check(expense.businessId == businessId && expense.branchId in access.branchIds) {
+                    "Expense lifecycle event ${event.id} escaped the validated scope."
+                }
+                val eventSettlements = settlementsByOperation[event.operationId].orEmpty()
+                check(eventSettlements.size == 1) {
+                    "Expense lifecycle event ${event.id} must have exactly one authoritative settlement."
+                }
+                val originalSettlement = settlementsByOperation[expense.operationId].orEmpty()
+                check(originalSettlement.size == 1) {
+                    "Expense ${expense.id} must have exactly one authoritative original settlement."
+                }
+                val history = database.expenseDao().getEventsForExpense(expense.id)
+                ReportingRowMappers.mapExpenseLifecycle(
+                    event = event,
+                    expense = expense,
+                    originalSettlement = originalSettlement.single(),
+                    lifecycleSettlement = eventSettlements.single(),
+                    events = history,
                     lookups = lookups
                 )
             }

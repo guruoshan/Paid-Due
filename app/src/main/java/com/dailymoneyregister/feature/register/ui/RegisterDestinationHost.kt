@@ -9,6 +9,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 internal fun RegisterDestinationHost(
@@ -26,6 +27,7 @@ internal fun RegisterDestinationHost(
     historyState: HistoryUiState,
     historyViewModel: HistoryViewModel
 ) {
+    val currentSession by SessionManager.currentSession.collectAsStateWithLifecycle()
     when (val destination = state.destination) {
         RegisterDestination.Register -> Unit
     
@@ -141,7 +143,7 @@ internal fun RegisterDestinationHost(
                         onAttachSupportingDocument = { sourceUri ->
                             viewModel.attachSupportingDocumentToExpense(details.expenseId, sourceUri)
                         },
-                        canManageFinancialLifecycle = SessionManager.currentSession.value?.user?.role == UserRole.ADMIN,
+                        canManageFinancialLifecycle = currentSession?.user?.role == UserRole.ADMIN,
                         onCorrectExpense = viewModel::correctExpenseFromDetails,
                         onVoidExpense = viewModel::voidExpenseFromDetails,
                         onBack = viewModel::closeExpenseDetails

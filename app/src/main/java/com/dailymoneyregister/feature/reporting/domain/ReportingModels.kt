@@ -451,7 +451,10 @@ data class ExpenseReportRow(
     val paymentChannel: PaymentChannel,
 
     val note: String?,
-    val supportingDocumentCount: Int?
+    val supportingDocumentCount: Int?,
+    /** Non-null only for append-only CORRECTED/VOIDED audit rows. */
+    val lifecycleEventType: String? = null,
+    val lifecycleEventId: String? = null
 ) : ReportRow {
 
     override val activityType: ReportActivityType =
@@ -463,7 +466,10 @@ data class ExpenseReportRow(
         require(currencyCode.isNotBlank())
         require(expenseId.isNotBlank())
         require(category.isNotBlank())
-        require(amount.amount > 0L)
+        require(amount.amount > 0L || lifecycleEventType != null) {
+            "Only an expense lifecycle audit row may carry a signed amount delta."
+        }
+        require((lifecycleEventType == null) == (lifecycleEventId == null))
         require(
             supportingDocumentCount == null ||
                 supportingDocumentCount >= 0

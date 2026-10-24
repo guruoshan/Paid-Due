@@ -4,7 +4,12 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
 import android.provider.MediaStore
+import androidx.core.content.FileProvider
+import java.io.File
+import java.io.FileOutputStream
 import com.dailymoneyregister.core.database.DmrDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SimpleSQLiteQuery
@@ -567,19 +572,42 @@ class CustomerExcelExporter @Inject constructor(
                     listOf("Coupon Reconciliation", listOf("Customer ID", "Customer Name", "Currency", "Ledger Event Count", "Coupon Purchase Transaction Value", "Coupon Ledger Purchase Value", "Purchase Variance (Ledger - Transaction)", "Promotion Bonuses", "Redemptions", "Refund Credits", "Ledger Wallet Balance", "Control Status"), couponReconciliation)
                 )
             )
-            val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, filename)
-                put(MediaStore.Downloads.MIME_TYPE, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                put(MediaStore.Downloads.RELATIVE_PATH, "Download/PaidDue")
-            }
-            val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                ?: error("Could not create Downloads/PaidDue export")
-            try {
-                context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
-                    ?: error("Could not open output stream for customer workbook")
-            } catch (error: Throwable) {
-                context.contentResolver.delete(uri, null, null)
-                throw error
+            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/PaidDue")
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val resolver = context.contentResolver
+                val contentUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    ?: error("Could not create Downloads/PaidDue export")
+                try {
+                    resolver.openOutputStream(contentUri)?.use { it.write(bytes) }
+                        ?: error("Could not open output stream for customer workbook")
+                    val published = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
+                    resolver.update(contentUri, published, null, null)
+                    contentUri
+                } catch (error: Throwable) {
+                    resolver.delete(contentUri, null, null)
+                    throw error
+                }
+            } else {
+                // API 26–28 do not expose MediaStore.Downloads. Use the app's
+                // external Downloads directory so export remains permission-free
+                // and can be shared through the configured FileProvider.
+                val directory = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "PaidDue")
+                if (!directory.exists() && !directory.mkdirs()) {
+                    error("Could not create the customer export directory")
+                }
+                val file = File(directory, filename)
+                try {
+                    FileOutputStream(file).use { it.write(bytes) }
+                    FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                } catch (error: Throwable) {
+                    file.delete()
+                    throw error
+                }
             }
             uri
         }
