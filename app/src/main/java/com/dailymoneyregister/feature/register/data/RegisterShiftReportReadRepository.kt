@@ -626,7 +626,8 @@ var salesCount = 0
                     val expenseProjection =
                         ExpenseReadProjectionResolver.resolve(
                             expense = expense,
-                            settlement = settlements.single()
+                            settlement = settlements.single(),
+                            events = database.expenseDao().getEventsForExpense(expense.id)
                         )
 
                     when (
@@ -655,6 +656,28 @@ var salesCount = 0
                             error(
                                 "Unsupported Day Closing Expense payment category."
                             )
+                    }
+                }
+
+                OperationType.RECORD_EXPENSE_VOID -> {
+                    val settlements =
+                        settlementsByOperationId[operation.id].orEmpty()
+
+                    for (settlement in settlements) {
+                        if (settlement.entryPurpose != EntryPurpose.VOID_REVERSAL) {
+                            continue
+                        }
+
+                        val movement =
+                            registerShiftExternalMovement(
+                                category = settlement.category,
+                                signedMinor = settlement.amountSignedMinor
+                            )
+
+                        cashLifecycleAdjustmentMinor =
+                            Math.addExact(cashLifecycleAdjustmentMinor, movement.cashMinor)
+                        onlineLifecycleAdjustmentMinor =
+                            Math.addExact(onlineLifecycleAdjustmentMinor, movement.onlineMinor)
                     }
                 }
 
