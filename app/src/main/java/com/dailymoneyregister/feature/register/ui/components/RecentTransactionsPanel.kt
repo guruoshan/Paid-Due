@@ -447,6 +447,15 @@ private fun RecentTransactionRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
             )
+            transaction.reason?.takeIf { it.isNotBlank() }?.let { reason ->
+                Text(
+                    text = "Void reason: $reason",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
 
             val lifecycleMethodLabel =
                 if (
