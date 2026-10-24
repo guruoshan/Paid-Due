@@ -160,6 +160,8 @@ internal object ReportingAggregator {
 
                 is ExpenseReportRow -> {
                     expenseCount = Math.addExact(expenseCount, 1)
+                    // Ordinary expense rows are positive outflows. Lifecycle rows
+                    // carry signed deltas: increases positive, reductions/voids negative.
                     when (row.paymentCategory) {
                         PaymentCategory.CASH ->
                             cashExpenses = Math.addExact(cashExpenses, row.amount.amount)
