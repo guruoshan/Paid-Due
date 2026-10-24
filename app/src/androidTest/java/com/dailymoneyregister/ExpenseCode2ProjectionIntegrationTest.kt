@@ -246,11 +246,35 @@ class ExpenseCode2ProjectionIntegrationTest {
                 database.expenseDao().getExpenseById(remoteCommand.expenseId)
             )
 
+            // The expense was recorded while the test was signed in as a Cashier.
+            // Void it as a separate, persisted Admin with an active membership on this branch.
+            val adminUser = user.copy(
+                id = "expense-code2-admin",
+                displayName = "Expense Code 2 Admin",
+                username = "expense_code2_admin",
+                role = UserRole.ADMIN
+            )
+            val adminMembership = membership.copy(
+                id = "expense-code2-admin-membership",
+                userId = adminUser.id,
+                role = UserRole.ADMIN
+            )
+            database.userDao().insertUser(adminUser)
+            database.userDao().insertMembership(adminMembership)
+            SessionManager.setSession(
+                ActiveSession(
+                    business,
+                    branch,
+                    adminUser,
+                    adminMembership
+                )
+            )
+
             val voidCommand = ExpenseLifecycleCommand(
                 operationId = OperationId("expense-code2-void-other-device"),
                 businessId = business.id,
                 branchId = branch.id,
-                actorUserId = user.id,
+                actorUserId = adminUser.id,
                 deviceId = deviceIdentityProvider.deviceId,
                 occurredAt = System.currentTimeMillis(),
                 expenseId = remoteCommand.expenseId,
