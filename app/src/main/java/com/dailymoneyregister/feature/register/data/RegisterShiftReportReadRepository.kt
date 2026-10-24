@@ -630,55 +630,39 @@ var salesCount = 0
                             events = database.expenseDao().getEventsForExpense(expense.id)
                         )
 
-                    when (
-                        expenseProjection.paymentCategory
-                    ) {
-                        PaymentCategory.CASH ->
-                            cashExpensesMinor =
-                                Math.addExact(
-                                    cashExpensesMinor,
-                                    expenseProjection
-                                        .amount
-                                        .amount
-                                )
+                    // A voided expense contributes zero to Day Closing.
+                    // Its reversal settlement is retained as audit evidence only.
+                    if (!expenseProjection.isVoided) {
+                        when (
+                            expenseProjection.paymentCategory
+                        ) {
+                            PaymentCategory.CASH ->
+                                cashExpensesMinor =
+                                    Math.addExact(
+                                        cashExpensesMinor,
+                                        expenseProjection.amount.amount
+                                    )
 
-                        PaymentCategory.ONLINE ->
-                            onlineExpensesMinor =
-                                Math.addExact(
-                                    onlineExpensesMinor,
-                                    expenseProjection
-                                        .amount
-                                        .amount
-                                )
+                            PaymentCategory.ONLINE ->
+                                onlineExpensesMinor =
+                                    Math.addExact(
+                                        onlineExpensesMinor,
+                                        expenseProjection.amount.amount
+                                    )
 
-                        PaymentCategory.CREDIT,
-                        PaymentCategory.COUPON ->
-                            error(
-                                "Unsupported Day Closing Expense payment category."
-                            )
+                            PaymentCategory.CREDIT,
+                            PaymentCategory.COUPON ->
+                                error(
+                                    "Unsupported Day Closing Expense payment category."
+                                )
+                        }
                     }
                 }
 
                 OperationType.RECORD_EXPENSE_VOID -> {
-                    val settlements =
-                        settlementsByOperationId[operation.id].orEmpty()
-
-                    for (settlement in settlements) {
-                        if (settlement.entryPurpose != EntryPurpose.VOID_REVERSAL) {
-                            continue
-                        }
-
-                        val movement =
-                            registerShiftExternalMovement(
-                                category = settlement.category,
-                                signedMinor = settlement.amountSignedMinor
-                            )
-
-                        cashLifecycleAdjustmentMinor =
-                            Math.addExact(cashLifecycleAdjustmentMinor, movement.cashMinor)
-                        onlineLifecycleAdjustmentMinor =
-                            Math.addExact(onlineLifecycleAdjustmentMinor, movement.onlineMinor)
-                    }
+                    // The voided original expense contributes zero above. Do not
+                    // add its VOID_REVERSAL settlement again to expected cash.
+                    // The immutable reversal record remains available for audit.
                 }
 
                 OperationType.RECORD_VOID -> {
