@@ -50,7 +50,20 @@ jobs:
       - name: Run unit tests
         run: ./gradlew --no-daemon :app:testDebugUnitTest
       - name: Run lint
+        id: lint
+        continue-on-error: true
         run: ./gradlew --no-daemon lint
+      - name: Upload complete lint reports for remediation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr-69-lint-reports
+          path: |
+            app/build/reports/lint-results*.html
+            app/build/reports/lint-results*.sarif
+            app/build/intermediates/lint_intermediate_text_report/**/*.txt
+          if-no-files-found: warn
+          retention-days: 14
       - name: Assemble release APK
         run: ./gradlew --no-daemon assembleRelease
       - name: Build release AAB
@@ -77,3 +90,9 @@ jobs:
             app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
+
+      - name: Enforce lint gate
+        if: always() && steps.lint.outcome == 'failure'
+        run: |
+          echo "Lint reported errors. See the pr-69-lint-reports artifact for the complete report."
+          exit 1
