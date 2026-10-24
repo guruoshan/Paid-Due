@@ -157,10 +157,11 @@ internal class RecentFinancialActivityReadRepository(
                 Triple(records, repayments, expenses) to expenseEvents
             }
 
-            combine(financialInputs, localOperationIdsFlow) { inputs, operationIds ->
-                inputs to operationIds.toSet()
-            }.map { (inputs, localOperationIds) ->
-                val ((records, repayments, expenses), expenseEvents) = inputs
+            combine(financialInputs, localOperationIdsFlow) { inputs, _ ->
+                inputs
+            }.map { inputs ->
+                val (baseInputs, expenseEvents) = inputs
+                val (records, repayments, expenses) = baseInputs
                 val expenseEventsById = expenseEvents.groupBy { it.expenseId }
 
                 val unresolvedTransactionActivities =
