@@ -171,6 +171,12 @@ class RoomReportingReadRepository(
 
         val expenseEvents =
             reportingDao.getExpenseEventsInPeriod(businessId, branchIds, from, to)
+        // A lifecycle event may refer to an expense created before this report
+        // period. Load its parent now so the original settlement is included in
+        // the evidence batch used by the lifecycle mapper.
+        val lifecycleExpensesById = expenseEvents.mapNotNull { event ->
+            database.expenseDao().getExpenseById(event.expenseId)
+        }.associateBy { it.id }
 
         // ---- 4. Parent transactions for lifecycle + coupon rows ----------
 
@@ -228,6 +234,7 @@ class RoomReportingReadRepository(
                 repayments.map { it.operationId } +
                 couponEvents.map { it.operationId } +
                 expenses.map { it.operationId } +
+                lifecycleExpensesById.values.map { it.operationId } +
                 expenseEvents.map { it.operationId }
 
         val settlementsByOperation = loadChunked(settlementOperationIds) {
@@ -422,7 +429,7 @@ class RoomReportingReadRepository(
         // its signed delta, so same-period lifecycle events never double count.
         for (event in expenseEvents.filterNot { it.eventType.equals("CREATED", ignoreCase = true) }) {
             rows += guarded("expense lifecycle ${event.id}") {
-                val expense = checkNotNull(database.expenseDao().getExpenseById(event.expenseId)) {
+                val expense = checkNotNull(lifecycleExpensesById[event.expenseId]) {
                     "Expense lifecycle event ${event.id} references a missing expense."
                 }
                 check(expense.businessId == businessId && expense.branchId in access.branchIds) {
