@@ -294,23 +294,9 @@ internal class RecentFinancialActivityReadRepository(
                         repaymentActivities +
                         expenseActivities
 
-                // Recent Transactions is device-local presentation. Inbound
-                // financial evidence remains in Room and therefore remains in
-                // shared History/Reports, but only operations authored by this
-                // installation are shown in this panel.
-                val visibleActivities =
-                    if (localDeviceId == null) {
-                        // Compatibility for isolated repository tests that do
-                        // not provide an installation identity.
-                        allActivities
-                    } else {
-                        allActivities.filter { activity ->
-                            activity.operationId != null &&
-                                activity.operationId in localOperationIds
-                        }
-                    }
-
-                visibleActivities.sortedWith(
+                // Recent Activity is a shared read view: show the same
+                // authoritative Room evidence on every logged-in device.
+                allActivities.sortedWith(
                         compareByDescending<RecentFinancialActivity> {
                             it.occurredAt
                         }.thenByDescending {
