@@ -71,8 +71,8 @@
     <string name="faq_credit_sales_created_answer">दर्ज की गई उधार बिक्री नई बिक्री है जिसकी राशि ग्राहक से लेनी बाकी है। इससे ग्राहक से प्राप्य राशि बनती है; बिक्री के समय नकद प्राप्त नहीं होता।</string>
     <string name="faq_credit_outstanding_question">बकाया उधार क्या है?</string>
     <string name="faq_credit_outstanding_answer">बकाया उधार वह अवैतनिक राशि है जो देखने के समय ग्राहकों से लेनी बाकी है। यह मौजूदा बकाया है, रिपोर्ट अवधि में दर्ज कुल उधार बिक्री नहीं।</string>
-    <string name="faq_credit_repayments_question">उधार की किश्तें क्या हैं?</string>
-    <string name="faq_credit_repayments_answer">उधार की किश्तें, जिन्हें उधार वसूली भी कहा जाता है, पिछली उधार बिक्री के ग्राहक ऋण के बदले प्राप्त भुगतान हैं। ये मौजूदा बकाया वसूल करती हैं, नई बिक्री नहीं बनातीं।</string>
+    <string name="faq_credit_repayments_question">उधार की चुकौती क्या है?</string>
+    <string name="faq_credit_repayments_answer">उधार की चुकौती, जिसे उधार वसूली भी कहा जाता है, पिछली उधार बिक्री के ग्राहक ऋण के बदले प्राप्त भुगतान हैं। ये मौजूदा बकाया वसूल करती हैं, नई बिक्री नहीं बनातीं।</string>
     <string name="faq_coupon_topups_question">कूपन में अतिरिक्त राशि क्या है?</string>
     <string name="faq_coupon_topups_answer">कूपन टॉप-अप ग्राहक के कूपन शेष में पहले से भुगतान की गई राशि जोड़ता है। यह अग्रिम प्राप्त धन है, अतिरिक्त सामान की बिक्री नहीं।</string>
     <string name="faq_coupon_liability_question">कूपन देयता क्या है?</string>
