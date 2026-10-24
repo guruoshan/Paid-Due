@@ -64,8 +64,7 @@ data class ExpenseReadProjection(
      */
     val signedEffect: MoneyMinorUnits
         get() =
-            if (isVoided) MoneyMinorUnits.ZERO
-            else MoneyMinorUnits(Math.negateExact(amount.amount))
+            MoneyMinorUnits(Math.negateExact(amount.amount))
 
     /**
      * External funding/outflow identity used by Recent.
