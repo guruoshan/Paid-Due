@@ -9,6 +9,7 @@ import com.dailymoneyregister.core.database.entity.CreditRepaymentAllocationEnti
 import com.dailymoneyregister.core.database.entity.CreditRepaymentEntity
 import com.dailymoneyregister.core.database.entity.CustomerEntity
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
+import com.dailymoneyregister.core.database.entity.ExpenseEventEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.PaymentMethodChangeEventEntity
 import com.dailymoneyregister.core.database.entity.RefundEventEntity
@@ -21,6 +22,7 @@ import com.dailymoneyregister.core.database.readmodel.TransactionFinancialRecord
 import com.dailymoneyregister.core.model.enums.CouponLedgerType
 import com.dailymoneyregister.core.model.enums.CreditLedgerType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
+import com.dailymoneyregister.core.model.enums.SubjectType
 import com.dailymoneyregister.core.model.enums.OperationType
 import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.enums.PaymentChannel
@@ -694,13 +696,16 @@ internal object ReportingRowMappers {
     fun mapExpense(
         expense: ExpenseEntity,
         settlement: SettlementEntryEntity,
-        lookups: ReportingLookups
+        lookups: ReportingLookups,
+        events: List<ExpenseEventEntity> = emptyList(),
+        amountOverrideMinor: Long? = null
     ): ExpenseReportRow {
 
         // Single authoritative mapper shared with Recent / Day Closing.
         val projection = ExpenseReadProjectionResolver.resolve(
             expense = expense,
-            settlement = settlement
+            settlement = settlement,
+            events = events
         )
 
         val hasPayee =
@@ -729,12 +734,93 @@ internal object ReportingRowMappers {
                 },
             expenseId = expense.id,
             category = projection.category,
-            amount = projection.amount,
+            amount = amountOverrideMinor?.let(::MoneyMinorUnits) ?: projection.amount,
             paymentCategory = projection.paymentCategory,
             paymentChannel = projection.paymentChannel,
             note = projection.note,
             // Supporting-document count is not read in Phase 2.
             supportingDocumentCount = null
+        )
+    }
+
+    /**
+     * Maps append-only expense correction/void evidence as a signed period delta.
+     * Stored lifecycle settlements encode previous - new (or previous for void),
+     * so the net expense effect is the exact negation of the settlement amount.
+     */
+    fun mapExpenseLifecycle(
+        event: ExpenseEventEntity,
+        expense: ExpenseEntity,
+        originalSettlement: SettlementEntryEntity,
+        lifecycleSettlement: SettlementEntryEntity,
+        events: List<ExpenseEventEntity>,
+        lookups: ReportingLookups
+    ): ExpenseReportRow {
+        check(event.expenseId == expense.id) {
+            "Expense lifecycle event ${event.id} identity mismatch."
+        }
+        check(lifecycleSettlement.operationId == event.operationId) {
+            "Expense lifecycle event ${event.id} operation mismatch."
+        }
+        check(lifecycleSettlement.subjectType == SubjectType.EXPENSE &&
+            lifecycleSettlement.subjectId == expense.id &&
+            lifecycleSettlement.transactionId == null) {
+            "Expense lifecycle settlement subject mismatch for ${event.id}."
+        }
+        val previous = checkNotNull(event.previousAmountMinor) {
+            "Expense lifecycle event ${event.id} has no previous amount."
+        }
+        check(previous > 0L) {
+            "Expense lifecycle event ${event.id} previous amount must be positive."
+        }
+        val eventType = event.eventType.trim().uppercase()
+        val expectedDelta = when (eventType) {
+            "CORRECTED" -> {
+                val next = checkNotNull(event.newAmountMinor) {
+                    "Expense correction ${event.id} has no corrected amount."
+                }
+                check(next > 0L) {
+                    "Expense correction ${event.id} corrected amount must be positive."
+                }
+                check(lifecycleSettlement.entryPurpose == EntryPurpose.EXPENSE_CORRECTION) {
+                    "Expense correction ${event.id} settlement purpose mismatch."
+                }
+                Math.subtractExact(next, previous)
+            }
+            "VOIDED" -> {
+                check(lifecycleSettlement.entryPurpose == EntryPurpose.VOID_REVERSAL) {
+                    "Expense void ${event.id} settlement purpose mismatch."
+                }
+                Math.negateExact(previous)
+            }
+            else -> error("Unsupported expense lifecycle event type '$eventType' for ${event.id}.")
+        }
+        val settlementDelta = Math.negateExact(lifecycleSettlement.amountSignedMinor)
+        check(settlementDelta == expectedDelta) {
+            "Expense lifecycle settlement delta does not match event ${event.id}."
+        }
+        check(lifecycleSettlement.currencyCode == expense.currencyCode) {
+            "Expense lifecycle settlement currency mismatch for ${event.id}."
+        }
+        val originalAmount = events.minWithOrNull(compareBy({ it.occurredAt }, { it.id }))
+            ?.previousAmountMinor ?: expense.amountMinor
+        val base = mapExpense(
+            expense = expense,
+            settlement = originalSettlement,
+            lookups = lookups,
+            events = events,
+            amountOverrideMinor = originalAmount
+        )
+        return base.copy(
+            stableId = "expense-event:${event.id}",
+            operationId = event.operationId,
+            occurredAt = event.occurredAt,
+            amount = MoneyMinorUnits(expectedDelta),
+            paymentCategory = lifecycleSettlement.category,
+            paymentChannel = lifecycleSettlement.channel,
+            note = event.reason,
+            lifecycleEventType = eventType,
+            lifecycleEventId = event.id
         )
     }
 
