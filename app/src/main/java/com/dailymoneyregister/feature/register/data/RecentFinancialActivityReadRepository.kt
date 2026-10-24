@@ -146,15 +146,22 @@ internal class RecentFinancialActivityReadRepository(
                     branchId = branchId,
                     fromInclusive = startOfDayMillis,
                     toExclusive = nextStartOfDayMillis
+                ),
+                database.expenseDao().observeExpenseEventsForPeriod(
+                    businessId = businessId,
+                    branchId = branchId,
+                    fromInclusive = startOfDayMillis,
+                    toExclusive = nextStartOfDayMillis
                 )
-            ) { records, repayments, expenses ->
-                Triple(records, repayments, expenses)
+            ) { records, repayments, expenses, expenseEvents ->
+                Triple(records, repayments, expenses) to expenseEvents
             }
 
             combine(financialInputs, localOperationIdsFlow) { inputs, operationIds ->
                 inputs to operationIds.toSet()
             }.map { (inputs, localOperationIds) ->
-                val (records, repayments, expenses) = inputs
+                val ((records, repayments, expenses), expenseEvents) = inputs
+                val expenseEventsById = expenseEvents.groupBy { it.expenseId }
 
                 val unresolvedTransactionActivities =
                     records.flatMap { record ->
@@ -248,7 +255,8 @@ internal class RecentFinancialActivityReadRepository(
                         val projection =
                             ExpenseReadProjectionResolver.resolve(
                                 expense = expense,
-                                settlement = settlements.single()
+                                settlement = settlements.single(),
+                                events = expenseEventsById[expense.id].orEmpty()
                             )
 
                         RecentFinancialActivity(
@@ -269,14 +277,16 @@ internal class RecentFinancialActivityReadRepository(
                             customerName =
                                 projection.payeeName,
                             status =
-                                RecentActivityStatus.RECORDED,
+                                if (projection.isVoided) RecentActivityStatus.VOIDED
+                                else RecentActivityStatus.RECORDED,
                             originalTransactionId = null,
                             sourceType =
                                 RecentActivitySourceType.EXPENSE,
                             sourceReference =
                                 projection.expenseId,
                             displayRef =
-                                projection.displayReference
+                                projection.displayReference,
+                            reason = projection.voidReason
                         )
                     }
                 val allActivities =
