@@ -815,6 +815,7 @@ internal object ReportingRowMappers {
             stableId = "expense-event:${event.id}",
             operationId = event.operationId,
             occurredAt = event.occurredAt,
+            cashier = lookups.cashier(event.actorUserId),
             amount = MoneyMinorUnits(expectedDelta),
             paymentCategory = lifecycleSettlement.category,
             paymentChannel = lifecycleSettlement.channel,
