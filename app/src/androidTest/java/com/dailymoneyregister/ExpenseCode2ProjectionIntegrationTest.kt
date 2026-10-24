@@ -220,27 +220,78 @@ class ExpenseCode2ProjectionIntegrationTest {
     }
 
     @Test
-    fun deviceLocalRecentExcludesRemoteDeviceExpenseAndPreservesSharedFinancialEvidence() =
+    fun recentIncludesOtherDeviceExpenseAndVoidedExpenseIsCancelledInRecentAndDayClosing() =
         runBlocking {
             val remoteCommand = command(
                 suffix = "other-device",
-                amountMinor = 8_250L,
+                amountMinor = 6_000L,
                 deviceId = "another-physical-installation"
             )
             execute(remoteCommand)
 
-            val recent = repository.observeTodayTransactions(
+            val recentBeforeVoid = repository.observeTodayTransactions(
                 branchId = branch.id,
                 timezoneId = branch.timezoneId
-            ).first()
+            ).first { rows ->
+                rows.any { it.sourceReference == remoteCommand.expenseId }
+            }
 
-            assertFalse(
-                "Another device's expense must not appear in this device's Recent Transactions.",
-                recent.any { it.sourceReference == remoteCommand.expenseId }
+            assertTrue(
+                "An expense recorded on another device must appear in this device's Recent Transactions.",
+                recentBeforeVoid.any { it.sourceReference == remoteCommand.expenseId }
             )
             assertNotNull(
                 "The shared financial record must remain persisted for History and Reports.",
                 database.expenseDao().getExpenseById(remoteCommand.expenseId)
+            )
+
+            val voidCommand = ExpenseLifecycleCommand(
+                operationId = OperationId("expense-code2-void-other-device"),
+                businessId = business.id,
+                branchId = branch.id,
+                actorUserId = user.id,
+                deviceId = deviceIdentityProvider.deviceId,
+                occurredAt = System.currentTimeMillis(),
+                expenseId = remoteCommand.expenseId,
+                action = ExpenseLifecycleCommand.Action.VOID,
+                reason = "Entered in error"
+            )
+            val voidResult = repository.executeExpenseLifecycle(voidCommand)
+            assertTrue(
+                "Voiding the expense should succeed but was $voidResult",
+                voidResult is CommandResult.Success
+            )
+
+            val recentAfterVoid = repository.observeTodayTransactions(
+                branchId = branch.id,
+                timezoneId = branch.timezoneId
+            ).first { rows ->
+                rows.any {
+                    it.sourceReference == remoteCommand.expenseId &&
+                        it.status.name == "VOIDED"
+                }
+            }
+            val voidedRow = recentAfterVoid.single {
+                it.sourceReference == remoteCommand.expenseId
+            }
+            assertEquals(
+                "Voided expenses must be marked VOIDED in Recent, not RECORDED.",
+                "VOIDED",
+                voidedRow.status.name
+            )
+            assertEquals("Entered in error", voidedRow.reason)
+
+            val dayClosing = repository.getCurrentRegisterShiftReport()
+            assertNotNull("Day Closing report should be available for the expense shift.", dayClosing)
+            assertEquals(
+                "A voided expense must not remain in active Day Closing expense totals.",
+                0L,
+                dayClosing!!.cashExpensesMinor
+            )
+            assertEquals(
+                "The void reversal must cancel the expense outflow in expected cash.",
+                0L,
+                dayClosing.expectedCashMinor
             )
         }
 
