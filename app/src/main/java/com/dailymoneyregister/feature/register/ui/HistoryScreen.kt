@@ -316,7 +316,7 @@ private fun HistoryExpenseCard(
             }
 
             Text(
-                text = if (expense.isVoided) "OMR 0.000" else "- ${com.dailymoneyregister.core.model.money.MoneyMinorUnits(kotlin.math.abs(expense.signedEffect.amount)).formatDisplay(currency)}",
+                text = if (expense.isVoided) com.dailymoneyregister.core.model.money.MoneyMinorUnits.ZERO.formatDisplay(currency) else "- ${com.dailymoneyregister.core.model.money.MoneyMinorUnits(kotlin.math.abs(expense.signedEffect.amount)).formatDisplay(currency)}",
                 fontWeight = FontWeight.ExtraBold,
                 color = expenseFlowColor,
                 style = MaterialTheme.typography.headlineSmall,
