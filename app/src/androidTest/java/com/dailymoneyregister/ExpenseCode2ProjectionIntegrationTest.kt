@@ -21,6 +21,7 @@ import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.feature.register.data.ExpenseCategory
 import com.dailymoneyregister.feature.register.data.ExpenseCommand
+import com.dailymoneyregister.feature.register.data.ExpenseLifecycleCommand
 import com.dailymoneyregister.feature.register.data.HistoryActivityRow
 import com.dailymoneyregister.feature.register.data.HistoryActivitySourceType
 import com.dailymoneyregister.feature.register.data.HistoryRepository
