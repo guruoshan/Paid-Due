@@ -280,7 +280,9 @@ private fun RecentTransactionRow(
         RecentActivityType.COUPON_SELL -> "COUPON FUNDS SOLD"
         RecentActivityType.COUPON_TOP_UP -> "PREPAID COUPON FUNDS ADDED"
         RecentActivityType.CREDIT_REPAYMENT -> "CREDIT REPAID (COLLECTION)"
-        RecentActivityType.EXPENSE -> "EXPENSE RECORDED"
+        RecentActivityType.EXPENSE ->
+            if (transaction.status == com.dailymoneyregister.core.model.financial.RecentActivityStatus.VOIDED) "EXPENSE VOIDED"
+            else "EXPENSE RECORDED"
         RecentActivityType.REFUND,
         RecentActivityType.REFUND_TO_COUPON -> "REFUND"
         RecentActivityType.VOID -> "VOID"
