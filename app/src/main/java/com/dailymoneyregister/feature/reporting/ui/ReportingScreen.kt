@@ -684,6 +684,7 @@ private fun ReportingRowCard(
         ReportActivityType.REFUND,
         ReportActivityType.COUPON_REFUND,
         ReportActivityType.EXPENSE,
+        ReportActivityType.EXPENSE_VOID,
         ReportActivityType.VOID ->
             if (isDarkTheme) Color(0xFFEF9A9A) else Color(0xFFD32F2F)
         ReportActivityType.AMOUNT_CORRECTION -> when {
@@ -707,6 +708,7 @@ private fun ReportingRowCard(
         ReportActivityType.CREDIT_REPAYMENT,
         ReportActivityType.COUPON_CREDIT_REPAYMENT -> "CREDIT"
         ReportActivityType.EXPENSE -> "EXPENSE RECORDED"
+        ReportActivityType.EXPENSE_VOID -> "EXPENSE VOID"
         ReportActivityType.REFUND,
         ReportActivityType.COUPON_REFUND -> "REFUND TO COUPON"
         ReportActivityType.VOID -> "VOID"
