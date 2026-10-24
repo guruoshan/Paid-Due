@@ -882,6 +882,9 @@ private fun activityTypeLabel(
                 R.string.reporting_expense
             )
 
+        ReportActivityType.EXPENSE_VOID ->
+            "EXPENSE VOID"
+
         ReportActivityType.VOID ->
             stringResource(
                 R.string.reporting_void
