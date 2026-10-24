@@ -72,7 +72,7 @@
     <string name="faq_credit_outstanding_question">ما الرصيد الائتماني المستحق؟</string>
     <string name="faq_credit_outstanding_answer">الرصيد الائتماني المستحق هو المبلغ غير المدفوع الذي يدين به العملاء عند عرض الرصيد. وهو رصيد حالي، وليس إجمالي المبيعات الآجلة المنشأة خلال فترة التقرير.</string>
     <string name="faq_credit_repayments_question">ما هي تسديدات الائتمان؟</string>
-    <string name="faq_credit_repayments_answer">تسديدات الائتمان، وتظهر أيضاً باسم المبالغ المستردة من الائتمان (التحصيلات)، هي دفعات مستلمة مقابل ديون العملاء الناتجة عن مبيعات آجلة سابقة. وهي تحصّل الذمم المدينة القائمة ولا تنشئ مبيعات جديدة.</string>
+    <string name="faq_credit_repayments_answer">تسديدات الائتمان، وتظهر أيضاً باسم المبالغ المسددة من الائتمان (التحصيلات)، هي دفعات مستلمة مقابل ديون العملاء الناتجة عن مبيعات آجلة سابقة. وهي تحصّل الذمم المدينة القائمة ولا تنشئ مبيعات جديدة.</string>
     <string name="faq_coupon_topups_question">ما هي إضافات رصيد القسائم؟</string>
     <string name="faq_coupon_topups_answer">تعبئة القسائم تضيف أموالاً مدفوعة مسبقاً إلى رصيد قسيمة العميل. وهي أموال مستلمة مقدماً وليست مبيعات إضافية للسلع.</string>
     <string name="faq_coupon_liability_question">ما التزام القسائم؟</string>
