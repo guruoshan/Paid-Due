@@ -116,6 +116,26 @@ interface ExpenseDao {
         toExclusive: Long
     ): Flow<List<ExpenseEntity>>
 
+    /** Observe append-only expense lifecycle events so open screens refresh on inbound voids. */
+    @Query(
+        """
+        SELECT ev.*
+        FROM expense_events AS ev
+        INNER JOIN expenses AS e ON e.id = ev.expense_id
+        WHERE e.business_id = :businessId
+          AND e.branch_id = :branchId
+          AND ev.occurred_at >= :fromInclusive
+          AND ev.occurred_at < :toExclusive
+        ORDER BY ev.occurred_at DESC, ev.id DESC
+        """
+    )
+    fun observeExpenseEventsForPeriod(
+        businessId: String,
+        branchId: String,
+        fromInclusive: Long,
+        toExclusive: Long
+    ): Flow<List<ExpenseEventEntity>>
+
     @Query(
         """
         SELECT * FROM expenses
