@@ -1,8 +1,6 @@
-name: Customer export release APK build
+name: PR #69 reporting fix release validation
 
 on:
-  push:
-    branches: [feature/customer-excel-export]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -11,18 +9,19 @@ permissions:
   contents: read
 
 jobs:
-  assemble-release-apk:
+  validate-release:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES: "true"
     steps:
-      - name: Checkout feature branch
+      - name: Checkout exact PR commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: feature/customer-excel-export
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - name: Set up JDK 17
         uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165
         with:
@@ -40,14 +39,36 @@ jobs:
           set -o pipefail
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
           ln -sfn "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
-      - name: Run ./gradlew clean
-        run: ./gradlew clean
-      - name: Run ./gradlew assembleRelease
-        run: ./gradlew assembleRelease
-      - name: Run ./gradlew bundleRelease
-        run: ./gradlew bundleRelease
-      - name: Record APK and AAB paths and sizes
-        if: success()
+      - name: Verify checked-out commit
+        run: |
+          set -euo pipefail
+          echo "Expected PR commit: ${{ github.event.pull_request.head.sha || github.sha }}"
+          echo "Checked out commit: $(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - name: Clean build outputs
+        run: ./gradlew --no-daemon clean
+      - name: Run unit tests
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
+      - name: Run lint
+        id: lint
+        continue-on-error: true
+        run: ./gradlew --no-daemon lint
+      - name: Upload complete lint reports for remediation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr-69-lint-reports
+          path: |
+            app/build/reports/lint-results*.html
+            app/build/reports/lint-results*.sarif
+            app/build/intermediates/lint_intermediate_text_report/**/*.txt
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Assemble release APK
+        run: ./gradlew --no-daemon assembleRelease
+      - name: Build release AAB
+        run: ./gradlew --no-daemon bundleRelease
+      - name: Record APK and AAB paths, sizes, and hashes
         shell: bash
         run: |
           set -euo pipefail
@@ -55,18 +76,23 @@ jobs:
           aab_path="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -print -quit)"
           test -n "$apk_path" && test -s "$apk_path"
           test -n "$aab_path" && test -s "$aab_path"
-          printf 'APK_PATH=%s\n' "$apk_path" >> "$GITHUB_ENV"
-          printf 'AAB_PATH=%s\n' "$aab_path" >> "$GITHUB_ENV"
-          stat -c 'APK_SIZE_BYTES=%s' "$apk_path" | tee -a "$GITHUB_ENV"
-          stat -c 'AAB_SIZE_BYTES=%s' "$aab_path" | tee -a "$GITHUB_ENV"
-          sha256sum "$apk_path" "$aab_path"
-      - name: Upload APK and AAB artifacts
-        if: success()
+          printf 'APK_PATH=%s\n' "$apk_path" | tee -a "$GITHUB_STEP_SUMMARY"
+          printf 'AAB_PATH=%s\n' "$aab_path" | tee -a "$GITHUB_STEP_SUMMARY"
+          printf 'APK_SIZE_BYTES=%s\n' "$(stat -c '%s' "$apk_path")" | tee -a "$GITHUB_STEP_SUMMARY"
+          printf 'AAB_SIZE_BYTES=%s\n' "$(stat -c '%s' "$aab_path")" | tee -a "$GITHUB_STEP_SUMMARY"
+          sha256sum "$apk_path" "$aab_path" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Upload APK and AAB
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: customer-export-release-artifacts
+          name: pr-69-reporting-fix-release-artifacts
           path: |
             app/build/outputs/apk/release/*.apk
             app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
+
+      - name: Enforce lint gate
+        if: always() && steps.lint.outcome == 'failure'
+        run: |
+          echo "Lint reported errors. See the pr-69-lint-reports artifact for the complete report."
+          exit 1
