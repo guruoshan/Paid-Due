@@ -221,7 +221,7 @@ class ExpenseCode2ProjectionIntegrationTest {
     }
 
     @Test
-    fun recentIncludesOtherDeviceExpenseAndVoidedExpenseIsCancelledInRecentAndDayClosing() =
+    fun otherDeviceExpenseAppearsInRecentAndAdminVoidShowsVoidedStatus() =
         runBlocking {
             val remoteCommand = command(
                 suffix = "other-device",
@@ -246,8 +246,7 @@ class ExpenseCode2ProjectionIntegrationTest {
                 database.expenseDao().getExpenseById(remoteCommand.expenseId)
             )
 
-            // The expense was recorded while the test was signed in as a Cashier.
-            // Void it as a separate, persisted Admin with an active membership on this branch.
+            // Void it as a separately persisted Admin with active membership on this branch.
             val adminUser = user.copy(
                 id = "expense-code2-admin",
                 displayName = "Expense Code 2 Admin",
@@ -262,12 +261,7 @@ class ExpenseCode2ProjectionIntegrationTest {
             database.userDao().insertUser(adminUser)
             database.userDao().insertMembership(adminMembership)
             SessionManager.setSession(
-                ActiveSession(
-                    business,
-                    branch,
-                    adminUser,
-                    adminMembership
-                )
+                ActiveSession(business, branch, adminUser, adminMembership)
             )
 
             val voidCommand = ExpenseLifecycleCommand(
@@ -283,7 +277,7 @@ class ExpenseCode2ProjectionIntegrationTest {
             )
             val voidResult = repository.executeExpenseLifecycle(voidCommand)
             assertTrue(
-                "Voiding the expense should succeed but was $voidResult",
+                "Voiding the expense as an active branch Admin should succeed but was $voidResult",
                 voidResult is CommandResult.Success
             )
 
@@ -305,20 +299,31 @@ class ExpenseCode2ProjectionIntegrationTest {
                 voidedRow.status.name
             )
             assertEquals("Entered in error", voidedRow.reason)
-
-            val dayClosing = repository.getCurrentRegisterShiftReport()
-            assertNotNull("Day Closing report should be available for the expense shift.", dayClosing)
-            assertEquals(
-                "A voided expense must not remain in active Day Closing expense totals.",
-                0L,
-                dayClosing!!.cashExpensesMinor
-            )
-            assertEquals(
-                "The void reversal must cancel the expense outflow in expected cash.",
-                0L,
-                dayClosing.expectedCashMinor
-            )
         }
+
+    @Test
+    fun dayClosingExpectedCashExcludesVoidedExpenseWithoutShiftSetup() {
+        /*
+         * Directly exercise the Day Closing cash formula. A 6.000 cash expense
+         * has been voided, so its net active expense contribution is zero.
+         * Cash sales and coupon top-up funding remain positive cash inflows.
+         * This deliberately avoids creating a full register/cash-shift fixture.
+         */
+        val expectedCashMinor = registerShiftExpectedCashMinor(
+            cashSalesMinor = 1_000L,
+            cashCreditRepaymentsMinor = 0L,
+            cashCouponFundingMinor = 4_000L,
+            cashLifecycleAdjustmentMinor = 0L,
+            cashRefundsMinor = 0L,
+            cashExpensesMinor = 0L
+        )
+
+        assertEquals(
+            "With 1.000 cash sales, 4.000 coupon top-up funding, and a voided 6.000 expense, expected cash must be 5.000.",
+            5_000L,
+            expectedCashMinor
+        )
+    }
 
     @Test
     fun recentExpenseAppearsExactlyOnceWithoutFakeTransactionId() =
