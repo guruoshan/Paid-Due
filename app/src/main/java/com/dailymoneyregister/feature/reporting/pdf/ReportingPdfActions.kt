@@ -40,6 +40,7 @@ import androidx.core.content.FileProvider
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.feature.reporting.domain.ReportActivityType
+import com.dailymoneyregister.feature.reporting.domain.ExpenseReportRow
 import com.dailymoneyregister.feature.reporting.domain.ReportingPeriodPreset
 import com.dailymoneyregister.feature.reporting.ui.ReportingUiState
 import java.io.File
@@ -123,7 +124,11 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
             }
             ReportPdfTransaction(
                 date = row.occurredAtText,
-                type = row.activityType.name.replace('_', ' '),
+                type = if (row is ExpenseReportRow && row.lifecycleEventType == "VOIDED") {
+                    "EXPENSE VOID"
+                } else {
+                    row.activityType.name.replace('_', ' ')
+                },
                 reference = row.referenceText.orEmpty(),
                 customer = listOfNotNull(row.customerName, row.customerPhone).joinToString(" · "),
                 payment = row.paymentText.orEmpty(),
