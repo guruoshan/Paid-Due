@@ -6,4 +6,5 @@
     <cache-path name="expense_capture" path="expense_supporting_document_capture/" />
     <files-path name="expense_supporting_documents" path="expense_supporting_documents/" />
     <cache-path name="app_updates" path="updates/" />
+    <external-files-path name="customer_exports" path="Download/" />
 </paths>
