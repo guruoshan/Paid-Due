@@ -26,6 +26,7 @@ import com.dailymoneyregister.feature.register.data.HistoryActivityRow
 import com.dailymoneyregister.feature.register.data.HistoryActivitySourceType
 import com.dailymoneyregister.feature.register.data.HistoryRepository
 import com.dailymoneyregister.feature.register.data.RegisterRepository
+import com.dailymoneyregister.feature.register.data.registerShiftExpectedCashMinor
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
