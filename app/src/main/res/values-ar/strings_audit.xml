@@ -118,4 +118,26 @@
     <string name="audit_void_reason_label">سبب الإلغاء: %1$s</string>
     <string name="audit_status_label">الحالة: %1$s</string>
     <string name="audit_existing_customer">العميل الحالي: %1$s</string>
+    <string name="audit_status_sale_recorded">تم تسجيل البيع</string>
+    <string name="audit_status_coupon_funds_sold">تم بيع رصيد القسائم</string>
+    <string name="audit_status_coupon_topup">تمت إضافة رصيد قسيمة مسبقة الدفع</string>
+    <string name="audit_status_credit_repaid">تم تحصيل سداد الائتمان</string>
+    <string name="audit_status_credit">ائتمان</string>
+    <string name="audit_status_expense_recorded">تم تسجيل المصروف</string>
+    <string name="audit_status_expense_voided">تم إلغاء المصروف</string>
+    <string name="audit_status_expense_void">إلغاء المصروف</string>
+    <string name="audit_status_refund">استرداد</string>
+    <string name="audit_status_refund_to_coupon">استرداد إلى القسيمة</string>
+    <string name="audit_status_void">إلغاء</string>
+    <string name="audit_status_amount_correction">تصحيح المبلغ</string>
+    <string name="audit_status_payment_method_change">تغيير طريقة الدفع</string>
+    <string name="audit_status_coupon_use">استخدام القسيمة</string>
+    <string name="audit_status_other_income">دخل آخر</string>
+    <string name="audit_status_voided">ملغى</string>
+    <string name="audit_status_refunded">تم الاسترداد</string>
+    <string name="audit_status_corrected">تم التصحيح</string>
+    <string name="audit_status_updated">تم التحديث</string>
+    <string name="audit_status_recorded">مسجل</string>
+    <string name="audit_payment_prefix">الدفع: %1$s</string>
+    <string name="audit_receipt_recorded_payment">دفعة مسجلة</string>
 </resources>
