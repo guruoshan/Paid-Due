@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pdf_generated_by">Paid&amp;Due দ্বারা তৈরি • পৃষ্ঠা %1$d</string>
+    <string name="pdf_registered_business">নিবন্ধিত ব্যবসা</string>
+    <string name="pdf_continued">চলমান</string>
+    <string name="pdf_branch">শাখা: %1$s</string>
+    <string name="pdf_report_date">রিপোর্টের তারিখ: %1$s</string>
+    <string name="pdf_period">সময়কাল: %1$s</string>
+    <string name="pdf_header_date_time">তারিখ / সময়</string>
+    <string name="pdf_header_type">ধরন</string>
+    <string name="pdf_header_reference">রেফারেন্স</string>
+    <string name="pdf_header_customer">গ্রাহক</string>
+    <string name="pdf_header_payment">পেমেন্ট</string>
+    <string name="pdf_header_amount">পরিমাণ</string>
+    <string name="pdf_empty_transactions">এই রিপোর্টের সময়কালে কোনো লেনদেন নেই।</string>
+</resources>
