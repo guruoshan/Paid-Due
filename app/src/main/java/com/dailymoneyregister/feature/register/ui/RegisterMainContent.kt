@@ -569,7 +569,7 @@ onClick = {
                                                         party = UniversalWhatsAppMessageComposer.Party(
                                                             businessName = receipt.businessName,
                                                             customerName = receipt.customerName,
-                                                            customerPhone = receipt.customerPhone
+                                                            customerPhone = receipt.customerPhone,
                                                             labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                                                         ),
                                                         formattedCreditGiven =
