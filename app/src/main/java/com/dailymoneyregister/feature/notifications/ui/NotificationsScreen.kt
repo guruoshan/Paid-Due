@@ -201,7 +201,7 @@ private fun ClosingReport(report: JsonObject) {
         ReportAmount(report, "Coupon credit repayments", "coupon_credit_repayments_minor", currencySymbol, decimals)
         ReportAmount(report, "Cash lifecycle adjustments", "cash_lifecycle_adjustment_minor", currencySymbol, decimals)
         ReportAmount(report, "Online lifecycle adjustments", "online_lifecycle_adjustment_minor", currencySymbol, decimals)
-        Text("Sales: ${report["sales_count"]?.jsonPrimitive?.contentOrNull ?: "0"} · Refunds: ${report["refund_count"]?.jsonPrimitive?.contentOrNull ?: "0"} · Voids: ${report["void_count"]?.jsonPrimitive?.contentOrNull ?: "0"} · Corrections: ${report["correction_count"]?.jsonPrimitive?.contentOrNull ?: "0"} · Payment changes: ${report["payment_method_change_count"]?.jsonPrimitive?.contentOrNull ?: "0"} · Operations: ${report["operation_count"]?.jsonPrimitive?.contentOrNull ?: "0"}")
+        Text(stringResource(R.string.audit_sales_count_summary, report["sales_count"]?.jsonPrimitive?.contentOrNull ?: "0", report["refund_count"]?.jsonPrimitive?.contentOrNull ?: "0", report["void_count"]?.jsonPrimitive?.contentOrNull ?: "0", report["correction_count"]?.jsonPrimitive?.contentOrNull ?: "0", report["payment_method_change_count"]?.jsonPrimitive?.contentOrNull ?: "0", report["operation_count"]?.jsonPrimitive?.contentOrNull ?: "0"))
         Divider()
     }
 }
