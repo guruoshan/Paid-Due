@@ -153,7 +153,7 @@
     <string name="audit_thank_you_business">আপনার ব্যবসার জন্য ধন্যবাদ।</string>
     <string name="audit_receipt_customer_label">গ্রাহক</string>
     <string name="audit_receipt_business_name">Paid&amp;Due</string>
-    <string name="audit_message_footer">Paid&Due দ্বারা পরিচালিত</string>
+    <string name="audit_message_footer">Paid&amp;Due দ্বারা পরিচালিত</string>
     <string name="audit_searching">খোঁজা হচ্ছে...</string>
     <string name="audit_saving">সংরক্ষণ করা হচ্ছে...</string>
     <string name="audit_bullet">•</string>

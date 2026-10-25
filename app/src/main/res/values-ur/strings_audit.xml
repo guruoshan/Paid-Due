@@ -153,7 +153,7 @@
     <string name="audit_thank_you_business">آپ کے کاروبار کا شکریہ۔</string>
     <string name="audit_receipt_customer_label">گاہک</string>
     <string name="audit_receipt_business_name">Paid&amp;Due</string>
-    <string name="audit_message_footer">Paid&Due کے ذریعے فراہم کردہ</string>
+    <string name="audit_message_footer">Paid&amp;Due کے ذریعے فراہم کردہ</string>
     <string name="audit_searching">تلاش جاری ہے...</string>
     <string name="audit_saving">محفوظ کیا جا رہا ہے...</string>
     <string name="audit_bullet">•</string>

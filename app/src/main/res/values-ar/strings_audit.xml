@@ -153,7 +153,7 @@
     <string name="audit_thank_you_business">شكرًا لتعاملك معنا.</string>
     <string name="audit_receipt_customer_label">العميل</string>
     <string name="audit_receipt_business_name">Paid&amp;Due</string>
-    <string name="audit_message_footer">بدعم من Paid&Due</string>
+    <string name="audit_message_footer">بدعم من Paid&amp;Due</string>
     <string name="audit_searching">جارٍ البحث...</string>
     <string name="audit_saving">جارٍ الحفظ...</string>
     <string name="audit_bullet">•</string>
