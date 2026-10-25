@@ -739,7 +739,7 @@ internal fun RegisterOverlayHost(
     
                     if (existingCustomer != null) {
                         Text(
-                            text = "Existing customer: ${existingCustomer.name}",
+                            text = stringResource(R.string.audit_existing_customer, existingCustomer.name),
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -964,7 +964,7 @@ internal fun RegisterOverlayHost(
     
                     if (onlineExistingCustomer != null) {
                         Text(
-                            text = "Existing customer: ${onlineExistingCustomer.name}",
+                            text = stringResource(R.string.audit_existing_customer, onlineExistingCustomer.name),
                             fontWeight = FontWeight.SemiBold
                         )
                     }
