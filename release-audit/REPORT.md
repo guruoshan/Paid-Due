@@ -425,3 +425,166 @@ Recommendation for branches not attached to an open PR: retain until the unique 
 | `ux/financial-clarity-transaction-rows-2026-10-18` | 2026-10-18 | Review unique diff; archive if current presentation is integrated. |
 | `ux/remove-cfo-wall-of-text-2026-10-20` | 2026-10-20 | Review unique diff; archive if current presentation is integrated. |
 | `validation/room-migration-v14-ci` | 2026-10-13 | Review unique diff and migration test value before archive. |
+
+
+## Third-pass addendum — 2026-10-26 (non-security findings)
+
+### Scan evidence and confidence
+
+The scanner output is present and non-empty. The latest two audit scan workflow runs succeeded:
+- Run #6, ID 40228103209, 2026-10-25 19:52:39–19:53:05 UTC.
+- Run #7, ID 40228223025, 2026-10-25 19:54:13–19:59:14 UTC.
+The report was read from `audit/release-readiness-2026-10-25`; scan results are in `release-audit/scan-results.md`. Lint succeeded (Gradle lint exit code 0). Candidate lists are heuristic and do not authorize deletion.
+
+#### Lint counts by issue type
+
+| Type | Count |
+|---|---:|
+| Aligned16KB | 1 |
+| AndroidGradlePluginVersion | 2 |
+| ApplySharedPref | 13 |
+| GradleDependency | 15 |
+| ModifierParameter | 3 |
+| NewerVersionAvailable | 12 |
+| ObsoleteSdkInt | 1 |
+| PluralsCandidate | 1 |
+| TypographyEllipsis | 15 |
+| Untranslatable | 36 |
+| UnusedResources | 109 |
+| UseKtx | 25 |
+| UseTomlInstead | 5 |
+
+#### Unused resources / strings
+
+**LIKELY — 109 UnusedResources lint candidates.** Top 20 by scanner order (all reported in `app/src/main/res/values/strings.xml`):
+
+1. `admin_login`
+2. `cash_sale_label`
+3. `cashier_login`
+4. `cashier_name`
+5. `cashier_pin`
+6. `change_pin_confirm`
+7. `change_pin_new`
+8. `change_pin_save`
+9. `change_pin_title`
+10. `coupon_sale_label`
+11. `coupon_top_up_label`
+12. `coupon_whatsapp_balance_message`
+13. `coupon_whatsapp_invalid_phone`
+14. `coupon_whatsapp_open_failed`
+15. `create_cashier`
+16. `enter_6_digit_pin`
+17. `history_filter_all`
+18. `history_filter_amount`
+19. `history_filter_date`
+20. `history_filter_name`
+
+Other candidates are listed in full in `scan-results.md`, spanning base/localization/onboarding/reporting resource XML. **Do not delete these mechanically**: runtime resource lookup, Compose references, localization parity and manifest/dynamic access need semantic verification. **CONFIRMED** that lint emitted the candidates; **LIKELY** that any individual candidate is dead until checked.
+
+#### Classes/functions with zero external textual references
+
+The scanner parsed 807 top-level Kotlin declarations and reported 131 declarations with exactly one textual mention (the declaration itself). It reported no declaration with a literal `mentions=0` row. Therefore:
+- **CONFIRMED:** 131 declarations are single-mention candidates; zero literal zero-mention entries are emitted by this scan.
+- **LIKELY:** the 131 may have zero external textual references. The scanner is lexical and can miss dependency injection, generated code, reflection, annotations, test discovery, or dynamic references.
+
+Top 30 candidates by scanner order:
+
+1. `app/src/test/java/com/dailymoneyregister/feature/register/data/AmountCorrectionCommandTest.kt:10` — `AmountCorrectionCommandTest`
+2. `app/src/androidTest/java/com/dailymoneyregister/AmountCorrectionFinancialCoreIntegrationTest.kt:59` — `AmountCorrectionFinancialCoreIntegrationTest`
+3. `app/src/test/java/com/dailymoneyregister/feature/auth/data/AuthRepositoryTest.kt:11` — `AuthRepositoryTest`
+4. `app/src/test/java/com/dailymoneyregister/core/cloud/sync/BusinessLocalDateTest.kt:7` — `BusinessLocalDateTest`
+5. `app/src/main/java/com/dailymoneyregister/core/cloud/BusinessRestorerModule.kt:11` — `BusinessRestorerModule`
+6. `app/src/test/java/com/dailymoneyregister/feature/register/domain/CalculatorEngineTest.kt:8` — `CalculatorEngineTest`
+7. `app/src/test/java/com/dailymoneyregister/feature/register/data/CashSaleCommandTest.kt:14` — `CashSaleCommandTest`
+8. `app/src/androidTest/java/com/dailymoneyregister/CashSaleFinancialCharacterizationTest.kt:45` — `CashSaleFinancialCharacterizationTest`
+9. `app/src/androidTest/java/com/dailymoneyregister/core/database/security/CashShiftEncryptedMigration15To18Test.kt:18` — `CashShiftEncryptedMigration15To18Test`
+10. `app/src/androidTest/java/com/dailymoneyregister/core/cloud/sync/CloudOnlyCashShiftOwnerTest.kt:23` — `CloudOnlyCashShiftOwnerTest`
+11. `app/src/main/java/com/dailymoneyregister/core/di/CommandModule.kt:13` — `CommandModule`
+12. `app/src/test/java/com/dailymoneyregister/feature/register/data/CouponSaleCommandTest.kt:14` — `CouponSaleCommandTest`
+13. `app/src/androidTest/java/com/dailymoneyregister/CouponSaleIntegrationTest.kt:20` — `CouponSaleIntegrationTest`
+14. `app/src/test/java/com/dailymoneyregister/feature/register/ui/CouponSaleViewModelTest.kt:19` — `CouponSaleViewModelTest`
+15. `app/src/test/java/com/dailymoneyregister/core/security/CredentialHardeningTest.kt:10` — `CredentialHardeningTest`
+16. `app/src/test/java/com/dailymoneyregister/feature/customers/data/CreditRepaymentFifoAllocatorTest.kt:10` — `CreditRepaymentFifoAllocatorTest`
+17. `app/src/androidTest/java/com/dailymoneyregister/CreditRepaymentIntegrationTest.kt:46` — `CreditRepaymentIntegrationTest`
+18. `app/src/test/java/com/dailymoneyregister/feature/register/ui/CreditReturnB2CUiRouteTest.kt:9` — `CreditReturnB2CUiRouteTest`
+19. `app/src/test/java/com/dailymoneyregister/feature/register/data/CreditReturnPlanTest.kt:10` — `CreditReturnPlanTest`
+20. `app/src/test/java/com/dailymoneyregister/feature/register/ui/CreditReturnUiRoutingTest.kt:8` — `CreditReturnUiRoutingTest`
+21. `app/src/androidTest/java/com/dailymoneyregister/CreditSaleFinancialIntegrationTest.kt:44` — `CreditSaleFinancialIntegrationTest`
+22. `app/src/test/java/com/dailymoneyregister/core/model/money/CurrencyFormatterTest.kt:8` — `CurrencyFormatterTest`
+23. `app/src/test/java/com/dailymoneyregister/core/model/currency/CurrencyInvariantTest.kt:6` — `CurrencyInvariantTest`
+24. `app/src/main/java/com/dailymoneyregister/core/model/currency/CurrencyConfig.kt:24` — `CurrencySnapshot`
+25. `app/src/test/java/com/dailymoneyregister/feature/customers/export/CustomerExcelWorkbookTest.kt:14` — `CustomerExcelWorkbookTest`
+26. `app/src/test/java/com/dailymoneyregister/feature/customers/export/CustomerFinancialReconciliationMathTest.kt:7` — `CustomerFinancialReconciliationMathTest`
+27. `app/src/test/java/com/dailymoneyregister/feature/customers/data/CustomerIdentityPhoneTest.kt:7` — `CustomerIdentityPhoneTest`
+28. `app/src/androidTest/java/com/dailymoneyregister/core/cloud/sync/CustomerIdentityReconciliationTest.kt:16` — `CustomerIdentityReconciliationTest`
+29. `app/src/androidTest/java/com/dailymoneyregister/CustomerIdentityResolveTest.kt:28` — `CustomerIdentityResolveTest`
+30. `app/src/androidTest/java/com/dailymoneyregister/CustomerRepositoryTest.kt:46` — `CustomerRepositoryTest`
+
+#### Unreferenced-file and duplicate-file candidates
+
+**LIKELY — 227 unreferenced-file candidates** based on filename mentions only. The complete list is in `scan-results.md`. The first 30 include test files under `app/src/androidTest`, including `AndroidTestDataIsolation.kt`, `AmountCorrectionFinancialCoreIntegrationTest.kt`, `CashSaleFinancialCharacterizationTest.kt`, `CouponSaleIntegrationTest.kt`, `CreditRepaymentIntegrationTest.kt`, `CreditSaleFinancialIntegrationTest.kt`, `CustomerIdentityResolveTest.kt`, `CustomerRepositoryTest.kt`, `DatabaseMigrationTest.kt`, `DatabaseMigrationV14ToV18Test.kt`, `DmrDatabaseIntegrationTest.kt`, `DocumentMediaMigration11To12Test.kt`, `ExpenseCode2ProjectionIntegrationTest.kt`, `ExpenseIntegrationTest.kt`, `ExpenseSupportingDocumentIntegrationTest.kt`, `FinancialSyncOutboxV13Test.kt`, `InvoiceLinkBackfillTest.kt`, `LocalizationResourcesTest.kt`, `MainActivityTest.kt`, `OnlineSaleFinancialIntegrationTest.kt`, `PaymentMethodChangeCommandTest.kt`, `PaymentMethodChangeWriterTest.kt`, `ReceiptLocalizationTest.kt`, `RefundFinancialCoreIntegrationTest.kt`, `RegisterIntegrationTest.kt`, `RegisterShiftAuthorizationTest.kt`, `RegisterShiftFoundationTest.kt`, `ReportingPdfLocalizationTest.kt`, `RetryBackoffStoreTest.kt`, and `TestDatabaseModule.kt`. Test-discovery and Gradle source-set behavior make these especially poor candidates for deletion by filename search alone.
+
+**CONFIRMED:** zero tracked files at or above 1 MB in the scan; three exact byte-identical groups:
+- `app/src/main/res/mipmap-anydpi/ic_launcher.xml` and `ic_launcher_round.xml` (identical launcher XML; may be intentional).
+- `BOARDLOCK/staged_sql/fetch_cashier_financial_envelopes.sql` and `supabase/migrations/20261009154450_boardlock_cashier_financial_envelope_download.sql` (staged SQL duplicates a migration; confirm historical intent before cleanup).
+- `supabase/functions/staff-activate/index.ts` and `supabase/functions/staff-invite/index.ts` (identical source under distinct endpoint names; **LIKELY ghost/placeholder risk**, but do not delete without verifying deployed routing and callers).
+
+**LIKELY ghost/temporary file:** `.github/workflows/release-audit-scans.yml` is explicitly named temporary and exists on this audit branch only; it is not present in the current `main` workflow directory. Leave it untouched during this task; propose removing it from the audit branch only after the audit is accepted. `release-audit/scan-results.md` is generated audit evidence, not an application ghost file.
+
+### Workflow inventory and operational disposition (non-security summary)
+
+Current `main` contains 12 workflow files. The audit branch has those 12 plus the temporary scanner. Every workflow job inspected uses `ubuntu-latest`; no Windows/macOS runner was found.
+
+| Workflow file | Trigger types | Operational recommendation |
+|---|---|---|
+| `.github/workflows/cache-maintenance.yml` | push, manual, schedule | Keep; retain cache budget purpose and schedule. |
+| `.github/workflows/customer-directory-contract.yml` | pull request, manual | Keep as focused contract gate. |
+| `.github/workflows/customer-export-release-apk.yml` | pull request, manual | Merge/replace with the common PR validation workflow if its export-specific checks can be preserved; it has repeated recent failures on the localization branch. |
+| `.github/workflows/manual-auth-authority-validation.yml` | manual only | Keep only as a documented, operator-invoked test; do not treat it as a normal release gate. |
+| `.github/workflows/notification-migration-gate.yml` | push, pull request, manual | Keep as a focused migration gate. |
+| `.github/workflows/notifications-feature-check.yml` | push, pull request | Compare with the migration gate and fold overlapping notification checks into one workflow if proven duplicate. |
+| `.github/workflows/offline-first-validation.yml` | push, pull request | Keep, but avoid duplicating expensive validation already run by the PR gate. |
+| `.github/workflows/paid-due-repair-validation.yml` | push, pull request | Keep only if it provides unique repair/Android emulator coverage; consider splitting quick and emulator jobs. |
+| `.github/workflows/pr.yml` | pull request | Keep as the primary fast Android PR gate. |
+| `.github/workflows/pr37-signed-sync-test.yml` | push, manual | Legacy/one-off signed sync-test workflow; archive after confirming PR #37 no longer needs it. |
+| `.github/workflows/release.yml` | push, manual, release | Keep as the single signed production-release workflow. |
+| `.github/workflows/sql-behavioral-gate.yml` | push, pull request, manual | Keep as a focused SQL contract gate. |
+| `.github/workflows/release-audit-scans.yml` (audit branch only) | push | Temporary one-off audit workflow; do not merge into main; propose removal from the audit branch after accepting the report. |
+
+Run-history note: workflow runs also reference `localization-integrity.yml` from PR #77's branch and `smoke-test.yml` from a one-off smoke-test branch. Neither file is present in the current `main` or audit-branch workflow directory; do not count either as a current main workflow.
+
+### Last-14-day workflow-run accounting — BLOCKED, with bounded sample
+
+The GitHub run-list endpoint returned only the first 1,000 records for the requested window; requesting later pages returned an empty list. The available records cover only 2026-10-25 01:51–19:54 UTC, not the full 14-day window. Workflow-specific run-list/timing routes were rejected by the connected API wrapper, and the run-list objects do not contain billable job-minute totals. Thus exact 14-day counts and total job minutes per workflow cannot be certified from this interface.
+
+The following is **only a bounded 1,000-run sample for 2026-10-25**, not the requested 14-day total. Minutes are elapsed workflow wall time computed from `run_started_at` to `updated_at`, not GitHub billed job-minutes.
+
+| Workflow path | Runs in sample | Elapsed minutes in sample |
+|---|---:|---:|
+| `.github/workflows/customer-export-release-apk.yml` | 124 | 160.3 |
+| `.github/workflows/paid-due-repair-validation.yml` | 126 | 110.3 |
+| `.github/workflows/pr.yml` | 124 | 79.0 |
+| `.github/workflows/sql-behavioral-gate.yml` | 124 | 59.1 |
+| `.github/workflows/customer-directory-contract.yml` | 125 | 58.5 |
+| `.github/workflows/notification-migration-gate.yml` | 124 | 54.6 |
+| `.github/workflows/offline-first-validation.yml` | 124 | 27.9 |
+| `.github/workflows/release.yml` | 2 | 16.6 |
+| `.github/workflows/release-audit-scans.yml` | 7 | 17.0 |
+| `.github/workflows/localization-integrity.yml` (PR branch only) | 116 | 12.6 |
+| `.github/workflows/cache-maintenance.yml` | 3 | 0.3 |
+| `.github/workflows/smoke-test.yml` (one-off branch only) | 1 | 0.1 |
+
+The top five by elapsed minutes in this sample are customer-export release APK, repair validation, Android PR validation, SQL behavioral gate, and customer-directory contract. These rankings are **not** 14-day or billable-minute rankings.
+
+### PR and branch inventory refresh
+
+The live repository API returned 20 open PRs and 95 branches. The existing tables below remain the complete non-security inventory: `GitHub pull request disposition recommendations` records each open PR's last-updated date and recommendation; `Branch inventory` records each branch's latest commit date in UTC and recommendation. The current open PRs are unchanged from the 2026-10-25 snapshot (latest update was PR #77 at 2026-10-25 13:02:19 UTC); no branch had a newer activity timestamp as of this check. No PRs were closed and no branches were deleted.
+
+### Current P0 / P1 / P2 priorities
+
+No new priority was elevated solely from heuristic scanner output. Keep the existing priority lists and proposed PR sequence above:
+- **P0:** financial multi-device/collision correctness; expense correction/void projection, Day Closing counts and expected cash; fresh passing full tests plus inspected signed release artifact; migration/live-schema reconciliation and safe reset documentation.
+- **P1:** deterministic release versioning; end-to-end updater/release distribution validation; user-safe error handling; CI cost/runtime accounting; locale parity, RTL and PDF/receipt font checks.
+- **P2:** semantic proof before removing unused resources/code, stale branch/workflow rationalization; product-name consistency; timezone presentation alignment; release/rollback documentation.
+
+No application code, database rows, workflows, settings, secrets, pull requests, or branch refs were changed by this pass. Only this report and the audit progress file are in scope for audit-file commits.
