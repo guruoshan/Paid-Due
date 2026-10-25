@@ -975,7 +975,7 @@ fun TransactionDetailsScreen(
         )
 
         Text(
-            text = "What happened to this transaction",
+            text = stringResource(R.string.audit_what_happened_transaction),
             color =
                 MaterialTheme.colorScheme.onSurfaceVariant
         )
