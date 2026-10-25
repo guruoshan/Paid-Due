@@ -431,7 +431,7 @@ fun CustomerDetailScreen(
                                             ?: ""
 
                                     Text(
-                                        "Coupon Balance",
+                                        stringResource(R.string.audit_coupon_balance),
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -721,9 +721,9 @@ fun CustomerDetailScreen(
                                                                 }
 
                                                         if (method == null) {
-                                                            "Payment Received"
+                                                            stringResource(R.string.audit_payment_received)
                                                         } else {
-                                                            "Payment Received - $method"
+                                                            "${stringResource(R.string.audit_payment_received)} - $method"
                                                         }
                                                     }
 
@@ -952,7 +952,7 @@ fun CustomerDetailScreen(
                                         add(
                                             CustomerPaymentDisplayRow(
                                                 occurredAt = expense.occurredAt,
-                                                title = "Payment Made",
+                                                title = stringResource(R.string.audit_payment_made),
                                                 detail = "${expense.category} - ${expense.paymentCategory.name}",
                                                 amountMinor = expense.amount.amount,
                                                 currencyCode = expense.currencyCode,
@@ -968,7 +968,7 @@ fun CustomerDetailScreen(
                                             add(
                                                 CustomerPaymentDisplayRow(
                                                     occurredAt = repayment.occurredAt,
-                                                    title = "Payment Received",
+                                                    title = stringResource(R.string.audit_payment_received),
                                                     detail = repayment.repaymentMethodName ?: "Repayment",
                                                     amountMinor = kotlin.math.abs(repayment.amountSignedMinor),
                                                     currencyCode = repayment.currencyCode,
