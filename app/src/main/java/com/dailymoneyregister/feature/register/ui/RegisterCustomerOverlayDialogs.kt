@@ -592,7 +592,7 @@ internal fun CouponWalletDialog(
                                     party = UniversalWhatsAppMessageComposer.Party(
                                         businessName = businessName,
                                         customerName = customer.name,
-                                        customerPhone = customer.canonicalPhone
+                                        customerPhone = customer.canonicalPhone,
                                         labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                                     ),
                                     formattedBalance =
