@@ -118,4 +118,26 @@
     <string name="audit_void_reason_label">रद्द करने का कारण: %1$s</string>
     <string name="audit_status_label">स्थिति: %1$s</string>
     <string name="audit_existing_customer">मौजूदा ग्राहक: %1$s</string>
+    <string name="audit_status_sale_recorded">बिक्री दर्ज हुई</string>
+    <string name="audit_status_coupon_funds_sold">कूपन राशि बेची गई</string>
+    <string name="audit_status_coupon_topup">प्रीपेड कूपन राशि जोड़ी गई</string>
+    <string name="audit_status_credit_repaid">उधार वसूली दर्ज हुई</string>
+    <string name="audit_status_credit">उधार</string>
+    <string name="audit_status_expense_recorded">खर्च दर्ज हुआ</string>
+    <string name="audit_status_expense_voided">खर्च रद्द हुआ</string>
+    <string name="audit_status_expense_void">खर्च रद्द</string>
+    <string name="audit_status_refund">रिफंड</string>
+    <string name="audit_status_refund_to_coupon">कूपन में रिफंड</string>
+    <string name="audit_status_void">रद्द</string>
+    <string name="audit_status_amount_correction">राशि सुधार</string>
+    <string name="audit_status_payment_method_change">भुगतान विधि बदली</string>
+    <string name="audit_status_coupon_use">कूपन उपयोग</string>
+    <string name="audit_status_other_income">अन्य आय</string>
+    <string name="audit_status_voided">रद्द</string>
+    <string name="audit_status_refunded">रिफंड हुआ</string>
+    <string name="audit_status_corrected">सुधारा गया</string>
+    <string name="audit_status_updated">अपडेट हुआ</string>
+    <string name="audit_status_recorded">दर्ज</string>
+    <string name="audit_payment_prefix">भुगतान: %1$s</string>
+    <string name="audit_receipt_recorded_payment">दर्ज भुगतान</string>
 </resources>
