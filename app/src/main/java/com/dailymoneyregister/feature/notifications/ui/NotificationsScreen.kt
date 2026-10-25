@@ -65,7 +65,7 @@ fun NotificationsScreen(
                 title = { Text(stringResource(R.string.audit_notifications)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.audit_back))
                     }
                 },
                 actions = {
@@ -132,10 +132,10 @@ private fun NotificationCard(
                     fontWeight = FontWeight.SemiBold
                 )
                 if (notification.readAt == null) {
-                    Text("NEW", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.audit_new_status), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                 }
             }
-            notification.branchName?.let { Text("Branch: $it", style = MaterialTheme.typography.bodySmall) }
+            notification.branchName?.let { Text(stringResource(R.string.audit_branch_label, it), style = MaterialTheme.typography.bodySmall) }
             Text(notification.body, style = MaterialTheme.typography.bodyMedium)
             if (notification.notificationType == "DAY_CLOSED" ||
                 notification.notificationType == "CASH_DISCREPANCY") {
