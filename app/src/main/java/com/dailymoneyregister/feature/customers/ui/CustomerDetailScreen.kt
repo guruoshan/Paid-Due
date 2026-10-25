@@ -1501,7 +1501,7 @@ private fun CreditReceivePaymentDialog(
             ) {
 
                 Text(
-                    "Outstanding: " +
+                    stringResource(R.string.audit_customer_outstanding) + " " +
                         formatCustomerMoney(
                             state.creditOutstandingMinor,
                             state.creditDecimalPlaces,
