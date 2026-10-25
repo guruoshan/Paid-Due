@@ -1,5 +1,7 @@
 package com.dailymoneyregister
 
+import com.dailymoneyregister.R
+
 import android.content.Context
 import android.content.res.Configuration
 import androidx.compose.material3.MaterialTheme
@@ -78,4 +80,45 @@ class UiLocalizationTest {
         }
         compose.runOnIdle { assertEquals(listOf("Coupon", "Credit", "Online", "Cash"), clicks) }
     }
+    @Test
+    fun paymentControlsRenderAndRespondInEverySupportedLocale() {
+        var code by androidx.compose.runtime.mutableStateOf("en")
+        val clicks = mutableListOf<String>()
+        compose.setContent {
+            val localeContext = contextFor(code)
+            CompositionLocalProvider(
+                LocalContext provides localeContext,
+                LocalLayoutDirection provides if (code == "ar" || code == "ur") LayoutDirection.Rtl else LayoutDirection.Ltr
+            ) {
+                MaterialTheme {
+                    PaymentMethodBar(
+                        cashEnabled = true,
+                        isExecuting = false,
+                        onCoupon = { clicks += "coupon" },
+                        onCredit = { clicks += "credit" },
+                        onOnline = { clicks += "online" },
+                        onCash = { clicks += "cash" }
+                    )
+                }
+            }
+        }
+        for (language in listOf("en", "ar", "hi", "bn", "ur")) {
+            compose.runOnIdle { code = language }
+            compose.waitForIdle()
+            val context = contextFor(language)
+            val labels = listOf(
+                context.getString(R.string.coupon),
+                context.getString(R.string.credit),
+                context.getString(R.string.online),
+                context.getString(R.string.cash)
+            )
+            for (label in labels) compose.onNodeWithText(label).assertIsDisplayed().performClick()
+        }
+        compose.runOnIdle {
+            assertEquals(listOf("coupon", "credit", "online", "cash", "coupon", "credit", "online", "cash",
+                "coupon", "credit", "online", "cash", "coupon", "credit", "online", "cash",
+                "coupon", "credit", "online", "cash"), clicks)
+        }
+    }
+
 }
