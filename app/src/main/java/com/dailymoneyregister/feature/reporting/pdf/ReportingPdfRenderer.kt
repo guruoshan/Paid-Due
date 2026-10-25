@@ -160,7 +160,7 @@ object ReportingPdfRenderer {
                 val row = index / 4
                 val column = index % 4
                 val top = y + row * 49f
-                val x = left + column * (cardWidth + gap)
+                val x = if (isRtl) right - (column + 1) * cardWidth - column * gap else left + column * (cardWidth + gap)
                 fillPaint.color = paleBlue
                 canvas.drawRoundRect(RectF(x, top, x + cardWidth, top + 40f), 5f, 5f, fillPaint)
                 drawLocalizedText(canvas, metric.label, x + 8f, top + 13f, labelPaint, cardWidth - 16f)
@@ -180,10 +180,15 @@ object ReportingPdfRenderer {
             context.getString(R.string.pdf_header_amount)
         )
         val starts = FloatArray(columnWidths.size)
-        var runningX = left
+        var runningX = if (isRtl) right else left
         columnWidths.indices.forEach { i ->
-            starts[i] = runningX
-            runningX += columnWidths[i]
+            if (isRtl) {
+                runningX -= columnWidths[i]
+                starts[i] = runningX
+            } else {
+                starts[i] = runningX
+                runningX += columnWidths[i]
+            }
         }
 
         fun drawTableHeader() {
