@@ -105,4 +105,17 @@
     <string name="audit_receipt_unavailable">اس ریکارڈ کی رسید دستیاب نہیں۔</string>
     <string name="audit_credit_invoice_unavailable">ادھار انوائس کی تفصیلات دستیاب نہیں۔</string>
     <string name="audit_share_via_whatsapp">WhatsApp کے ذریعے شیئر کریں</string>
+    <string name="audit_expense_details">اخراجات کی تفصیلات</string>
+    <string name="audit_no_phone_for_expense">اس اخراجات کے لیے کوئی فون نمبر محفوظ نہیں کیا گیا۔</string>
+    <string name="audit_supporting_documents">معاون دستاویزات</string>
+    <string name="audit_no_supporting_documents">کوئی معاون دستاویز منسلک نہیں۔</string>
+    <string name="audit_supporting_document_number">معاون دستاویز %1$d</string>
+    <string name="audit_what_happened_transaction">اس لین دین کے ساتھ کیا ہوا</string>
+    <string name="audit_select_credit_customer">اس گاہک کو منتخب کریں جو یہ فروخت ادھار پر لے رہا ہے۔</string>
+    <string name="audit_credit_sale_no_payment">ابھی کوئی ادائیگی وصول نہیں کی جاتی۔ رقم گاہک کی ادھار ذمہ داری بن جاتی ہے۔</string>
+    <string name="audit_ref_label">حوالہ: %1$s</string>
+    <string name="audit_time_label">وقت: %1$s</string>
+    <string name="audit_void_reason_label">منسوخی کی وجہ: %1$s</string>
+    <string name="audit_status_label">حیثیت: %1$s</string>
+    <string name="audit_existing_customer">موجودہ گاہک: %1$s</string>
 </resources>
