@@ -87,7 +87,7 @@ for path in ui_root.rglob("*.kt"):
             literal = match.group(1).strip()
             if not literal or literal.startswith("$") or re.fullmatch(r"[0-9+.,:% /()-]+", literal):
                 continue
-            number = source.count("\\n", 0, match.start()) + 1
+            number = source.count("\n", 0, match.start()) + 1
             errors.append(f"{rel}:{number}: possible hardcoded visible text {literal!r}")
 
 if errors:
