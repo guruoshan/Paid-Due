@@ -159,4 +159,5 @@
     <string name="audit_bullet">•</string>
     <string name="audit_search_customer">গ্রাহক খুঁজুন</string>
     <string name="audit_confirm_credit_sale">বাকিতে বিক্রি নিশ্চিত করুন</string>
+    <string name="audit_coupon_bonus">বোনাস</string>
 </resources>
