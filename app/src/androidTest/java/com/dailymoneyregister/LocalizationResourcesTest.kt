@@ -47,4 +47,28 @@ class LocalizationResourcesTest {
                 context.resources.configuration.layoutDirection)
         }
     }
+    @Test
+    fun everyStringResourceIsPresentAndFreeOfEncodingDamageInAllLocales() {
+        val base = ApplicationProvider.getApplicationContext<Context>()
+        val mojibake = Regex("(?:Ã.|Â.|â€|â€¦|â€¢|à¤|à¦|Ø[\\u0080-\\u00ff]|Ù[\\u0080-\\u00ff])")
+        val stringIds = R.string::class.java.fields
+            .filter { it.type == Int::class.javaPrimitiveType }
+            .mapNotNull { runCatching { it.getInt(null) }.getOrNull() }
+            .distinct()
+        for (code in listOf("en", "ar", "hi", "bn", "ur")) {
+            val locale = Locale.forLanguageTag(code)
+            val context = base.createConfigurationContext(Configuration(base.resources.configuration).apply {
+                setLocale(locale)
+                setLayoutDirection(locale)
+            })
+            for (id in stringIds) {
+                val value = runCatching { context.resources.getText(id).toString() }.getOrNull() ?: continue
+                assertTrue("blank string resource id=$id locale=$code", value.isNotBlank())
+                assertTrue("garbled encoding in string resource id=$id locale=$code: $value", !mojibake.containsMatchIn(value))
+            }
+            assertEquals(if (code == "ar" || code == "ur") 1 else 0,
+                context.resources.configuration.layoutDirection)
+        }
+    }
+
 }
