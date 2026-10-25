@@ -19,13 +19,14 @@ object UniversalWhatsAppMessageComposer {
         val creditInvoice: String,
         val invoice: String,
         val receipt: String,
-        val couponPurchaseTopUp: String
+        val couponPurchaseTopUp: String,
+        val footer: String
     ) {
         companion object {
             // Compatibility default for pure composer tests; production call sites inject locale resources.
             val ENGLISH = MessageLabels(
                 "Credit Balance", "Payment Reminder", "Coupon Balance", "Sale",
-                "Credit Invoice", "Invoice", "Receipt", "Coupon Purchase / Top-up"
+                "Credit Invoice", "Invoice", "Receipt", "Coupon Purchase / Top-up", "Powered by Paid&Due"
             )
 
             fun from(context: Context) = MessageLabels(
@@ -36,7 +37,8 @@ object UniversalWhatsAppMessageComposer {
                 creditInvoice = context.getString(R.string.audit_credit_invoice),
                 invoice = context.getString(R.string.audit_invoice),
                 receipt = context.getString(R.string.audit_receipt),
-                couponPurchaseTopUp = context.getString(R.string.audit_coupon_purchase_topup)
+                couponPurchaseTopUp = context.getString(R.string.audit_coupon_purchase_topup),
+                footer = context.getString(R.string.audit_message_footer)
             )
         }
     }
@@ -382,7 +384,7 @@ object UniversalWhatsAppMessageComposer {
         blank()
         content()
         blank()
-        line(FOOTER)
+        line(party.labels.footer)
     }.toString()
 
     private class MessageBuilder {
