@@ -67,7 +67,7 @@ object CustomerWhatsAppMessageComposer {
                 UniversalWhatsAppMessageComposer
                     .CouponEventKind
                     .PURCHASE_OR_TOP_UP,
-            title = "Coupon Purchase / Top-up",
+            title = party.labels.couponPurchaseTopUp,
             formattedAmount = formattedEventAmount,
             formattedBalance = formattedCurrentBalance,
             eventDateTime = transactionDateTime,
