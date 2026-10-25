@@ -23,7 +23,7 @@ Scope: read-only audit of `main`; no application changes, merges, deletions, Sup
 |---|---|---|
 | A1 Lint counts and unused resources/strings | DONE | `:app:lintDebug` succeeded in run 40228223025. Counts and the non-sensitive unused-resource list are in `scan-results.md`. |
 | A2 Top-level declarations with zero/one textual mentions | DONE (candidate scan only) | 807 declarations parsed; 131 candidates. Reflection/dynamic references can evade lexical counting; do not delete based on this list alone. |
-| A3 Unreferenced/large/duplicate files | DONE (candidate scan only) | 232 filename-mention candidates, 0 files >=1 MB, 3 exact duplicate groups. No files deleted. |
+| A3 Unreferenced/large/duplicate files | DONE (candidate scan only) | 227 filename-mention candidates, 0 files >=1 MB, 3 exact duplicate groups. No files deleted. |
 | B1 RLS/policy catalog | DONE | Read-only catalog SELECT completed; detailed result is chat-only. |
 | B2 Table grants | DONE | Read-only SELECT completed; detailed result is chat-only. |
 | B3 All SECURITY DEFINER execute ACLs | DONE | Catalog query covered all matching functions in public/private; complete role grouping is chat-only. |
