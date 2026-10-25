@@ -383,7 +383,7 @@ internal fun ExpenseDetailsScreen(
                             businessName = businessName,
                             customerName = details.payeeName,
                             customerPhone = details.payeePhone
-                            labels = UniversalWhatsAppMessageComposer.MessageLabels.from(LocalContext.current)
+                            labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                         ),
                         formattedAmount =
                             com.dailymoneyregister.core.model.money.MoneyMinorUnits(
