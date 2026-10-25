@@ -252,3 +252,56 @@ Security findings are intentionally excluded from this public report. The chat-o
 8. **PR 8 — Release documentation:** changelog, signed artifact provenance, privacy/data-handling, Play Store/outside-Play distribution, and rollback playbook.
 
 No remediation has been started. Approval is required before any fix.
+
+
+## Second-pass addendum — 2026-10-25
+
+This addendum records additional non-security findings only. Live security details and access-control findings are intentionally excluded from this public repository file.
+
+### A-030 — Temporary audit workflow added, but scan results not retrieved
+**Status: CANNOT CHECK**  
+**Evidence:** `.github/workflows/release-audit-scans.yml` is committed on the audit branch. It is restricted to pushes on `audit/release-readiness-2026-10-25`, has read-only permissions, and pins checkout/setup-java to full SHAs.  
+**Verification:** fetched the workflow source from the audit branch.  
+**Limit:** the available GitHub connector did not expose workflow run execution output/results in this session. Therefore lint status, unused resource/string counts, top-level zero-reference candidates, large files and exact duplicate groups are not reported as if run. The script's zero-reference results would be candidates only: text search cannot prove absence of reflection/dynamic references, and semantic “unreferenced file” proof needs a separate dependency/reference graph.
+
+### A-031 — Storage inventory currently has no buckets
+**Status: CONFIRMED**  
+**Evidence:** read-only query of `storage.buckets` returned zero rows in project `ttvdpgxqvvtjnxxfkoui`.  
+**Verification:** executed a SELECT-only catalog query; no storage state was modified.
+
+### A-032 — Several platform-managed tables have RLS disabled
+**Status: CONFIRMED**  
+**Evidence:** read-only catalog query over non-system schemas returned RLS disabled for multiple platform-managed tables in `auth`, `realtime`, `extensions`, `supabase_migrations`, and `vault`. Application-owned `public` and `private` tables returned RLS enabled.  
+**Verification:** queried `pg_class.relrowsecurity` and grouped `pg_policies` counts.  
+**Limit:** this public report intentionally does not list the sensitive access-control details. RLS-off status alone does not establish public exposure; effective grants, schema exposure, platform ownership and function privileges must be assessed together. Details are chat-only.
+
+### A-033 — Application Edge Function endpoints are deployed with platform JWT verification disabled
+**Status: CONFIRMED**  
+**Evidence:** live Supabase Edge Function metadata reports `verify_jwt=false` for deployed functions `api`, `staff-invite`, `staff-activate`, `staff-open`, and `staff-preview`. Source retrieval shows the four staff endpoints currently return retired-feature responses; the API handler explicitly checks a bearer token for customer-directory sync.  
+**Verification:** read-only function metadata and source retrieval.  
+**Limit:** a disabled platform JWT gate does not alone prove an unauthenticated business operation succeeds; each handler's own authentication/authorization must be traced. Security implications are chat-only.
+
+### A-034 — Expense lifecycle amount and Day Closing behavior still require exact source trace
+**Status: CANNOT CHECK**  
+**Evidence:** `ReportingReadRepository.kt` documents that the Phase 2 read boundary returns detailed rows/activity counts and intentionally leaves financial summary totals to the Phase 3 aggregator. `ReportingRowMappers.kt` maps expense and expense-event entities, but the connector retrieval was truncated before the complete resolver and void calculation could be inspected.  
+**Verification:** retrieved current-main source excerpts; no runtime or test execution.  
+**Conclusion:** this evidence is insufficient to confirm that correction adds to the prior amount, that a void of 5.599 is computed by code, or that the behavior is correct. The reported phone result is not a source-code proof. Exact confirmation requires the expense projection resolver and void command/event creation path.
+
+### A-035 — PDF expected-cash “Not available” is a defined display state, not its own explanation
+**Status: CONFIRMED**  
+**Evidence:** `app/src/main/res/values/strings_reporting_pdf.xml` defines `pdf_metric_expected_cash` as “Expected Cash Position (Calculated)” and `pdf_not_available` as “Not available”.  
+**Verification:** fetched the resource file.  
+**Limit:** the calculation and prerequisites were not located in the retrieved excerpts, so the conditions under which it becomes available remain unresolved.
+
+### A-036 — Current deployed Edge Function inventory differs from retired cashier feature expectations
+**Status: CONFIRMED**  
+**Evidence:** live metadata lists five deployed functions; the four staff-related endpoints inspected return HTTP 410 with `FEATURE_RETIRED` or retired-invitation content.  
+**Verification:** read-only metadata and source retrieval.  
+**Recommendation:** document these endpoints as intentionally retired and separately decide whether deployment retirement is part of a later approved change. No function was changed or deleted during this audit.
+
+## Second-pass blockers and remaining work
+
+- The temporary workflow's results are not accessible through the current GitHub connector; A1–A3 remain blocked until run logs are available.
+- The received user request ends after “C. Code tracing … 6.” with no text describing item C6 or any subsequent items. That missing scope cannot be inferred.
+- Exact expense correction/void calculation, Day Closing counters, full time-formatting/timezone call-site inventory, and stuck-queue recovery UX still need complete source paths and line-level evidence before being marked confirmed or refuted.
+- Security details remain chat-only and are not included in this report.
