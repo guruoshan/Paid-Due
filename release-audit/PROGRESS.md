@@ -48,6 +48,6 @@ Scope: read-only audit of `main`; no application changes, merges, deletions, Sup
 
 ## Change log
 - Temporary workflow only: `.github/workflows/release-audit-scans.yml` was adjusted to produce non-sensitive scan results, commit them with the exact required message, and invoke the Gradle wrapper through bash.
-- Scan report commit: `9ea45d2f530c06cad43b7681ad5bbf553a99e583`; refreshed report commit: `1f96b915005e8c753d067b4664f4678187823043`.
-- Non-security report update commit: `5d3f946e4a84bc18d561d836fa6f90c5708d535b` (source tracing) and `824c15bf420be7084b3d8661cd6ade781dc75e19` (branch inventory).
+- Preliminary scan commit (lint invocation failed with wrapper permission error): `1f96b915005e8c753d067b4664f4678187823043`. Final successful lint scan commit: `9ea45d2f530c06cad43b7681ad5bbf553a99e583`.
+- Report evidence commits: `824c15bf420be7084b3d8661cd6ade781dc75e19` (source tracing/branch inventory), `5d3f946e4a84bc18d561d836fa6f90c5708d535b` (scan result update), `db6168caa2ad3d8d0639cab4e92159f7378aa820` (replace stale blockers), `c3d4987bdcb423375b2a8f73b7fb157c7f7260bc` (remove Supabase/security detail from public report), and `3567808658f73fad8b425211eb12a79ae244fbb2` (final non-security-only report cleanup).
 - No application code or database rows were changed. No secrets were printed or written to repository files.
