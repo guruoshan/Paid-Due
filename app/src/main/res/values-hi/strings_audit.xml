@@ -99,4 +99,10 @@
     <string name="audit_update_prepare_failed">अपडेट तैयार नहीं हो सका।</string>
     <string name="audit_update_button_check">अपडेट जाँचें</string>
     <string name="audit_update_button_update">अपडेट करें</string>
+    <string name="audit_receipt_recipient_phone_required">रसीद साझा करने के लिए प्राप्तकर्ता का वैध फ़ोन नंबर आवश्यक है।</string>
+    <string name="audit_permission_denied">अनुमति अस्वीकृत</string>
+    <string name="audit_saved_sale_details_unavailable">सहेजी गई बिक्री का विवरण उपलब्ध नहीं है।</string>
+    <string name="audit_receipt_unavailable">इस रिकॉर्ड की रसीद उपलब्ध नहीं है।</string>
+    <string name="audit_credit_invoice_unavailable">उधार चालान का विवरण उपलब्ध नहीं है।</string>
+    <string name="audit_share_via_whatsapp">WhatsApp के ज़रिए साझा करें</string>
 </resources>
