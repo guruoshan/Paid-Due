@@ -157,4 +157,6 @@
     <string name="audit_searching">খোঁজা হচ্ছে...</string>
     <string name="audit_saving">সংরক্ষণ করা হচ্ছে...</string>
     <string name="audit_bullet">•</string>
+    <string name="audit_search_customer">গ্রাহক খুঁজুন</string>
+    <string name="audit_confirm_credit_sale">বাকিতে বিক্রি নিশ্চিত করুন</string>
 </resources>
