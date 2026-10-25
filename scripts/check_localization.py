@@ -75,8 +75,9 @@ for source_root in source_roots:
 literal_patterns = [
     re.compile(r'\bText\s*\(\s*"([^"\\]{2,})"'),
     re.compile(r'contentDescription\s*=\s*"([^"\\]{2,})"'),
-    re.compile(r'\b(?:label|placeholder|title)\s*=\s*"([^"\\]{2,})"'),
-    re.compile(r'\b(?:Toast\.makeText|SnackbarHostState)\s*\([^\n]*"([^"\\]{2,})"'),
+    re.compile(r'\b(?:label|placeholder)\s*=\s*"([^"\\]{2,})"'),
+    re.compile(r'\bToast\.makeText\([^,]+,\s*"([^"\\]{2,})"'),
+    re.compile(r'\bshowSnackbar\s*\(\s*"([^"\\]{2,})"'),
 ]
 ui_root = ROOT / "app/src/main/java"
 for path in ui_root.rglob("*.kt"):
@@ -89,6 +90,14 @@ for path in ui_root.rglob("*.kt"):
                 continue
             number = source.count("\n", 0, match.start()) + 1
             errors.append(f"{rel}:{number}: possible hardcoded visible text {literal!r}")
+    # title literals are only a UI concern in composable/screen source files.
+    if "/ui/" in rel or "/app/ui/" in rel or "/pdf/" in rel:
+        title_pattern = re.compile(r'\btitle\s*=\s*"([^"\\]{2,})"')
+        for match in title_pattern.finditer(source):
+            literal = match.group(1).strip()
+            if literal and not literal.startswith("$"):
+                number = source.count("\n", 0, match.start()) + 1
+                errors.append(f"{rel}:{number}: possible hardcoded visible title {literal!r}")
 
 if errors:
     print("Localization integrity check FAILED:")
