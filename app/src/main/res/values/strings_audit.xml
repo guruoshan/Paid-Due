@@ -112,7 +112,7 @@
     <string name="audit_supporting_document_number">Supporting document %1$d</string>
     <string name="audit_what_happened_transaction">What happened to this transaction</string>
     <string name="audit_select_credit_customer">Select the customer who is taking this sale on Credit.</string>
-    <string name="audit_credit_sale_no_payment">No payment is collected now. The amount becomes the customer's Credit obligation.</string>
+    <string name="audit_credit_sale_no_payment">No payment is collected now. The amount becomes the customer\'s Credit obligation.</string>
     <string name="audit_ref_label">Ref: %1$s</string>
     <string name="audit_time_label">Time: %1$s</string>
     <string name="audit_void_reason_label">Void reason: %1$s</string>
