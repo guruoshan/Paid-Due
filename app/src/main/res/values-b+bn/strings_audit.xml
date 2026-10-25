@@ -140,4 +140,17 @@
     <string name="audit_status_recorded">নথিভুক্ত</string>
     <string name="audit_payment_prefix">পেমেন্ট: %1$s</string>
     <string name="audit_receipt_recorded_payment">নথিভুক্ত পেমেন্ট</string>
+    <string name="audit_receipt_heading">রসিদ</string>
+    <string name="audit_receipt_reference">রেফারেন্স: %1$s</string>
+    <string name="audit_receipt_date_time">তারিখ ও সময়: %1$s</string>
+    <string name="audit_receipt_customer">গ্রাহক: %1$s</string>
+    <string name="audit_receipt_subtotal">উপমোট: %1$s</string>
+    <string name="audit_receipt_tax">কর: %1$s</string>
+    <string name="audit_receipt_shipping">শিপিং: %1$s</string>
+    <string name="audit_receipt_packing">প্যাকিং: %1$s</string>
+    <string name="audit_receipt_total">মোট: %1$s</string>
+    <string name="audit_receipt_note">নোট: %1$s</string>
+    <string name="audit_thank_you_business">আপনার ব্যবসার জন্য ধন্যবাদ।</string>
+    <string name="audit_receipt_customer_label">গ্রাহক</string>
+    <string name="audit_receipt_business_name">Paid&amp;Due</string>
 </resources>
