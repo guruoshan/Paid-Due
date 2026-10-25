@@ -67,33 +67,16 @@ Every finding has an ID, evidence, verification method, and status.
 **Verification:** fetched these source files.  
 **Risk:** user-facing identity is inconsistent between English, localized locales and build metadata. Confirm the intended product/locale naming before changing copy.
 
-### A-008 — Update checker requires GitHub latest stable release and digest metadata
+### A-008 — In-app updater depends on public GitHub releases and exact tag/asset naming
 **Status: CONFIRMED**  
-**Evidence:** `app/src/main/java/com/dailymoneyregister/core/update/ReleaseUpdater.kt` requests `https://api.github.com/repos/guruoshan/Paid-Due/releases/latest`, expects tags `v1.0.N`, matches asset name `paid-due-v{tag}.apk`, requires an official repository release URL and a GitHub-provided SHA-256 digest. The class comment says Android's package installer enforces installed-app signing identity.  
-**Verification:** direct source inspection.  
-**Assessment:** updater behavior is coupled to the repository being publicly accessible and releases being published with the expected tag/asset/digest format. If the repository becomes private, unauthenticated API/download access may fail; no authenticated private-repo access path was observed in the inspected source. SHA-256 confirms file integrity against the API-provided digest, not publisher authenticity by itself; Android signature compatibility is the separate identity check.
-
-### A-009 — Manifest baseline has conservative backup and network settings
-**Status: CONFIRMED**  
-**Evidence:** `app/src/main/AndroidManifest.xml` sets `allowBackup=false`, `usesCleartextTraffic=false`, `supportsRtl=true`; requests INTERNET, WRITE_EXTERNAL_STORAGE (max SDK 28), REQUEST_INSTALL_PACKAGES; MainActivity is exported for launcher use, FileProvider is non-exported with URI grants.  
-**Verification:** direct manifest inspection.  
-**Limit:** permission usage across all call sites, exported-component merge results, WebView usage, and installed artifact manifest were not fully checked.
+**Evidence:** `ReleaseUpdater.kt:22-86` calls the latest stable GitHub release endpoint, expects `v1.0.N` tags and an asset named `paid-due-v{tag}.apk`. `ReleaseUpdater.kt:89-145` downloads the matching APK and checks the asset's SHA-256 digest before handing it to Android's package installer.  
+**Assessment:** the updater is coupled to public repository access and the release naming convention. Making the repository private would break unauthenticated update discovery/download unless a supported authenticated distribution path is introduced. The updater itself does not inspect the APK certificate; Android's installer enforces package signing identity.
 
 ### A-010 — Raw update errors can be shown to users
 **Status: CONFIRMED**  
 **Evidence:** `ReleaseUpdateCard.kt` displays `error.message` when an exception is thrown, falling back to a localized generic message only when no message exists.  
 **Verification:** direct source inspection.  
-**Risk:** raw technical/server errors may appear in the UI, can be confusing and may reveal internal implementation detail. Map failures to stable localized user messages and retain safe diagnostics separately.
-
-### A-011 — Encryption implementation exists, but release database encryption is not runtime-certified
-**Status: LIKELY**  
-**Evidence:** version catalog declares `net.zetetic:sqlcipher-android:4.19.0`; repository search finds `SqlCipherExportProofTest.kt` and project guidance requiring SQLCipher integrity.  
-**Verification:** dependency and test-name search.  
-**Limit:** no installed app/device database inspection or successful SQLCipher proof run in this audit. Confirm all production Room database open paths use encryption, key lifecycle is sound, and exports/temporary files are handled safely.
-
-## Phase 3 — Security
-
-Security findings are intentionally excluded from this public report. The chat-only security assessment covers secret exposure, database access controls, Supabase RLS/storage/functions, Actions trust boundaries and signing-key rotation. A complete secret-history scan, live Supabase review and GitHub branch-protection read were not performed, so no claim of security clearance is made.
+**Risk:** raw technical/server errors may appear in the UI and confuse users. Map failures to stable localized user messages and retain diagnostics separately.
 
 ## Phase 4 — Data and sync health
 
@@ -176,12 +159,11 @@ Security findings are intentionally excluded from this public report. The chat-o
 **Evidence:** the temporary workflow completed `:app:lintDebug` successfully on audit branch run 40228223025. The non-sensitive lint counts are in `release-audit/scan-results.md`.  
 **Limit:** this was a debug lint task on the audit branch; no full unit/instrumentation suite, release build, APK/AAB signature inspection or physical-device certification was run.
 
-### A-025 — Release workflow is event-gated, but action pinning is inconsistent
+### A-025 — Release workflow is gated by main push/manual dispatch
 **Status: CONFIRMED**  
-**Evidence:** `.github/workflows/release.yml` runs on pushes to main and manual dispatch; job condition requires a `[build-apk]` commit message on push or explicit manual confirmation. `actions/checkout` and `actions/setup-java` use full commit SHAs; `gradle/actions/setup-gradle@v4` and `denoland/setup-deno@v2` use mutable version tags in the inspected excerpt.  
+**Evidence:** `.github/workflows/release.yml` runs on pushes to `main` and manual dispatch. The push path is gated by a `[build-apk]` commit message; manual dispatch requires explicit confirmation.  
 **Verification:** direct workflow inspection.  
-**Risk:** tag updates can change the action code executed by the workflow. Pin all third-party actions to reviewed full SHAs and manage updates deliberately.  
-**Cost:** exact Actions-minute cost cannot be stated without run duration, runner billing multipliers and billing usage data.
+**Limit:** this audit did not certify a signed artifact or end-to-end release run. Job-minute accounting is addressed separately under A-026.
 
 ### A-026 — Workflow inventory is complete; total job-minute accounting is blocked
 **Status: PARTIAL**  
@@ -213,7 +195,7 @@ Security findings are intentionally excluded from this public report. The chat-o
 
 - **A-012 / A-020 (medium-large):** prove multi-device operation identity, collision behavior and consistency across all financial surfaces. Risk: reports can be stale/unavailable and financial operations can remain unacknowledged. Keep collision rejection fail-closed.
 - **A-016 / A-017 / A-018 / A-019 (medium-large):** verify expense correction/void projection, Day Closing counts and expected cash position with regression fixtures. Risk: incorrect totals or blocked reports.
-- **A-024 / A-027 (medium):** obtain a fresh passing build/test/lint result and inspect the signed release artifact before customer distribution. Risk: shipping an unverified build.
+- **A-024 / A-027 (medium):** obtain a fresh passing full test/release-build result and inspect the signed release artifact before customer distribution. Risk: shipping an unverified build.
 - **A-014 / A-013 (large):** reconcile live schema/migration history and document a safe, verified test reset only if needed. Risk: migration failure or unintended financial evidence deletion.
 
 ### P1 — Before wide use
@@ -221,9 +203,8 @@ Security findings are intentionally excluded from this public report. The chat-o
 - **A-005 (small-medium):** define explicit monotonic release versioning independent of Actions run-number fallback. Risk: duplicate/misleading version identity.
 - **A-008 / A-028 (medium):** test update-check/download/install end-to-end and document the public-repository dependency. Risk: update checks/downloads fail if release metadata or repository visibility changes.
 - **A-010 / A-023 (small-medium):** replace raw exception text with localized user-safe messages and retain safe diagnostics. Risk: confusing UX and unnecessary technical disclosure.
-- **A-025 / A-026 (medium):** pin third-party actions and measure actual workflow minutes; separate cheap PR checks from release/emulator work. Risk: supply-chain drift and slow/expensive CI.
+- **A-025 / A-026 (medium):** measure workflow minutes and separate cheap PR checks from release/emulator work. Risk: slow/expensive CI.
 - **A-021 / A-022 (medium):** verify all five locales, RTL and PDF/receipt fonts. Risk: unreadable labels or incorrect financial presentation.
-- **A-011 (medium):** certify database encryption on actual release/device paths. Risk: sensitive local financial data protection assumptions may be wrong.
 
 ### P2 — Later, after proof
 
