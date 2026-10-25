@@ -1,0 +1,110 @@
+name: Release audit scans (temporary)
+on:
+  push:
+    branches:
+      - audit/release-readiness-2026-10-25
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: release-audit-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android-lint-and-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout audit branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - name: Set up JDK
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Android lint
+        id: lint
+        continue-on-error: true
+        run: |
+          set +e
+          ./gradlew :app:lintDebug --no-daemon --stacktrace
+          status=$?
+          echo "lint_exit=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Report lint counts and non-sensitive unused resource/string findings
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, xml.etree.ElementTree as ET, os, re
+          files=glob.glob('app/build/reports/lint-results*.html')+glob.glob('app/build/reports/lint-results*.xml')
+          findings=[]
+          for f in files:
+              try:
+                  s=open(f,encoding='utf-8',errors='replace').read()
+                  for m in re.finditer(r'(?is)<issue\b([^>]*)>(.*?)</issue>',s):
+                      attrs=m.group(1); body=m.group(2)
+                      ident=re.search(r'\bid=["\']([^"\']+)',attrs)
+                      if ident and ident.group(1) in {'UnusedResources','UnusedIds','UnusedIncludedResources','UnusedAttribute','StringFormatInvalid','MissingTranslation'}:
+                          loc=re.search(r'\bfile=["\']([^"\']+)',attrs)
+                          findings.append((ident.group(1),loc.group(1) if loc else 'path unavailable'))
+              except Exception: pass
+          print('LINT_REPORT_FILES',len(files))
+          print('UNUSED_RESOURCE_STRING_FINDINGS',len(findings))
+          for issue,path in sorted(set(findings)): print(issue, path)
+          if not files: print('BLOCKED: no lint report generated; inspect Gradle step output.')
+          PY
+      - name: Kotlin top-level declaration and repository file inventory
+        run: |
+          python3 - <<'PY'
+          import os,re,hashlib,collections
+          roots=['app','supabase','.github','gradle']
+          exts={'.kt','.kts'}
+          declarations=[]
+          for root in roots:
+            for dp,ds,fs in os.walk(root):
+              ds[:]=[d for d in ds if d not in {'.git','build','.gradle'}]
+              for fn in fs:
+                if os.path.splitext(fn)[1] not in exts: continue
+                p=os.path.join(dp,fn)
+                try: lines=open(p,encoding='utf-8').read().splitlines()
+                except Exception: continue
+                depth=0
+                for i,line in enumerate(lines,1):
+                  if depth==0 and re.match(r'^\s*(?:(?:public|private|internal|protected|inline|suspend|tailrec|operator|infix|override|actual|expect|data|sealed|enum|annotation|value|open|abstract|final|external)\s+)*(?:class|object|interface|fun)\s+[A-Za-z_][A-Za-z0-9_]*',line):
+                    m=re.search(r'\b(class|object|interface|fun)\s+([A-Za-z_][A-Za-z0-9_]*)',line)
+                    if m: declarations.append((m.group(2),p,i,m.group(1)))
+                  depth += line.count('{')-line.count('}')
+                  depth=max(0,depth)
+          # Candidate only: count token mentions across tracked source/config/test/resource files.
+          searchable=[]
+          for dp,ds,fs in os.walk('.'):
+            ds[:]=[d for d in ds if d not in {'.git','.gradle','build'}]
+            for fn in fs:
+              p=os.path.join(dp,fn)
+              try:
+                if os.path.getsize(p)>3_000_000: continue
+                searchable.append((p,open(p,encoding='utf-8',errors='ignore').read()))
+              except Exception: pass
+          zero=[]
+          for name,path,line,kind in declarations:
+            refs=sum(len(re.findall(r'\b'+re.escape(name)+r'\b',txt)) for _,txt in searchable)
+            if refs<=1: zero.append((name,path,line,kind,refs))
+          print('TOP_LEVEL_DECLARATIONS',len(declarations))
+          print('ZERO_REFERENCE_CANDIDATES',len(zero))
+          for x in zero: print('CANDIDATE',*x)
+          hashes=collections.defaultdict(list); large=[]
+          for p,txt in searchable:
+            try:
+              size=os.path.getsize(p)
+              if size>=1_000_000: large.append((size,p))
+              with open(p,'rb') as f: hashes[hashlib.sha256(f.read()).hexdigest()].append(p)
+            except Exception: pass
+          dup=[v for v in hashes.values() if len(v)>1]
+          print('SCANNED_FILES',len(searchable))
+          print('LARGE_FILES_GE_1MB',len(large))
+          for size,p in sorted(large,reverse=True): print('LARGE',size,p)
+          print('EXACT_DUPLICATE_GROUPS',len(dup))
+          for group in dup: print('DUPLICATE',' | '.join(group))
+          print('NOTE: zero-reference and unreferenced-file outputs are candidates, not proof; dynamic/reflection references can evade text search.')
+          PY
