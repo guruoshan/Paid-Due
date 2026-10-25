@@ -570,6 +570,7 @@ onClick = {
                                                             businessName = receipt.businessName,
                                                             customerName = receipt.customerName,
                                                             customerPhone = receipt.customerPhone
+                                                            labels = UniversalWhatsAppMessageComposer.MessageLabels.from(LocalContext.current)
                                                         ),
                                                         formattedCreditGiven =
                                                             receipt.formattedMoney(creditGivenMinor),
