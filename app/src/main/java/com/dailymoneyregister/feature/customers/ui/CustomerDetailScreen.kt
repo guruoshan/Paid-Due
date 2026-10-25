@@ -118,7 +118,7 @@ fun CustomerDetailScreen(
             businessName = businessName,
             customerName = currentCustomer.name,
             customerPhone = phone
-            labels = UniversalWhatsAppMessageComposer.MessageLabels.from(LocalContext.current)
+            labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
         )
     }
 
@@ -793,7 +793,7 @@ fun CustomerDetailScreen(
                                                                             businessName = paymentReceiptParty.businessName,
                                                                             customerName = paymentReceiptParty.customerName,
                                                                             customerPhone = paymentReceiptParty.customerPhone
-                                                                            labels = UniversalWhatsAppMessageComposer.MessageLabels.from(LocalContext.current)
+                                                                            labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                                                                         ),
                                                                         formattedAmount =
                                                                             money(kotlin.math.abs(row.amountSignedMinor)),
