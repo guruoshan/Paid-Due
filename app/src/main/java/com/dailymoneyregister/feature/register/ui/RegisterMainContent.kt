@@ -158,7 +158,7 @@ internal fun RegisterMainContentHost(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Notifications,
-                            contentDescription = "Notifications",
+                            contentDescription = stringResource(R.string.audit_notifications),
                             modifier = Modifier.size(24.dp),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
