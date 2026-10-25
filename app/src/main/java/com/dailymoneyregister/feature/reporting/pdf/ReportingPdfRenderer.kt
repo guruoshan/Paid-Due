@@ -130,7 +130,7 @@ object ReportingPdfRenderer {
             } else {
                 drawLocalizedText(canvas, snapshot.businessName.ifBlank { context.getString(R.string.pdf_registered_business) }, left, y + 12f, businessPaint, right - left)
                 y += 34f
-                canvas.drawText(snapshot.reportTitle, left, y + 4f, titlePaint)
+                drawLocalizedText(canvas, snapshot.reportTitle, left, y + 4f, titlePaint, right - left)
                 y += 22f
                 drawLocalizedText(canvas, context.getString(R.string.pdf_branch, snapshot.branchName.ifBlank { "—" }), left, y, bodyPaint, 460f)
                 drawLocalizedText(canvas, context.getString(R.string.pdf_report_date, snapshot.reportDate), 510f, y, bodyPaint, right - 510f)
