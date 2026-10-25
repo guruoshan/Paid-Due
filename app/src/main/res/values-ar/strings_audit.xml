@@ -105,4 +105,17 @@
     <string name="audit_receipt_unavailable">الإيصال غير متاح لهذا السجل.</string>
     <string name="audit_credit_invoice_unavailable">تفاصيل فاتورة الائتمان غير متاحة.</string>
     <string name="audit_share_via_whatsapp">المشاركة عبر WhatsApp</string>
+    <string name="audit_expense_details">تفاصيل المصروف</string>
+    <string name="audit_no_phone_for_expense">لم يتم حفظ رقم هاتف لهذا المصروف.</string>
+    <string name="audit_supporting_documents">المستندات الداعمة</string>
+    <string name="audit_no_supporting_documents">لا توجد مستندات داعمة مرفقة.</string>
+    <string name="audit_supporting_document_number">المستند الداعم %1$d</string>
+    <string name="audit_what_happened_transaction">ما الذي حدث لهذه المعاملة</string>
+    <string name="audit_select_credit_customer">اختر العميل الذي سيشتري هذه العملية بالائتمان.</string>
+    <string name="audit_credit_sale_no_payment">لا يتم تحصيل أي دفعة الآن. يصبح المبلغ التزامًا ائتمانيًا على العميل.</string>
+    <string name="audit_ref_label">المرجع: %1$s</string>
+    <string name="audit_time_label">الوقت: %1$s</string>
+    <string name="audit_void_reason_label">سبب الإلغاء: %1$s</string>
+    <string name="audit_status_label">الحالة: %1$s</string>
+    <string name="audit_existing_customer">العميل الحالي: %1$s</string>
 </resources>
