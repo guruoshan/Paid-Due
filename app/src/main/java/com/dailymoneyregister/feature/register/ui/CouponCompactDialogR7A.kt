@@ -435,7 +435,7 @@ internal fun CouponCompactDialogR7A(
                                         ?.let { balance ->
 
                                             Text(
-                                                "Coupon balance: " +
+                                                stringResource(R.string.audit_customer_coupon_balance_colon) +
                                                     MoneyMinorUnits(
                                                         balance
                                                     ).formatDisplay(
@@ -708,7 +708,7 @@ internal fun CouponCompactDialogR7A(
                                         )
                                 ) {
                                     Text(
-                                        "Send on WhatsApp"
+                                        stringResource(R.string.audit_send_whatsapp)
                                     )
                                 }
                             }
