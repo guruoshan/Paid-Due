@@ -99,4 +99,10 @@
     <string name="audit_update_prepare_failed">اپ ڈیٹ تیار نہیں ہو سکی۔</string>
     <string name="audit_update_button_check">اپ ڈیٹس چیک کریں</string>
     <string name="audit_update_button_update">اپ ڈیٹ کریں</string>
+    <string name="audit_receipt_recipient_phone_required">رسید شیئر کرنے کے لیے وصول کنندہ کا درست فون نمبر ضروری ہے۔</string>
+    <string name="audit_permission_denied">اجازت نہیں دی گئی</string>
+    <string name="audit_saved_sale_details_unavailable">محفوظ شدہ فروخت کی تفصیلات دستیاب نہیں۔</string>
+    <string name="audit_receipt_unavailable">اس ریکارڈ کی رسید دستیاب نہیں۔</string>
+    <string name="audit_credit_invoice_unavailable">ادھار انوائس کی تفصیلات دستیاب نہیں۔</string>
+    <string name="audit_share_via_whatsapp">WhatsApp کے ذریعے شیئر کریں</string>
 </resources>
