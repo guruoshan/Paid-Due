@@ -82,4 +82,21 @@
     <string name="audit_send_whatsapp">الإرسال عبر WhatsApp</string>
     <string name="audit_audit_information">معلومات التدقيق</string>
     <string name="audit_no_customer_found">لم يتم العثور على عميل.</string>
+    <string name="audit_customer_export_preparing">جارٍ إعداد ملف Excel للعملاء…</string>
+    <string name="audit_customer_export_saved">تم الحفظ في Downloads/PaidDue. جارٍ فتح خيارات المشاركة…</string>
+    <string name="audit_customer_export_failed">فشل تصدير العملاء: %1$s</string>
+    <string name="audit_unknown_error">خطأ غير معروف</string>
+    <string name="audit_update_initial">تحقق من GitHub للحصول على أحدث إصدار معتمد من Paid&amp;Due.</string>
+    <string name="audit_update_title">تحديثات التطبيق</string>
+    <string name="audit_update_checking_releases">جارٍ التحقق من إصدارات GitHub…</string>
+    <string name="audit_update_verifying_preparing">جارٍ التحقق من التحديث وإعداده…</string>
+    <string name="audit_update_check_approved">جارٍ البحث عن إصدار معتمد…</string>
+    <string name="audit_update_up_to_date">Paid&amp;Due محدّث إلى آخر إصدار.</string>
+    <string name="audit_update_apk_missing">تم العثور على إصدار أحدث، لكن ملف APK غير موجود.</string>
+    <string name="audit_update_version_available">الإصدار 1.0.%1$s متاح.</string>
+    <string name="audit_update_check_failed">تعذر التحقق من التحديثات. حاول مرة أخرى.</string>
+    <string name="audit_update_opening_installer">جارٍ فتح مثبت Android…</string>
+    <string name="audit_update_prepare_failed">تعذر إعداد التحديث.</string>
+    <string name="audit_update_button_check">التحقق من التحديثات</string>
+    <string name="audit_update_button_update">تحديث</string>
 </resources>
