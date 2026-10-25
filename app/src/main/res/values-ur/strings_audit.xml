@@ -82,4 +82,21 @@
     <string name="audit_send_whatsapp">WhatsApp پر بھیجیں</string>
     <string name="audit_audit_information">آڈٹ کی معلومات</string>
     <string name="audit_no_customer_found">کوئی گاہک نہیں ملا۔</string>
+    <string name="audit_customer_export_preparing">گاہکوں کی Excel فائل تیار ہو رہی ہے…</string>
+    <string name="audit_customer_export_saved">Downloads/PaidDue میں محفوظ ہو گیا۔ شیئر کے اختیارات کھل رہے ہیں…</string>
+    <string name="audit_customer_export_failed">گاہکوں کی برآمد ناکام: %1$s</string>
+    <string name="audit_unknown_error">نامعلوم خرابی</string>
+    <string name="audit_update_initial">Paid&amp;Due کے تازہ ترین منظور شدہ ورژن کے لیے GitHub چیک کریں۔</string>
+    <string name="audit_update_title">ایپ اپ ڈیٹس</string>
+    <string name="audit_update_checking_releases">GitHub ریلیزز چیک ہو رہی ہیں…</string>
+    <string name="audit_update_verifying_preparing">اپ ڈیٹ کی تصدیق اور تیاری ہو رہی ہے…</string>
+    <string name="audit_update_check_approved">منظور شدہ ریلیز چیک ہو رہی ہے…</string>
+    <string name="audit_update_up_to_date">Paid&amp;Due تازہ ترین ورژن پر ہے۔</string>
+    <string name="audit_update_apk_missing">نیا ورژن مل گیا، لیکن APK موجود نہیں۔</string>
+    <string name="audit_update_version_available">ورژن 1.0.%1$s دستیاب ہے۔</string>
+    <string name="audit_update_check_failed">اپ ڈیٹس چیک نہیں ہو سکیں۔ دوبارہ کوشش کریں۔</string>
+    <string name="audit_update_opening_installer">Android انسٹالر کھل رہا ہے…</string>
+    <string name="audit_update_prepare_failed">اپ ڈیٹ تیار نہیں ہو سکی۔</string>
+    <string name="audit_update_button_check">اپ ڈیٹس چیک کریں</string>
+    <string name="audit_update_button_update">اپ ڈیٹ کریں</string>
 </resources>
