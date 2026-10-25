@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pdf_generated_by">تم الإنشاء بواسطة Paid&amp;Due • الصفحة %1$d</string>
+    <string name="pdf_registered_business">المنشأة المسجلة</string>
+    <string name="pdf_continued">متابعة</string>
+    <string name="pdf_branch">الفرع: %1$s</string>
+    <string name="pdf_report_date">تاريخ التقرير: %1$s</string>
+    <string name="pdf_period">الفترة: %1$s</string>
+    <string name="pdf_header_date_time">التاريخ / الوقت</string>
+    <string name="pdf_header_type">النوع</string>
+    <string name="pdf_header_reference">المرجع</string>
+    <string name="pdf_header_customer">العميل</string>
+    <string name="pdf_header_payment">الدفع</string>
+    <string name="pdf_header_amount">المبلغ</string>
+    <string name="pdf_empty_transactions">لا توجد معاملات في فترة التقرير هذه.</string>
+</resources>
