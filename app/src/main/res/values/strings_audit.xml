@@ -157,4 +157,6 @@
     <string name="audit_searching">Searching...</string>
     <string name="audit_saving">Saving...</string>
     <string name="audit_bullet">•</string>
+    <string name="audit_search_customer">Search Customer</string>
+    <string name="audit_confirm_credit_sale">Confirm Credit Sale</string>
 </resources>
