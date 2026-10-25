@@ -154,4 +154,7 @@
     <string name="audit_receipt_customer_label">ग्राहक</string>
     <string name="audit_receipt_business_name">Paid&amp;Due</string>
     <string name="audit_message_footer">Paid&Due द्वारा संचालित</string>
+    <string name="audit_searching">खोजा जा रहा है...</string>
+    <string name="audit_saving">सहेजा जा रहा है...</string>
+    <string name="audit_bullet">•</string>
 </resources>
