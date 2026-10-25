@@ -80,11 +80,10 @@ Every finding has an ID, evidence, verification method, and status.
 
 ## Phase 4 — Data and sync health
 
-### A-012 — Operation collision is an intentional fail-closed server condition; recovery path needs proof
-**Status: CONFIRMED**  
-**Evidence:** migrations including `supabase/migrations/20261009061446_add_admin_ingest_financial_envelope.sql` compare the existing operation digest and raise `OPERATION_COLLISION` when the same business/operation identity has a different digest. Current update UI/source references collision as a raw exception candidate; user reports describe stale totals and collision on multiple Admin devices.  
-**Verification:** GitHub code search of migration definitions and inspected update error handling; user-reported runtime symptoms are not independently reproduced here.  
-**Risk:** silently retrying cannot safely resolve a genuine identity/digest mismatch; users need a clear non-destructive recovery path and support diagnostics. Do not weaken idempotency or collision checks.
+### A-012 — Operation collision fails closed; the outbox has no collision-specific self-service recovery
+**Status: CONFIRMED**
+**Evidence:** the ingest function returns `OPERATION_COLLISION` when an existing operation ID has a different digest. `RemoteFinancialSyncRepository.kt:126-136,280-320` maps the response to `NeedsAttention`; `FinancialSyncOutboxPolicy.kt:64-78` maps it to `NEEDS_ATTENTION`; `FinancialSyncOutboxDao.kt:42-70` only uploads `QUEUED` and `WAITING_RETRY` rows.
+**Conclusion:** conflicting financial evidence is not silently acknowledged, but the phone cannot resolve this state through an in-app retry path. A supported reconciliation procedure is needed; do not change the operation ID or weaken the digest check.
 
 ### A-013 — Safe test-data reset must account for immutable-envelope trigger
 **Status: CANNOT CHECK**  
@@ -126,12 +125,10 @@ Every finding has an ID, evidence, verification method, and status.
 **Evidence:** `ReportingPdfActions.kt:152-156` shows the not-available label when `summary.expectedCash` is null. `ReportingModels.kt:649-650` defaults it to null, and `ReportingAggregator.kt:243-285` does not populate it. Day Closing calculates expected cash separately in `RegisterShiftReportReadRepository.kt:39-62,777-788`; that value is not wired into the reporting summary.  
 **Conclusion:** the current PDF path does not calculate/populate expected cash; there is no runtime condition in this path that makes it available.
 
-### A-020 — Cross-screen money consistency not certified
-**Status: CANNOT CHECK**  
-**Evidence:** report aggregation is separated from the Room read repository by design; code comments in `ReportingReadRepository.kt` say it supplies detailed rows/activity counts while the Phase 3 aggregator owns financial summary amounts. Existing test search surfaces recent activity, credit-return and amount-correction tests.  
-**Verification:** inspected repository contract and selected test names only; no full suite or oracle run.  
-**Risk:** Recent, History, Reports, PDF and Day Closing could diverge on coupon funding, credit creation/repayment, refunds, voids and expense lifecycle.  
-**Required proof:** one shared fixture per operation type, assert each surface against a common expected ledger projection, including split tender, partial/full refund, coupon refunds, credit repayment allocation, correction chains, cash-shift close and Oman-local date boundaries.
+### A-020 — Cross-screen money consistency is partially traced but not runtime-certified
+**Status: PARTIAL**
+**Evidence:** Recent and History use `ExpenseReadProjectionResolver` (`RecentFinancialActivityReadRepository.kt:256-275`, `HistoryRepository.kt:227-250`). Reports aggregate original expense rows and signed lifecycle deltas (`ReportingRowMappers.kt:746-825`, `ReportingAggregator.kt:243-285`). Day Closing uses the effective amount and separately handles lifecycle settlements (`RegisterShiftReportReadRepository.kt:626-660,777-788`). The expense correction/void path is source-traced in A-037.
+**Limit:** no full unit/instrumentation suite or shared fixture across all money surfaces was run. Cross-operation parity for credit, coupon, refunds, payment-method changes and multi-device inbound remains unproven.
 
 ## Phase 6 — Localization and UX
 
