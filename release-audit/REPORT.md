@@ -305,3 +305,180 @@ This addendum records additional non-security findings only. Live security detai
 - The received user request ends after “C. Code tracing … 6.” with no text describing item C6 or any subsequent items. That missing scope cannot be inferred.
 - Exact expense correction/void calculation, Day Closing counters, full time-formatting/timezone call-site inventory, and stuck-queue recovery UX still need complete source paths and line-level evidence before being marked confirmed or refuted.
 - Security details remain chat-only and are not included in this report.
+
+## Second-pass source tracing and repository inventory — 2026-10-25
+
+### A-037 — Expense correction replaces the effective amount; observed 5.599 void is not explained by current source
+**Status: CONFIRMED source semantics; phone observation unresolved**
+- `app/src/main/java/com/dailymoneyregister/feature/register/data/ExpenseFinancialRepository.kt:84-107`: the repository derives the latest non-void `newAmountMinor` as the effective amount. A correction stores `previousAmountMinor` and the requested replacement `newAmountMinor`; its settlement delta is `previous - next`. A void uses the effective amount as its delta and stores the previous effective amount in the void event.
+- `app/src/main/java/com/dailymoneyregister/feature/register/data/ExpenseReadProjection.kt:188-221`: Recent/History projection chooses the latest non-void event's new amount and marks the expense voided separately.
+- `app/src/main/java/com/dailymoneyregister/feature/register/data/HistoryRepository.kt:204-250`: History maps each expense through that resolver.
+- `app/src/main/java/com/dailymoneyregister/feature/reporting/data/ReportingReadRepository.kt:405-450` and `ReportingRowMappers.kt:746-825`: Reports preserve the original amount as the original row and append signed lifecycle deltas. A 5.000 expense corrected to 0.599 yields a -4.401 correction delta; the void event delta is -0.599. When the original and correction fall in the same selected period, the combined expense effect is 0.599.
+- `app/src/main/java/com/dailymoneyregister/feature/register/data/RegisterShiftReportReadRepository.kt:626-660`: Day Closing resolves the effective expense amount and skips the expense outflow when the expense is voided; lifecycle settlements adjust expected cash separately.
+- The same amount-selection code is present at tag `v1.0.152`. Therefore the reported phone value 5.599 is not explained by the checked source at `main` or `v1.0.152`. Exact runtime cause remains unresolved without the device's local event/settlement rows and exact installed artifact identity.
+
+### A-038 — Day Closing does not count expense correction/void operations in its visible lifecycle counters
+**Status: CONFIRMED**
+- `app/src/main/java/com/dailymoneyregister/feature/register/data/RegisterShiftReportReadRepository.kt:662-704` increments `voidCount` only for `RECORD_VOID` and `correctionCount` only for `RECORD_AMOUNT_CORRECTION`.
+- Expense lifecycle commands use `RECORD_EXPENSE_VOID` and `RECORD_EXPENSE_CORRECTION` (`ExpenseLifecycleCommand.kt`); the report switch has an expense-void branch at lines 662–666 but it does not increment `voidCount`, and the expense-correction branch at lines 703–735 does not increment `correctionCount`. This explains the “Voids: 0 · Corrections: 0” display when the only lifecycle events were expense lifecycle events.
+
+### A-039 — Reporting PDF expected cash is not populated by the current reporting aggregator
+**Status: CONFIRMED**
+- `app/src/main/java/com/dailymoneyregister/feature/reporting/pdf/ReportingPdfActions.kt:152-156` displays the not-available label when `summary.expectedCash` is null.
+- `app/src/main/java/com/dailymoneyregister/feature/reporting/domain/ReportingModels.kt:649-650` defaults `openingCash` and `expectedCash` to null.
+- `app/src/main/java/com/dailymoneyregister/feature/reporting/data/ReportingAggregator.kt:243-285` constructs the summary but does not set either field. In the current path, expected cash is therefore not available in the PDF. Day Closing's expected cash calculation is a separate shift calculation and is not wired into this report summary.
+
+### A-040 — Notification time is displayed as raw server timestamp; PDF and operational screens use mixed timezones
+**Status: CONFIRMED**
+- `supabase/migrations/20261015183613_fix_cashier_expense_sync_and_day_close_notifications.sql:238-250` puts `NEW.occurred_at`, `NEW.received_at`, and `NEW.branch_timezone_id` into the notification payload.
+- `app/src/main/java/com/dailymoneyregister/feature/notifications/ui/NotificationsScreen.kt:154` displays `notification.createdAt` by replacing `T` and truncating fractional seconds; it does not convert the timestamp, so the serialized UTC timestamp remains UTC.
+- Branch-timezone formatters: `DayClosingPresentation.kt:80-98`; `HistoryReadModel.kt:183-205`; `HistoryScreen.kt:250-265,412-427`; `ReportingUiProjection.kt:459-465`; `TransactionDetailsScreen.kt:1820-1825`; `RegisterExpensePresentation.kt:45-55`; `RecentTransactionsPanel.kt:252-255` (default `Asia/Muscat`).
+- PDF report period/date uses selected branch/session branch timezone with system-default fallback: `ReportingPdfActions.kt:109-143`.
+- Device/system-default formatters: `InvoiceSharing.kt:97-100`; `ReceiptReadModel.kt:49-52`; `InvoicePdfRenderer.kt:404-407`; `CouponCompactDialogR7A.kt:1894-1897`. `CustomerFormatting.kt:10-22` uses active-branch timezone with system-default fallback.
+- `CustomerExcelExporter.kt:539,563,691` uses `SimpleDateFormat` without explicitly setting a timezone, so it uses the device/JVM default timezone.
+- Recommendation: standardize user-facing timestamps on the branch timezone and explicitly format notification payload `closed_at` using its `branch_timezone_id`; retain UTC for machine-readable storage and logs.
+
+### A-041 — Collision rows are fail-closed but have no automatic self-service recovery path
+**Status: CONFIRMED**
+- `RemoteFinancialSyncRepository.kt:126-136,280-320` turns a non-ACK receipt or recognized `OPERATION_COLLISION` into `NeedsAttention`.
+- `FinancialSyncOutboxPolicy.kt:27-78` maps that receipt to `NEEDS_ATTENTION`.
+- `FinancialSyncEngine.kt:258-267,303-323` persists the attention state and reports an admin-visible problem.
+- `FinancialSyncOutboxDao.kt:42-70` only selects `QUEUED` and `WAITING_RETRY` for upload; it does not automatically retry `NEEDS_ATTENTION`. The DAO exposes requeue for `AUTH_REQUIRED`, but no corresponding collision reset/requeue method was found.
+- The app fails closed and does not silently acknowledge a conflicting digest. However, no in-app recovery workflow was found. Recovery requires a supported, audited reconciliation of the stored and incoming operation evidence; users cannot safely resolve this by retrying or changing the operation ID themselves.
+
+### A-042 — Release updater versioning, integrity checks, and repository visibility dependency
+**Status: CONFIRMED**
+- `app/build.gradle.kts:58-59`: `versionCode` comes from `GITHUB_RUN_NUMBER`, falling back to `1`; `versionName` is `1.0.<run number>`, falling back to `1.0.0`.
+- `app/src/main/java/com/dailymoneyregister/core/update/ReleaseUpdater.kt:22-35,38-86`: checks the public GitHub latest-release API, requires a stable non-draft release, accepts only tags `v1.0.N`, and looks for `paid-due-v1.0.N.apk`. It compares the release version number with the installed `longVersionCode`.
+- `ReleaseUpdater.kt:89-145`: downloads over HTTPS, enforces a 150 MB cap, computes SHA-256 and compares it to GitHub's release asset `digest` before opening Android's installer. Android's package installer independently enforces installed-app signing identity; the app does not itself verify the APK certificate.
+- Because the updater uses unauthenticated public GitHub release API and browser-download URLs, making the repository private would break update discovery/download for ordinary installs unless an authenticated distribution endpoint or other public release channel is provided.
+
+### A-043 — Scan output committed; lint still pending a successful run
+**Status: IN PROGRESS**
+- The scan report is committed at `release-audit/scan-results.md`; its first run recorded Gradle exit 126 because the wrapper file was not executable in the runner. The temporary workflow was changed to invoke `bash ./gradlew`; a fresh run is in progress. Do not treat its prior zero-lint-report output as a clean lint result.
+- The committed heuristic scan found 807 top-level Kotlin declarations and 131 zero/one textual-mention candidates, 232 unreferenced-file candidates, zero files at least 1 MB, and 3 exact-hash duplicate groups. These are candidate lists, not deletion instructions. The duplicate groups include launcher XMLs, a staged SQL/migration pair, and two identical staff endpoint files. No files were deleted.
+
+## GitHub pull request disposition recommendations (all 20 open PRs as of 2026-10-25)
+| PR | Last updated (UTC) | Recommendation |
+|---|---|---|
+| #77 Localization integrity workflow | 2026-10-25 13:02 | Keep open; review path filters, run evidence, and duplicate workflow cost before merge. |
+| #72 Collision evidence | 2026-10-24 18:03 | Keep pending forensic review; do not treat instrumentation as a recovery fix. |
+| #68 Expense correction/void reporting | 2026-10-23 13:10 | Keep; require regression cases for 5.000 → 0.599 correction, void, reporting, and Day Closing counters. |
+| #64 Legacy UUID sync acknowledgement | 2026-10-23 08:20 | Review against current main and regression tests; close if superseded. |
+| #63 Sync diagnostics (draft) | 2026-10-23 07:46 | Keep only if diagnostics are still needed; otherwise close after confirming no unique fix. |
+| #60 13-operation certification gate | 2026-10-23 03:56 | Close or re-scope as non-release certification; user has said this gate is not a release requirement. |
+| #58 Release APK workflow fix | 2026-10-20 22:30 | Compare with current release workflow; close if main already contains the fix. |
+| #49 Signed build request | 2026-10-19 17:22 | Close as a completed/obsolete release request if no active deliverable remains. |
+| #43 Financial sync/reconciliation (draft) | 2026-10-18 14:08 | Keep only with an explicit narrowed scope and evidence; avoid merging a broad bundle. |
+| #36 Production-readiness remediation (draft) | 2026-10-13 20:07 | Compare each change to main; close if superseded, otherwise split into focused PRs. |
+| #25 Permission refresh (draft) | 2026-10-14 00:57 | Compare to admin-only/cashier-retirement direction; close if obsolete. |
+| #23 Android release SDK package | 2026-10-12 17:21 | Verify main SDK configuration; close if redundant. |
+| #20 Auth integration (draft) | 2026-10-12 13:49 | Review against current Supabase auth path; close if superseded. |
+| #18 Auth authority (draft) | 2026-10-11 23:17 | Compare against main auth flow; close if superseded. |
+| #14 Notification migration ordering (draft) | 2026-10-11 01:27 | Keep only if migration history proves it is still needed; no blind migration reorder. |
+| #13 Auth DB hardening (draft) | 2026-10-11 01:25 | Review migrations against live schema before any merge; close if superseded. |
+| #12 Auth/session hardening proposals (draft) | 2026-10-11 01:04 | Treat as proposal; close if no longer planned. |
+| #10 Cashier session migrations (draft) | 2026-10-10 23:33 | Compare to retired cashier scope and applied migration history; close if obsolete. |
+| #8 DB source reconciliation | 2026-10-10 22:30 | Keep until source/live migration drift is reconciled; no automatic merge. |
+| #1 Cross-device sync foundation (WIP) | 2026-10-08 07:22 | Do not merge as-is; preserve as design/archive unless an approved, focused implementation is still required. |
+
+## Branch inventory (95 branches; latest commit date in UTC)
+Recommendation for branches not attached to an open PR: retain until the unique diff from `main` is reviewed; archive/delete only after confirming all unique changes are merged or intentionally abandoned and with owner approval. No branch was deleted.
+
+| Branch | Last commit date (UTC) | Recommendation |
+|---|---|---|
+| `audit/release-readiness-2026-10-25` | 2026-10-25 | Keep until audit is approved and complete. |
+| `auth-authority` | 2026-10-11 | Review unique diff; archive only if superseded. |
+| `auth-authority-release` | 2026-10-11 | Open PR #18; compare to main, close PR if superseded. |
+| `auth-db-hardening` | 2026-10-11 | Open PR #13; review migrations against live schema before disposition. |
+| `auth-db-hardening-proposals` | 2026-10-11 | Open PR #12; close if proposal no longer planned. |
+| `auth-integration-reconciled-api37-20261012` | 2026-10-12 | Open PR #20; compare to current auth path, close if superseded. |
+| `auth-integration-selective-api37-20261012` | 2026-10-12 | Review unique diff; archive only if superseded. |
+| `auth-session-migration-proposals` | 2026-10-10 | Open PR #10; compare to applied migrations and retired cashier scope. |
+| `boardlock/cross-device-financial-sync-foundation` | 2026-10-08 | Open PR #1; do not merge WIP; archive only after scope decision. |
+| `boardlock/supabase-primary-online-offline-v1` | 2026-10-10 | Review unique diff; archive only if superseded. |
+| `chore/localization-integrity-workflow-only` | 2026-10-25 | Open PR #77; retain until workflow review and CI result. |
+| `ci/gradle-cache-consolidation-20261012` | 2026-10-12 | Review unique diff; archive only if superseded. |
+| `ci-results` | 2026-10-23 | Review branch purpose and unique diff before archive. |
+| `ci-signing` | 2026-10-12 | Review unique diff carefully; preserve until signing workflow ownership is clear. |
+| `ci-smoke-test` | 2026-10-25 | Review smoke-test purpose and unique diff before archive. |
+| `claude/audit-fixes` | 2026-10-09 | Review unique diff; archive only if superseded. |
+| `diagnostic/financial-sync-logging-v1.0.150` | 2026-10-23 | Open PR #63; close if diagnostics no longer needed. |
+| `diagnostic/pr39-migration-15-16-head` | 2026-10-15 | Review unique diff; archive only if superseded. |
+| `diagnostic/pr39-migration-15-16` | 2026-10-15 | Review unique diff; archive only if superseded. |
+| `feat/in-app-release-updater` | 2026-10-13 | Review unique diff; likely historical feature branch, archive only if superseded. |
+| `feature/business-notifications-permission-requests-20261010` | 2026-10-10 | Review unique diff; archive only if superseded. |
+| `feature/customer-excel-export` | 2026-10-19 | Review unique diff; archive only if fully integrated. |
+| `feature/pdf-export-and-report-sharing` | 2026-10-18 | Review unique diff; archive only if fully integrated. |
+| `feature/remove-cashier-facing-access` | 2026-10-23 | Compare with admin-only main; retain until unique changes are confirmed integrated. |
+| `feature/supabase-notification-inbox-day-close-permissions-20261010` | 2026-10-10 | Review unique diff and notification migration state before archive. |
+| `fix/admin-customer-directory-sync-retired-rpcs` | 2026-10-24 | Review unique diff; preserve until customer-directory retirement path is confirmed. |
+| `fix/admin-expense-lifecycle-and-close-sync-2026-10-23` | 2026-10-23 | Review unique diff against #68 and current main; avoid parallel fixes. |
+| `fix/android-release-sdk-package-20261012` | 2026-10-12 | Open PR #23; close if main SDK setup is already equivalent. |
+| `fix/backend-compatibility-audit-2026-10` | 2026-10-09 | Review unique diff; archive only if superseded. |
+| `fix/business-wide-customer-directory` | 2026-10-13 | Review unique diff; archive only if superseded. |
+| `fix/cash-shift-cloud-owner` | 2026-10-15 | Review unique diff against current shift sync implementation. |
+| `fix/cashier-cloud-session-and-permission-refresh-20261013` | 2026-10-13 | Review against cashier retirement; close/archive if obsolete. |
+| `fix/cashier-cloud-session-at-activation-20261014` | 2026-10-14 | Review against cashier retirement; close/archive if obsolete. |
+| `fix/cashier-permission-refresh-20261014` | 2026-10-14 | Review against cashier retirement; close/archive if obsolete. |
+| `fix/ci-baseline-compilation-and-cli` | 2026-10-12 | Review unique diff; archive only if superseded. |
+| `fix/close-shift-outbox-diagnostics-2026-10-23` | 2026-10-23 | Review unique diff and diagnostics value; avoid duplicate diagnostics PRs. |
+| `fix/cloud-only-cash-shift-owner-v16` | 2026-10-15 | Review unique diff against current cash-shift model. |
+| `fix/cross-device-sync-mainline-2026-10-13` | 2026-10-13 | Review unique diff against current main; archive only if superseded. |
+| `fix/customer-excel-export-integrity` | 2026-10-19 | Review unique diff and export tests before archive. |
+| `fix/customer-sync-configured-backend-url` | 2026-10-13 | Review unique diff; archive only if superseded. |
+| `fix/customer-sync-path-normalization` | 2026-10-13 | Review unique diff; archive only if superseded. |
+| `fix/daily-sales-cash-bank-reconciliation-2026-10-20` | 2026-10-20 | Review unique diff and financial regression coverage. |
+| `fix/db-source-reconciliation-20261011` | 2026-10-10 | Open PR #8; retain until migration/source drift is reconciled. |
+| `fix/direct-cashier-invite-app-launch-20261010` | 2026-10-10 | Review against cashier retirement; close/archive if obsolete. |
+| `fix/enable-implemented-inbound-operations` | 2026-10-13 | Review unique diff and inbound-operation gate; no broad enablement without tests. |
+| `fix/enable-release-sale-inbound` | 2026-10-13 | Review unique diff and release evidence; archive only if superseded. |
+| `fix/expense-lifecycle-reporting-and-collision` | 2026-10-23 | Open PR #68; retain for focused expense lifecycle regression review. |
+| `fix/financial-refund-void-reconciliation-2026-10-20` | 2026-10-19 | Review unique diff and financial tests before archive. |
+| `fix/financial-sync-legacy-uuid-ack` | 2026-10-23 | Open PR #64; review compatibility tests; close if superseded. |
+| `fix/full-language-audit-2026-10-25` | 2026-10-25 | Review against current localization branch; archive if superseded. |
+| `fix/https-cashier-invites-20261010` | 2026-10-10 | Review against retired cashier feature; close/archive if obsolete. |
+| `fix/inbound-refund-historical-actor-2026-10` | 2026-10-18 | Review unique diff and audit attribution tests. |
+| `fix/inbound-rejection-notifications-and-recent-activity-2026-10-21` | 2026-10-20 | Review unique diff; archive only if superseded. |
+| `fix/language-only-clean-2026-10-25` | 2026-10-25 | Compare to #77/main; archive if localization changes are fully integrated. |
+| `fix/main-release-install-readiness` | 2026-10-13 | Review unique diff against current release workflow. |
+| `fix/notification-migration-version-alignment` | 2026-10-11 | Review migration ordering against live history; no blind merge. |
+| `fix/production-readiness-financial-sync` | 2026-10-15 | Review unique diff; split any remaining work into focused PRs. |
+| `fix/production-readiness-remediation-2026-10-13` | 2026-10-13 | Open PR #36; close if superseded, otherwise split scope. |
+| `fix/real-application-financial-certification-driver` | 2026-10-21 | Review test value; do not make the 13-operation gate a release blocker. |
+| `fix/receipt-note-test-fixture` | 2026-10-21 | Review unique diff; archive only if test fixture is integrated. |
+| `fix/refund-coupon-integrity-recent-rows-20261019` | 2026-10-19 | Review unique diff and refund regression coverage. |
+| `fix/release-apk-build-from-main-2026-10-21` | 2026-10-20 | Open PR #58; close if current main release workflow already builds triggering commit. |
+| `fix/release-instrumentation-test-failures` | 2026-10-13 | Review unique diff; archive only if superseded. |
+| `fix/reporting-expense-lifecycle` | 2026-10-24 | Review unique diff against #68; avoid parallel reporting fixes. |
+| `fix/reporting-integrity-diagnostics-unclosed-shifts` | 2026-10-23 | Review diagnostics usefulness; ensure normal counted-but-unclosed shifts do not block reports. |
+| `fix/safe-release-validation-gates` | 2026-10-13 | Review unique diff and release gate scope. |
+| `fix/security-definer-least-privilege-20261012` | 2026-10-11 | Review unique diff privately; do not publish security findings in report. |
+| `fix/security-definer-trigger-grants` | 2026-10-12 | Review unique diff privately; do not publish security findings in report. |
+| `fix/sprint-1-5-financial-reconciliation-2026-10-18` | 2026-10-18 | Open PR #43; narrow scope and prove each change before merge. |
+| `fix/staff-invite-https-manual-handoff-20261011` | 2026-10-10 | Review against retired staff endpoints; close/archive if obsolete. |
+| `fix/staff-invite-manual-handoff-20261011` | 2026-10-10 | Review against retired staff endpoints; close/archive if obsolete. |
+| `fix/supabase-live-source-reconciliation` | 2026-10-14 | Review unique diff and live migration state before archive. |
+| `fix/supabase-permission-session-refresh` | 2026-10-14 | Open PR #25; close if cashier-specific path is retired. |
+| `fix/vat-taxable-base-and-recovery-compat` | 2026-10-21 | Review unique diff and VAT/recovery tests. |
+| `fix/void-aware-financial-views-2026-10-24` | 2026-10-24 | Review unique diff against current expense/reporting implementation. |
+| `fix/whatsapp-recipient-routing-2026-10-16` | 2026-10-16 | Review unique diff; archive only if superseded. |
+| `forensics/day-close-collision-audit-2026-10-24` | 2026-10-24 | Open PR #72; retain until forensic evidence review is complete. |
+| `hardening/financial-sync-tenant-scope-20261019` | 2026-10-19 | Review tenant-scope changes privately; verify current source before archive. |
+| `hardening/supabase-integrity-indexes-20261019` | 2026-10-19 | Review unique diff and query-plan need before archive. |
+| `main` | 2026-10-25 | Preserve; source of truth. |
+| `migration/offline-first-supabase-v1` | 2026-10-09 | Review unique diff and migration applicability before archive. |
+| `migration/supabase-auth-invites-no-cloudflare-20261010` | 2026-10-10 | Review against current auth flow and retired staff endpoints. |
+| `migration/supabase-edge-only` | 2026-10-09 | Review unique diff and live migration state before archive. |
+| `migration-only-cashier-financial-contract` | 2026-10-11 | Review against cashier retirement and applied migrations. |
+| `notification-migration-order-proposal` | 2026-10-11 | Open PR #14; retain only if migration history proves need. |
+| `notifications-migration-production-reconcile` | 2026-10-11 | Review migration drift before any disposition. |
+| `release/build-signed-apk-after-pr48` | 2026-10-19 | Open PR #49; close if release request is already satisfied. |
+| `release/cashier-financial-migration` | 2026-10-11 | Review against cashier retirement and migration history. |
+| `simplify/single-owner-login-audit-2026-10` | 2026-10-17 | Review unique diff and auth behavior before archive. |
+| `sync-wip` | 2026-10-09 | Review unique diff; do not merge WIP without explicit scope. |
+| `test/financial-certification-13-operation-gate` | 2026-10-23 | Open PR #60; close or re-scope as non-release certification. |
+| `ux/cfo-reporting-clarity` | 2026-10-20 | Review unique diff; archive if current labels are integrated. |
+| `ux/financial-clarity-transaction-rows-2026-10-18` | 2026-10-18 | Review unique diff; archive if current presentation is integrated. |
+| `ux/remove-cfo-wall-of-text-2026-10-20` | 2026-10-20 | Review unique diff; archive if current presentation is integrated. |
+| `validation/room-migration-v14-ci` | 2026-10-13 | Review unique diff and migration test value before archive. |
