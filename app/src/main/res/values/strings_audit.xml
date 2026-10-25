@@ -99,4 +99,10 @@
     <string name="audit_update_prepare_failed">Could not prepare the update.</string>
     <string name="audit_update_button_check">Check for updates</string>
     <string name="audit_update_button_update">Update</string>
+    <string name="audit_receipt_recipient_phone_required">A valid recipient phone number is required to share this receipt.</string>
+    <string name="audit_permission_denied">Permission denied</string>
+    <string name="audit_saved_sale_details_unavailable">Saved sale details are unavailable.</string>
+    <string name="audit_receipt_unavailable">Receipt is unavailable for this record.</string>
+    <string name="audit_credit_invoice_unavailable">Credit invoice details are unavailable.</string>
+    <string name="audit_share_via_whatsapp">Share via WhatsApp</string>
 </resources>
