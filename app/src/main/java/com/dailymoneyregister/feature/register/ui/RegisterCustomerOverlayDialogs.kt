@@ -563,7 +563,7 @@ internal fun CouponWalletDialog(
                     Text(stringResource(R.string.authorized_users_title), fontWeight = FontWeight.SemiBold)
                     details.authorizedUsers.forEach { authUser ->
                         val latestName = authUser.name
-                        Text("ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ $latestName${if (authUser.user.isPurchaser) " (" + stringResource(R.string.coupon_purchaser_tag) + ")" else ""}")
+                        Text("• $latestName${if (authUser.user.isPurchaser) " (" + stringResource(R.string.coupon_purchaser_tag) + ")" else ""}")
                         if (authUser.isActive) {
                             Row {
                                 TextButton(onClick = { editingId = authUser.user.id; userName = latestName }, enabled = !locked) {
