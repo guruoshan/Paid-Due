@@ -118,6 +118,7 @@ fun CustomerDetailScreen(
             businessName = businessName,
             customerName = currentCustomer.name,
             customerPhone = phone
+            labels = UniversalWhatsAppMessageComposer.MessageLabels.from(LocalContext.current)
         )
     }
 
