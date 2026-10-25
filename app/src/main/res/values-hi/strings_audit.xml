@@ -105,4 +105,17 @@
     <string name="audit_receipt_unavailable">इस रिकॉर्ड की रसीद उपलब्ध नहीं है।</string>
     <string name="audit_credit_invoice_unavailable">उधार चालान का विवरण उपलब्ध नहीं है।</string>
     <string name="audit_share_via_whatsapp">WhatsApp के ज़रिए साझा करें</string>
+    <string name="audit_expense_details">खर्च विवरण</string>
+    <string name="audit_no_phone_for_expense">इस खर्च के लिए कोई फ़ोन नंबर सहेजा नहीं गया।</string>
+    <string name="audit_supporting_documents">सहायक दस्तावेज़</string>
+    <string name="audit_no_supporting_documents">कोई सहायक दस्तावेज़ संलग्न नहीं है।</string>
+    <string name="audit_supporting_document_number">सहायक दस्तावेज़ %1$d</string>
+    <string name="audit_what_happened_transaction">इस लेन-देन में क्या हुआ</string>
+    <string name="audit_select_credit_customer">उस ग्राहक को चुनें जो यह बिक्री उधार पर ले रहा है।</string>
+    <string name="audit_credit_sale_no_payment">अभी कोई भुगतान नहीं लिया जाता। राशि ग्राहक की उधार देनदारी बन जाती है।</string>
+    <string name="audit_ref_label">संदर्भ: %1$s</string>
+    <string name="audit_time_label">समय: %1$s</string>
+    <string name="audit_void_reason_label">रद्द करने का कारण: %1$s</string>
+    <string name="audit_status_label">स्थिति: %1$s</string>
+    <string name="audit_existing_customer">मौजूदा ग्राहक: %1$s</string>
 </resources>
