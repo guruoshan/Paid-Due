@@ -157,4 +157,6 @@
     <string name="audit_searching">खोजा जा रहा है...</string>
     <string name="audit_saving">सहेजा जा रहा है...</string>
     <string name="audit_bullet">•</string>
+    <string name="audit_search_customer">ग्राहक खोजें</string>
+    <string name="audit_confirm_credit_sale">उधार बिक्री की पुष्टि करें</string>
 </resources>
