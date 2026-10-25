@@ -1,5 +1,7 @@
 package com.dailymoneyregister.feature.customers.export
 
+import com.dailymoneyregister.R
+
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -17,14 +19,14 @@ class CustomerExcelExportViewModel @Inject constructor(
     @ApplicationContext private val context: Context
 ) : ViewModel() {
     fun exportAndShare() {
-        Toast.makeText(context, "Preparing customer Excel workbook…", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.audit_customer_export_preparing), Toast.LENGTH_SHORT).show()
         viewModelScope.launch {
             val result = exporter.export()
             result.onSuccess { uri ->
-                Toast.makeText(context, "Saved to Downloads/PaidDue. Opening share options…", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.audit_customer_export_saved), Toast.LENGTH_LONG).show()
                 exporter.share(uri)
             }.onFailure { error ->
-                Toast.makeText(context, "Customer export failed: " + (error.message ?: "unknown error"), Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.audit_customer_export_failed, error.message ?: context.getString(R.string.audit_unknown_error)), Toast.LENGTH_LONG).show()
             }
         }
     }
