@@ -99,4 +99,10 @@
     <string name="audit_update_prepare_failed">تعذر إعداد التحديث.</string>
     <string name="audit_update_button_check">التحقق من التحديثات</string>
     <string name="audit_update_button_update">تحديث</string>
+    <string name="audit_receipt_recipient_phone_required">يلزم رقم هاتف صالح للمستلم لمشاركة هذا الإيصال.</string>
+    <string name="audit_permission_denied">تم رفض الإذن</string>
+    <string name="audit_saved_sale_details_unavailable">تفاصيل البيع المحفوظة غير متاحة.</string>
+    <string name="audit_receipt_unavailable">الإيصال غير متاح لهذا السجل.</string>
+    <string name="audit_credit_invoice_unavailable">تفاصيل فاتورة الائتمان غير متاحة.</string>
+    <string name="audit_share_via_whatsapp">المشاركة عبر WhatsApp</string>
 </resources>
