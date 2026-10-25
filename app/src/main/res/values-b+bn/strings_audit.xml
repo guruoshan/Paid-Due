@@ -105,4 +105,17 @@
     <string name="audit_receipt_unavailable">এই রেকর্ডের রসিদ পাওয়া যাচ্ছে না।</string>
     <string name="audit_credit_invoice_unavailable">বাকির ইনভয়েসের বিবরণ পাওয়া যাচ্ছে না।</string>
     <string name="audit_share_via_whatsapp">WhatsApp-এ শেয়ার করুন</string>
+    <string name="audit_expense_details">খরচের বিবরণ</string>
+    <string name="audit_no_phone_for_expense">এই খরচের জন্য কোনো ফোন নম্বর সংরক্ষণ করা হয়নি।</string>
+    <string name="audit_supporting_documents">সহায়ক নথি</string>
+    <string name="audit_no_supporting_documents">কোনো সহায়ক নথি সংযুক্ত নেই।</string>
+    <string name="audit_supporting_document_number">সহায়ক নথি %1$d</string>
+    <string name="audit_what_happened_transaction">এই লেনদেনে কী ঘটেছে</string>
+    <string name="audit_select_credit_customer">যে গ্রাহক বাকিতে এই বিক্রি নিচ্ছেন তাঁকে নির্বাচন করুন।</string>
+    <string name="audit_credit_sale_no_payment">এখন কোনো পেমেন্ট নেওয়া হয় না। পরিমাণটি গ্রাহকের বাকির দায় হয়ে যায়।</string>
+    <string name="audit_ref_label">রেফারেন্স: %1$s</string>
+    <string name="audit_time_label">সময়: %1$s</string>
+    <string name="audit_void_reason_label">বাতিলের কারণ: %1$s</string>
+    <string name="audit_status_label">অবস্থা: %1$s</string>
+    <string name="audit_existing_customer">বিদ্যমান গ্রাহক: %1$s</string>
 </resources>
