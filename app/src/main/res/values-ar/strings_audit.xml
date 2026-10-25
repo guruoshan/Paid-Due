@@ -140,4 +140,17 @@
     <string name="audit_status_recorded">مسجل</string>
     <string name="audit_payment_prefix">الدفع: %1$s</string>
     <string name="audit_receipt_recorded_payment">دفعة مسجلة</string>
+    <string name="audit_receipt_heading">إيصال</string>
+    <string name="audit_receipt_reference">المرجع: %1$s</string>
+    <string name="audit_receipt_date_time">التاريخ والوقت: %1$s</string>
+    <string name="audit_receipt_customer">العميل: %1$s</string>
+    <string name="audit_receipt_subtotal">المجموع الفرعي: %1$s</string>
+    <string name="audit_receipt_tax">الضريبة: %1$s</string>
+    <string name="audit_receipt_shipping">الشحن: %1$s</string>
+    <string name="audit_receipt_packing">التغليف: %1$s</string>
+    <string name="audit_receipt_total">الإجمالي: %1$s</string>
+    <string name="audit_receipt_note">ملاحظة: %1$s</string>
+    <string name="audit_thank_you_business">شكرًا لتعاملك معنا.</string>
+    <string name="audit_receipt_customer_label">العميل</string>
+    <string name="audit_receipt_business_name">Paid&amp;Due</string>
 </resources>
