@@ -93,8 +93,6 @@ jobs:
                 if os.path.getsize(p)>3000000: continue
                 txt=open(p,encoding="utf-8",errors="ignore").read()
                 files.append((p,txt,os.path.getsize(p)))
-                for other in files:
-                  pass
               except Exception: continue
           corpus="\n".join(t for _,t,_ in files)
           z=[]
