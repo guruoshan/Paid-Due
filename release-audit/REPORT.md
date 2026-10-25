@@ -195,7 +195,7 @@ Every finding has an ID, evidence, verification method, and status.
 
 - **A-012 / A-020 (medium-large):** prove multi-device operation identity, collision behavior and consistency across all financial surfaces. Risk: reports can be stale/unavailable and financial operations can remain unacknowledged. Keep collision rejection fail-closed.
 - **A-016 / A-017 / A-018 / A-019 (medium-large):** verify expense correction/void projection, Day Closing counts and expected cash position with regression fixtures. Risk: incorrect totals or blocked reports.
-- **A-024 / A-027 (medium):** obtain a fresh passing full test/release-build result and inspect the signed release artifact before customer distribution. Risk: shipping an unverified build.
+- **A-024 / A-027 (medium):** obtain a fresh passing full test/release-build result and inspect the produced distribution artifact before customer distribution. Risk: shipping an unverified build.
 - **A-014 / A-013 (large):** reconcile live schema/migration history and document a safe, verified test reset only if needed. Risk: migration failure or unintended financial evidence deletion.
 
 ### P1 — Before wide use
