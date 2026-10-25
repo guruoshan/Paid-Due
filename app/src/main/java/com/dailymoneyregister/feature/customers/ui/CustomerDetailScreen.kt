@@ -117,7 +117,7 @@ fun CustomerDetailScreen(
         return CustomerWhatsAppMessageComposer.Party(
             businessName = businessName,
             customerName = currentCustomer.name,
-            customerPhone = phone
+            customerPhone = phone,
             labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
         )
     }
@@ -792,7 +792,7 @@ fun CustomerDetailScreen(
                                                                         party = UniversalWhatsAppMessageComposer.Party(
                                                                             businessName = paymentReceiptParty.businessName,
                                                                             customerName = paymentReceiptParty.customerName,
-                                                                            customerPhone = paymentReceiptParty.customerPhone
+                                                                            customerPhone = paymentReceiptParty.customerPhone,
                                                                             labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                                                                         ),
                                                                         formattedAmount =
