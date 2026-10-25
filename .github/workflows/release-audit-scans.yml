@@ -95,9 +95,10 @@ jobs:
                 files.append((p,txt,os.path.getsize(p)))
               except Exception: continue
           corpus="\n".join(t for _,t,_ in files)
+          mentions=collections.Counter(re.findall(r"\b[A-Za-z_][A-Za-z0-9_]*\b",corpus))
           z=[]
           for name,path,line,kind in decl:
-            n=len(re.findall(r"\b"+re.escape(name)+r"\b",corpus))
+            n=mentions[name]
             if n<=1: z.append((name,path,line,kind,n))
           print(f"- Declarations parsed: {len(decl)}; zero/one-mention candidates: {len(z)}")
           for name,path,line,kind,n in sorted(z): print(f"- `{path}:{line}` {kind} `{name}` (mentions={n})")
@@ -106,7 +107,7 @@ jobs:
           for p,txt,size in files:
             if not p.startswith("./app/src/"): continue
             base=os.path.splitext(os.path.basename(p))[0]
-            if len(base)>3 and len(re.findall(r"(?<![A-Za-z0-9_])"+re.escape(base)+r"(?![A-Za-z0-9_])",corpus))<=1:
+            if len(base)>3 and mentions[base]<=1:
               candidates.append(p)
           print(f"- Candidate count: {len(candidates)}")
           for p in sorted(candidates): print(f"- `{p}`")
