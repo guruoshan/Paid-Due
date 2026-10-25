@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pdf_generated_by">Paid&amp;Due द्वारा बनाया गया • पृष्ठ %1$d</string>
+    <string name="pdf_registered_business">पंजीकृत व्यवसाय</string>
+    <string name="pdf_continued">जारी</string>
+    <string name="pdf_branch">शाखा: %1$s</string>
+    <string name="pdf_report_date">रिपोर्ट की तारीख: %1$s</string>
+    <string name="pdf_period">अवधि: %1$s</string>
+    <string name="pdf_header_date_time">तारीख / समय</string>
+    <string name="pdf_header_type">प्रकार</string>
+    <string name="pdf_header_reference">संदर्भ</string>
+    <string name="pdf_header_customer">ग्राहक</string>
+    <string name="pdf_header_payment">भुगतान</string>
+    <string name="pdf_header_amount">राशि</string>
+    <string name="pdf_empty_transactions">इस रिपोर्ट अवधि में कोई लेन-देन नहीं है।</string>
+</resources>
