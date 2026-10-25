@@ -68,7 +68,9 @@ object ReportingPdfRenderer {
         fun paint(color: Int, size: Float, bold: Boolean = false) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color
             textSize = size
-            if (bold) typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            // Android's sans-serif family uses platform fallback glyphs for Arabic,
+            // Urdu, Devanagari, and Bengali; StaticLayout then applies script shaping.
+            typeface = Typeface.create("sans-serif", if (bold) Typeface.BOLD else Typeface.NORMAL)
         }
         val titlePaint = paint(ink, 20f, true)
         val businessPaint = paint(ink, 14f, true)
