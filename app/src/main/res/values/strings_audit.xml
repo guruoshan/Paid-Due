@@ -159,4 +159,5 @@
     <string name="audit_bullet">•</string>
     <string name="audit_search_customer">Search Customer</string>
     <string name="audit_confirm_credit_sale">Confirm Credit Sale</string>
+    <string name="audit_coupon_bonus">Bonus</string>
 </resources>
