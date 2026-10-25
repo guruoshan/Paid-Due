@@ -312,50 +312,6 @@
     <string name="coupon_purchase_purchaser_included">ক্রেতাকে অনুমোদিত ব্যবহারকারী হিসেবে অন্তর্ভুক্ত করা হয়েছে</string>
     <string name="coupon_remainder_amount">অবশিষ্ট পরিমাণ: %1$s</string>
     <string name="online_qr_not_configured">পেমেন্ট QR কনফিগার করা হয়নি</string>
-    <string name="online_payment_settings">অনলাইন পেমেন্ট সেটিংস</string>
-    <string name="online_payment_settings_desc">এই শাখায় গ্রাহকেরা যে মার্চেন্ট QR দিয়ে পেমেন্ট করেন, সেটি সেট করুন।</string>
-    <string name="choose_merchant_qr">মার্চেন্ট QR নির্বাচন করুন</string>
-    <string name="replace_merchant_qr">মার্চেন্ট QR বদলান</string>
-    <string name="save_merchant_qr">মার্চেন্ট QR সংরক্ষণ করুন</string>
-    <string name="merchant_qr_preview">মার্চেন্ট পেমেন্ট QR-এর পূর্বরূপ</string>
-    <string name="qr_display_label">প্রদর্শনের নাম</string>
-    <string name="qr_bank_app_label">ব্যাংক বা অ্যাপের নাম</string>
-    <string name="qr_account_label">অ্যাকাউন্টের নাম (ঐচ্ছিক)</string>
-    <string name="online_payment_title">অনলাইন পেমেন্ট</string>
-    <string name="amount_due">বকেয়া পরিমাণ: %1$s</string>
-    <string name="online_qr_unavailable">QR ছবি পাওয়া যাচ্ছে না</string>
-    <string name="payment_received">পেমেন্ট গ্রহণ করা হয়েছে</string>
-    <string name="coupon_purchase_title">কুপন বিক্রি করুন</string>
-    <string name="coupon_use_action">কুপন ব্যবহার করুন</string>
-    <string name="coupon_change_customer">গ্রাহক পরিবর্তন করুন</string>
-    <string name="coupon_purchase_saved">কুপন কেনা সংরক্ষিত হয়েছে</string>
-    <string name="coupon_purchase_name">গ্রাহকের নাম</string>
-    <string name="coupon_purchase_confirm">পেমেন্ট গ্রহণ করুন — কুপন বিক্রি করুন</string>
-    <string name="coupon_purchase_retry">আবার কেনার চেষ্টা করুন</string>
-    <string name="coupon_purchase_done">সম্পন্ন</string>
-    <string name="coupon_top_up_action">ওয়ালেটে টাকা যোগ করুন</string>
-    <string name="coupon_top_up_label">কুপন টপ-আপ</string>
-    <string name="coupon_share_updated_balance">WhatsApp-এ আপডেট করা ব্যালেন্স শেয়ার করুন</string>
-    <string name="coupon_edit_user">সম্পাদনা করুন</string>
-    <string name="coupon_deactivate_user">নিষ্ক্রিয় করুন</string>
-    <string name="coupon_user_inactive">নিষ্ক্রিয়</string>
-    <string name="coupon_authorized_user_name">অনুমোদিত ব্যবহারকারীর নাম</string>
-    <string name="coupon_add_user">অনুমোদিত ব্যবহারকারী যোগ করুন</string>
-    <string name="coupon_save_user">নাম সংরক্ষণ করুন</string>
-    <string name="coupon_whatsapp_balance_message">হ্যালো %1$s,
-
-%2$s-এ আপনার বর্তমান কুপন ব্যালেন্স %3$s।
-
-ধন্যবাদ!
-
-Paid&amp;Due দ্বারা পরিচালিত</string>
-    <string name="coupon_whatsapp_invalid_phone">একটি বৈধ আন্তর্জাতিক ফোন নম্বর প্রয়োজন।</string>
-    <string name="coupon_whatsapp_open_failed">WhatsApp খোলা যায়নি।</string>
-    <string name="coupon_loading">লোড হচ্ছে…</string>
-    <string name="online_no_qr_configured">কোনো পেমেন্ট QR সেট করা নেই। পেমেন্ট পাওয়া নিশ্চিত করার পরও আপনি ম্যানুয়ালি অনলাইন পেমেন্ট নিশ্চিত করতে পারেন।</string>
-    <string name="online_add_qr">পেমেন্ট QR যোগ করুন</string>
-    <string name="online_customer_choice_hint">গ্রাহক এই QR স্ক্যান করতে পারেন অথবা অন্য অনলাইন বা ব্যাংক পদ্ধতিতে পেমেন্ট করতে পারেন।</string>
-    <string name="online_cashier_confirmation_warning">পেমেন্ট পাওয়া যাচাই করার পরই নিশ্চিত করুন।</string>
     <string name="dmr22_shift_closed">শিফট বন্ধ</string>
     <string name="dmr22_shift_closed_success">শিফট সফলভাবে বন্ধ হয়েছে।</string>
     <string name="dmr22_expected_cash">হিসাব অনুযায়ী প্রত্যাশিত নগদ ব্যালেন্স: %1$s</string>
