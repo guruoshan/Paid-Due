@@ -24,23 +24,23 @@ Scope: read-only audit of `main`; no application changes, merges, deletions, Sup
 | A1 Lint counts and unused resources/strings | DONE | `:app:lintDebug` succeeded in run 40228223025. Counts and the non-sensitive unused-resource list are in `scan-results.md`. |
 | A2 Top-level declarations with zero/one textual mentions | DONE (candidate scan only) | 807 declarations parsed; 131 candidates. Reflection/dynamic references can evade lexical counting; do not delete based on this list alone. |
 | A3 Unreferenced/large/duplicate files | DONE (candidate scan only) | 232 filename-mention candidates, 0 files >=1 MB, 3 exact duplicate groups. No files deleted. |
-| B1 RLS/policy catalog | DONE | Read-only SELECT completed; security detail only in chat. |
-| B2 Table grants | DONE | Read-only SELECT completed; security detail only in chat. |
-| B3 All SECURITY DEFINER execute ACLs | DONE | Catalog query covered all matching functions in public/private; complete role grouping is in chat only. |
+| B1 RLS/policy catalog | DONE | Read-only catalog SELECT completed; detailed result is chat-only. |
+| B2 Table grants | DONE | Read-only SELECT completed; detailed result is chat-only. |
+| B3 All SECURITY DEFINER execute ACLs | DONE | Catalog query covered all matching functions in public/private; complete role grouping is chat-only. |
 | B4 Storage buckets | DONE | Read-only query returned zero buckets. |
-| B5 Edge Function metadata/auth/key use | DONE | All five deployed functions inspected; detailed auth/key findings in chat only. |
-| B6 Android key type | DONE | Main app config and code search found publishable-key configuration; no service-role key reference was found in Android app source. This is source evidence, not a binary reverse-engineering certification. |
+| B5 Edge Function metadata/auth/key use | DONE | All five deployed functions inspected; detailed findings are chat-only. |
+| B6 Android key type | DONE | Main app configuration and Android source search completed; detailed key-type result is chat-only. Source search is not binary reverse-engineering certification. |
 | C1 Expense correction/void | SOURCE TRACE DONE; DEVICE CAUSE BLOCKED | Current code replaces 5.000 with 0.599 and computes a void from the effective 0.599. Same relevant code exists at tag v1.0.152. Cannot explain the phone's 5.599 display without local expense-event/settlement rows and exact installed artifact identity. |
 | C2 Day Closing lifecycle counts | DONE | Shift report increments counters for sale `RECORD_VOID`/`RECORD_AMOUNT_CORRECTION`, but does not increment for `RECORD_EXPENSE_VOID`/`RECORD_EXPENSE_CORRECTION`. |
 | C3 PDF Expected Cash | DONE | ReportingPdfActions reads nullable summary.expectedCash; ReportingAggregator does not populate it, so the current PDF path leaves it null. |
 | C4 Time formatting/timezones | DONE | Source paths and timezone categories recorded in REPORT.md; detailed call-site list in chat. |
 | C5 Collision queue recovery | DONE | Collision receipt maps to NEEDS_ATTENTION, uploader only selects QUEUED/WAITING_RETRY, and no collision-specific self-service requeue was found. The phone has no safe in-app resolution path in the inspected code. |
 | C6 ReleaseUpdateCard/versioning | DONE | GITHUB_RUN_NUMBER versioning, latest stable GitHub release lookup, tag/asset naming, SHA-256 comparison, Android installer signature enforcement, and private-repository breakage traced. |
-| S1 SECURITY DEFINER ACLs | DONE | Complete function/role list is chat-only. No anon/PUBLIC execute grant found among the queried public/private SECURITY DEFINER functions. |
-| S2 Tenant membership checks in ingest/fetch | DONE | SQL function definitions and migration source reviewed; checks are inside RPC functions. Citations are in chat. |
-| S3 API Edge bearer validation / privileged key | DONE | Handler only shape-checks the bearer before forwarding it; downstream PostgREST RPC validates the user JWT. The API helper uses the configured privileged key as apikey and also has a helper that uses it as Authorization for service-context RPCs; no key values exposed. |
+| S1 SECURITY DEFINER ACLs | DONE | Complete function/role list is chat-only. |
+| S2 Tenant membership checks in ingest/fetch | DONE | Live SQL function definitions and migration source reviewed; detailed authorization analysis is chat-only. |
+| S3 API Edge bearer validation / privileged key | DONE | Live Edge Function metadata and source reviewed; authentication/key-use conclusions are chat-only. No key values were recorded. |
 | S4 Retired staff functions | DONE | staff-invite, staff-activate, staff-open, and staff-preview return retired-feature HTTP 410 responses. Recommendation is to document as ghost code and decide retirement separately; no deletion performed. |
-| D1 Workflow inventory | DONE | All workflow files, uses lines, token permissions, PR-target use and explicit secrets references reviewed; complete security inventory in chat only. |
+| D1 Workflow inventory | DONE | All workflow files and action references reviewed; token/secret reachability analysis is chat-only. |
 | D2 Last 14 days run counts and total job minutes | BLOCKED | GitHub connector exposes run lists but rejects workflow-specific run/timing endpoints; the repository has thousands of run records (API result capped at 2,500 for the filtered list). Per-run job detail for every record would exceed the tool-call cap, so complete per-workflow job-minute totals cannot be computed reliably here. |
 | D3 main branch protection | BLOCKED | Branch-protection API read returned HTTP 403. Check GitHub repository Settings > Branches and Settings > Rules > Rulesets. |
 | D4 Open PRs and branches | DONE | All 20 open PRs include last-updated date and disposition recommendation; all 95 branches include latest commit date and recommendation in REPORT.md. No branches were deleted. |
