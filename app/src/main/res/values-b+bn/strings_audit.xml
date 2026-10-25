@@ -82,4 +82,21 @@
     <string name="audit_send_whatsapp">WhatsApp-এ পাঠান</string>
     <string name="audit_audit_information">নিরীক্ষা তথ্য</string>
     <string name="audit_no_customer_found">কোনো গ্রাহক পাওয়া যায়নি।</string>
+    <string name="audit_customer_export_preparing">গ্রাহকের Excel ফাইল প্রস্তুত হচ্ছে…</string>
+    <string name="audit_customer_export_saved">Downloads/PaidDue-তে সংরক্ষিত হয়েছে। শেয়ার বিকল্প খোলা হচ্ছে…</string>
+    <string name="audit_customer_export_failed">গ্রাহক রপ্তানি ব্যর্থ: %1$s</string>
+    <string name="audit_unknown_error">অজানা ত্রুটি</string>
+    <string name="audit_update_initial">Paid&amp;Due-এর সর্বশেষ অনুমোদিত সংস্করণ দেখতে GitHub পরীক্ষা করুন।</string>
+    <string name="audit_update_title">অ্যাপ আপডেট</string>
+    <string name="audit_update_checking_releases">GitHub রিলিজ পরীক্ষা হচ্ছে…</string>
+    <string name="audit_update_verifying_preparing">আপডেট যাচাই ও প্রস্তুত হচ্ছে…</string>
+    <string name="audit_update_check_approved">অনুমোদিত রিলিজ পরীক্ষা হচ্ছে…</string>
+    <string name="audit_update_up_to_date">Paid&amp;Due সর্বশেষ সংস্করণে আছে।</string>
+    <string name="audit_update_apk_missing">নতুন সংস্করণ পাওয়া গেছে, কিন্তু APK নেই।</string>
+    <string name="audit_update_version_available">সংস্করণ 1.0.%1$s উপলব্ধ।</string>
+    <string name="audit_update_check_failed">আপডেট পরীক্ষা করা যায়নি। আবার চেষ্টা করুন।</string>
+    <string name="audit_update_opening_installer">Android ইনস্টলার খোলা হচ্ছে…</string>
+    <string name="audit_update_prepare_failed">আপডেট প্রস্তুত করা যায়নি।</string>
+    <string name="audit_update_button_check">আপডেট পরীক্ষা করুন</string>
+    <string name="audit_update_button_update">আপডেট করুন</string>
 </resources>
