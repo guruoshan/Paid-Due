@@ -73,10 +73,10 @@ for source_root in source_roots:
 # Catch direct user-visible string literals in every production Kotlin file. The
 # patterns target Compose Text/labels/accessibility descriptions and visible feedback APIs.
 literal_patterns = [
-    re.compile(r'\\bText\\s*\\(\\s*"([^"\\\\]{2,})"'),
-    re.compile(r'contentDescription\\s*=\\s*"([^"\\\\]{2,})"'),
-    re.compile(r'\\b(?:label|placeholder|title)\\s*=\\s*"([^"\\\\]{2,})"'),
-    re.compile(r'\\b(?:Toast\\.makeText|SnackbarHostState)\\s*\\([^\\n]*"([^"\\\\]{2,})"'),
+    re.compile(r'\bText\s*\(\s*"([^"\\]{2,})"'),
+    re.compile(r'contentDescription\s*=\s*"([^"\\]{2,})"'),
+    re.compile(r'\b(?:label|placeholder|title)\s*=\s*"([^"\\]{2,})"'),
+    re.compile(r'\b(?:Toast\.makeText|SnackbarHostState)\s*\([^\n]*"([^"\\]{2,})"'),
 ]
 ui_root = ROOT / "app/src/main/java"
 for path in ui_root.rglob("*.kt"):
