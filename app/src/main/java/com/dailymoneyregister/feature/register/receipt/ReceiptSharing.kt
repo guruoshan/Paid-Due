@@ -39,6 +39,7 @@ object ReceiptSharing {
                     businessName = receipt.businessName,
                     customerName = receipt.customerName,
                     customerPhone = receipt.customerPhone
+                    labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                 ),
                 formattedAmount = receipt.formattedMoney(receipt.totalMinor),
                 paymentSummary = receipt.paymentSummary(),
