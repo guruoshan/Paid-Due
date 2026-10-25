@@ -282,7 +282,7 @@ internal fun CreditSaleDialog(
                     ) {
                         Text(
                             if (state.couponSearching) {
-                                "Searching..."
+                                stringResource(R.string.audit_searching)
                             } else {
                                 "Search Customer"
                             }
@@ -503,7 +503,7 @@ internal fun CreditSaleDialog(
             ) {
                 Text(
                     if (state.isExecuting) {
-                        "Saving..."
+                        stringResource(R.string.audit_saving)
                     } else {
                         "Confirm Credit Sale"
                     }
@@ -563,7 +563,7 @@ internal fun CouponWalletDialog(
                     Text(stringResource(R.string.authorized_users_title), fontWeight = FontWeight.SemiBold)
                     details.authorizedUsers.forEach { authUser ->
                         val latestName = authUser.name
-                        Row { Text("•"); Text("$latestName${if (authUser.user.isPurchaser) " (" + stringResource(R.string.coupon_purchaser_tag) + ")" else ""}") }
+                        Row { Text(stringResource(R.string.audit_bullet)); Text("$latestName${if (authUser.user.isPurchaser) " (" + stringResource(R.string.coupon_purchaser_tag) + ")" else ""}") }
                         if (authUser.isActive) {
                             Row {
                                 TextButton(onClick = { editingId = authUser.user.id; userName = latestName }, enabled = !locked) {
