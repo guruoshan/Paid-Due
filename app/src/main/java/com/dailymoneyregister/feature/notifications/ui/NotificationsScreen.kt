@@ -1,5 +1,9 @@
 package com.dailymoneyregister.feature.notifications.ui
 
+import androidx.compose.ui.res.stringResource
+
+import com.dailymoneyregister.R
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -58,7 +62,7 @@ fun NotificationsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Notifications") },
+                title = { Text(stringResource(R.string.audit_notifications)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -66,7 +70,7 @@ fun NotificationsScreen(
                 },
                 actions = {
                     IconButton(onClick = viewModel::refresh, enabled = !state.isLoading) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh notifications")
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.audit_refresh_notifications))
                     }
                 }
             )
@@ -93,9 +97,9 @@ fun NotificationsScreen(
                 ) { CircularProgressIndicator() }
             }
 
-            Text("Inbox", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.audit_inbox), style = MaterialTheme.typography.titleLarge)
             if (state.notifications.isEmpty() && !state.isLoading) {
-                Text("No notifications yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.audit_no_notifications), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             state.notifications.forEach { notification ->
                 NotificationCard(
@@ -140,16 +144,16 @@ private fun NotificationCard(
                     if (report != null && report.isNotEmpty()) {
                         ClosingReport(report)
                     } else {
-                        Text("Detailed closing values are unavailable for this older close event.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.audit_old_close_values_unavailable), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } ?: Text(
-                    "Detailed closing values are unavailable for this older close event.",
+                    stringResource(R.string.audit_old_close_values_unavailable),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(notification.createdAt.replace("T", " ").substringBefore("."), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (notification.readAt == null) {
-                TextButton(onClick = onMarkRead) { Text("Mark as read") }
+                TextButton(onClick = onMarkRead) { Text(stringResource(R.string.audit_mark_read)) }
             }
         }
     }
@@ -165,7 +169,7 @@ private fun ClosingReport(report: JsonObject) {
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Divider()
-        Text("Daily Shift Summary", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.audit_daily_shift_summary), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
         ReportAmount(report, "Gross Sales", "gross_sales_minor", currencySymbol, decimals)
         ReportAmount(report, "Cash Sales Collected", "cash_sales_minor", currencySymbol, decimals)
         ReportAmount(report, "Online Sales Collected", "online_sales_minor", currencySymbol, decimals)
