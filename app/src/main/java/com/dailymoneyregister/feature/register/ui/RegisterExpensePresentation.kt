@@ -234,7 +234,7 @@ internal fun ExpenseDetailsScreen(
                 )
 
                 ExpenseDetailLine(
-                    label = "Name",
+                    label = stringResource(R.string.audit_name),
                     value =
                         details.payeeName
                             ?.takeIf {
@@ -244,7 +244,7 @@ internal fun ExpenseDetailsScreen(
                 )
 
                 ExpenseDetailLine(
-                    label = "Phone",
+                    label = stringResource(R.string.audit_phone),
                     value =
                         details.payeePhone
                             ?.takeIf {
@@ -254,13 +254,13 @@ internal fun ExpenseDetailsScreen(
                 )
 
                 ExpenseDetailLine(
-                    label = "Reference",
+                    label = stringResource(R.string.audit_reference),
                     value =
                         details.displayReference
                 )
 
                 ExpenseDetailLine(
-                    label = "Note",
+                    label = stringResource(R.string.audit_note),
                     value =
                         details.note
                             ?.takeIf {
@@ -270,7 +270,7 @@ internal fun ExpenseDetailsScreen(
                 )
 
                 ExpenseDetailLine(
-                    label = "Date & Time",
+                    label = stringResource(R.string.audit_date_time),
                     value =
                         expenseDetailsDateTime(
                             details.occurredAt,
