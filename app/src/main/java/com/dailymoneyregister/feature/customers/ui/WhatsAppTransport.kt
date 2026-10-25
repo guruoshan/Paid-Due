@@ -1,5 +1,7 @@
 package com.dailymoneyregister.feature.customers.ui
 
+import com.dailymoneyregister.R
+
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -27,14 +29,14 @@ object WhatsAppTransport {
     fun share(
         context: Context,
         prepared: PreparedWhatsAppMessage,
-        chooserTitle: String = "Share via WhatsApp"
+        chooserTitle: String = context.getString(R.string.audit_share_via_whatsapp)
     ) {
         // A media ACTION_SEND without a valid JID can open WhatsApp's generic
         // media/status flow. Never launch it without the intended recipient.
         if (recipientJid(prepared.recipientPhone) == null) {
             Toast.makeText(
                 context,
-                "A valid recipient phone number is required to share this receipt.",
+                context.getString(R.string.audit_receipt_recipient_phone_required),
                 Toast.LENGTH_LONG
             ).show()
             return
