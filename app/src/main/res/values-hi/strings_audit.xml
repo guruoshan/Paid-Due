@@ -159,4 +159,5 @@
     <string name="audit_bullet">•</string>
     <string name="audit_search_customer">ग्राहक खोजें</string>
     <string name="audit_confirm_credit_sale">उधार बिक्री की पुष्टि करें</string>
+    <string name="audit_coupon_bonus">बोनस</string>
 </resources>
