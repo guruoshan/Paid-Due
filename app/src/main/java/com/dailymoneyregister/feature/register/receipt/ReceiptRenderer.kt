@@ -49,7 +49,7 @@ object ReceiptRenderer {
         draw(context, receipt.reference, buildLines(receipt, context))
 
     fun renderEvent(context: Context, event: EventReceipt): File =
-        draw(context, event.reference, buildEventLines(event))
+        draw(context, event.reference, buildEventLines(event, context))
 
     internal fun buildLines(receipt: ReceiptReadModel): List<Line> = buildList {
         addHeader(receipt.businessName, "RECEIPT")
@@ -109,6 +109,22 @@ object ReceiptRenderer {
             }
         }
 
+
+    internal fun buildEventLines(event: EventReceipt, context: Context): List<Line> = buildList {
+        val heading = if (event.heading == "RECEIPT") context.getString(R.string.audit_receipt_heading) else event.heading
+        addHeader(event.businessName, heading, context)
+        add(Line(event.title, bold = true))
+        event.reference.takeIf(String::isNotBlank)?.let { add(Line(context.getString(R.string.audit_receipt_reference, it))) }
+        event.dateTime?.takeIf(String::isNotBlank)?.let { add(Line(context.getString(R.string.audit_receipt_date_time, it))) }
+        event.customerName?.takeIf(String::isNotBlank)?.let {
+            val customerLabel = if (event.partyLabel == "Customer") context.getString(R.string.audit_receipt_customer_label) else event.partyLabel
+            add(Line(customerLabel + ": " + it))
+        }
+        add(Line(""))
+        event.rows.forEach { add(Line(it.label + ": " + it.value)) }
+        addFooter(context)
+    }
+
     private fun MutableList<Line>.addHeader(businessName: String, heading: String, context: Context) {
         add(Line(businessName.trim().ifBlank { context.getString(R.string.audit_receipt_business_name) }, bold = true))
         add(Line(heading, bold = true))
@@ -117,7 +133,7 @@ object ReceiptRenderer {
     private fun MutableList<Line>.addFooter(context: Context) {
         add(Line(""))
         add(Line(context.getString(R.string.audit_thank_you_business)))
-        add(Line(UniversalWhatsAppMessageComposer.FOOTER))
+        add(Line(context.getString(R.string.audit_message_footer)))
     }
 
     internal fun buildEventLines(event: EventReceipt): List<Line> = buildList {
