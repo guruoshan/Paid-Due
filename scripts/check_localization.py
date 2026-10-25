@@ -36,7 +36,7 @@ def read_resources(directory):
                 errors.append(f"{directory}: duplicate resource {node.tag}/{name}")
             entries[key] = (path, " ".join(node.itertext()))
             value = entries[key][1]
-            if directory != "values" and MOJIBAKE.search(value):
+            if MOJIBAKE.search(value):
                 errors.append(f"{path.relative_to(ROOT)}: possible mojibake in {name}: {value[:80]!r}")
     return entries
 
@@ -52,6 +52,23 @@ for code, entries in resources.items():
                       ", ".join(f"{kind}/{name}" for kind, name in missing[:40]))
     if extra:
         print(f"INFO {code}: {len(extra)} locale-only keys (not an error)")
+
+# Scan every production/test source and resource file for UTF-8/legacy-codepage mojibake.
+source_roots = [ROOT / "app/src/main", ROOT / "app/src/test", ROOT / "app/src/androidTest"]
+for source_root in source_roots:
+    if not source_root.exists():
+        continue
+    for path in source_root.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in {".kt", ".java", ".xml", ".json", ".txt", ".properties"}:
+            continue
+        try:
+            source = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            errors.append(f"{path.relative_to(ROOT)}: file is not valid UTF-8: {exc}")
+            continue
+        for number, line in enumerate(source.splitlines(), 1):
+            if MOJIBAKE.search(line):
+                errors.append(f"{path.relative_to(ROOT)}:{number}: possible encoding damage: {line[:100]!r}")
 
 # Catch direct, user-visible string literals in Compose UI source. Resource references,
 # user-provided dynamic values, test files, and non-UI/domain code are excluded.
