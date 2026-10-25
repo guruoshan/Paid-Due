@@ -140,4 +140,17 @@
     <string name="audit_status_recorded">दर्ज</string>
     <string name="audit_payment_prefix">भुगतान: %1$s</string>
     <string name="audit_receipt_recorded_payment">दर्ज भुगतान</string>
+    <string name="audit_receipt_heading">रसीद</string>
+    <string name="audit_receipt_reference">संदर्भ: %1$s</string>
+    <string name="audit_receipt_date_time">तारीख और समय: %1$s</string>
+    <string name="audit_receipt_customer">ग्राहक: %1$s</string>
+    <string name="audit_receipt_subtotal">उप-योग: %1$s</string>
+    <string name="audit_receipt_tax">कर: %1$s</string>
+    <string name="audit_receipt_shipping">शिपिंग: %1$s</string>
+    <string name="audit_receipt_packing">पैकिंग: %1$s</string>
+    <string name="audit_receipt_total">कुल: %1$s</string>
+    <string name="audit_receipt_note">नोट: %1$s</string>
+    <string name="audit_thank_you_business">आपके व्यवसाय के लिए धन्यवाद।</string>
+    <string name="audit_receipt_customer_label">ग्राहक</string>
+    <string name="audit_receipt_business_name">Paid&amp;Due</string>
 </resources>
