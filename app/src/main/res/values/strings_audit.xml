@@ -118,4 +118,26 @@
     <string name="audit_void_reason_label">Void reason: %1$s</string>
     <string name="audit_status_label">Status: %1$s</string>
     <string name="audit_existing_customer">Existing customer: %1$s</string>
+    <string name="audit_status_sale_recorded">SALE RECORDED</string>
+    <string name="audit_status_coupon_funds_sold">COUPON FUNDS SOLD</string>
+    <string name="audit_status_coupon_topup">PREPAID COUPON FUNDS ADDED</string>
+    <string name="audit_status_credit_repaid">CREDIT REPAID (COLLECTION)</string>
+    <string name="audit_status_credit">CREDIT</string>
+    <string name="audit_status_expense_recorded">EXPENSE RECORDED</string>
+    <string name="audit_status_expense_voided">EXPENSE VOIDED</string>
+    <string name="audit_status_expense_void">EXPENSE VOID</string>
+    <string name="audit_status_refund">REFUND</string>
+    <string name="audit_status_refund_to_coupon">REFUND TO COUPON</string>
+    <string name="audit_status_void">VOID</string>
+    <string name="audit_status_amount_correction">AMOUNT CORRECTION</string>
+    <string name="audit_status_payment_method_change">PAYMENT METHOD CHANGE</string>
+    <string name="audit_status_coupon_use">COUPON USE</string>
+    <string name="audit_status_other_income">OTHER INCOME</string>
+    <string name="audit_status_voided">VOIDED</string>
+    <string name="audit_status_refunded">REFUNDED</string>
+    <string name="audit_status_corrected">CORRECTED</string>
+    <string name="audit_status_updated">UPDATED</string>
+    <string name="audit_status_recorded">RECORDED</string>
+    <string name="audit_payment_prefix">Payment: %1$s</string>
+    <string name="audit_receipt_recorded_payment">Recorded payment</string>
 </resources>
