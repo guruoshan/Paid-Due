@@ -6,6 +6,13 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextDirectionHeuristics
+import android.text.TextPaint
+import android.text.TextUtils
+import android.view.View
+import com.dailymoneyregister.R
 import com.dailymoneyregister.feature.customers.ui.UniversalWhatsAppMessageComposer
 import java.io.File
 import java.io.FileOutputStream
@@ -39,7 +46,7 @@ object ReceiptRenderer {
     }
 
     fun render(context: Context, receipt: ReceiptReadModel): File =
-        draw(context, receipt.reference, buildLines(receipt))
+        draw(context, receipt.reference, buildLines(receipt, context))
 
     fun renderEvent(context: Context, event: EventReceipt): File =
         draw(context, event.reference, buildEventLines(event))
@@ -63,6 +70,54 @@ object ReceiptRenderer {
         add(Line("Payment: ${receipt.paymentSummary()}"))
         receipt.note?.takeIf(String::isNotBlank)?.let { add(Line("Note: $it")) }
         addFooter()
+    }
+
+
+    internal fun buildLines(receipt: ReceiptReadModel, context: Context): List<Line> = buildList {
+        addHeader(receipt.businessName, context.getString(R.string.audit_receipt_heading), context)
+        add(Line(context.getString(R.string.audit_receipt_reference, receipt.reference)))
+        add(Line(context.getString(R.string.audit_receipt_date_time, receipt.formattedTransactionDateTime())))
+        receipt.customerName?.let { add(Line(context.getString(R.string.audit_receipt_customer, it))) }
+        add(Line(""))
+        receipt.items.forEach {
+            val quantity = if (it.quantity == 1) "" else " x " + it.quantity
+            add(Line(it.name + quantity + "    " + receipt.formattedMoney(it.lineTotalMinor)))
+        }
+        add(Line(""))
+        add(Line(context.getString(R.string.audit_receipt_subtotal, receipt.formattedMoney(receipt.subtotalMinor))))
+        if (receipt.taxMinor != 0L) add(Line(context.getString(R.string.audit_receipt_tax, receipt.formattedMoney(receipt.taxMinor))))
+        if (receipt.shippingMinor != 0L) add(Line(context.getString(R.string.audit_receipt_shipping, receipt.formattedMoney(receipt.shippingMinor))))
+        if (receipt.packingMinor != 0L) add(Line(context.getString(R.string.audit_receipt_packing, receipt.formattedMoney(receipt.packingMinor))))
+        add(Line(context.getString(R.string.audit_receipt_total, receipt.formattedMoney(receipt.totalMinor)), bold = true))
+        add(Line(context.getString(R.string.audit_payment_prefix, localizedPaymentSummary(receipt, context))))
+        receipt.note?.takeIf(String::isNotBlank)?.let { add(Line(context.getString(R.string.audit_receipt_note, it))) }
+        addFooter(context)
+    }
+
+    private fun localizedPaymentSummary(receipt: ReceiptReadModel, context: Context): String =
+        if (receipt.tenders.isEmpty()) {
+            context.getString(R.string.audit_receipt_recorded_payment)
+        } else {
+            receipt.tenders.joinToString(" + ") { tender ->
+                val method = when (tender.category) {
+                    com.dailymoneyregister.core.model.enums.PaymentCategory.CASH -> context.getString(R.string.cash)
+                    com.dailymoneyregister.core.model.enums.PaymentCategory.ONLINE -> context.getString(R.string.online)
+                    com.dailymoneyregister.core.model.enums.PaymentCategory.CREDIT -> context.getString(R.string.credit)
+                    com.dailymoneyregister.core.model.enums.PaymentCategory.COUPON -> context.getString(R.string.coupon)
+                }
+                method + ": " + receipt.formattedMoney(tender.amountMinor)
+            }
+        }
+
+    private fun MutableList<Line>.addHeader(businessName: String, heading: String, context: Context) {
+        add(Line(businessName.trim().ifBlank { context.getString(R.string.audit_receipt_business_name) }, bold = true))
+        add(Line(heading, bold = true))
+    }
+
+    private fun MutableList<Line>.addFooter(context: Context) {
+        add(Line(""))
+        add(Line(context.getString(R.string.audit_thank_you_business)))
+        add(Line(UniversalWhatsAppMessageComposer.FOOTER))
     }
 
     internal fun buildEventLines(event: EventReceipt): List<Line> = buildList {
@@ -103,11 +158,23 @@ object ReceiptRenderer {
                 textSize = 40f
                 typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
             }
+            val isRtl = context.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
+            val contentWidth = (WIDTH - MARGIN * 2).toInt()
 
             var y = MARGIN
             contentLines.forEach { line ->
                 y += LINE
-                canvas.drawText(line.text, MARGIN, y, if (line.bold) bold else paint)
+                val textPaint = TextPaint(if (line.bold) bold else paint)
+                val layout = StaticLayout.Builder.obtain(line.text, 0, line.text.length, textPaint, contentWidth)
+                    .setAlignment(if (isRtl) Layout.Alignment.ALIGN_OPPOSITE else Layout.Alignment.ALIGN_NORMAL)
+                    .setTextDirection(TextDirectionHeuristics.FIRSTSTRONG_LTR)
+                    .setMaxLines(1)
+                    .setEllipsize(TextUtils.TruncateAt.END)
+                    .build()
+                canvas.save()
+                canvas.translate(MARGIN, y - layout.getLineBaseline(0))
+                layout.draw(canvas)
+                canvas.restore()
             }
 
             val directory = File(context.cacheDir, "receipts").apply { mkdirs() }
