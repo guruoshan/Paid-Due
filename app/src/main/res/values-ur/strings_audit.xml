@@ -118,4 +118,26 @@
     <string name="audit_void_reason_label">منسوخی کی وجہ: %1$s</string>
     <string name="audit_status_label">حیثیت: %1$s</string>
     <string name="audit_existing_customer">موجودہ گاہک: %1$s</string>
+    <string name="audit_status_sale_recorded">فروخت درج ہوئی</string>
+    <string name="audit_status_coupon_funds_sold">کوپن بیلنس فروخت ہوا</string>
+    <string name="audit_status_coupon_topup">پری پیڈ کوپن بیلنس شامل ہوا</string>
+    <string name="audit_status_credit_repaid">ادھار کی وصولی درج ہوئی</string>
+    <string name="audit_status_credit">ادھار</string>
+    <string name="audit_status_expense_recorded">اخراجات درج ہوئے</string>
+    <string name="audit_status_expense_voided">اخراجات منسوخ ہوئے</string>
+    <string name="audit_status_expense_void">اخراجات کی منسوخی</string>
+    <string name="audit_status_refund">رقم واپسی</string>
+    <string name="audit_status_refund_to_coupon">کوپن میں رقم واپسی</string>
+    <string name="audit_status_void">منسوخی</string>
+    <string name="audit_status_amount_correction">رقم کی درستگی</string>
+    <string name="audit_status_payment_method_change">ادائیگی کا طریقہ تبدیل ہوا</string>
+    <string name="audit_status_coupon_use">کوپن استعمال</string>
+    <string name="audit_status_other_income">دیگر آمدنی</string>
+    <string name="audit_status_voided">منسوخ</string>
+    <string name="audit_status_refunded">رقم واپس ہوئی</string>
+    <string name="audit_status_corrected">درست کیا گیا</string>
+    <string name="audit_status_updated">اپ ڈیٹ ہوا</string>
+    <string name="audit_status_recorded">درج</string>
+    <string name="audit_payment_prefix">ادائیگی: %1$s</string>
+    <string name="audit_receipt_recorded_payment">درج شدہ ادائیگی</string>
 </resources>
