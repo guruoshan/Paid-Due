@@ -105,4 +105,17 @@
     <string name="audit_receipt_unavailable">Receipt is unavailable for this record.</string>
     <string name="audit_credit_invoice_unavailable">Credit invoice details are unavailable.</string>
     <string name="audit_share_via_whatsapp">Share via WhatsApp</string>
+    <string name="audit_expense_details">Expense Details</string>
+    <string name="audit_no_phone_for_expense">No phone number was saved for this Expense.</string>
+    <string name="audit_supporting_documents">Supporting Documents</string>
+    <string name="audit_no_supporting_documents">No supporting documents attached.</string>
+    <string name="audit_supporting_document_number">Supporting document %1$d</string>
+    <string name="audit_what_happened_transaction">What happened to this transaction</string>
+    <string name="audit_select_credit_customer">Select the customer who is taking this sale on Credit.</string>
+    <string name="audit_credit_sale_no_payment">No payment is collected now. The amount becomes the customer's Credit obligation.</string>
+    <string name="audit_ref_label">Ref: %1$s</string>
+    <string name="audit_time_label">Time: %1$s</string>
+    <string name="audit_void_reason_label">Void reason: %1$s</string>
+    <string name="audit_status_label">Status: %1$s</string>
+    <string name="audit_existing_customer">Existing customer: %1$s</string>
 </resources>
