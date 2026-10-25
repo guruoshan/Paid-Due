@@ -9,7 +9,7 @@ Scope: read-only audit of `main`; no application changes. Security findings must
 | 1. Ghost/unused files and workflows | DONE | Confirmed legacy cashier strings and large stale-looking branch/PR inventory; full unused-reference proof and complete workflow inventory unavailable, so no cleanup recommended without proof. |
 | 2. Android release readiness | DONE | Inspected Gradle identity/version/SDK, manifest, updater and raw exception display; release artifact, full build config and runtime behavior not certified. |
 | 3. Security (chat only) | DONE | Public report contains no security details; complete history scan, live Supabase RLS/storage/functions review, branch-protection read and signing-key status were not accessible/verified. |
-| 4. Data and sync health | TODO | Not yet audited; Supabase read-only access and migration state need verification. |
+| 4. Data and sync health | DONE | Confirmed digest mismatch fails closed as OPERATION_COLLISION; live Supabase reset safety, schema drift and timezone parity remain unverified. |
 | 5. Money logic | TODO | Not yet audited; suspected behaviors require source/test evidence and may need runtime evidence. |
 | 6. Localization and UX | TODO | Not yet audited; language/resource/PDF checks pending. |
 | 7. Build and CI health | TODO | Not yet audited; workflow triggers, runs, and minutes evidence pending. |
