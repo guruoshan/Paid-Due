@@ -353,10 +353,11 @@ This addendum records additional non-security findings only. Live security detai
 - `ReleaseUpdater.kt:89-145`: downloads over HTTPS, enforces a 150 MB cap, computes SHA-256 and compares it to GitHub's release asset `digest` before opening Android's installer. Android's package installer independently enforces installed-app signing identity; the app does not itself verify the APK certificate.
 - Because the updater uses unauthenticated public GitHub release API and browser-download URLs, making the repository private would break update discovery/download for ordinary installs unless an authenticated distribution endpoint or other public release channel is provided.
 
-### A-043 — Scan output committed; lint still pending a successful run
-**Status: IN PROGRESS**
-- The scan report is committed at `release-audit/scan-results.md`; its first run recorded Gradle exit 126 because the wrapper file was not executable in the runner. The temporary workflow was changed to invoke `bash ./gradlew`; a fresh run is in progress. Do not treat its prior zero-lint-report output as a clean lint result.
-- The committed heuristic scan found 807 top-level Kotlin declarations and 131 zero/one textual-mention candidates, 232 unreferenced-file candidates, zero files at least 1 MB, and 3 exact-hash duplicate groups. These are candidate lists, not deletion instructions. The duplicate groups include launcher XMLs, a staged SQL/migration pair, and two identical staff endpoint files. No files were deleted.
+### A-043 — Scan output committed and lint completed
+**Status: CONFIRMED**
+- The temporary workflow completed successfully on run [40228223025](https://github.com/guruoshan/Paid-Due/actions/runs/40228223025). The committed report is `release-audit/scan-results.md` (blob `2f45854f7208ec256dd43b38dcbfac92bbff4cd6`); the workflow commits the report with the exact message `audit scan results [skip ci]`.
+- `:app:lintDebug` succeeded (exit 0). Parsed lint counts: Aligned16KB 1; AndroidGradlePluginVersion 2; ApplySharedPref 13; GradleDependency 15; ModifierParameter 3; NewerVersionAvailable 12; ObsoleteSdkInt 1; PluralsCandidate 1; TypographyEllipsis 15; Untranslatable 36; UnusedResources 109; UseKtx 25; UseTomlInstead 5.
+- The heuristic scan found 807 top-level Kotlin declarations, 131 zero/one textual-mention candidates, 232 unreferenced-file candidates, zero files at least 1 MB, and 3 exact-hash duplicate groups. These are candidate lists, not deletion instructions; lexical counting cannot account for reflection/dynamic lookup or all resource/manifest references. The duplicate groups include launcher XMLs, a staged SQL/migration pair, and identical staff endpoint files. No files were deleted.
 
 ## GitHub pull request disposition recommendations (all 20 open PRs as of 2026-10-25)
 | PR | Last updated (UTC) | Recommendation |
