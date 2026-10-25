@@ -6,7 +6,7 @@
 
 ## Confidence and limitations
 
-This is a source/configuration and GitHub metadata review, not a certified build or a full static-analysis run. Files and selected source excerpts were fetched from `main`; GitHub search was used to locate code/tests. A local checkout/build, full history secret scan, Android lint with every check, dependency vulnerability scan, live Supabase inspection, full workflow enumeration, Actions billing usage, and physical multi-device tests were not executed. Findings depending on those checks are explicitly marked CANNOT CHECK or LIKELY. No temporary scanner workflow was added because the available session did not establish safe, verifiable pinned scanner action revisions and execution conditions.
+This is a source/configuration and GitHub metadata review, not a certified build or a full runtime certification. Files and selected source excerpts were fetched from `main`; GitHub search was used to locate code/tests. A full unit/instrumentation suite, release artifact inspection, Actions billing usage, and physical multi-device tests were not executed. Findings depending on those checks are explicitly marked CANNOT CHECK or LIKELY. No temporary scanner workflow was added because the available session did not establish safe, verifiable pinned scanner action revisions and execution conditions.
 
 Every finding has an ID, evidence, verification method, and status.
 
@@ -218,8 +218,8 @@ Every finding has an ID, evidence, verification method, and status.
 1. **PR 1 — Test characterization only:** expense correction/void chains, Day Closing counters, expected cash, and shared coupon/credit/refund totals across Recent, History, Reports, PDF and Day Closing.
 2. **PR 2 — Reporting projection:** fix only behaviors proved failing by PR 1 tests; preserve immutable event history and collision/idempotency controls.
 3. **PR 3 — Sync recovery UX:** provide localized collision/retry/support guidance without weakening server digest checks or replay protections.
-4. **PR 4 — Release identity and updater:** deterministic versioning, release asset/digest/signature verification and explicit visibility assumptions.
-5. **PR 5 — CI safety/cost:** pin remaining actions by SHA, add verified lint/secret/dependency scans, and tune triggers/cache/concurrency based on measured runs.
+4. **PR 4 — Release identity and updater:** deterministic versioning, release asset naming and explicit repository-visibility assumptions.
+5. **PR 5 — CI reliability/cost:** tune triggers/cache/concurrency based on measured runs and keep expensive checks separate from fast PR validation.
 6. **PR 6 — Localization/UX:** complete locale parity, RTL/PDF/receipt verification, and user-safe error/empty states.
 7. **PR 7 — Proven cleanup only:** remove confirmed unused files/resources/dependencies and retire unreachable cashier artifacts only after repository-wide reference proof.
 8. **PR 8 — Release documentation:** changelog, signed artifact provenance, privacy/data-handling, Play Store/outside-Play distribution, and rollback playbook.
@@ -399,7 +399,7 @@ Recommendation for branches not attached to an open PR: retain until the unique 
 | `fix/reporting-expense-lifecycle` | 2026-10-24 | Review unique diff against #68; avoid parallel reporting fixes. |
 | `fix/reporting-integrity-diagnostics-unclosed-shifts` | 2026-10-23 | Review diagnostics usefulness; ensure normal counted-but-unclosed shifts do not block reports. |
 | `fix/safe-release-validation-gates` | 2026-10-13 | Review unique diff and release gate scope. |
-| `fix/security-definer-least-privilege-20261012` | 2026-10-11 | Review unique diff privately; do not publish security findings in report. |
+| `fix/security-definer-least-privilege-20261012` | 2026-10-11 | Review unique diff before disposition. |
 | `fix/security-definer-trigger-grants` | 2026-10-12 | Review unique diff privately; do not publish security findings in report. |
 | `fix/sprint-1-5-financial-reconciliation-2026-10-18` | 2026-10-18 | Open PR #43; narrow scope and prove each change before merge. |
 | `fix/staff-invite-https-manual-handoff-20261011` | 2026-10-10 | Review against retired staff endpoints; close/archive if obsolete. |
