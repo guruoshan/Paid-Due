@@ -123,6 +123,7 @@
     <string name="audit_status_coupon_topup">प्रीपेड कूपन राशि जोड़ी गई</string>
     <string name="audit_status_credit_repaid">उधार वसूली दर्ज हुई</string>
     <string name="audit_status_credit">उधार</string>
+    <string name="audit_status_expense">खर्च</string>
     <string name="audit_status_expense_recorded">खर्च दर्ज हुआ</string>
     <string name="audit_status_expense_voided">खर्च रद्द हुआ</string>
     <string name="audit_status_expense_void">खर्च रद्द</string>

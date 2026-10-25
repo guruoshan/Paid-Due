@@ -123,6 +123,7 @@
     <string name="audit_status_coupon_topup">پری پیڈ کوپن بیلنس شامل ہوا</string>
     <string name="audit_status_credit_repaid">ادھار کی وصولی درج ہوئی</string>
     <string name="audit_status_credit">ادھار</string>
+    <string name="audit_status_expense">اخراجات</string>
     <string name="audit_status_expense_recorded">اخراجات درج ہوئے</string>
     <string name="audit_status_expense_voided">اخراجات منسوخ ہوئے</string>
     <string name="audit_status_expense_void">اخراجات کی منسوخی</string>

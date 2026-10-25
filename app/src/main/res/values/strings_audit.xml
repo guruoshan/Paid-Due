@@ -123,6 +123,7 @@
     <string name="audit_status_coupon_topup">PREPAID COUPON FUNDS ADDED</string>
     <string name="audit_status_credit_repaid">CREDIT REPAID (COLLECTION)</string>
     <string name="audit_status_credit">CREDIT</string>
+    <string name="audit_status_expense">EXPENSE</string>
     <string name="audit_status_expense_recorded">EXPENSE RECORDED</string>
     <string name="audit_status_expense_voided">EXPENSE VOIDED</string>
     <string name="audit_status_expense_void">EXPENSE VOID</string>

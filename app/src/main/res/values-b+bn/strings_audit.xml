@@ -123,6 +123,7 @@
     <string name="audit_status_coupon_topup">প্রিপেইড কুপন ব্যালেন্স যোগ হয়েছে</string>
     <string name="audit_status_credit_repaid">বাকি আদায় নথিভুক্ত হয়েছে</string>
     <string name="audit_status_credit">বাকি</string>
+    <string name="audit_status_expense">খরচ</string>
     <string name="audit_status_expense_recorded">খরচ নথিভুক্ত হয়েছে</string>
     <string name="audit_status_expense_voided">খরচ বাতিল হয়েছে</string>
     <string name="audit_status_expense_void">খরচ বাতিল</string>

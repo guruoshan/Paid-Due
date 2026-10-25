@@ -171,7 +171,7 @@ object UniversalWhatsAppMessageComposer {
     /** Single source for the Coupon event title (text and image must agree). */
     fun couponEventTitle(event: CouponEvent): String =
         when (event.kind) {
-            CouponEventKind.PURCHASE_OR_TOP_UP -> message.party.labels.couponPurchaseTopUp
+            CouponEventKind.PURCHASE_OR_TOP_UP -> event.party.labels.couponPurchaseTopUp
             CouponEventKind.GENERIC -> event.title
         }
 

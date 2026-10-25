@@ -123,6 +123,7 @@
     <string name="audit_status_coupon_topup">تمت إضافة رصيد قسيمة مسبقة الدفع</string>
     <string name="audit_status_credit_repaid">تم تحصيل سداد الائتمان</string>
     <string name="audit_status_credit">ائتمان</string>
+    <string name="audit_status_expense">مصروف</string>
     <string name="audit_status_expense_recorded">تم تسجيل المصروف</string>
     <string name="audit_status_expense_voided">تم إلغاء المصروف</string>
     <string name="audit_status_expense_void">إلغاء المصروف</string>
