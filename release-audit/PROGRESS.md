@@ -13,7 +13,7 @@ Scope: read-only audit of `main`; no application changes. Security findings must
 | 5. Money logic | DONE | Expense correction/void, Day Closing counters, expected cash and cross-surface totals require runtime/regression proof; no logic changes made. |
 | 6. Localization and UX | DONE | Confirmed five locale resource families and RTL manifest support; naming parity is inconsistent and full locale/PDF/receipt rendering not checked. |
 | 7. Build and CI health | DONE | Inspected release workflow and action pinning; no fresh build/lint, workflow-wide inventory, or Actions billing-minute evidence. |
-| 8. Release process | TODO | Not yet audited; docs and distribution process pending. |
+| 8. Release process | DONE | Release checklist and GitHub updater/release workflow inspected; signed artifact, Play readiness, changelog/tag and rollback rehearsal not verified. |
 | 9. Prioritized findings and plan | TODO | Not yet complete; will be finalized in REPORT.md without security findings. |
 
 ## Evidence discipline
