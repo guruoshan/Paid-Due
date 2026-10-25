@@ -140,4 +140,17 @@
     <string name="audit_status_recorded">RECORDED</string>
     <string name="audit_payment_prefix">Payment: %1$s</string>
     <string name="audit_receipt_recorded_payment">Recorded payment</string>
+    <string name="audit_receipt_heading">RECEIPT</string>
+    <string name="audit_receipt_reference">Reference: %1$s</string>
+    <string name="audit_receipt_date_time">Date &amp; Time: %1$s</string>
+    <string name="audit_receipt_customer">Customer: %1$s</string>
+    <string name="audit_receipt_subtotal">Subtotal: %1$s</string>
+    <string name="audit_receipt_tax">Tax: %1$s</string>
+    <string name="audit_receipt_shipping">Shipping: %1$s</string>
+    <string name="audit_receipt_packing">Packing: %1$s</string>
+    <string name="audit_receipt_total">Total: %1$s</string>
+    <string name="audit_receipt_note">Note: %1$s</string>
+    <string name="audit_thank_you_business">Thank you for your business.</string>
+    <string name="audit_receipt_customer_label">Customer</string>
+    <string name="audit_receipt_business_name">Paid&amp;Due</string>
 </resources>
