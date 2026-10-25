@@ -382,7 +382,7 @@ internal fun ExpenseDetailsScreen(
                         party = UniversalWhatsAppMessageComposer.Party(
                             businessName = businessName,
                             customerName = details.payeeName,
-                            customerPhone = details.payeePhone
+                            customerPhone = details.payeePhone,
                             labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                         ),
                         formattedAmount =
