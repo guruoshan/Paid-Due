@@ -295,7 +295,7 @@ internal fun CreditSaleDialog(
                     ) {
                         if (state.couponCustomers.isEmpty()) {
                             Text(
-                                "No customer found."
+                                stringResource(R.string.audit_no_customer_found)
                             )
 
                         } else {
