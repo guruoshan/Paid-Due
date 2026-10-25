@@ -76,7 +76,7 @@ literal_patterns = [
     re.compile(r'\bText\s*\(\s*"([^"\\]{2,})"'),
     re.compile(r'contentDescription\s*=\s*"([^"\\]{2,})"'),
     re.compile(r'\b(?:label|placeholder)\s*=\s*"([^"\\]{2,})"'),
-    re.compile(r'\bToast\.makeText\([^,]+,\s*"([^"\\]{2,})"'),
+    re.compile(r'\bToast\.makeText\([^,\n]+,\s*"([^"\\]{2,})"'),
     re.compile(r'\bshowSnackbar\s*\(\s*"([^"\\]{2,})"'),
 ]
 ui_root = ROOT / "app/src/main/java"
