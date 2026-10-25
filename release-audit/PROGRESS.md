@@ -6,7 +6,7 @@ Scope: read-only audit of `main`; no application changes. Security findings must
 | Phase | Status | One-line result |
 |---|---|---|
 | 0. Inventory | DONE | Confirmed public repo, Gradle/Kotlin Android app, main branch, repo size 3,797 KB, version/SDK config, release workflow, and open PR inventory; no temporary scanner workflow added because pinned scanner/action provenance and safe execution could not be verified in this session. |
-| 1. Ghost/unused files and workflows | TODO | Not yet audited; no files will be deleted or modified. |
+| 1. Ghost/unused files and workflows | DONE | Confirmed legacy cashier strings and large stale-looking branch/PR inventory; full unused-reference proof and complete workflow inventory unavailable, so no cleanup recommended without proof. |
 | 2. Android release readiness | TODO | Not yet audited; source/config evidence pending. |
 | 3. Security (chat only) | TODO | Not yet audited; sensitive findings excluded from repository files. |
 | 4. Data and sync health | TODO | Not yet audited; Supabase read-only access and migration state need verification. |
