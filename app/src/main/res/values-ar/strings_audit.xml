@@ -159,4 +159,5 @@
     <string name="audit_bullet">•</string>
     <string name="audit_search_customer">ابحث عن عميل</string>
     <string name="audit_confirm_credit_sale">تأكيد البيع الآجل</string>
+    <string name="audit_coupon_bonus">مكافأة</string>
 </resources>
