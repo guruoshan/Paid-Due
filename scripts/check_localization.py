@@ -57,7 +57,7 @@ for code, entries in resources.items():
     extra = sorted(set(entries) - set(english))
     if missing:
         errors.append(f"{code}: missing {len(missing)} English resource keys: " +
-                      ", ".join(f"{kind}/{name}" for kind, name in missing[:40]))
+                      ", ".join(f"{kind}/{name}" for kind, name in missing))
     if extra:
         print(f"INFO {code}: {len(extra)} locale-only keys (not an error)")
 
