@@ -284,7 +284,7 @@ internal fun CreditSaleDialog(
                             if (state.couponSearching) {
                                 stringResource(R.string.audit_searching)
                             } else {
-                                "Search Customer"
+                                stringResource(R.string.audit_search_customer)
                             }
                         )
                     }
@@ -505,7 +505,7 @@ internal fun CreditSaleDialog(
                     if (state.isExecuting) {
                         stringResource(R.string.audit_saving)
                     } else {
-                        "Confirm Credit Sale"
+                        stringResource(R.string.audit_confirm_credit_sale)
                     }
                 )
             }
