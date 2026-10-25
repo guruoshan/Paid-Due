@@ -29,11 +29,11 @@ Every finding has an ID, evidence, verification method, and status.
 **Verification:** fetched the base and locale string files and searched for cashier session identifiers and retirement migration.  
 **Assessment:** The resources prove legacy strings remain; they do not prove all associated UI code is reachable. Do not delete based on string search alone.
 
-### A-002 — Resource/file “unused” status not fully established
-**Status: CANNOT CHECK**  
-**Evidence:** full resource graph, reflection/string lookup and all call sites were not locally indexed. Searches did not find the specifically requested `strings_audit` / `strings_lint_localization` names in indexed excerpts, but that is not a whole-tree proof.  
-**Verification:** targeted GitHub code searches only.  
-**Recommendation:** run Android lint with `UnusedResources` and all checks, then manually inspect each candidate through source, manifest, Gradle, tests, reflection and string-based lookup before any deletion.
+### A-002 — Lint identifies unused-resource candidates; semantic reachability still requires review
+**Status: CONFIRMED scan results; deletion status CANNOT CHECK**  
+**Evidence:** committed `release-audit/scan-results.md` reports 109 `UnusedResources` lint issues and lists candidates. It also reports 131 zero/one-mention Kotlin declarations and 232 filename-based unreferenced-file candidates.  
+**Verification:** successful `:app:lintDebug` workflow run 40228223025 and committed scan report.  
+**Recommendation:** inspect each candidate against manifests, generated references, reflection/dynamic lookup, locale overlays, Gradle, tests and runtime paths before any deletion. No cleanup was performed.
 
 ### A-003 — Branch and PR inventory contains substantial stale-looking work
 **Status: CONFIRMED**  
@@ -41,11 +41,11 @@ Every finding has an ID, evidence, verification method, and status.
 **Verification:** GitHub branch and open-PR searches; results may be paginated/connector-limited.  
 **Recommendation:** reconcile each open PR against current main and close/archive only after owner review. Do not delete branches based on age alone.
 
-### A-004 — Full workflow trigger/cost classification not available
-**Status: CANNOT CHECK**  
-**Evidence:** `.github/workflows/release.yml` was fetched; no full workflow directory listing, full Actions run inventory, or billing-minute data was available in this review. User-named examples such as `pr37-signed-sync-test`, `customer-export-release-apk`, and `ci-smoke-test` require direct file/run verification.  
-**Verification:** inspected release workflow and searched selected workflow-related terms; did not infer that examples exist on current main.  
-**Recommendation:** inventory every workflow file and its `on:` triggers, runner, timeout, cache, duplicate tasks and run duration before consolidation.
+### A-004 — Workflow inventory is complete; 14-day job-minute total is blocked
+**Status: PARTIAL**  
+**Evidence:** the main branch has 12 workflow files. Their triggers, all `uses:` lines, token permissions and explicit secret references were inspected. All 20 open PRs and 95 branches were also inventoried.  
+**Verification:** recursive GitHub repository tree, workflow source retrieval, Actions run API.  
+**Limit:** the available connector rejects workflow-specific run/timing endpoints and the repository run list is capped at 2,500 records for the filtered query. Complete per-workflow job-minute totals cannot be computed reliably here; see chat for the full workflow security inventory and exact blocker.
 
 ## Phase 2 — Android release readiness
 
@@ -115,37 +115,33 @@ Security findings are intentionally excluded from this public report. The chat-o
 **Verification:** inspected available migration names and PR descriptions; did not query live migration history.  
 **Recommendation:** compare `supabase migration list` with every local migration, confirm missing applied versions from deployment evidence, and run migration validation on a disposable schema before any deployment.
 
-### A-015 — Time-zone parity between notification and report is not runtime-verified
-**Status: CANNOT CHECK**  
-**Evidence:** migration `20261015183613_fix_cashier_expense_sync_and_day_close_notifications.sql` emits `DAY_CLOSED` notifications; user reports UTC in notification versus Oman time in PDF.  
-**Verification:** located the notification SQL but did not inspect live notification payloads or generate matching notification/PDF output.  
-**Recommendation:** standardize on the branch/business IANA timezone for displayed dates and times; test DST boundaries and UTC+04 Oman output in notification, app, PDF and export.
+### A-015 — Notification and PDF timestamps use different timezone presentation paths
+**Status: CONFIRMED source behavior; phone rendering not independently reproduced**  
+**Evidence:** the notification SQL stores `closed_at`, `received_at` and `branch_timezone_id` in the payload (`20261015183613_fix_cashier_expense_sync_and_day_close_notifications.sql:238-250`). `NotificationsScreen.kt:154` displays `notification.createdAt` as a raw serialized timestamp, without converting it. `ReportingPdfActions.kt:109-143` formats report dates in the selected/session branch timezone, with system-default fallback. Other date/time formatters mix branch timezone and device-default timezone; the call-site inventory is in A-040.  
+**Recommendation:** format user-facing notification timestamps using the payload's branch timezone, and explicitly choose a consistent timezone for exports and receipts. Keep machine-readable storage in UTC.
 
 ## Phase 5 — Money logic
 
-### A-016 — Expense correction/void report projection remains an open release concern
-**Status: LIKELY**  
-**Evidence:** open PR #68 is titled “Fix Reports projection for expense corrections and voids” and describes loading expense lifecycle history, projecting corrected effective amounts, and setting voided expenses to zero report impact. Current main reporting repository is `app/src/main/java/com/dailymoneyregister/feature/reporting/data/ReportingReadRepository.kt`.  
-**Verification:** open-PR metadata and current-main source inspection; no test/build run or reproduction.  
-**Risk:** report totals may block or misstate corrected/voided expenses. Review #68 against current main and verify it with tests before deciding release status.
+### A-016 — Current main has an append-only expense lifecycle projection; regression certification remains outstanding
+**Status: PARTIAL**  
+**Evidence:** `ReportingReadRepository.kt:405-450` emits the original expense row plus lifecycle event rows. `ReportingRowMappers.kt:746-825` maps correction/void events to signed deltas. This is the intended replacement-and-reversal shape, but the open PR #68 still needs comparison against main to determine whether it contains additional fixes.  
+**Verification:** source trace; no test suite or physical-device reproduction run.  
+**Risk:** source structure alone does not prove all time-window, legacy-data and device paths reconcile correctly. Require explicit correction-chain/void regression tests before release.
 
-### A-017 — Expense correction amount semantics (5.000 → 0.599 → void) not reproduced
-**Status: CANNOT CHECK**  
-**Evidence:** scenario supplied in audit request; no runtime fixture or test output captured.  
-**Verification:** no test execution.  
-**Expected invariant to verify:** correction replaces the effective amount (or applies an explicitly defined delta), and subsequent void reverses only the current effective expense impact—not old plus corrected values. Add characterization tests for correction chains and void after correction.
+### A-017 — Expense correction is replacement semantics in current source; device result remains unexplained
+**Status: SOURCE TRACE CONFIRMED; DEVICE CAUSE BLOCKED**  
+**Evidence:** `ExpenseFinancialRepository.kt:84-107` selects the latest non-void corrected amount, stores previous/new values and computes correction delta as previous minus next. A later void uses the effective amount. The same implementation is present at tag `v1.0.152`; it implies 0.599, not 5.599, for the described sequence.  
+**Blocker:** the installed phone's exact local expense event/settlement rows and exact installed APK identity were not available read-only in this audit, so the observed 5.599 display cannot be tied to a specific stored row or UI path.
 
-### A-018 — Day Closing “Voids: 0 · Corrections: 0” not verified
-**Status: CANNOT CHECK**  
-**Evidence:** scenario supplied in audit request; notification SQL found but no generated day-close payload inspected.  
-**Verification:** no live notification/report execution.  
-**Expected invariant:** activity counters should reflect relevant lifecycle events over the selected business-local period, while monetary totals should use the effective financial projection without double counting.
+### A-018 — Day Closing counters omit expense lifecycle operations
+**Status: CONFIRMED**  
+**Evidence:** `RegisterShiftReportReadRepository.kt:662-704` increments `voidCount` for `RECORD_VOID` and `correctionCount` for `RECORD_AMOUNT_CORRECTION`, but not for `RECORD_EXPENSE_VOID` or `RECORD_EXPENSE_CORRECTION`. The expense-void branch also skips its reversal settlement in the monetary loop, which is intentional for avoiding double-counting.  
+**Conclusion:** when the performed lifecycle actions are expense corrections/voids, the displayed counters can remain zero even though the operations exist.
 
-### A-019 — PDF “Expected Cash Position: Not available” not verified
-**Status: CANNOT CHECK**  
-**Evidence:** `app/src/main/res/values/strings_reporting_pdf.xml` defines `pdf_metric_expected_cash` and `pdf_not_available`; presence of the string alone does not prove the runtime condition.  
-**Verification:** source resource inspection only.  
-**Recommendation:** document prerequisites for expected cash calculation and test available/unavailable states against counted shifts, opening balances, refunds, voids, corrections and expenses.
+### A-019 — Reporting PDF expected cash remains null in the current aggregation path
+**Status: CONFIRMED**  
+**Evidence:** `ReportingPdfActions.kt:152-156` shows the not-available label when `summary.expectedCash` is null. `ReportingModels.kt:649-650` defaults it to null, and `ReportingAggregator.kt:243-285` does not populate it. Day Closing calculates expected cash separately in `RegisterShiftReportReadRepository.kt:39-62,777-788`; that value is not wired into the reporting summary.  
+**Conclusion:** the current PDF path does not calculate/populate expected cash; there is no runtime condition in this path that makes it available.
 
 ### A-020 — Cross-screen money consistency not certified
 **Status: CANNOT CHECK**  
@@ -156,11 +152,10 @@ Security findings are intentionally excluded from this public report. The chat-o
 
 ## Phase 6 — Localization and UX
 
-### A-021 — Locale resources and product name are not fully parity-checked
+### A-021 — Locale naming is inconsistent; lint reports untranslated resources
 **Status: CONFIRMED**  
-**Evidence:** English uses `Paid&Due`; Arabic/Urdu/Hindi/Bengali resources use localized “Daily Money Register” naming. Bengali source exists at `values-b+bn/strings.xml`; no `values-bn/strings.xml` was found at that exact path.  
-**Verification:** fetched locale files and attempted the alternate path.  
-**Limit:** failed lookup is not a complete tree proof; duplicate/orphan Bengali resource folder status remains unproven.
+**Evidence:** product naming differs between base English (`Paid&Due`) and several localized resource sets (“Daily Money Register”). The completed lint scan reports 36 `Untranslatable` issues and 109 `UnusedResources` issues.  
+**Limit:** the scan does not certify full locale parity or establish that each candidate is semantically safe to delete; no resource was removed.
 
 ### A-022 — RTL, PDF/receipt font and garbled-text runtime behavior not checked
 **Status: CANNOT CHECK**  
@@ -176,11 +171,10 @@ Security findings are intentionally excluded from this public report. The chat-o
 
 ## Phase 7 — Build and CI health
 
-### A-024 — No fresh build/lint/test result was produced by this audit
-**Status: CANNOT CHECK**  
-**Evidence:** no local checkout or Gradle invocation was available in the connected audit path.  
-**Verification:** GitHub file/API inspection only.  
-**Risk:** compilation, tests, lint, instrumentation and signed artifact status on the current main SHA remain unproven by this audit.
+### A-024 — Lint passed; unit/instrumentation tests and signed artifact remain unverified
+**Status: PARTIAL**  
+**Evidence:** the temporary workflow completed `:app:lintDebug` successfully on audit branch run 40228223025. The non-sensitive lint counts are in `release-audit/scan-results.md`.  
+**Limit:** this was a debug lint task on the audit branch; no full unit/instrumentation suite, release build, APK/AAB signature inspection or physical-device certification was run.
 
 ### A-025 — Release workflow is event-gated, but action pinning is inconsistent
 **Status: CONFIRMED**  
@@ -189,11 +183,10 @@ Security findings are intentionally excluded from this public report. The chat-o
 **Risk:** tag updates can change the action code executed by the workflow. Pin all third-party actions to reviewed full SHAs and manage updates deliberately.  
 **Cost:** exact Actions-minute cost cannot be stated without run duration, runner billing multipliers and billing usage data.
 
-### A-026 — Workflow consolidation and private-repository minutes explanation not verified
-**Status: CANNOT CHECK**  
-**Evidence:** no complete workflow directory/run-time inventory or billing data; cannot verify the historical claim that checks stopped because of a minutes limit.  
-**Verification:** connector search and release workflow inspection.  
-**Recommendation:** group fast static checks separately from expensive emulator/instrumentation and signed release jobs; use path filters only where correctness is preserved, Gradle caching, concurrency cancellation for superseded non-release PR runs, bounded timeouts, and one trusted release gate. Confirm current plan quota and actual run minutes before attributing failures to billing.
+### A-026 — Workflow inventory is complete; total job-minute accounting is blocked
+**Status: PARTIAL**  
+**Evidence:** all 12 main-branch workflow files, their triggers and action uses were inspected. Recent API results show repeated PR and push runs across the Android, SQL, notification, customer-directory and repair workflows.  
+**Blocker:** the connector rejects workflow-specific run/timing endpoints, and the run-list API caps the filtered response at 2,500 records. Per-run job-detail retrieval across the complete 14-day period exceeds the available tool-call limit; no total minutes are claimed. See chat for the exact limitation and trigger inventory.
 
 ## Phase 8 — Release process
 
@@ -209,11 +202,10 @@ Security findings are intentionally excluded from this public report. The chat-o
 **Verification:** source inspection.  
 **Recommendation:** keep repository visibility and asset naming/digest conventions as documented release dependencies, or design and test an authenticated alternative before making the repository private.
 
-### A-029 — Versioning/changelog/rollback and store distribution readiness not fully verified
-**Status: CANNOT CHECK**  
-**Evidence:** `RELEASE_CHECKLIST.md` exists; root `README.md` was not found at the queried path. No release/tag inventory, Play Console record, signed AAB, staged rollout or rollback artifact was inspected.  
-**Verification:** direct file queries and checklist review.  
-**Recommendation:** ensure every release has a unique monotonic versionCode, changelog/tag, exact source SHA, checksum/signature evidence, staged rollout/rollback procedure, privacy policy and Data Safety declarations, support path, and tested database migration rollback/forward-repair plan. Outside Play Store, distribute only signed APKs with a verified signer and secure download path; inside Play Store, produce and validate an AAB and complete current policy/listing requirements.
+### A-029 — Updater/version code path is traced; store and rollback readiness remain unverified
+**Status: PARTIAL**  
+**Evidence:** `app/build.gradle.kts:58-59` uses `GITHUB_RUN_NUMBER` for versionCode/versionName with fallbacks. `ReleaseUpdater.kt:22-86,89-145` checks the latest stable GitHub release, validates the tag/asset name, compares SHA-256 before invoking Android's installer, and relies on the installer for signing identity enforcement. Making the repo private breaks the unauthenticated update lookup/download path unless distribution changes.  
+**Limit:** no signed release artifact, Play Console listing, staged rollout, rollback rehearsal or migration-recovery artifact was inspected.
 
 ## Phase 9 — Priorities and proposed plan
 
@@ -258,40 +250,19 @@ No remediation has been started. Approval is required before any fix.
 
 This addendum records additional non-security findings only. Live security details and access-control findings are intentionally excluded from this public repository file.
 
-### A-030 — Temporary audit workflow added, but scan results not retrieved
-**Status: CANNOT CHECK**  
-**Evidence:** `.github/workflows/release-audit-scans.yml` is committed on the audit branch. It is restricted to pushes on `audit/release-readiness-2026-10-25`, has read-only permissions, and pins checkout/setup-java to full SHAs.  
-**Verification:** fetched the workflow source from the audit branch.  
-**Limit:** the available GitHub connector did not expose workflow run execution output/results in this session. Therefore lint status, unused resource/string counts, top-level zero-reference candidates, large files and exact duplicate groups are not reported as if run. The script's zero-reference results would be candidates only: text search cannot prove absence of reflection/dynamic references, and semantic “unreferenced file” proof needs a separate dependency/reference graph.
-
-### A-031 — Storage inventory currently has no buckets
+### A-030 — Non-sensitive scan report generated and committed
 **Status: CONFIRMED**  
-**Evidence:** read-only query of `storage.buckets` returned zero rows in project `ttvdpgxqvvtjnxxfkoui`.  
-**Verification:** executed a SELECT-only catalog query; no storage state was modified.
+**Evidence:** `release-audit/scan-results.md` is committed with message `audit scan results [skip ci]`; run 40228223025 succeeded. The report contains lint counts and candidate lists only. Lint succeeded; 109 UnusedResources issues and 36 Untranslatable issues were reported. The heuristic scan found 131 zero/one-mention declaration candidates, 232 unreferenced-file candidates, no files >=1 MB, and 3 exact-hash duplicate groups.  
+**Limit:** candidate lists are lexical heuristics, not proof of dead code; no files were deleted.
 
-### A-032 — Several platform-managed tables have RLS disabled
+### A-034 — Expense lifecycle path is now traced; only the phone's 5.599 result remains unexplained
+**Status: SOURCE TRACE CONFIRMED; DEVICE CAUSE BLOCKED**  
+**Evidence:** the full correction/void writer, projection resolver, Recent/History repository, Reports row mapper and Day Closing shift report were fetched from main and inspected. Current code uses replacement semantics and a void amount equal to the latest effective amount; report rows use signed deltas.  
+**Blocker:** the exact installed phone's local expense events/settlements and artifact identity were not available in this read-only audit, so the displayed 5.599 cannot be reproduced or assigned to a specific row.
+
+### A-035 — PDF expected cash is not populated by the current aggregator
 **Status: CONFIRMED**  
-**Evidence:** read-only catalog query over non-system schemas returned RLS disabled for multiple platform-managed tables in `auth`, `realtime`, `extensions`, `supabase_migrations`, and `vault`. Application-owned `public` and `private` tables returned RLS enabled.  
-**Verification:** queried `pg_class.relrowsecurity` and grouped `pg_policies` counts.  
-**Limit:** this public report intentionally does not list the sensitive access-control details. RLS-off status alone does not establish public exposure; effective grants, schema exposure, platform ownership and function privileges must be assessed together. Details are chat-only.
-
-### A-033 — Application Edge Function endpoints are deployed with platform JWT verification disabled
-**Status: CONFIRMED**  
-**Evidence:** live Supabase Edge Function metadata reports `verify_jwt=false` for deployed functions `api`, `staff-invite`, `staff-activate`, `staff-open`, and `staff-preview`. Source retrieval shows the four staff endpoints currently return retired-feature responses; the API handler explicitly checks a bearer token for customer-directory sync.  
-**Verification:** read-only function metadata and source retrieval.  
-**Limit:** a disabled platform JWT gate does not alone prove an unauthenticated business operation succeeds; each handler's own authentication/authorization must be traced. Security implications are chat-only.
-
-### A-034 — Expense lifecycle amount and Day Closing behavior still require exact source trace
-**Status: CANNOT CHECK**  
-**Evidence:** `ReportingReadRepository.kt` documents that the Phase 2 read boundary returns detailed rows/activity counts and intentionally leaves financial summary totals to the Phase 3 aggregator. `ReportingRowMappers.kt` maps expense and expense-event entities, but the connector retrieval was truncated before the complete resolver and void calculation could be inspected.  
-**Verification:** retrieved current-main source excerpts; no runtime or test execution.  
-**Conclusion:** this evidence is insufficient to confirm that correction adds to the prior amount, that a void of 5.599 is computed by code, or that the behavior is correct. The reported phone result is not a source-code proof. Exact confirmation requires the expense projection resolver and void command/event creation path.
-
-### A-035 — PDF expected-cash “Not available” is a defined display state, not its own explanation
-**Status: CONFIRMED**  
-**Evidence:** `app/src/main/res/values/strings_reporting_pdf.xml` defines `pdf_metric_expected_cash` as “Expected Cash Position (Calculated)” and `pdf_not_available` as “Not available”.  
-**Verification:** fetched the resource file.  
-**Limit:** the calculation and prerequisites were not located in the retrieved excerpts, so the conditions under which it becomes available remain unresolved.
+**Evidence:** `ReportingPdfActions.kt:152-156` reads `summary.expectedCash`; the field defaults to null in `ReportingModels.kt:649-650`, and the current `ReportingAggregator.kt:243-285` does not assign it. The current reporting PDF path therefore always falls back to “Not available”.
 
 ### A-036 — Current deployed Edge Function inventory differs from retired cashier feature expectations
 **Status: CONFIRMED**  
@@ -299,12 +270,13 @@ This addendum records additional non-security findings only. Live security detai
 **Verification:** read-only metadata and source retrieval.  
 **Recommendation:** document these endpoints as intentionally retired and separately decide whether deployment retirement is part of a later approved change. No function was changed or deleted during this audit.
 
-## Second-pass blockers and remaining work
+## Remaining non-security blockers
 
-- The temporary workflow's results are not accessible through the current GitHub connector; A1–A3 remain blocked until run logs are available.
-- The received user request ends after “C. Code tracing … 6.” with no text describing item C6 or any subsequent items. That missing scope cannot be inferred.
-- Exact expense correction/void calculation, Day Closing counters, full time-formatting/timezone call-site inventory, and stuck-queue recovery UX still need complete source paths and line-level evidence before being marked confirmed or refuted.
-- Security details remain chat-only and are not included in this report.
+- The phone's displayed void amount of 5.599 cannot be explained by the inspected `main` and `v1.0.152` source. A read-only capture of that phone's expense event/settlement rows and exact installed artifact identity is needed to isolate the runtime discrepancy.
+- Complete per-workflow 14-day job-minute totals are unavailable because the GitHub connector rejects workflow-specific run/timing endpoints and caps run-list results; no total minutes are claimed.
+- Main branch protection cannot be checked through the current GitHub API connector (HTTP 403). Inspect repository Settings > Branches and Settings > Rules > Rulesets.
+- Signed release artifact, Play Console configuration, rollback rehearsal, and full device/runtime financial certification were not performed.
+- Security findings remain chat-only; this public report intentionally excludes the detailed Supabase ACL/Edge Function security review.
 
 ## Second-pass source tracing and repository inventory — 2026-10-25
 
