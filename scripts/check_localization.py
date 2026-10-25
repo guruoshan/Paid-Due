@@ -70,29 +70,25 @@ for source_root in source_roots:
             if MOJIBAKE.search(line):
                 errors.append(f"{path.relative_to(ROOT)}:{number}: possible encoding damage: {line[:100]!r}")
 
-# Catch direct, user-visible string literals in Compose UI source. Resource references,
-# user-provided dynamic values, test files, and non-UI/domain code are excluded.
+# Catch direct user-visible string literals in every production Kotlin file. The
+# patterns target Compose Text/labels/accessibility descriptions and visible feedback APIs.
 literal_patterns = [
-    re.compile(r'\bText\s*\(\s*"([^"\\]{2,})"'),
-    re.compile(r'contentDescription\s*=\s*"([^"\\]{2,})"'),
-    re.compile(r'\b(?:label|placeholder|title)\s*=\s*"([^"\\]{2,})"'),
-    re.compile(r'\b(?:Toast\.makeText|SnackbarHostState)\s*\([^\n]*"([^"\\]{2,})"'),
+    re.compile(r'\\bText\\s*\\(\\s*"([^"\\\\]{2,})"'),
+    re.compile(r'contentDescription\\s*=\\s*"([^"\\\\]{2,})"'),
+    re.compile(r'\\b(?:label|placeholder|title)\\s*=\\s*"([^"\\\\]{2,})"'),
+    re.compile(r'\\b(?:Toast\\.makeText|SnackbarHostState)\\s*\\([^\\n]*"([^"\\\\]{2,})"'),
 ]
 ui_root = ROOT / "app/src/main/java"
 for path in ui_root.rglob("*.kt"):
     rel = path.relative_to(ROOT).as_posix()
-    if "/ui/" not in rel and "/app/ui/" not in rel:
-        continue
     source = path.read_text(encoding="utf-8")
-    for number, line in enumerate(source.splitlines(), 1):
-        for pattern in literal_patterns:
-            match = pattern.search(line)
-            if match:
-                literal = match.group(1).strip()
-                if not literal or literal.startswith("$") or re.fullmatch(r"[0-9+.,:% /()-]+", literal):
-                    continue
-                errors.append(f"{rel}:{number}: possible hardcoded visible text {literal!r}")
-                break
+    for pattern in literal_patterns:
+        for match in pattern.finditer(source):
+            literal = match.group(1).strip()
+            if not literal or literal.startswith("$") or re.fullmatch(r"[0-9+.,:% /()-]+", literal):
+                continue
+            number = source.count("\\n", 0, match.start()) + 1
+            errors.append(f"{rel}:{number}: possible hardcoded visible text {literal!r}")
 
 if errors:
     print("Localization integrity check FAILED:")
