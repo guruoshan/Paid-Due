@@ -1,5 +1,7 @@
 package com.dailymoneyregister.feature.register.receipt
 
+import com.dailymoneyregister.R
+
 import android.content.Context
 import android.widget.Toast
 import androidx.core.content.FileProvider
@@ -38,7 +40,8 @@ object ReceiptSharing {
                 party = UniversalWhatsAppMessageComposer.Party(
                     businessName = receipt.businessName,
                     customerName = receipt.customerName,
-                    customerPhone = receipt.customerPhone
+                    customerPhone = receipt.customerPhone,
+                    labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                 ),
                 formattedAmount = receipt.formattedMoney(receipt.totalMinor),
                 paymentSummary = receipt.paymentSummary(),
@@ -146,7 +149,7 @@ object ReceiptSharing {
             PermissionAction.ISSUE_RECEIPT
         )
         if (!permitted) {
-            Toast.makeText(context, "Permission denied", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.audit_permission_denied), Toast.LENGTH_SHORT).show()
         }
         return permitted
     }

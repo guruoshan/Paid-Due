@@ -312,4 +312,13 @@
     <string name="coupon_purchase_purchaser_included">ক্রেতাকে অনুমোদিত ব্যবহারকারী হিসেবে অন্তর্ভুক্ত করা হয়েছে</string>
     <string name="coupon_remainder_amount">অবশিষ্ট পরিমাণ: %1$s</string>
     <string name="online_qr_not_configured">পেমেন্ট QR কনফিগার করা হয়নি</string>
+    <string name="language_ar_english">Arabic</string>
+    <string name="language_ar_native">العربية</string>
+    <string name="language_bn_english">Bangla</string>
+    <string name="language_bn_native">বাংলা</string>
+    <string name="language_en_native">English</string>
+    <string name="language_hi_english">Hindi</string>
+    <string name="language_hi_native">हिन्दी</string>
+    <string name="language_ur_english">Urdu</string>
+    <string name="language_ur_native">اردو</string>
 </resources>

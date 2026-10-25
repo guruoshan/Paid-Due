@@ -141,7 +141,7 @@ internal fun CreditSaleDialog(
             ) {
                 Text(
                     text =
-                        "Select the customer who is taking this sale on Credit."
+                        stringResource(R.string.audit_select_credit_customer)
                 )
 
                 state.errorMessage?.let { message ->
@@ -282,9 +282,9 @@ internal fun CreditSaleDialog(
                     ) {
                         Text(
                             if (state.couponSearching) {
-                                "Searching..."
+                                stringResource(R.string.audit_searching)
                             } else {
-                                "Search Customer"
+                                stringResource(R.string.audit_search_customer)
                             }
                         )
                     }
@@ -295,7 +295,7 @@ internal fun CreditSaleDialog(
                     ) {
                         if (state.couponCustomers.isEmpty()) {
                             Text(
-                                "No customer found."
+                                stringResource(R.string.audit_no_customer_found)
                             )
 
                         } else {
@@ -480,7 +480,7 @@ internal fun CreditSaleDialog(
 
                 Text(
                     text =
-                        "No payment is collected now. The amount becomes the customer's Credit obligation."
+                        stringResource(R.string.audit_credit_sale_no_payment)
                 )
 
             }
@@ -503,9 +503,9 @@ internal fun CreditSaleDialog(
             ) {
                 Text(
                     if (state.isExecuting) {
-                        "Saving..."
+                        stringResource(R.string.audit_saving)
                     } else {
-                        "Confirm Credit Sale"
+                        stringResource(R.string.audit_confirm_credit_sale)
                     }
                 )
             }
@@ -563,7 +563,7 @@ internal fun CouponWalletDialog(
                     Text(stringResource(R.string.authorized_users_title), fontWeight = FontWeight.SemiBold)
                     details.authorizedUsers.forEach { authUser ->
                         val latestName = authUser.name
-                        Text("ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ $latestName${if (authUser.user.isPurchaser) " (" + stringResource(R.string.coupon_purchaser_tag) + ")" else ""}")
+                        Row { Text(stringResource(R.string.audit_bullet)); Text("$latestName${if (authUser.user.isPurchaser) " (" + stringResource(R.string.coupon_purchaser_tag) + ")" else ""}") }
                         if (authUser.isActive) {
                             Row {
                                 TextButton(onClick = { editingId = authUser.user.id; userName = latestName }, enabled = !locked) {
@@ -592,7 +592,8 @@ internal fun CouponWalletDialog(
                                     party = UniversalWhatsAppMessageComposer.Party(
                                         businessName = businessName,
                                         customerName = customer.name,
-                                        customerPhone = customer.canonicalPhone
+                                        customerPhone = customer.canonicalPhone,
+                                        labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                                     ),
                                     formattedBalance =
                                         com.dailymoneyregister.core.model.money.MoneyMinorUnits(
@@ -611,7 +612,20 @@ internal fun CouponWalletDialog(
                     }
                     Text(stringResource(R.string.transaction_history), fontWeight = FontWeight.SemiBold)
                     details.ledgerEvents.forEach { event ->
-                        Text("${event.type}: " + com.dailymoneyregister.core.model.money.MoneyMinorUnits(event.amountSignedMinor)
+                        val activityLabel = when (details.activityKinds[event.id]) {
+                            com.dailymoneyregister.feature.register.data.RegisterRepository.CouponWalletActivityKind.SALE ->
+                                stringResource(R.string.audit_status_coupon_funds_sold)
+                            com.dailymoneyregister.feature.register.data.RegisterRepository.CouponWalletActivityKind.TOP_UP ->
+                                stringResource(R.string.audit_status_coupon_topup)
+                            com.dailymoneyregister.feature.register.data.RegisterRepository.CouponWalletActivityKind.BONUS ->
+                                stringResource(R.string.audit_coupon_bonus)
+                            com.dailymoneyregister.feature.register.data.RegisterRepository.CouponWalletActivityKind.REDEMPTION ->
+                                stringResource(R.string.audit_status_coupon_use)
+                            com.dailymoneyregister.feature.register.data.RegisterRepository.CouponWalletActivityKind.REFUND_TO_COUPON ->
+                                stringResource(R.string.audit_status_refund_to_coupon)
+                            null -> stringResource(R.string.audit_unknown_error)
+                        }
+                        Text("$activityLabel: " + com.dailymoneyregister.core.model.money.MoneyMinorUnits(event.amountSignedMinor)
                             .formatDisplay(decimalPlaces, currencySymbol))
                     }
                 }

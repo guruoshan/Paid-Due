@@ -12,4 +12,15 @@
     <string name="role_admin">व्यवस्थापक</string>
     <string name="role_cashier">कैशियर</string>
     <string name="register_financial_session_reset">सक्रिय वित्तीय सत्र बदलने के कारण रजिस्टर रीसेट किया गया।</string>
+
+    <string name="language_en_native" translatable="false">English</string>
+    <string name="language_ar_native" translatable="false">العربية</string>
+    <string name="language_hi_native" translatable="false">हिन्दी</string>
+    <string name="language_bn_native" translatable="false">বাংলা</string>
+    <string name="language_ur_native" translatable="false">اردو</string>
+    <string name="language_ar_english" translatable="false">Arabic</string>
+    <string name="language_hi_english" translatable="false">Hindi</string>
+    <string name="language_bn_english" translatable="false">Bangla</string>
+    <string name="language_ur_english" translatable="false">Urdu</string>
+
 </resources>

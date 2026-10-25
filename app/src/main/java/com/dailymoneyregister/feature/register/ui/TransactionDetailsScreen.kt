@@ -309,7 +309,7 @@ fun TransactionDetailsScreen(
                     text =
                         when {
                             transaction.isVoided ->
-                                "Transaction Voided"
+                                stringResource(R.string.audit_transaction_voided)
 
                             transaction.lifecycleStates.contains(
                                 FinancialLifecycleState.FULLY_REFUNDED
@@ -408,7 +408,7 @@ fun TransactionDetailsScreen(
                                 Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                "Audit information",
+                                stringResource(R.string.audit_audit_information),
                                 fontWeight =
                                     FontWeight.SemiBold
                             )
@@ -975,7 +975,7 @@ fun TransactionDetailsScreen(
         )
 
         Text(
-            text = "What happened to this transaction",
+            text = stringResource(R.string.audit_what_happened_transaction),
             color =
                 MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1285,7 +1285,7 @@ private fun VoidTimelineCard(
     timezoneId: String
 ) {
     TimelineCard(
-        title = "Transaction Voided"
+        title = stringResource(R.string.audit_transaction_voided)
     ) {
         TimelineReason(event.reason)
 

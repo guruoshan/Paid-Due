@@ -1,5 +1,8 @@
 ﻿package com.dailymoneyregister.feature.customers.ui
 
+import android.content.Context
+import com.dailymoneyregister.R
+
 /**
  * Pure application-wide WhatsApp wording boundary. Every value supplied here
  * has already been resolved by the owning feature. This object performs no
@@ -8,10 +11,43 @@
 object UniversalWhatsAppMessageComposer {
     const val FOOTER = "Powered by Paid&Due"
 
+    data class MessageLabels(
+        val creditBalance: String,
+        val paymentReminder: String,
+        val couponBalance: String,
+        val sale: String,
+        val creditInvoice: String,
+        val invoice: String,
+        val receipt: String,
+        val couponPurchaseTopUp: String,
+        val footer: String
+    ) {
+        companion object {
+            // Compatibility default for pure composer tests; production call sites inject locale resources.
+            val ENGLISH = MessageLabels(
+                "Credit Balance", "Payment Reminder", "Coupon Balance", "Sale",
+                "Credit Invoice", "Invoice", "Receipt", "Coupon Purchase / Top-up", "Powered by Paid&Due"
+            )
+
+            fun from(context: Context) = MessageLabels(
+                creditBalance = context.getString(R.string.audit_credit_balance),
+                paymentReminder = context.getString(R.string.audit_payment_reminder),
+                couponBalance = context.getString(R.string.audit_coupon_balance),
+                sale = context.getString(R.string.audit_sale),
+                creditInvoice = context.getString(R.string.audit_credit_invoice),
+                invoice = context.getString(R.string.audit_invoice),
+                receipt = context.getString(R.string.audit_receipt),
+                couponPurchaseTopUp = context.getString(R.string.audit_coupon_purchase_topup),
+                footer = context.getString(R.string.audit_message_footer)
+            )
+        }
+    }
+
     data class Party(
         val businessName: String,
         val customerName: String? = null,
-        val customerPhone: String? = null
+        val customerPhone: String? = null,
+        val labels: MessageLabels = MessageLabels.ENGLISH
     )
 
     data class LineItem(
@@ -135,7 +171,7 @@ object UniversalWhatsAppMessageComposer {
     /** Single source for the Coupon event title (text and image must agree). */
     fun couponEventTitle(event: CouponEvent): String =
         when (event.kind) {
-            CouponEventKind.PURCHASE_OR_TOP_UP -> "Coupon Purchase / Top-up"
+            CouponEventKind.PURCHASE_OR_TOP_UP -> event.party.labels.couponPurchaseTopUp
             CouponEventKind.GENERIC -> event.title
         }
 
@@ -180,7 +216,7 @@ object UniversalWhatsAppMessageComposer {
         )
 
     private fun creditBalance(message: CreditBalance) = buildMessage(
-        party = message.party, title = "Credit Balance", greeting = true
+        party = message.party, title = message.party.labels.creditBalance, greeting = true
     ) {
         line("Your current credit balance is:")
         blank()
@@ -194,7 +230,7 @@ object UniversalWhatsAppMessageComposer {
             "Payment reminder requires an outstanding balance greater than zero."
         }
         return buildMessage(
-            party = message.party, title = "Payment Reminder", greeting = true
+            party = message.party, title = message.party.labels.paymentReminder, greeting = true
         ) {
             line("This is a friendly reminder of your current outstanding credit balance.")
             blank()
@@ -207,7 +243,7 @@ object UniversalWhatsAppMessageComposer {
     }
 
     private fun couponBalance(message: CouponBalance) = buildMessage(
-        party = message.party, title = "Coupon Balance", greeting = true
+        party = message.party, title = message.party.labels.couponBalance, greeting = true
     ) {
         line("Your current Coupon balance is:")
         blank()
@@ -247,7 +283,7 @@ object UniversalWhatsAppMessageComposer {
     }
     private fun sale(message: Sale) = buildMessage(
         party = message.party,
-        title = "Sale",
+        title = message.party.labels.sale,
         greeting = message.party.customerName != null
     ) {
         line("Amount: ${message.formattedAmount}")
@@ -272,7 +308,7 @@ object UniversalWhatsAppMessageComposer {
     }
 
     private fun creditSale(message: CreditSale) = buildMessage(
-        party = message.party, title = "Credit Invoice", greeting = true
+        party = message.party, title = message.party.labels.creditInvoice, greeting = true
     ) {
         line("Credit Given: ${message.formattedCreditGiven}")
         line("Pending for This Purchase: ${message.formattedPurchaseOutstanding}")
@@ -307,7 +343,7 @@ object UniversalWhatsAppMessageComposer {
     }
 
     private fun invoice(message: Invoice) = buildMessage(
-        party = message.party, title = "Invoice", greeting = true
+        party = message.party, title = message.party.labels.invoice, greeting = true
     ) {
         line("Invoice: ${message.reference}")
         line("Amount: ${message.formattedAmount}")
@@ -318,7 +354,7 @@ object UniversalWhatsAppMessageComposer {
 
     private fun receipt(message: Receipt) = buildMessage(
         party = message.party,
-        title = "Receipt",
+        title = message.party.labels.receipt,
         greeting = message.party.customerName != null
     ) {
         line("Receipt: ${message.reference}")
@@ -348,7 +384,7 @@ object UniversalWhatsAppMessageComposer {
         blank()
         content()
         blank()
-        line(FOOTER)
+        line(party.labels.footer)
     }.toString()
 
     private class MessageBuilder {

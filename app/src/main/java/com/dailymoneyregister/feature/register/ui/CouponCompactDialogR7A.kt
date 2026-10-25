@@ -435,7 +435,7 @@ internal fun CouponCompactDialogR7A(
                                         ?.let { balance ->
 
                                             Text(
-                                                "Coupon balance: " +
+                                                stringResource(R.string.audit_customer_coupon_balance_colon) +
                                                     MoneyMinorUnits(
                                                         balance
                                                     ).formatDisplay(
@@ -622,7 +622,8 @@ internal fun CouponCompactDialogR7A(
                                                 party = UniversalWhatsAppMessageComposer.Party(
                                                     businessName = businessName,
                                                     customerName = successCustomerName,
-                                                    customerPhone = successCustomerPhone
+                                                    customerPhone = successCustomerPhone,
+                                                    labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                                                 ),
                                                 title = successTitle,
                                                 formattedAmount = formatMoney(successAmountMinor),
@@ -707,7 +708,7 @@ internal fun CouponCompactDialogR7A(
                                         )
                                 ) {
                                     Text(
-                                        "Send on WhatsApp"
+                                        stringResource(R.string.audit_send_whatsapp)
                                     )
                                 }
                             }
@@ -1245,7 +1246,8 @@ internal fun CouponCompactDialogR7A(
                                                     party = UniversalWhatsAppMessageComposer.Party(
                                                         businessName = businessName,
                                                         customerName = selected.name,
-                                                        customerPhone = selected.canonicalPhone
+                                                        customerPhone = selected.canonicalPhone,
+                                                        labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                                                     ),
                                                     formattedBalance = MoneyMinorUnits(
                                                         selectedBalanceMinor
