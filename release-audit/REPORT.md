@@ -174,20 +174,20 @@ Every finding has an ID, evidence, verification method, and status.
 
 ### A-027 — Checklist exists, but end-to-end release evidence is not attached to this audit
 **Status: CONFIRMED**  
-**Evidence:** `RELEASE_CHECKLIST.md` covers the release gate, and `.github/workflows/release.yml` performs Android unit/instrumentation tests, release compilation, Supabase Edge Function tests, signing configuration validation and release publishing.  
+**Evidence:** `RELEASE_CHECKLIST.md` covers the release gate, and `.github/workflows/release.yml` performs Android unit/instrumentation tests, release compilation, Supabase Edge Function tests and release publishing.  
 **Verification:** checklist and release workflow source inspection.  
-**Limit:** no current run, APK/AAB signature, Play Console configuration, privacy-policy review or rollback rehearsal was inspected.
+**Limit:** no current release run, Play Console configuration, privacy-policy review or rollback rehearsal was inspected.
 
 ### A-028 — Public GitHub release is a distribution dependency for in-app updates
 **Status: CONFIRMED**  
 **Evidence:** `ReleaseUpdater.kt` uses GitHub's latest-release API and repository release asset URLs.  
 **Verification:** source inspection.  
-**Recommendation:** keep repository visibility and asset naming/digest conventions as documented release dependencies, or design and test an authenticated alternative before making the repository private.
+**Recommendation:** keep repository visibility and asset naming conventions as documented release dependencies, or design and test an authenticated alternative before making the repository private.
 
-### A-029 — Updater/version code path is traced; store and rollback readiness remain unverified
+### A-029 — Versioning/update path is traced; store and rollback readiness remain unverified
 **Status: PARTIAL**  
-**Evidence:** `app/build.gradle.kts:58-59` uses `GITHUB_RUN_NUMBER` for versionCode/versionName with fallbacks. `ReleaseUpdater.kt:22-86,89-145` checks the latest stable GitHub release, validates the tag/asset name, compares SHA-256 before invoking Android's installer, and relies on the installer for signing identity enforcement. Making the repo private breaks the unauthenticated update lookup/download path unless distribution changes.  
-**Limit:** no signed release artifact, Play Console listing, staged rollout, rollback rehearsal or migration-recovery artifact was inspected.
+**Evidence:** `app/build.gradle.kts:58-59` uses `GITHUB_RUN_NUMBER` for versionCode/versionName with fallbacks. `ReleaseUpdater.kt:22-86` checks the latest stable GitHub release, expects the tag/asset naming convention and compares the installed version to the latest release. Making the repo private breaks the unauthenticated update lookup/download path unless distribution changes.  
+**Limit:** no Play Console listing, staged rollout, rollback rehearsal or migration-recovery artifact was inspected.
 
 ## Phase 9 — Priorities and proposed plan
 
