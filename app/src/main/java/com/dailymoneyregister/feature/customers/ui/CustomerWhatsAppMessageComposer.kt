@@ -5,12 +5,14 @@ object CustomerWhatsAppMessageComposer {
     data class Party(
         val businessName: String,
         val customerName: String,
-        val customerPhone: String
+        val customerPhone: String,
+        val labels: UniversalWhatsAppMessageComposer.MessageLabels = UniversalWhatsAppMessageComposer.MessageLabels.ENGLISH
     ) {
         internal fun universal() = UniversalWhatsAppMessageComposer.Party(
             businessName = businessName,
             customerName = customerName,
-            customerPhone = customerPhone
+            customerPhone = customerPhone,
+            labels = labels
         )
     }
 
