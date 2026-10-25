@@ -348,7 +348,7 @@ private fun RecentTransactionRow(
         ) {
             transaction.fundingBreakdown
                 .filter { it.amountMinor != 0L }
-                .joinToString(" Â· ") { part ->
+                .joinToString(" · ") { part ->
                     val amount =
                         MoneyMinorUnits(
                             kotlin.math.abs(part.amountMinor)
