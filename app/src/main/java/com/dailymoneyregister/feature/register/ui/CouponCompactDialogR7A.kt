@@ -623,6 +623,7 @@ internal fun CouponCompactDialogR7A(
                                                     businessName = businessName,
                                                     customerName = successCustomerName,
                                                     customerPhone = successCustomerPhone
+                                                    labels = UniversalWhatsAppMessageComposer.MessageLabels.from(LocalContext.current)
                                                 ),
                                                 title = successTitle,
                                                 formattedAmount = formatMoney(successAmountMinor),
@@ -1246,6 +1247,7 @@ internal fun CouponCompactDialogR7A(
                                                         businessName = businessName,
                                                         customerName = selected.name,
                                                         customerPhone = selected.canonicalPhone
+                                                        labels = UniversalWhatsAppMessageComposer.MessageLabels.from(LocalContext.current)
                                                     ),
                                                     formattedBalance = MoneyMinorUnits(
                                                         selectedBalanceMinor
