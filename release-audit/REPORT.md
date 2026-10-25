@@ -330,7 +330,7 @@ Recommendation for branches not attached to an open PR: retain until the unique 
 
 | Branch | Last commit date (UTC) | Recommendation |
 |---|---|---|
-| `audit/release-readiness-2026-10-25` | 2026-10-25 | Keep until audit is approved and complete. |
+| `audit/release-readiness-2026-10-25` | 2026-10-26 | Keep until audit is approved and complete. Latest activity is this report/progress-only audit update. |
 | `auth-authority` | 2026-10-11 | Review unique diff; archive only if superseded. |
 | `auth-authority-release` | 2026-10-11 | Open PR #18; compare to main, close PR if superseded. |
 | `auth-db-hardening` | 2026-10-11 | Open PR #13; review migrations against live schema before disposition. |
