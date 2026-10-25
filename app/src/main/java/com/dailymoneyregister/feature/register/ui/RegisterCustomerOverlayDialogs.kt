@@ -593,7 +593,7 @@ internal fun CouponWalletDialog(
                                         businessName = businessName,
                                         customerName = customer.name,
                                         customerPhone = customer.canonicalPhone
-                                        labels = UniversalWhatsAppMessageComposer.MessageLabels.from(LocalContext.current)
+                                        labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                                     ),
                                     formattedBalance =
                                         com.dailymoneyregister.core.model.money.MoneyMinorUnits(
