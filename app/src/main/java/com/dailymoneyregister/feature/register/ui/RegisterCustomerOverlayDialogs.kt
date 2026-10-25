@@ -141,7 +141,7 @@ internal fun CreditSaleDialog(
             ) {
                 Text(
                     text =
-                        "Select the customer who is taking this sale on Credit."
+                        stringResource(R.string.audit_select_credit_customer)
                 )
 
                 state.errorMessage?.let { message ->
@@ -480,7 +480,7 @@ internal fun CreditSaleDialog(
 
                 Text(
                     text =
-                        "No payment is collected now. The amount becomes the customer's Credit obligation."
+                        stringResource(R.string.audit_credit_sale_no_payment)
                 )
 
             }
