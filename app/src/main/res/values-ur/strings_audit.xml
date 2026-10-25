@@ -140,4 +140,17 @@
     <string name="audit_status_recorded">درج</string>
     <string name="audit_payment_prefix">ادائیگی: %1$s</string>
     <string name="audit_receipt_recorded_payment">درج شدہ ادائیگی</string>
+    <string name="audit_receipt_heading">رسید</string>
+    <string name="audit_receipt_reference">حوالہ: %1$s</string>
+    <string name="audit_receipt_date_time">تاریخ اور وقت: %1$s</string>
+    <string name="audit_receipt_customer">گاہک: %1$s</string>
+    <string name="audit_receipt_subtotal">ذیلی کل: %1$s</string>
+    <string name="audit_receipt_tax">ٹیکس: %1$s</string>
+    <string name="audit_receipt_shipping">شپنگ: %1$s</string>
+    <string name="audit_receipt_packing">پیکنگ: %1$s</string>
+    <string name="audit_receipt_total">کل: %1$s</string>
+    <string name="audit_receipt_note">نوٹ: %1$s</string>
+    <string name="audit_thank_you_business">آپ کے کاروبار کا شکریہ۔</string>
+    <string name="audit_receipt_customer_label">گاہک</string>
+    <string name="audit_receipt_business_name">Paid&amp;Due</string>
 </resources>
