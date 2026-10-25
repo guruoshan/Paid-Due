@@ -31,7 +31,7 @@ Every finding has an ID, evidence, verification method, and status.
 
 ### A-002 — Lint identifies unused-resource candidates; semantic reachability still requires review
 **Status: CONFIRMED scan results; deletion status CANNOT CHECK**  
-**Evidence:** committed `release-audit/scan-results.md` reports 109 `UnusedResources` lint issues and lists candidates. It also reports 131 zero/one-mention Kotlin declarations and 232 filename-based unreferenced-file candidates.  
+**Evidence:** committed `release-audit/scan-results.md` reports 109 `UnusedResources` lint issues and lists candidates. It also reports 131 zero/one-mention Kotlin declarations and 227 filename-based unreferenced-file candidates.  
 **Verification:** successful `:app:lintDebug` workflow run 40228223025 and committed scan report.  
 **Recommendation:** inspect each candidate against manifests, generated references, reflection/dynamic lookup, locale overlays, Gradle, tests and runtime paths before any deletion. No cleanup was performed.
 
@@ -233,7 +233,7 @@ This addendum records additional non-security findings only. Live security detai
 
 ### A-030 — Non-sensitive scan report generated and committed
 **Status: CONFIRMED**  
-**Evidence:** `release-audit/scan-results.md` is committed with message `audit scan results [skip ci]`; run 40228223025 succeeded. The report contains lint counts and candidate lists only. Lint succeeded; 109 UnusedResources issues and 36 Untranslatable issues were reported. The heuristic scan found 131 zero/one-mention declaration candidates, 232 unreferenced-file candidates, no files >=1 MB, and 3 exact-hash duplicate groups.  
+**Evidence:** `release-audit/scan-results.md` is committed with message `audit scan results [skip ci]`; run 40228223025 succeeded. The report contains lint counts and candidate lists only. Lint succeeded; 109 UnusedResources issues and 36 Untranslatable issues were reported. The heuristic scan found 131 zero/one-mention declaration candidates, 227 unreferenced-file candidates, no files >=1 MB, and 3 exact-hash duplicate groups.  
 **Limit:** candidate lists are lexical heuristics, not proof of dead code; no files were deleted.
 
 ### A-034 — Expense lifecycle path is now traced; only the phone's 5.599 result remains unexplained
