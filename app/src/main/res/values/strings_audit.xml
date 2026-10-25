@@ -82,4 +82,21 @@
     <string name="audit_send_whatsapp">Send on WhatsApp</string>
     <string name="audit_audit_information">Audit information</string>
     <string name="audit_no_customer_found">No customer found.</string>
+    <string name="audit_customer_export_preparing">Preparing customer Excel workbook…</string>
+    <string name="audit_customer_export_saved">Saved to Downloads/PaidDue. Opening share options…</string>
+    <string name="audit_customer_export_failed">Customer export failed: %1$s</string>
+    <string name="audit_unknown_error">unknown error</string>
+    <string name="audit_update_initial">Check GitHub for the latest approved version of Paid&amp;Due.</string>
+    <string name="audit_update_title">App updates</string>
+    <string name="audit_update_checking_releases">Checking GitHub releases…</string>
+    <string name="audit_update_verifying_preparing">Verifying and preparing update…</string>
+    <string name="audit_update_check_approved">Checking for an approved release…</string>
+    <string name="audit_update_up_to_date">Paid&amp;Due is up to date.</string>
+    <string name="audit_update_apk_missing">A newer release was found, but its APK is missing.</string>
+    <string name="audit_update_version_available">Version 1.0.%1$s is available.</string>
+    <string name="audit_update_check_failed">Could not check for updates. Please try again.</string>
+    <string name="audit_update_opening_installer">Opening Android installer…</string>
+    <string name="audit_update_prepare_failed">Could not prepare the update.</string>
+    <string name="audit_update_button_check">Check for updates</string>
+    <string name="audit_update_button_update">Update</string>
 </resources>
