@@ -41,6 +41,14 @@ def read_resources(directory):
     return entries
 
 resources = {code: read_resources(directory) for code, directory in LOCALES.items()}
+# Android treats values-bn and values-b+bn as the same Bengali locale. Check both
+# directories together and fail on cross-directory duplicate declarations.
+legacy_bengali = read_resources("values-bn")
+for key, value in legacy_bengali.items():
+    if key in resources["bn"]:
+        errors.append(f"bn: duplicate resource across values-bn and values-b+bn: {key[0]}/{key[1]}")
+    else:
+        resources["bn"][key] = value
 english = resources["en"]
 for code, entries in resources.items():
     if code == "en":
