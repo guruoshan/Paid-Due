@@ -45,7 +45,7 @@ Every finding has an ID, evidence, verification method, and status.
 **Status: PARTIAL**  
 **Evidence:** the main branch has 12 workflow files. Their triggers, all `uses:` lines, token permissions and explicit secret references were inspected. All 20 open PRs and 95 branches were also inventoried.  
 **Verification:** recursive GitHub repository tree, workflow source retrieval, Actions run API.  
-**Limit:** the available connector rejects workflow-specific run/timing endpoints and the repository run list is capped at 2,500 records for the filtered query. Complete per-workflow job-minute totals cannot be computed reliably here; see chat for the full workflow security inventory and exact blocker.
+**Limit:** the available connector rejects workflow-specific run/timing endpoints; the filtered run list is capped at 2,500 records while the unfiltered API reports 7,155 historical runs. Per-run timing is available, but aggregating every job would require thousands of calls beyond the tool-call cap. Complete per-workflow 14-day job-minute totals cannot be computed reliably here.
 
 ## Phase 2 — Android release readiness
 
