@@ -14,7 +14,7 @@ Scope: read-only audit of `main`; no application changes. Security findings must
 | 6. Localization and UX | DONE | Confirmed five locale resource families and RTL manifest support; naming parity is inconsistent and full locale/PDF/receipt rendering not checked. |
 | 7. Build and CI health | DONE | Inspected release workflow and action pinning; no fresh build/lint, workflow-wide inventory, or Actions billing-minute evidence. |
 | 8. Release process | DONE | Release checklist and GitHub updater/release workflow inspected; signed artifact, Play readiness, changelog/tag and rollback rehearsal not verified. |
-| 9. Prioritized findings and plan | TODO | Not yet complete; will be finalized in REPORT.md without security findings. |
+| 9. Prioritized findings and plan | DONE | REPORT.md committed with IDs A-001–A-029, confidence labels, P0/P1/P2 priorities and an ordered proposed PR plan; no fixes started. |
 
 ## Evidence discipline
 Each finding will have an ID, evidence/path, verification method, and CONFIRMED / LIKELY / CANNOT CHECK label. No security findings, exploit details, secret locations, or database access-rule weaknesses belong in this public repository.
