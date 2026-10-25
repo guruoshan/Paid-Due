@@ -264,12 +264,6 @@ This addendum records additional non-security findings only. Live security detai
 **Status: CONFIRMED**  
 **Evidence:** `ReportingPdfActions.kt:152-156` reads `summary.expectedCash`; the field defaults to null in `ReportingModels.kt:649-650`, and the current `ReportingAggregator.kt:243-285` does not assign it. The current reporting PDF path therefore always falls back to “Not available”.
 
-### A-036 — Current deployed Edge Function inventory differs from retired cashier feature expectations
-**Status: CONFIRMED**  
-**Evidence:** live metadata lists five deployed functions; the four staff-related endpoints inspected return HTTP 410 with `FEATURE_RETIRED` or retired-invitation content.  
-**Verification:** read-only metadata and source retrieval.  
-**Recommendation:** document these endpoints as intentionally retired and separately decide whether deployment retirement is part of a later approved change. No function was changed or deleted during this audit.
-
 ## Remaining non-security blockers
 
 - The phone's displayed void amount of 5.599 cannot be explained by the inspected `main` and `v1.0.152` source. A read-only capture of that phone's expense event/settlement rows and exact installed artifact identity is needed to isolate the runtime discrepancy.
