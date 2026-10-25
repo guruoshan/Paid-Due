@@ -69,8 +69,8 @@ Every finding has an ID, evidence, verification method, and status.
 
 ### A-008 — In-app updater depends on public GitHub releases and exact tag/asset naming
 **Status: CONFIRMED**  
-**Evidence:** `ReleaseUpdater.kt:22-86` calls the latest stable GitHub release endpoint, expects `v1.0.N` tags and an asset named `paid-due-v{tag}.apk`. `ReleaseUpdater.kt:89-145` downloads the matching APK and checks the asset's SHA-256 digest before handing it to Android's package installer.  
-**Assessment:** the updater is coupled to public repository access and the release naming convention. Making the repository private would break unauthenticated update discovery/download unless a supported authenticated distribution path is introduced. The updater itself does not inspect the APK certificate; Android's installer enforces package signing identity.
+**Evidence:** `ReleaseUpdater.kt:22-86` calls the latest stable GitHub release endpoint, expects `v1.0.N` tags and an asset named `paid-due-v{tag}.apk`.  
+**Assessment:** the updater is coupled to public repository access and the release naming convention. Making the repository private would break unauthenticated update discovery/download unless a supported authenticated distribution path is introduced.
 
 ### A-010 — Raw update errors can be shown to users
 **Status: CONFIRMED**  
@@ -293,12 +293,10 @@ This addendum records additional non-security findings only. Live security detai
 - `FinancialSyncOutboxDao.kt:42-70` only selects `QUEUED` and `WAITING_RETRY` for upload; it does not automatically retry `NEEDS_ATTENTION`. The DAO exposes requeue for `AUTH_REQUIRED`, but no corresponding collision reset/requeue method was found.
 - The app fails closed and does not silently acknowledge a conflicting digest. However, no in-app recovery workflow was found. Recovery requires a supported, audited reconciliation of the stored and incoming operation evidence; users cannot safely resolve this by retrying or changing the operation ID themselves.
 
-### A-042 — Release updater versioning, integrity checks, and repository visibility dependency
-**Status: CONFIRMED**
-- `app/build.gradle.kts:58-59`: `versionCode` comes from `GITHUB_RUN_NUMBER`, falling back to `1`; `versionName` is `1.0.<run number>`, falling back to `1.0.0`.
-- `app/src/main/java/com/dailymoneyregister/core/update/ReleaseUpdater.kt:22-35,38-86`: checks the public GitHub latest-release API, requires a stable non-draft release, accepts only tags `v1.0.N`, and looks for `paid-due-v1.0.N.apk`. It compares the release version number with the installed `longVersionCode`.
-- `ReleaseUpdater.kt:89-145`: downloads over HTTPS, enforces a 150 MB cap, computes SHA-256 and compares it to GitHub's release asset `digest` before opening Android's installer. Android's package installer independently enforces installed-app signing identity; the app does not itself verify the APK certificate.
-- Because the updater uses unauthenticated public GitHub release API and browser-download URLs, making the repository private would break update discovery/download for ordinary installs unless an authenticated distribution endpoint or other public release channel is provided.
+### A-042 — Release updater versioning and repository visibility dependency
+**Status: CONFIRMED**  
+**Evidence:** `app/build.gradle.kts:58-59` uses `GITHUB_RUN_NUMBER` for versionCode/versionName with fallbacks. `ReleaseUpdater.kt:22-86` checks the latest stable GitHub release, expects the `v1.0.N` tag/asset naming convention, and compares the installed version to the latest release version.  
+**Assessment:** making the repository private breaks unauthenticated update discovery/download unless distribution changes.
 
 ### A-043 — Scan output committed and lint completed
 **Status: CONFIRMED**
