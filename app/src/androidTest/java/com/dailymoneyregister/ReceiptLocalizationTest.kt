@@ -96,17 +96,20 @@ class ReceiptLocalizationTest {
         assertTrue("$kind receipt image must exist for $locale", file.isFile && file.length() > 500L)
         val bitmap = BitmapFactory.decodeFile(file.absolutePath)
         assertTrue("$kind receipt image must decode for $locale", bitmap != null)
-        bitmap!!.use {
+        val decoded = bitmap!!
+        try {
             var inkPixels = 0
-            for (y in 0 until it.height step 8) {
-                for (x in 0 until it.width step 8) {
-                    val pixel = it.getPixel(x, y)
+            for (y in 0 until decoded.height step 8) {
+                for (x in 0 until decoded.width step 8) {
+                    val pixel = decoded.getPixel(x, y)
                     if (Color.red(pixel) < 245 || Color.green(pixel) < 245 || Color.blue(pixel) < 245) {
                         inkPixels++
                     }
                 }
             }
             assertTrue("$kind receipt image must contain visible content for $locale", inkPixels > 100)
+        } finally {
+            decoded.recycle()
         }
     }
 }
