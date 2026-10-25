@@ -29,7 +29,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          ./gradlew :app:lintDebug --no-daemon --stacktrace
+          bash ./gradlew :app:lintDebug --no-daemon --stacktrace
           status=$?
           echo "lint_exit=$status" >> "$GITHUB_OUTPUT"
           exit 0
