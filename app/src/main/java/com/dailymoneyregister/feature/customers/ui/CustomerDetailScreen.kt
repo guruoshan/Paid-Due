@@ -792,6 +792,7 @@ fun CustomerDetailScreen(
                                                                             businessName = paymentReceiptParty.businessName,
                                                                             customerName = paymentReceiptParty.customerName,
                                                                             customerPhone = paymentReceiptParty.customerPhone
+                                                                            labels = UniversalWhatsAppMessageComposer.MessageLabels.from(LocalContext.current)
                                                                         ),
                                                                         formattedAmount =
                                                                             money(kotlin.math.abs(row.amountSignedMinor)),
