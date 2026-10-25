@@ -725,6 +725,6 @@ private fun historyLifecycleLabel(
         labels += label
     }
 
-    return labels.joinToString(" â€¢ ")
+    return labels.joinToString(" • ")
 }
 
