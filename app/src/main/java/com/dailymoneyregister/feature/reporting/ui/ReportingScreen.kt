@@ -118,7 +118,7 @@ fun ReportingScreen(
 
             InboundIncompleteBanner()
 
-            OutlinedButton(onClick = onExportCustomers, modifier = Modifier.fillMaxWidth()) { Text("EXPORT CUSTOMERS") }
+            OutlinedButton(onClick = onExportCustomers, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.audit_export_customers)) }
 
             ReportingPeriodSelector(
                 selected =
@@ -152,7 +152,7 @@ fun ReportingScreen(
                             )
                         },
                         placeholder = {
-                            Text("YYYY-MM-DD")
+                            Text(stringResource(R.string.audit_date_format_hint))
                         },
                         singleLine = true
                     )
@@ -172,7 +172,7 @@ fun ReportingScreen(
                             )
                         },
                         placeholder = {
-                            Text("YYYY-MM-DD")
+                            Text(stringResource(R.string.audit_date_format_hint))
                         },
                         singleLine = true
                     )
