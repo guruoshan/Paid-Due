@@ -612,7 +612,20 @@ internal fun CouponWalletDialog(
                     }
                     Text(stringResource(R.string.transaction_history), fontWeight = FontWeight.SemiBold)
                     details.ledgerEvents.forEach { event ->
-                        Text("${event.type}: " + com.dailymoneyregister.core.model.money.MoneyMinorUnits(event.amountSignedMinor)
+                        val activityLabel = when (details.activityKinds[event.id]) {
+                            com.dailymoneyregister.feature.register.data.RegisterRepository.CouponWalletActivityKind.SALE ->
+                                stringResource(R.string.audit_status_coupon_funds_sold)
+                            com.dailymoneyregister.feature.register.data.RegisterRepository.CouponWalletActivityKind.TOP_UP ->
+                                stringResource(R.string.audit_status_coupon_topup)
+                            com.dailymoneyregister.feature.register.data.RegisterRepository.CouponWalletActivityKind.BONUS ->
+                                stringResource(R.string.audit_coupon_bonus)
+                            com.dailymoneyregister.feature.register.data.RegisterRepository.CouponWalletActivityKind.REDEMPTION ->
+                                stringResource(R.string.audit_status_coupon_use)
+                            com.dailymoneyregister.feature.register.data.RegisterRepository.CouponWalletActivityKind.REFUND_TO_COUPON ->
+                                stringResource(R.string.audit_status_refund_to_coupon)
+                            null -> stringResource(R.string.audit_unknown_error)
+                        }
+                        Text("$activityLabel: " + com.dailymoneyregister.core.model.money.MoneyMinorUnits(event.amountSignedMinor)
                             .formatDisplay(decimalPlaces, currencySymbol))
                     }
                 }
