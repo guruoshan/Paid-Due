@@ -112,6 +112,9 @@ internal fun RegisterMainContentHost(
     onNavigateToNotifications: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val savedSaleDetailsUnavailable = stringResource(R.string.audit_saved_sale_details_unavailable)
+    val receiptUnavailable = stringResource(R.string.audit_receipt_unavailable)
+    val creditInvoiceUnavailable = stringResource(R.string.audit_credit_invoice_unavailable)
     val couponPaymentAction = couponPaymentActionUi(state)
 
     Scaffold(
@@ -510,7 +513,7 @@ onClick = {
                                             if (details == null) {
                                                 Toast.makeText(
                                                     context,
-                                                    context.getString(R.string.audit_saved_sale_details_unavailable),
+                                                    savedSaleDetailsUnavailable,
                                                     Toast.LENGTH_SHORT
                                                 ).show()
                                                 return@loadSaleDetailsForWhatsApp
@@ -530,7 +533,7 @@ onClick = {
                                             } catch (_: IllegalArgumentException) {
                                                 Toast.makeText(
                                                     context,
-                                                    context.getString(R.string.audit_receipt_unavailable),
+                                                    receiptUnavailable,
                                                     Toast.LENGTH_SHORT
                                                 ).show()
                                                 return@loadSaleDetailsForWhatsApp
@@ -557,7 +560,7 @@ onClick = {
                                             ) {
                                                 Toast.makeText(
                                                     context,
-                                                    context.getString(R.string.audit_credit_invoice_unavailable),
+                                                    creditInvoiceUnavailable,
                                                     Toast.LENGTH_SHORT
                                                 ).show()
                                                 return@loadSaleDetailsForWhatsApp
