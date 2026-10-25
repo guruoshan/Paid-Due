@@ -164,7 +164,7 @@ internal fun ExpenseDetailsScreen(
             Button(
                 onClick = onBack
             ) {
-                Text("Back")
+                Text(stringResource(R.string.audit_back))
             }
 
             Text(
@@ -210,7 +210,7 @@ internal fun ExpenseDetailsScreen(
                 HorizontalDivider()
 
                 ExpenseDetailLine(
-                    label = "Category",
+                    label = stringResource(R.string.audit_category),
                     value =
                         expenseDetailsLabel(
                             details.category
@@ -218,7 +218,7 @@ internal fun ExpenseDetailsScreen(
                 )
 
                 ExpenseDetailLine(
-                    label = "Payment Method",
+                    label = stringResource(R.string.audit_payment_method),
                     value =
                         expenseDetailsLabel(
                             details.paymentCategory.name
@@ -226,7 +226,7 @@ internal fun ExpenseDetailsScreen(
                 )
 
                 ExpenseDetailLine(
-                    label = "Payment Channel",
+                    label = stringResource(R.string.audit_payment_channel),
                     value =
                         expenseDetailsLabel(
                             details.paymentChannel.name
@@ -294,33 +294,33 @@ internal fun ExpenseDetailsScreen(
                         lifecycleReason = ""
                         showExpenseCorrection = true
                     }
-                ) { Text("Correct Expense") }
+                ) { Text(stringResource(R.string.audit_correct_expense)) }
                 OutlinedButton(
                     modifier = Modifier.weight(1f),
                     onClick = {
                         lifecycleReason = ""
                         showExpenseVoid = true
                     }
-                ) { Text("Void Expense") }
+                ) { Text(stringResource(R.string.audit_void_expense)) }
             }
         }
 
         if (showExpenseCorrection) {
             AlertDialog(
                 onDismissRequest = { showExpenseCorrection = false },
-                title = { Text("Correct Expense") },
+                title = { Text(stringResource(R.string.audit_correct_expense)) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = correctedAmountInput,
                             onValueChange = { correctedAmountInput = it },
-                            label = { Text("Corrected amount") },
+                            label = { Text(stringResource(R.string.audit_corrected_amount)) },
                             singleLine = true
                         )
                         OutlinedTextField(
                             value = lifecycleReason,
                             onValueChange = { lifecycleReason = it },
-                            label = { Text("Reason") }
+                            label = { Text(stringResource(R.string.audit_reason)) }
                         )
                     }
                 },
@@ -331,10 +331,10 @@ internal fun ExpenseDetailsScreen(
                             onCorrectExpense(correctedAmountInput, lifecycleReason)
                             showExpenseCorrection = false
                         }
-                    ) { Text("Save correction") }
+                    ) { Text(stringResource(R.string.audit_save_correction)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showExpenseCorrection = false }) { Text("Cancel") }
+                    TextButton(onClick = { showExpenseCorrection = false }) { Text(stringResource(R.string.audit_cancel)) }
                 }
             )
         }
@@ -342,14 +342,14 @@ internal fun ExpenseDetailsScreen(
         if (showExpenseVoid) {
             AlertDialog(
                 onDismissRequest = { showExpenseVoid = false },
-                title = { Text("Void Expense") },
+                title = { Text(stringResource(R.string.audit_void_expense)) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("This appends a void event and reversal. The original expense record is retained.")
+                        Text(stringResource(R.string.audit_void_expense_explanation))
                         OutlinedTextField(
                             value = lifecycleReason,
                             onValueChange = { lifecycleReason = it },
-                            label = { Text("Reason") }
+                            label = { Text(stringResource(R.string.audit_reason)) }
                         )
                     }
                 },
@@ -360,10 +360,10 @@ internal fun ExpenseDetailsScreen(
                             onVoidExpense(lifecycleReason)
                             showExpenseVoid = false
                         }
-                    ) { Text("Confirm void") }
+                    ) { Text(stringResource(R.string.audit_confirm_void)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showExpenseVoid = false }) { Text("Cancel") }
+                    TextButton(onClick = { showExpenseVoid = false }) { Text(stringResource(R.string.audit_cancel)) }
                 }
             )
         }
@@ -431,7 +431,7 @@ internal fun ExpenseDetailsScreen(
                         Color.White
                 )
         ) {
-            Text("Share on WhatsApp")
+            Text(stringResource(R.string.audit_share_whatsapp))
         }
 
         if (recipientPhone == null) {
@@ -471,7 +471,7 @@ internal fun ExpenseDetailsScreen(
                     }
                 }
             ) {
-                Text("Take Photo")
+                Text(stringResource(R.string.audit_take_photo))
             }
 
             OutlinedButton(
@@ -481,7 +481,7 @@ internal fun ExpenseDetailsScreen(
                     chooseDocumentLauncher.launch(arrayOf("image/*", "application/pdf"))
                 }
             ) {
-                Text("Choose File")
+                Text(stringResource(R.string.audit_choose_file))
             }
         }
 
@@ -490,7 +490,7 @@ internal fun ExpenseDetailsScreen(
         }
 
         if (supportingDocumentsLoading) {
-            Text("Loading supporting documents...")
+            Text(stringResource(R.string.audit_loading_documents))
         } else if (supportingDocuments.isEmpty()) {
             Text(
                 text = "No supporting documents attached.",
@@ -534,7 +534,7 @@ internal fun ExpenseDetailsScreen(
                                 runCatching { context.startActivity(intent) }
                             }
                         ) {
-                            Text("Open")
+                            Text(stringResource(R.string.audit_open))
                         }
 
                         TextButton(
@@ -551,7 +551,7 @@ internal fun ExpenseDetailsScreen(
                                 )
                             }
                         ) {
-                            Text("Share")
+                            Text(stringResource(R.string.audit_share))
                         }
                     }
                 }
