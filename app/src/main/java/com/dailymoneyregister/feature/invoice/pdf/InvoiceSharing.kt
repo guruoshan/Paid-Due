@@ -50,7 +50,7 @@ object InvoiceSharing {
                 party = UniversalWhatsAppMessageComposer.Party(
                     businessName = s.business.name ?: context.getString(R.string.app_name),
                     customerName = s.customer.name,
-                    customerPhone = s.customer.phone
+                    customerPhone = s.customer.phone,
                     labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                 ),
                 formattedAmount = formatInvoiceMoney(
