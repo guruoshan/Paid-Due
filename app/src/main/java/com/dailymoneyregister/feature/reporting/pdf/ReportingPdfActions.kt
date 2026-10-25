@@ -55,10 +55,50 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 @Composable
 fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val pdfPdfTitleDaily = stringResource(R.string.pdf_title_daily)
+    val pdfPdfTitleMonthly = stringResource(R.string.pdf_title_monthly)
+    val pdfPdfTitleCustom = stringResource(R.string.pdf_title_custom)
+    val pdfPdfTitleWeekly = stringResource(R.string.pdf_title_weekly)
+    val pdfPdfMetricGrossSales = stringResource(R.string.pdf_metric_gross_sales)
+    val pdfPdfMetricNetSales = stringResource(R.string.pdf_metric_net_sales)
+    val pdfPdfMetricExpenses = stringResource(R.string.pdf_metric_expenses)
+    val pdfPdfMetricRefund = stringResource(R.string.pdf_metric_refund)
+    val pdfPdfMetricCreditSales = stringResource(R.string.pdf_metric_credit_sales)
+    val pdfPdfMetricCreditRepaid = stringResource(R.string.pdf_metric_credit_repaid)
+    val pdfPdfMetricCreditOutstanding = stringResource(R.string.pdf_metric_credit_outstanding)
+    val pdfPdfMetricExpectedCash = stringResource(R.string.pdf_metric_expected_cash)
+    val pdfPdfNotAvailable = stringResource(R.string.pdf_not_available)
+    val pdfPdfActivitySale = stringResource(R.string.pdf_activity_sale)
+    val pdfPdfActivityCreditSale = stringResource(R.string.pdf_activity_credit_sale)
+    val pdfPdfActivityCreditRepayment = stringResource(R.string.pdf_activity_credit_repayment)
+    val pdfPdfActivityCouponPurchase = stringResource(R.string.pdf_activity_coupon_purchase)
+    val pdfPdfActivityCouponTopUp = stringResource(R.string.pdf_activity_coupon_top_up)
+    val pdfPdfActivityCouponRedemption = stringResource(R.string.pdf_activity_coupon_redemption)
+    val pdfPdfActivityCouponRefund = stringResource(R.string.pdf_activity_coupon_refund)
+    val pdfPdfActivityCouponBonus = stringResource(R.string.pdf_activity_coupon_bonus)
+    val pdfPdfActivityCouponCreditRepayment = stringResource(R.string.pdf_activity_coupon_credit_repayment)
+    val pdfPdfActivityRefund = stringResource(R.string.pdf_activity_refund)
+    val pdfPdfActivityExpense = stringResource(R.string.pdf_activity_expense)
+    val pdfPdfActivityExpenseVoid = stringResource(R.string.pdf_activity_expense_void)
+    val pdfPdfActivityVoid = stringResource(R.string.pdf_activity_void)
+    val pdfPdfActivityAmountCorrection = stringResource(R.string.pdf_activity_amount_correction)
+    val pdfPdfActivityPaymentMethodChange = stringResource(R.string.pdf_activity_payment_method_change)
+    val pdfPdfStatusReportNotReady = stringResource(R.string.pdf_status_report_not_ready)
+    val pdfPdfStatusSaved = stringResource(R.string.pdf_status_saved)
+    val pdfPdfShareChooser = stringResource(R.string.pdf_share_chooser)
+    val pdfPdfStatusShareOpened = stringResource(R.string.pdf_status_share_opened)
+    val pdfPdfStatusPrintOpened = stringResource(R.string.pdf_status_print_opened)
+    val pdfPdfStatusExportFailedFormat = stringResource(R.string.pdf_status_export_failed, "%s")
+    val pdfPdfStatusStoragePermission = stringResource(R.string.pdf_status_storage_permission)
+    val pdfPdfFileCreateFailed = stringResource(R.string.pdf_file_create_failed)
+    val pdfPdfFileOpenFailed = stringResource(R.string.pdf_file_open_failed)
+    val pdfPdfDirectoryCreateFailed = stringResource(R.string.pdf_directory_create_failed)
+    val pdfPdfPrintWriteFailed = stringResource(R.string.pdf_print_write_failed)
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf<String?>(null) }
 
@@ -90,10 +130,10 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
             summary.couponCreditRepayments.amount
         )
         val title = when (state.selectedPreset) {
-            ReportingPeriodPreset.TODAY, ReportingPeriodPreset.YESTERDAY -> context.getString(R.string.pdf_title_daily)
-            ReportingPeriodPreset.THIS_MONTH -> context.getString(R.string.pdf_title_monthly)
-            ReportingPeriodPreset.CUSTOM -> context.getString(R.string.pdf_title_custom)
-            ReportingPeriodPreset.THIS_WEEK -> context.getString(R.string.pdf_title_weekly)
+            ReportingPeriodPreset.TODAY, ReportingPeriodPreset.YESTERDAY -> pdfPdfTitleDaily
+            ReportingPeriodPreset.THIS_MONTH -> pdfPdfTitleMonthly
+            ReportingPeriodPreset.CUSTOM -> pdfPdfTitleCustom
+            ReportingPeriodPreset.THIS_WEEK -> pdfPdfTitleWeekly
         }
         val fromDate = Instant.ofEpochMilli(readModel.scope.period.fromInclusive).atZone(zoneId).toLocalDate()
         val toDate = Instant.ofEpochMilli(readModel.scope.period.toExclusive - 1L).atZone(zoneId).toLocalDate()
@@ -102,16 +142,16 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
             else "${fromDate.format(dateFormat)} – ${toDate.format(dateFormat)}"
         val reportDate = LocalDate.now(zoneId).format(dateFormat)
         val metrics = listOf(
-            ReportPdfMetric(context.getString(R.string.pdf_metric_gross_sales), money(summary.periodSaleInflow.amount), tone(summary.periodSaleInflow.amount)),
-            ReportPdfMetric(context.getString(R.string.pdf_metric_net_sales), money(summary.periodNetSalesActivity.amount), tone(summary.periodNetSalesActivity.amount)),
-            ReportPdfMetric(context.getString(R.string.pdf_metric_expenses), money(-summary.totalExpenses.amount), ReportValueTone.NEGATIVE),
-            ReportPdfMetric(context.getString(R.string.pdf_metric_refund), money(summary.periodRefundEffect.amount), tone(summary.periodRefundEffect.amount)),
-            ReportPdfMetric(context.getString(R.string.pdf_metric_credit_sales), money(summary.creditSalesOriginated.amount), tone(summary.creditSalesOriginated.amount)),
-            ReportPdfMetric(context.getString(R.string.pdf_metric_credit_repaid), money(repaymentTotal), tone(repaymentTotal)),
-            ReportPdfMetric(context.getString(R.string.pdf_metric_credit_outstanding), money(summary.creditOutstanding.amount), tone(summary.creditOutstanding.amount)),
+            ReportPdfMetric(pdfPdfMetricGrossSales, money(summary.periodSaleInflow.amount), tone(summary.periodSaleInflow.amount)),
+            ReportPdfMetric(pdfPdfMetricNetSales, money(summary.periodNetSalesActivity.amount), tone(summary.periodNetSalesActivity.amount)),
+            ReportPdfMetric(pdfPdfMetricExpenses, money(-summary.totalExpenses.amount), ReportValueTone.NEGATIVE),
+            ReportPdfMetric(pdfPdfMetricRefund, money(summary.periodRefundEffect.amount), tone(summary.periodRefundEffect.amount)),
+            ReportPdfMetric(pdfPdfMetricCreditSales, money(summary.creditSalesOriginated.amount), tone(summary.creditSalesOriginated.amount)),
+            ReportPdfMetric(pdfPdfMetricCreditRepaid, money(repaymentTotal), tone(repaymentTotal)),
+            ReportPdfMetric(pdfPdfMetricCreditOutstanding, money(summary.creditOutstanding.amount), tone(summary.creditOutstanding.amount)),
             ReportPdfMetric(
-                context.getString(R.string.pdf_metric_expected_cash),
-                summary.expectedCash?.amount?.let(::money) ?: context.getString(R.string.pdf_not_available),
+                pdfPdfMetricExpectedCash,
+                summary.expectedCash?.amount?.let(::money) ?: pdfPdfNotAvailable,
                 summary.expectedCash?.amount?.let(::tone) ?: ReportValueTone.OPERATIONAL
             )
         )
@@ -126,21 +166,21 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
             ReportPdfTransaction(
                 date = row.occurredAtText,
                 type = when (row.activityType) {
-                    ReportActivityType.SALE -> context.getString(R.string.pdf_activity_sale)
-                    ReportActivityType.CREDIT_SALE -> context.getString(R.string.pdf_activity_credit_sale)
-                    ReportActivityType.CREDIT_REPAYMENT -> context.getString(R.string.pdf_activity_credit_repayment)
-                    ReportActivityType.COUPON_PURCHASE -> context.getString(R.string.pdf_activity_coupon_purchase)
-                    ReportActivityType.COUPON_TOP_UP -> context.getString(R.string.pdf_activity_coupon_top_up)
-                    ReportActivityType.COUPON_REDEMPTION -> context.getString(R.string.pdf_activity_coupon_redemption)
-                    ReportActivityType.COUPON_REFUND -> context.getString(R.string.pdf_activity_coupon_refund)
-                    ReportActivityType.COUPON_BONUS -> context.getString(R.string.pdf_activity_coupon_bonus)
-                    ReportActivityType.COUPON_CREDIT_REPAYMENT -> context.getString(R.string.pdf_activity_coupon_credit_repayment)
-                    ReportActivityType.REFUND -> context.getString(R.string.pdf_activity_refund)
-                    ReportActivityType.EXPENSE -> context.getString(R.string.pdf_activity_expense)
-                    ReportActivityType.EXPENSE_VOID -> context.getString(R.string.pdf_activity_expense_void)
-                    ReportActivityType.VOID -> context.getString(R.string.pdf_activity_void)
-                    ReportActivityType.AMOUNT_CORRECTION -> context.getString(R.string.pdf_activity_amount_correction)
-                    ReportActivityType.PAYMENT_METHOD_CHANGE -> context.getString(R.string.pdf_activity_payment_method_change)
+                    ReportActivityType.SALE -> pdfPdfActivitySale
+                    ReportActivityType.CREDIT_SALE -> pdfPdfActivityCreditSale
+                    ReportActivityType.CREDIT_REPAYMENT -> pdfPdfActivityCreditRepayment
+                    ReportActivityType.COUPON_PURCHASE -> pdfPdfActivityCouponPurchase
+                    ReportActivityType.COUPON_TOP_UP -> pdfPdfActivityCouponTopUp
+                    ReportActivityType.COUPON_REDEMPTION -> pdfPdfActivityCouponRedemption
+                    ReportActivityType.COUPON_REFUND -> pdfPdfActivityCouponRefund
+                    ReportActivityType.COUPON_BONUS -> pdfPdfActivityCouponBonus
+                    ReportActivityType.COUPON_CREDIT_REPAYMENT -> pdfPdfActivityCouponCreditRepayment
+                    ReportActivityType.REFUND -> pdfPdfActivityRefund
+                    ReportActivityType.EXPENSE -> pdfPdfActivityExpense
+                    ReportActivityType.EXPENSE_VOID -> pdfPdfActivityExpenseVoid
+                    ReportActivityType.VOID -> pdfPdfActivityVoid
+                    ReportActivityType.AMOUNT_CORRECTION -> pdfPdfActivityAmountCorrection
+                    ReportActivityType.PAYMENT_METHOD_CHANGE -> pdfPdfActivityPaymentMethodChange
                 },
                 reference = row.referenceText.orEmpty(),
                 customer = listOfNotNull(row.customerName, row.customerPhone).joinToString(" · "),
@@ -163,7 +203,7 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
     fun runAction(action: String) {
         val snapshot = generateSnapshot()
         if (snapshot == null) {
-            status = context.getString(R.string.pdf_status_report_not_ready)
+            status = pdfPdfStatusReportNotReady
             return
         }
         scope.launch {
@@ -172,7 +212,7 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
                 when (action) {
                     "download" -> {
                         withContext(Dispatchers.IO) { savePdfToDownloads(context, file) }
-                        status = context.getString(R.string.pdf_status_saved)
+                        status = pdfPdfStatusSaved
                     }
                     "share" -> {
                         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
@@ -182,8 +222,8 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
                             clipData = android.content.ClipData.newUri(context.contentResolver, file.name, uri)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        context.startActivity(Intent.createChooser(intent, context.getString(R.string.pdf_share_chooser)))
-                        status = context.getString(R.string.pdf_status_share_opened)
+                        context.startActivity(Intent.createChooser(intent, pdfPdfShareChooser))
+                        status = pdfPdfStatusShareOpened
                     }
                     "print" -> {
                         val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
@@ -195,11 +235,11 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
                                 .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
                                 .build()
                         )
-                        status = context.getString(R.string.pdf_status_print_opened)
+                        status = pdfPdfStatusPrintOpened
                     }
                 }
             } catch (error: Exception) {
-                status = context.getString(R.string.pdf_status_export_failed, error.message ?: context.getString(R.string.pdf_not_available))
+                status = String.format(Locale.getDefault(), pdfPdfStatusExportFailedFormat, error.message ?: pdfPdfNotAvailable)
             }
         }
     }
@@ -209,7 +249,7 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) runAction("download")
-        else status = context.getString(R.string.pdf_status_storage_permission)
+        else status = pdfPdfStatusStoragePermission
     }
 
     Card(modifier = modifier.fillMaxWidth()) {
@@ -256,11 +296,11 @@ private fun savePdfToDownloads(context: Context, source: File) {
         }
         val resolver = context.contentResolver
         val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            ?: error(context.getString(R.string.pdf_file_create_failed))
+            ?: error(pdfPdfFileCreateFailed)
         try {
             resolver.openOutputStream(uri)?.use { output ->
                 FileInputStream(source).use { input -> input.copyTo(output) }
-            } ?: error(context.getString(R.string.pdf_file_open_failed))
+            } ?: error(pdfPdfFileOpenFailed)
             values.clear()
             values.put(MediaStore.MediaColumns.IS_PENDING, 0)
             resolver.update(uri, values, null, null)
@@ -272,7 +312,7 @@ private fun savePdfToDownloads(context: Context, source: File) {
         val directory = File(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
             "PaidDue"
-        ).apply { if (!exists() && !mkdirs()) error(context.getString(R.string.pdf_directory_create_failed)) }
+        ).apply { if (!exists() && !mkdirs()) error(pdfPdfDirectoryCreateFailed) }
         source.copyTo(File(directory, source.name), overwrite = true)
     }
 }
@@ -312,7 +352,7 @@ private class ReportingPdfPrintAdapter(private val source: File, private val con
             }
             callback.onWriteFinished(arrayOf(android.print.PageRange.ALL_PAGES))
         } catch (error: Exception) {
-            callback.onWriteFailed(error.message ?: context.getString(R.string.pdf_print_write_failed))
+            callback.onWriteFailed(error.message ?: pdfPdfPrintWriteFailed)
         }
     }
 }
