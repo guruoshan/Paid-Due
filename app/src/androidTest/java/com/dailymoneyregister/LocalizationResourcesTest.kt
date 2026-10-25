@@ -50,7 +50,7 @@ class LocalizationResourcesTest {
     @Test
     fun everyStringResourceIsPresentAndFreeOfEncodingDamageInAllLocales() {
         val base = ApplicationProvider.getApplicationContext<Context>()
-        val mojibake = Regex("(?:Ã.|Â.|â€|â€¦|â€¢|à¤|à¦|Ø[\\u0080-\\u00ff]|Ù[\\u0080-\\u00ff])")
+        val mojibake = Regex("(?:\\u00c3.|\\u00c2.|\\u00e2\\u20ac|\\u00e0\\u00a4|\\u00e0\\u00a6|\\u00d8[\\u0080-\\u00ff]|\\u00d9[\\u0080-\\u00ff])")
         val stringIds = R.string::class.java.fields
             .filter { it.type == Int::class.javaPrimitiveType }
             .mapNotNull { runCatching { it.getInt(null) }.getOrNull() }
