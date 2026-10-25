@@ -691,7 +691,7 @@ internal fun RegisterOverlayHost(
                 }
             },
             title = {
-                Text("Customer (Optional)", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.audit_customer_optional), fontWeight = FontWeight.Bold)
             },
             text = {
                 Column(
@@ -702,7 +702,7 @@ internal fun RegisterOverlayHost(
                         .imePadding(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Enter the customer phone number first, or continue without a customer.")
+                    Text(stringResource(R.string.audit_customer_phone_instruction))
     
                     PhoneNumberInput(
                         value = customerPhone,
@@ -745,12 +745,12 @@ internal fun RegisterOverlayHost(
                     }
     
                     if (needsNewCustomerName) {
-                        Text("No existing customer found. Enter the customer name.")
+                        Text(stringResource(R.string.audit_no_existing_customer))
     
                         OutlinedTextField(
                             value = customerName,
                             onValueChange = { customerName = it },
-                            label = { Text("Customer Name") },
+                            label = { Text(stringResource(R.string.audit_customer_name)) },
                             singleLine = true,
                             enabled = !state.isExecuting,
                             modifier = Modifier.fillMaxWidth()
@@ -769,7 +769,7 @@ internal fun RegisterOverlayHost(
                             },
                             enabled = !state.isExecuting
                         ) {
-                            Text("Skip Customer")
+                            Text(stringResource(R.string.audit_skip_customer))
                         }
                     }
     
@@ -784,7 +784,7 @@ internal fun RegisterOverlayHost(
                             enabled = !state.isExecuting &&
                                 !state.saleCustomerLookupLoading
                         ) {
-                            Text("Save Sale")
+                            Text(stringResource(R.string.audit_save_sale))
                         }
                     }
     
@@ -799,7 +799,7 @@ internal fun RegisterOverlayHost(
                             enabled = !state.isExecuting &&
                                 customerName.isNotBlank()
                         ) {
-                            Text("Save Sale")
+                            Text(stringResource(R.string.audit_save_sale))
                         }
                     }
                 }
@@ -913,12 +913,12 @@ internal fun RegisterOverlayHost(
                             onlineExistingCustomer == null
     
                     Text(
-                        "Customer (Optional)",
+                        stringResource(R.string.audit_customer_optional),
                         fontWeight = FontWeight.SemiBold
                     )
     
                     Text(
-                        "Enter the customer phone number first, or leave it blank."
+                        stringResource(R.string.audit_customer_phone_optional_instruction)
                     )
     
                     PhoneNumberInput(
@@ -970,12 +970,12 @@ internal fun RegisterOverlayHost(
                     }
     
                     if (onlineNeedsNewCustomerName) {
-                        Text("No existing customer found. Enter the customer name.")
+                        Text(stringResource(R.string.audit_no_existing_customer))
     
                         OutlinedTextField(
                             value = onlineCustomerName,
                             onValueChange = { onlineCustomerName = it },
-                            label = { Text("Customer Name") },
+                            label = { Text(stringResource(R.string.audit_customer_name)) },
                             singleLine = true,
                             enabled = !state.isExecuting,
                             modifier = Modifier.fillMaxWidth()
