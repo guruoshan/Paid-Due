@@ -444,14 +444,14 @@ private fun RecentTransactionRow(
             )
 
             Text(
-                text = "Status: $activityStatus",
+                text = stringResource(R.string.audit_status_label, activityStatus),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
             )
             transaction.reason?.takeIf { it.isNotBlank() }?.let { reason ->
                 Text(
-                    text = "Void reason: $reason",
+                    text = stringResource(R.string.audit_void_reason_label, reason),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
