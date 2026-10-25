@@ -282,21 +282,24 @@ private fun RecentTransactionRow(
         RecentActivityType.COUPON_TOP_UP -> stringResource(R.string.audit_status_coupon_topup)
         RecentActivityType.CREDIT_REPAYMENT -> stringResource(R.string.audit_status_credit_repaid)
         RecentActivityType.EXPENSE ->
-            if (transaction.status == com.dailymoneyregister.core.model.financial.RecentActivityStatus.VOIDED) "EXPENSE VOIDED"
-            else "EXPENSE RECORDED"
-        RecentActivityType.REFUND,
-        RecentActivityType.REFUND_TO_COUPON -> "REFUND"
+            if (transaction.status == com.dailymoneyregister.core.model.financial.RecentActivityStatus.VOIDED) stringResource(R.string.audit_status_expense_voided)
+            else stringResource(R.string.audit_status_expense_recorded)
+        RecentActivityType.REFUND -> stringResource(R.string.audit_status_refund)
+        RecentActivityType.REFUND_TO_COUPON -> stringResource(R.string.audit_status_refund_to_coupon)
         RecentActivityType.VOID -> stringResource(R.string.audit_status_void)
         RecentActivityType.AMOUNT_CORRECTION -> stringResource(R.string.audit_status_amount_correction)
         RecentActivityType.PAYMENT_METHOD_CHANGE -> stringResource(R.string.audit_status_payment_method_change)
     }
         val activityStatus = when (transaction.type) {
-        RecentActivityType.VOID -> "VOIDED"
+        RecentActivityType.VOID -> stringResource(R.string.audit_status_voided)
         RecentActivityType.REFUND,
-        RecentActivityType.REFUND_TO_COUPON -> "REFUNDED"
-        RecentActivityType.AMOUNT_CORRECTION -> "CORRECTED"
-        RecentActivityType.PAYMENT_METHOD_CHANGE -> "UPDATED"
-        else -> transaction.status.name.replace('_', ' ')
+        RecentActivityType.REFUND_TO_COUPON -> stringResource(R.string.audit_status_refunded)
+        RecentActivityType.AMOUNT_CORRECTION -> stringResource(R.string.audit_status_corrected)
+        RecentActivityType.PAYMENT_METHOD_CHANGE -> stringResource(R.string.audit_status_updated)
+        else -> when (transaction.status) {
+            com.dailymoneyregister.core.model.financial.RecentActivityStatus.RECORDED -> stringResource(R.string.audit_status_recorded)
+            com.dailymoneyregister.core.model.financial.RecentActivityStatus.VOIDED -> stringResource(R.string.audit_status_voided)
+        }
     }
     val amountMagnitude = MoneyMinorUnits(kotlin.math.abs(transaction.signedEffect.amount))
         .formatDisplay(currency)
