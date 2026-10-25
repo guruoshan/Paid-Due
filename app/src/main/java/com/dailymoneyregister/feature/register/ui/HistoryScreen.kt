@@ -305,7 +305,7 @@ private fun HistoryExpenseCard(
                     contentAlignment = androidx.compose.ui.Alignment.Center
                 ) {
                     Text(
-                        text = if (expense.isVoided) "EXPENSE VOIDED" else "EXPENSE",
+                        text = if (expense.isVoided) stringResource(R.string.audit_status_expense_voided) else stringResource(R.string.audit_status_expense),
                         modifier = Modifier.padding(horizontal = 4.dp),
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.labelSmall,
@@ -335,7 +335,7 @@ private fun HistoryExpenseCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = if (expense.isVoided) "Status: VOIDED" else "Status: RECORDED",
+                text = stringResource(R.string.audit_status_label, if (expense.isVoided) stringResource(R.string.audit_status_voided) else stringResource(R.string.audit_status_recorded)),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
