@@ -408,7 +408,7 @@ fun TransactionDetailsScreen(
                                 Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                "Audit information",
+                                stringResource(R.string.audit_audit_information),
                                 fontWeight =
                                     FontWeight.SemiBold
                             )
