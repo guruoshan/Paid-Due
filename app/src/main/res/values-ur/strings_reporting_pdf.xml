@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pdf_generated_by">Paid&amp;Due کی جانب سے تیار کردہ • صفحہ %1$d</string>
+    <string name="pdf_registered_business">رجسٹرڈ کاروبار</string>
+    <string name="pdf_continued">جاری ہے</string>
+    <string name="pdf_branch">برانچ: %1$s</string>
+    <string name="pdf_report_date">رپورٹ کی تاریخ: %1$s</string>
+    <string name="pdf_period">مدت: %1$s</string>
+    <string name="pdf_header_date_time">تاریخ / وقت</string>
+    <string name="pdf_header_type">قسم</string>
+    <string name="pdf_header_reference">حوالہ</string>
+    <string name="pdf_header_customer">گاہک</string>
+    <string name="pdf_header_payment">ادائیگی</string>
+    <string name="pdf_header_amount">رقم</string>
+    <string name="pdf_empty_transactions">اس رپورٹ کی مدت میں کوئی لین دین نہیں۔</string>
+</resources>
