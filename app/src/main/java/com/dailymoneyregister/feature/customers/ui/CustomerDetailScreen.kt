@@ -127,7 +127,7 @@ fun CustomerDetailScreen(
             "Transactions",
             "Coupons",
             "Credit",
-            "Documents", "Payments"
+            stringResource(R.string.audit_customer_documents), "Payments"
         )
 
     Scaffold(
@@ -245,7 +245,7 @@ fun CustomerDetailScreen(
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Text(
-                                    "TRANSACTIONS",
+                                    stringResource(R.string.audit_customer_transactions_title),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
                                     color =
@@ -255,7 +255,7 @@ fun CustomerDetailScreen(
                                 )
 
                                 Text(
-                                    "Recent Activity",
+                                    stringResource(R.string.audit_customer_recent_activity),
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 15.sp,
                                     modifier = Modifier.padding(top = 6.dp)
@@ -263,7 +263,7 @@ fun CustomerDetailScreen(
 
                                 if (transactions.isEmpty()) {
                                     Text(
-                                        "No transactions yet",
+                                        stringResource(R.string.audit_customer_no_transactions),
                                         fontSize = 14.sp,
                                         color =
                                             MaterialTheme
@@ -405,7 +405,7 @@ fun CustomerDetailScreen(
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Text(
-                                    "COUPONS",
+                                    stringResource(R.string.audit_customer_coupons_title),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -413,13 +413,13 @@ fun CustomerDetailScreen(
 
                                 if (coupon == null) {
                                     Text(
-                                        "No coupon wallet",
+                                        stringResource(R.string.audit_customer_no_coupon_wallet),
                                         fontWeight = FontWeight.SemiBold,
                                         fontSize = 18.sp
                                     )
 
                                     Text(
-                                        "This customer has no Coupon balance or activity.",
+                                        stringResource(R.string.audit_customer_no_coupon_activity),
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -467,13 +467,13 @@ fun CustomerDetailScreen(
 
                                     if (coupon.ledgerEvents.isEmpty()) {
                                         Text(
-                                            "No coupon activity yet",
+                                            stringResource(R.string.audit_customer_no_coupon_history),
                                             fontSize = 14.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     } else {
                                         Text(
-                                            "Recent Activity",
+                                            stringResource(R.string.audit_customer_recent_activity),
                                             fontWeight = FontWeight.SemiBold,
                                             fontSize = 15.sp,
                                             modifier = Modifier.padding(top = 6.dp)
@@ -573,7 +573,7 @@ fun CustomerDetailScreen(
 
                                     if (activeUsers.isNotEmpty()) {
                                         Text(
-                                            "Authorized users",
+                                            stringResource(R.string.audit_customer_authorized_users),
                                             fontWeight = FontWeight.SemiBold,
                                             fontSize = 14.sp,
                                             modifier = Modifier.padding(top = 4.dp)
@@ -604,7 +604,7 @@ fun CustomerDetailScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                     Text(
-                                        "Amount Due",
+                                        stringResource(R.string.audit_customer_amount_due),
                                         fontWeight = FontWeight.SemiBold,
                                         fontSize = 14.sp
                                     )
@@ -683,7 +683,7 @@ fun CustomerDetailScreen(
                                             0L
                                     ) {
                                         Text(
-                                            "No outstanding credit",
+                                            stringResource(R.string.audit_customer_no_outstanding_credit),
                                             fontSize = 14.sp,
                                             color =
                                                 MaterialTheme
@@ -693,7 +693,7 @@ fun CustomerDetailScreen(
                                     }
 
                                     Text(
-                                        "Credit History",
+                                        stringResource(R.string.audit_customer_credit_history),
                                         fontWeight = FontWeight.SemiBold,
                                         fontSize = 15.sp,
                                         modifier = Modifier.padding(top = 14.dp)
@@ -701,7 +701,7 @@ fun CustomerDetailScreen(
 
                                     if (state.creditHistory.isEmpty()) {
                                         Text(
-                                            "No credit activity yet",
+                                            stringResource(R.string.audit_customer_no_credit_activity),
                                             fontSize = 14.sp,
                                             color =
                                                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -832,7 +832,7 @@ fun CustomerDetailScreen(
                                                                 androidx.compose.foundation.layout.PaddingValues(0.dp)
                                                         ) {
                                                             Text(
-                                                                "Send receipt",
+                                                                stringResource(R.string.audit_customer_send_receipt),
                                                                 fontSize = 12.sp
                                                             )
                                                         }
@@ -877,7 +877,7 @@ fun CustomerDetailScreen(
                                     Alignment.CenterVertically
                             ) {
                                 Text(
-                                    "Documents",
+                                    stringResource(R.string.audit_customer_documents),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 18.sp
                                 )
@@ -903,7 +903,7 @@ fun CustomerDetailScreen(
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Text(
-                                        "No documents yet",
+                                        stringResource(R.string.audit_customer_no_documents),
                                         modifier =
                                             Modifier.padding(20.dp),
                                         color =
@@ -986,21 +986,21 @@ fun CustomerDetailScreen(
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Text(
-                                    "PAYMENTS",
+                                    stringResource(R.string.audit_customer_payments_title),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
 
                                 Text(
-                                    "Money paid and received for this contact",
+                                    stringResource(R.string.audit_customer_payments_subtitle),
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 15.sp
                                 )
 
                                 if (paymentRows.isEmpty()) {
                                     Text(
-                                        "No payment activity yet",
+                                        stringResource(R.string.audit_customer_no_payment_activity),
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -1490,7 +1490,7 @@ private fun CreditReceivePaymentDialog(
 
         title = {
             Text(
-                "Receive Credit Payment"
+                stringResource(R.string.audit_customer_receive_credit_payment)
             )
         },
 
@@ -1521,7 +1521,7 @@ private fun CreditReceivePaymentDialog(
 
                     label = {
                         Text(
-                            "Amount"
+                            stringResource(R.string.audit_amount)
                         )
                     },
 
@@ -1542,7 +1542,7 @@ private fun CreditReceivePaymentDialog(
                 )
 
                 Text(
-                    "Payment method",
+                    stringResource(R.string.audit_payment_method_titlecase),
 
                     fontWeight =
                         FontWeight.SemiBold
@@ -1566,7 +1566,7 @@ private fun CreditReceivePaymentDialog(
 
                         label = {
                             Text(
-                                "Cash"
+                                stringResource(R.string.audit_cash_titlecase)
                             )
                         },
 
@@ -1587,7 +1587,7 @@ private fun CreditReceivePaymentDialog(
 
                         label = {
                             Text(
-                                "Online"
+                                stringResource(R.string.audit_online_titlecase)
                             )
                         },
 
@@ -1632,7 +1632,7 @@ private fun CreditReceivePaymentDialog(
                             .isNotBlank()
             ) {
                 Text(
-                    "Receive Payment"
+                    stringResource(R.string.audit_customer_receive_payment)
                 )
             }
         },
@@ -1647,7 +1647,7 @@ private fun CreditReceivePaymentDialog(
                     !state.isSubmittingRepayment
             ) {
                 Text(
-                    "Cancel"
+                    stringResource(R.string.audit_cancel)
                 )
             }
         }
