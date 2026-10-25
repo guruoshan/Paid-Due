@@ -168,7 +168,7 @@ internal fun ExpenseDetailsScreen(
             }
 
             Text(
-                text = "Expense Details",
+                text = stringResource(R.string.audit_expense_details),
                 modifier =
                     Modifier
                         .weight(1f)
@@ -438,7 +438,7 @@ internal fun ExpenseDetailsScreen(
         if (recipientPhone == null) {
             Text(
                 text =
-                    "No phone number was saved for this Expense.",
+                    stringResource(R.string.audit_no_phone_for_expense),
                 style =
                     MaterialTheme.typography.bodySmall,
                 color =
@@ -450,7 +450,7 @@ internal fun ExpenseDetailsScreen(
         HorizontalDivider()
 
         Text(
-            text = "Supporting Documents",
+            text = stringResource(R.string.audit_supporting_documents),
             fontWeight = FontWeight.SemiBold
         )
 
@@ -494,7 +494,7 @@ internal fun ExpenseDetailsScreen(
             Text(stringResource(R.string.audit_loading_documents))
         } else if (supportingDocuments.isEmpty()) {
             Text(
-                text = "No supporting documents attached.",
+                text = stringResource(R.string.audit_no_supporting_documents),
                 style = MaterialTheme.typography.bodySmall
             )
         }
@@ -512,7 +512,7 @@ internal fun ExpenseDetailsScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = "Supporting document ${index + 1}",
+                        text = stringResource(R.string.audit_supporting_document_number, index + 1),
                         fontWeight = FontWeight.SemiBold
                     )
 
