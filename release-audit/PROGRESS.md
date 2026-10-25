@@ -13,7 +13,7 @@ Scope: read-only audit of `main`; no application changes, merges, deletions, Sup
 | 3. Supabase security review (chat only) | DONE | Read-only SELECT/catalog review of SECURITY DEFINER ACLs, tenant checks, live Edge Function metadata/source, and storage bucket count completed. Security details are deliberately excluded from public files. |
 | 4. Financial data/sync | DONE with runtime blocker | Expense lifecycle projection, Day Closing counter omission, expected cash path, collision queue state and PR #72 reviewed. The phone's reported 5.599 void is not explained by the checked main/v1.0.152 source; device-local evidence is required to determine the runtime cause. |
 | 5. Localization and time formatting | DONE | Repository-wide DateTimeFormatter, SimpleDateFormat, ZoneId, and timezoneId hits reviewed; notification raw UTC display contrasted with branch/device timezone formatters. |
-| 6. GitHub Actions/repository | PARTIAL | All 12 workflows on main inventoried for triggers, uses lines, token permissions, PR-target triggers and explicit secret references. All open PRs and 95 branch heads/dates/recommendations recorded in REPORT.md. Exact 14-day total job minutes are blocked by the API connector's run/timing limitations. |
+| 6. GitHub Actions/repository | DONE with run-metrics blocker | All 12 main workflows and the audit-only temporary scan workflow inventoried. Security-specific workflow details are chat-only. The API returned a bounded 1,000-run sample from 2026-10-25 and returned no later pages; exact 14-day per-workflow run counts and billable job minutes remain BLOCKED. The 20 open PRs and 95 branches are inventoried in REPORT.md. |
 | 7. Branch protection | BLOCKED | GitHub API branch-protection read returned access denied (403); cannot claim main protection is enabled or disabled. See Settings > Branches / Rulesets. |
 | 8. Proposed remediation plan | DONE | Non-security findings and proposed PR sequencing added to REPORT.md. No fixes started; awaiting explicit approval. |
 
@@ -41,7 +41,7 @@ Scope: read-only audit of `main`; no application changes, merges, deletions, Sup
 | S3 API Edge bearer validation / privileged key | DONE | Live Edge Function metadata and source reviewed; authentication/key-use conclusions are chat-only. No key values were recorded. |
 | S4 Retired staff functions | DONE | Four retired server endpoints inspected; ghost-code recommendation is chat-only. No deletion performed. |
 | D1 Workflow inventory | DONE | All workflow files and action references reviewed; token/secret reachability analysis is chat-only. |
-| D2 Last 14 days run counts and total job minutes | BLOCKED | GitHub connector exposes run lists and per-run timing but rejects workflow-specific run/timing endpoints; the filtered run list is capped at 2,500 records while the unfiltered API reports 7,155 historical runs. Aggregating all jobs would require thousands of per-run timing calls, exceeding the tool-call cap; complete per-workflow 14-day totals cannot be computed reliably here. |
+| D2 Last 14 days run counts and total job minutes | BLOCKED | GitHub run-list API returned only the first 1,000 records for the requested window (2026-10-25 01:51–19:54 UTC); later-page requests returned empty lists. Workflow-specific run-list/timing routes were rejected by the API wrapper, and run objects do not include billable job-minute totals. The 1,000-run sample and elapsed-time estimate are documented in REPORT.md, explicitly not represented as 14-day totals. |
 | D3 main branch protection | BLOCKED | Branch-protection API read returned HTTP 403. Check GitHub repository Settings > Branches and Settings > Rules > Rulesets. |
 | D4 Open PRs and branches | DONE | All 20 open PRs include last-updated date and disposition recommendation; all 95 branches include latest commit date and recommendation in REPORT.md. No branches were deleted. |
 | Step 5 Report/proposed PR plan | DONE | REPORT.md updated with A-037 onward, scan evidence, source traces, PR recommendations and branch inventory. It contains no security findings. |
@@ -53,3 +53,19 @@ Scope: read-only audit of `main`; no application changes, merges, deletions, Sup
 - Branch activity dates were re-read from each branch head commit in eight batches and written into REPORT.md: `e0c74316dfbf0b26e974c754375a2e3bdf6ce67e`, `15a4a4f1e7631d79950aa609290d6dab7413c2b3`, `8bbb3cb1d81e818e519751a3ec2c11169e61de08`, `6d2249e1a58c9e555cb1e5fddde62701ec153853`, `518331ff30b2d36ceb253b6bfe6dcac6ec28cc05`, `fa67f3965ca276e00ba184d0528c50f44c07f781`, `ac3de6f102d89a25e209bf842aaa472fe913bc3a`, `721f8121723d692657d75cd90b77fb93b89850bf`.
 - Open-PR activity timestamps were refreshed directly from the GitHub PR API in report commit `45d3ccce37ea409adf5a751feb19ceceefb6f672` (20/20 PR rows updated).
 - No application code or database rows were changed. No secrets were printed or written to repository files.
+
+
+## Third-pass update — 2026-10-26
+
+| Item | Status | Evidence / exact blocker |
+|---|---|---|
+| A1 Lint counts, unused resources/strings | DONE (heuristic candidates) | Read non-empty `release-audit/scan-results.md`; latest scan runs #6 (40228103209) and #7 (40228223025) succeeded. Gradle lint exit code 0; 109 UnusedResources, 36 Untranslatable. Top 20 resource names and counts are added to REPORT.md. |
+| A2 Zero-reference classes/functions | DONE (heuristic limitation explicit) | 807 top-level declarations parsed; 131 have exactly one textual mention (declaration itself), and no literal `mentions=0` entries were emitted. Top 30 single-mention candidates listed in REPORT.md; treat as LIKELY zero external textual references only. |
+| A3 Unreferenced/duplicate/ghost files | DONE (candidate-only) | 227 filename-mention candidates, 0 files >=1 MB, 3 exact duplicate groups. Exact pairs and the audit-only temporary workflow recommendation are documented in REPORT.md. No deletion occurred. |
+| D1 Workflow inventory | DONE | 12 workflow files exist on current main; the audit branch has those plus `release-audit-scans.yml`. All use Ubuntu runner types. Detailed triggers, action SHA pinning, permissions and secret-use status are communicated in chat only; no such security details were written into REPORT.md or PROGRESS.md. |
+| D2 14-day runs/minutes | BLOCKED with bounded sample | Connector returned only 1,000 run records covering 2026-10-25 01:51–19:54 UTC; pages after 10 returned empty. Workflow-specific run listing/timing was rejected, and API objects lack billed job-minute totals. REPORT.md provides a per-workflow bounded sample using elapsed wall time only. Exact 14-day counts/minutes cannot be truthfully claimed. |
+| D3 Main branch protection | BLOCKED | Prior branch-protection API read returned HTTP 403; no settings were changed. |
+| D4 Open PRs and branches | DONE | Live API confirms 20 open PRs and 95 branches. PR activity remains current through 2026-10-25 13:02:19 UTC; complete dates/recommendations are in REPORT.md. No PR or branch changes were made. |
+| Step 5 Report/progress update | DONE | Updated only `release-audit/REPORT.md` and `release-audit/PROGRESS.md` on `audit/release-readiness-2026-10-25`. No application files, workflows, PRs, branches, settings, secrets, or Supabase rows were changed. |
+
+All audit phases are either DONE or BLOCKED with an explicit reason. Security findings remain chat-only. No remediation actions were taken.
