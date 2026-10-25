@@ -21,10 +21,12 @@ import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.feature.register.data.ExpenseCategory
 import com.dailymoneyregister.feature.register.data.ExpenseCommand
+import com.dailymoneyregister.feature.register.data.ExpenseLifecycleCommand
 import com.dailymoneyregister.feature.register.data.HistoryActivityRow
 import com.dailymoneyregister.feature.register.data.HistoryActivitySourceType
 import com.dailymoneyregister.feature.register.data.HistoryRepository
 import com.dailymoneyregister.feature.register.data.RegisterRepository
+import com.dailymoneyregister.feature.register.data.registerShiftExpectedCashMinor
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -220,29 +222,109 @@ class ExpenseCode2ProjectionIntegrationTest {
     }
 
     @Test
-    fun deviceLocalRecentExcludesRemoteDeviceExpenseAndPreservesSharedFinancialEvidence() =
+    fun otherDeviceExpenseAppearsInRecentAndAdminVoidShowsVoidedStatus() =
         runBlocking {
             val remoteCommand = command(
                 suffix = "other-device",
-                amountMinor = 8_250L,
+                amountMinor = 6_000L,
                 deviceId = "another-physical-installation"
             )
             execute(remoteCommand)
 
-            val recent = repository.observeTodayTransactions(
+            val recentBeforeVoid = repository.observeTodayTransactions(
                 branchId = branch.id,
                 timezoneId = branch.timezoneId
-            ).first()
+            ).first { rows ->
+                rows.any { it.sourceReference == remoteCommand.expenseId }
+            }
 
-            assertFalse(
-                "Another device's expense must not appear in this device's Recent Transactions.",
-                recent.any { it.sourceReference == remoteCommand.expenseId }
+            assertTrue(
+                "An expense recorded on another device must appear in this device's Recent Transactions.",
+                recentBeforeVoid.any { it.sourceReference == remoteCommand.expenseId }
             )
             assertNotNull(
                 "The shared financial record must remain persisted for History and Reports.",
                 database.expenseDao().getExpenseById(remoteCommand.expenseId)
             )
+
+            // Void it as a separately persisted Admin with active membership on this branch.
+            val adminUser = user.copy(
+                id = "expense-code2-admin",
+                displayName = "Expense Code 2 Admin",
+                username = "expense_code2_admin",
+                role = UserRole.ADMIN
+            )
+            val adminMembership = membership.copy(
+                id = "expense-code2-admin-membership",
+                userId = adminUser.id,
+                role = UserRole.ADMIN
+            )
+            database.userDao().insertUser(adminUser)
+            database.userDao().insertMembership(adminMembership)
+            SessionManager.setSession(
+                ActiveSession(business, branch, adminUser, adminMembership)
+            )
+
+            val voidCommand = ExpenseLifecycleCommand(
+                operationId = OperationId("expense-code2-void-other-device"),
+                businessId = business.id,
+                branchId = branch.id,
+                actorUserId = adminUser.id,
+                deviceId = deviceIdentityProvider.deviceId,
+                occurredAt = System.currentTimeMillis(),
+                expenseId = remoteCommand.expenseId,
+                action = ExpenseLifecycleCommand.Action.VOID,
+                reason = "Entered in error"
+            )
+            val voidResult = repository.executeExpenseLifecycle(voidCommand)
+            assertTrue(
+                "Voiding the expense as an active branch Admin should succeed but was $voidResult",
+                voidResult is CommandResult.Success
+            )
+
+            val recentAfterVoid = repository.observeTodayTransactions(
+                branchId = branch.id,
+                timezoneId = branch.timezoneId
+            ).first { rows ->
+                rows.any {
+                    it.sourceReference == remoteCommand.expenseId &&
+                        it.status.name == "VOIDED"
+                }
+            }
+            val voidedRow = recentAfterVoid.single {
+                it.sourceReference == remoteCommand.expenseId
+            }
+            assertEquals(
+                "Voided expenses must be marked VOIDED in Recent, not RECORDED.",
+                "VOIDED",
+                voidedRow.status.name
+            )
+            assertEquals("Entered in error", voidedRow.reason)
         }
+
+    @Test
+    fun dayClosingExpectedCashExcludesVoidedExpenseWithoutShiftSetup() {
+        /*
+         * Directly exercise the Day Closing cash formula. A 6.000 cash expense
+         * has been voided, so its net active expense contribution is zero.
+         * Cash sales and coupon top-up funding remain positive cash inflows.
+         * This deliberately avoids creating a full register/cash-shift fixture.
+         */
+        val expectedCashMinor = registerShiftExpectedCashMinor(
+            cashSalesMinor = 1_000L,
+            cashCreditRepaymentsMinor = 0L,
+            cashCouponFundingMinor = 4_000L,
+            cashLifecycleAdjustmentMinor = 0L,
+            cashRefundsMinor = 0L,
+            cashExpensesMinor = 0L
+        )
+
+        assertEquals(
+            "With 1.000 cash sales, 4.000 coupon top-up funding, and a voided 6.000 expense, expected cash must be 5.000.",
+            5_000L,
+            expectedCashMinor
+        )
+    }
 
     @Test
     fun recentExpenseAppearsExactlyOnceWithoutFakeTransactionId() =

@@ -43,6 +43,7 @@ enum class ReportActivityType {
 
     REFUND,
     EXPENSE,
+    EXPENSE_VOID,
 
     VOID,
     AMOUNT_CORRECTION,

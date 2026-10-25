@@ -25,7 +25,7 @@ internal object ReportingAggregator {
 
     fun build(
         rows: List<ReportRow>,
-        creditOutstanding: MoneyMinorUnits = MoneyMinorUnits.ZERO
+        creditOutstanding: MoneyMinorUnits? = null
     ): ReportingSummary {
         var saleInflow = 0L
         var refundEffect = 0L
@@ -252,7 +252,15 @@ internal object ReportingAggregator {
             cashCreditRepayments = MoneyMinorUnits(cashRepayments),
             onlineCreditRepayments = MoneyMinorUnits(onlineRepayments),
             couponCreditRepayments = MoneyMinorUnits(couponRepayments),
-            creditOutstanding = creditOutstanding,
+            creditOutstanding = creditOutstanding ?: MoneyMinorUnits(
+                maxOf(
+                    0L,
+                    Math.subtractExact(
+                        creditSales,
+                        Math.addExact(Math.addExact(cashRepayments, onlineRepayments), couponRepayments)
+                    )
+                )
+            ),
             couponPurchased = MoneyMinorUnits(couponPurchased),
             couponToppedUp = MoneyMinorUnits(couponToppedUp),
             couponRedeemed = MoneyMinorUnits(couponRedeemed),

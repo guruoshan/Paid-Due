@@ -37,7 +37,8 @@ enum class RecentActivitySourceType {
 }
 
 enum class RecentActivityStatus {
-    RECORDED
+    RECORDED,
+    VOIDED
 }
 
 data class RecentFinancialActivity(
@@ -56,7 +57,8 @@ data class RecentFinancialActivity(
     val sourceReference: String,
     val displayRef: String,
     /** Sales reversal amount may differ from the actual payout on a credit refund. */
-    val totalEffectOverride: MoneyMinorUnits? = null
+    val totalEffectOverride: MoneyMinorUnits? = null,
+    val reason: String? = null
 ) {
     val isRevenue: Boolean
         get() = type == RecentActivityType.MERCHANDISE_SALE

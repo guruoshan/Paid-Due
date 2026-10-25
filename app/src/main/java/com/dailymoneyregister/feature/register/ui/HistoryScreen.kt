@@ -305,7 +305,7 @@ private fun HistoryExpenseCard(
                     contentAlignment = androidx.compose.ui.Alignment.Center
                 ) {
                     Text(
-                        text = "EXPENSE",
+                        text = if (expense.isVoided) "EXPENSE VOIDED" else "EXPENSE",
                         modifier = Modifier.padding(horizontal = 4.dp),
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.labelSmall,
@@ -316,7 +316,7 @@ private fun HistoryExpenseCard(
             }
 
             Text(
-                text = "- ${com.dailymoneyregister.core.model.money.MoneyMinorUnits(kotlin.math.abs(expense.signedEffect.amount)).formatDisplay(currency)}",
+                text = if (expense.isVoided) com.dailymoneyregister.core.model.money.MoneyMinorUnits.ZERO.formatDisplay(currency) else "- ${com.dailymoneyregister.core.model.money.MoneyMinorUnits(kotlin.math.abs(expense.signedEffect.amount)).formatDisplay(currency)}",
                 fontWeight = FontWeight.ExtraBold,
                 color = expenseFlowColor,
                 style = MaterialTheme.typography.headlineSmall,
@@ -335,7 +335,7 @@ private fun HistoryExpenseCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "Status: RECORDED",
+                text = if (expense.isVoided) "Status: VOIDED" else "Status: RECORDED",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -378,6 +378,16 @@ private fun HistoryExpenseCard(
             )
 
             Text(payment)
+
+            expense.voidReason
+                ?.takeIf { expense.isVoided && it.isNotBlank() }
+                ?.let { reason ->
+                    Text(
+                        text = "Void reason: $reason",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
             expense.note
                 ?.takeIf {

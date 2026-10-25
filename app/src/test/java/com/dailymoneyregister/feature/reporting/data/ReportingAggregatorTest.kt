@@ -490,6 +490,32 @@ class ReportingAggregatorTest {
     }
 
     @Test
+    fun creditCreated3000AndRepaidZeroLeavesOutstandingExactly3000() {
+        val creditSale = sale(
+            id = "credit-outstanding",
+            amount = 3_000L,
+            paymentParts = listOf(
+                part(
+                    PaymentCategory.CREDIT,
+                    PaymentChannel.CREDIT_ACCOUNT,
+                    3_000L
+                )
+            )
+        )
+
+        val summary = ReportingAggregator.build(
+            rows = listOf(creditSale),
+            creditOutstanding = money(3_000L)
+        )
+
+        assertEquals(3_000L, summary.creditSalesOriginated.amount)
+        assertEquals(0L, summary.cashCreditRepayments.amount)
+        assertEquals(0L, summary.onlineCreditRepayments.amount)
+        assertEquals(0L, summary.couponCreditRepayments.amount)
+        assertEquals(3_000L, summary.creditOutstanding.amount)
+    }
+
+    @Test
     fun exactArithmeticFailsClosedOnOverflow() {
         val result = runCatching {
             ReportingAggregator.build(

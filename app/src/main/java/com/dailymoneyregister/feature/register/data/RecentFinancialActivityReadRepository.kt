@@ -146,15 +146,23 @@ internal class RecentFinancialActivityReadRepository(
                     branchId = branchId,
                     fromInclusive = startOfDayMillis,
                     toExclusive = nextStartOfDayMillis
+                ),
+                database.expenseDao().observeExpenseEventsForPeriod(
+                    businessId = businessId,
+                    branchId = branchId,
+                    fromInclusive = startOfDayMillis,
+                    toExclusive = nextStartOfDayMillis
                 )
-            ) { records, repayments, expenses ->
-                Triple(records, repayments, expenses)
+            ) { records, repayments, expenses, expenseEvents ->
+                Triple(records, repayments, expenses) to expenseEvents
             }
 
-            combine(financialInputs, localOperationIdsFlow) { inputs, operationIds ->
-                inputs to operationIds.toSet()
-            }.map { (inputs, localOperationIds) ->
-                val (records, repayments, expenses) = inputs
+            combine(financialInputs, localOperationIdsFlow) { inputs, _ ->
+                inputs
+            }.map { inputs ->
+                val (baseInputs, expenseEvents) = inputs
+                val (records, repayments, expenses) = baseInputs
+                val expenseEventsById = expenseEvents.groupBy { it.expenseId }
 
                 val unresolvedTransactionActivities =
                     records.flatMap { record ->
@@ -248,7 +256,8 @@ internal class RecentFinancialActivityReadRepository(
                         val projection =
                             ExpenseReadProjectionResolver.resolve(
                                 expense = expense,
-                                settlement = settlements.single()
+                                settlement = settlements.single(),
+                                events = expenseEventsById[expense.id].orEmpty()
                             )
 
                         RecentFinancialActivity(
@@ -269,14 +278,16 @@ internal class RecentFinancialActivityReadRepository(
                             customerName =
                                 projection.payeeName,
                             status =
-                                RecentActivityStatus.RECORDED,
+                                if (projection.isVoided) RecentActivityStatus.VOIDED
+                                else RecentActivityStatus.RECORDED,
                             originalTransactionId = null,
                             sourceType =
                                 RecentActivitySourceType.EXPENSE,
                             sourceReference =
                                 projection.expenseId,
                             displayRef =
-                                projection.displayReference
+                                projection.displayReference,
+                            reason = projection.voidReason
                         )
                     }
                 val allActivities =
@@ -284,23 +295,9 @@ internal class RecentFinancialActivityReadRepository(
                         repaymentActivities +
                         expenseActivities
 
-                // Recent Transactions is device-local presentation. Inbound
-                // financial evidence remains in Room and therefore remains in
-                // shared History/Reports, but only operations authored by this
-                // installation are shown in this panel.
-                val visibleActivities =
-                    if (localDeviceId == null) {
-                        // Compatibility for isolated repository tests that do
-                        // not provide an installation identity.
-                        allActivities
-                    } else {
-                        allActivities.filter { activity ->
-                            activity.operationId != null &&
-                                activity.operationId in localOperationIds
-                        }
-                    }
-
-                visibleActivities.sortedWith(
+                // Recent Activity is a shared read view: show the same
+                // authoritative Room evidence on every logged-in device.
+                allActivities.sortedWith(
                         compareByDescending<RecentFinancialActivity> {
                             it.occurredAt
                         }.thenByDescending {

@@ -101,11 +101,22 @@ class HistoryRepository @Inject constructor(
                             expenseToExclusive
                     )
 
+            val expenseEventFlow =
+                database
+                    .expenseDao()
+                    .observeExpenseEventsForPeriod(
+                        businessId = openedBusinessId,
+                        branchId = openedBranchId,
+                        fromInclusive = expenseFromInclusive,
+                        toExclusive = expenseToExclusive
+                    )
+
             emitAll(
                 combine(
                     transactionFlow,
-                    expenseFlow
-                ) { records, expenses ->
+                    expenseFlow,
+                    expenseEventFlow
+                ) { records, expenses, expenseEvents ->
 
                     val liveSession =
                         SessionManager.currentSession.value
@@ -173,6 +184,9 @@ class HistoryRepository @Inject constructor(
                             )
                         }
 
+                    val expenseEventsById =
+                        expenseEvents.groupBy { it.expenseId }
+
                     val expenseSettlementsByOperation =
                         expenses
                             .map { it.operationId }
@@ -213,7 +227,8 @@ class HistoryRepository @Inject constructor(
                             val projection =
                                 ExpenseReadProjectionResolver.resolve(
                                     expense = expense,
-                                    settlement = settlements.single()
+                                    settlement = settlements.single(),
+                                    events = expenseEventsById[expense.id].orEmpty()
                                 )
 
                             /*

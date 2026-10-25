@@ -38,7 +38,9 @@ data class ExpenseReadProjection(
     val reference: String?,
     val note: String?,
     val occurredAt: Long,
-    val createdAt: Long
+    val createdAt: Long,
+    val isVoided: Boolean = false,
+    val voidReason: String? = null
 ) {
 
     init {
@@ -62,9 +64,7 @@ data class ExpenseReadProjection(
      */
     val signedEffect: MoneyMinorUnits
         get() =
-            MoneyMinorUnits(
-                Math.negateExact(amount.amount)
-            )
+            MoneyMinorUnits(Math.negateExact(amount.amount))
 
     /**
      * External funding/outflow identity used by Recent.
@@ -185,10 +185,14 @@ object ExpenseReadProjectionResolver {
             "Expense settlement payment channel mismatch for ${expense.id}"
         }
 
-        val effectiveAmountMinor = events
+        val orderedEvents = events.sortedWith(compareBy<ExpenseEventEntity>({ it.occurredAt }, { it.id }))
+        val voidEvent = orderedEvents.lastOrNull {
+            it.eventType.trim().uppercase() in setOf("VOID", "VOIDED")
+        }
+        val isVoided = voidEvent != null
+        val effectiveAmountMinor = orderedEvents
             .asSequence()
-            .filter { !it.eventType.uppercase().contains("VOID") }
-            .sortedWith(compareBy<ExpenseEventEntity>({ it.occurredAt }, { it.id }))
+            .filter { it.eventType.trim().uppercase() !in setOf("VOID", "VOIDED") }
             .mapNotNull { it.newAmountMinor }
             .lastOrNull() ?: expense.amountMinor
 
@@ -252,7 +256,9 @@ object ExpenseReadProjectionResolver {
                 expense.occurredAt,
 
             createdAt =
-                expense.createdAt
+                expense.createdAt,
+            isVoided = isVoided,
+            voidReason = voidEvent?.reason?.trim()?.takeIf { it.isNotEmpty() }
         )
     }
 }
