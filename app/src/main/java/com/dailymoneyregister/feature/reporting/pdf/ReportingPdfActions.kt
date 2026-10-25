@@ -296,11 +296,11 @@ private fun savePdfToDownloads(context: Context, source: File) {
         }
         val resolver = context.contentResolver
         val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            ?: error(pdfPdfFileCreateFailed)
+            ?: error(context.getString(R.string.pdf_file_create_failed))
         try {
             resolver.openOutputStream(uri)?.use { output ->
                 FileInputStream(source).use { input -> input.copyTo(output) }
-            } ?: error(pdfPdfFileOpenFailed)
+            } ?: error(context.getString(R.string.pdf_file_open_failed))
             values.clear()
             values.put(MediaStore.MediaColumns.IS_PENDING, 0)
             resolver.update(uri, values, null, null)
@@ -312,7 +312,7 @@ private fun savePdfToDownloads(context: Context, source: File) {
         val directory = File(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
             "PaidDue"
-        ).apply { if (!exists() && !mkdirs()) error(pdfPdfDirectoryCreateFailed) }
+        ).apply { if (!exists() && !mkdirs()) error(context.getString(R.string.pdf_directory_create_failed)) }
         source.copyTo(File(directory, source.name), overwrite = true)
     }
 }
@@ -352,7 +352,7 @@ private class ReportingPdfPrintAdapter(private val source: File, private val con
             }
             callback.onWriteFinished(arrayOf(android.print.PageRange.ALL_PAGES))
         } catch (error: Exception) {
-            callback.onWriteFailed(error.message ?: pdfPdfPrintWriteFailed)
+            callback.onWriteFailed(error.message ?: context.getString(R.string.pdf_print_write_failed))
         }
     }
 }
