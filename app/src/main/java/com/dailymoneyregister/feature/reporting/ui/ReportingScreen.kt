@@ -118,7 +118,7 @@ fun ReportingScreen(
 
             InboundIncompleteBanner()
 
-            OutlinedButton(onClick = onExportCustomers, modifier = Modifier.fillMaxWidth()) { Text("EXPORT CUSTOMERS") }
+            OutlinedButton(onClick = onExportCustomers, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.audit_export_customers)) }
 
             ReportingPeriodSelector(
                 selected =
@@ -152,7 +152,7 @@ fun ReportingScreen(
                             )
                         },
                         placeholder = {
-                            Text("YYYY-MM-DD")
+                            Text(stringResource(R.string.audit_date_format_hint))
                         },
                         singleLine = true
                     )
@@ -172,7 +172,7 @@ fun ReportingScreen(
                             )
                         },
                         placeholder = {
-                            Text("YYYY-MM-DD")
+                            Text(stringResource(R.string.audit_date_format_hint))
                         },
                         singleLine = true
                     )
@@ -701,21 +701,21 @@ private fun ReportingRowCard(
             if (isDarkTheme) Color(0xFFBDBDBD) else Color(0xFF616161)
     }
     val typeLabel = when (row.activityType) {
-        ReportActivityType.SALE -> "SALE RECORDED"
-        ReportActivityType.COUPON_PURCHASE -> "COUPON FUNDS SOLD"
-        ReportActivityType.COUPON_TOP_UP -> "PREPAID COUPON FUNDS ADDED"
+        ReportActivityType.SALE -> stringResource(R.string.audit_status_sale_recorded)
+        ReportActivityType.COUPON_PURCHASE -> stringResource(R.string.audit_status_coupon_funds_sold)
+        ReportActivityType.COUPON_TOP_UP -> stringResource(R.string.audit_status_coupon_topup)
         ReportActivityType.CREDIT_SALE,
         ReportActivityType.CREDIT_REPAYMENT,
-        ReportActivityType.COUPON_CREDIT_REPAYMENT -> "CREDIT"
-        ReportActivityType.EXPENSE -> "EXPENSE RECORDED"
-        ReportActivityType.EXPENSE_VOID -> "EXPENSE VOID"
+        ReportActivityType.COUPON_CREDIT_REPAYMENT -> stringResource(R.string.audit_status_credit)
+        ReportActivityType.EXPENSE -> stringResource(R.string.audit_status_expense_recorded)
+        ReportActivityType.EXPENSE_VOID -> stringResource(R.string.audit_status_expense_void)
         ReportActivityType.REFUND,
-        ReportActivityType.COUPON_REFUND -> "REFUND TO COUPON"
-        ReportActivityType.VOID -> "VOID"
-        ReportActivityType.AMOUNT_CORRECTION -> "CORRECTION"
-        ReportActivityType.PAYMENT_METHOD_CHANGE -> "PAYMENT CHANGE"
-        ReportActivityType.COUPON_REDEMPTION -> "COUPON USE"
-        ReportActivityType.COUPON_BONUS -> "OTHER INCOME"
+        ReportActivityType.COUPON_REFUND -> stringResource(R.string.audit_status_refund_to_coupon)
+        ReportActivityType.VOID -> stringResource(R.string.audit_status_void)
+        ReportActivityType.AMOUNT_CORRECTION -> stringResource(R.string.audit_status_amount_correction)
+        ReportActivityType.PAYMENT_METHOD_CHANGE -> stringResource(R.string.audit_status_payment_method_change)
+        ReportActivityType.COUPON_REDEMPTION -> stringResource(R.string.audit_status_coupon_use)
+        ReportActivityType.COUPON_BONUS -> stringResource(R.string.audit_status_other_income)
     }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(

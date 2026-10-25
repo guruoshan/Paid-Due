@@ -154,7 +154,7 @@
     <string name="coupon_whatsapp_balance_message">Hello %1$s,\n\nYour current coupon balance at %2$s is %3$s.\n\nThank you!\n\nPowered by Paid&amp;Due</string>
     <string name="coupon_whatsapp_invalid_phone">A valid international phone number is required.</string>
     <string name="coupon_whatsapp_open_failed">Could not open WhatsApp.</string>
-    <string name="coupon_loading">Loadingâ€¦</string>
+    <string name="coupon_loading">Loading…</string>
 
     <!-- Invoice form (added) -->
     <string name="inv_create">Create invoice</string>
@@ -172,7 +172,7 @@
     <string name="inv_customer_address">Address / note (optional)</string>
     <string name="inv_existing_customer">Existing customer: %1$s</string>
     <string name="inv_save">Save invoice</string>
-    <string name="inv_saving">Savingâ€¦</string>
+    <string name="inv_saving">Saving…</string>
     <string name="inv_saved_title">Invoice saved</string>
     <string name="inv_saved_message">Invoice %1$s was saved. It is a customer document and does not record a payment or sales revenue.</string>
     <string name="inv_error_no_items">Add at least one item to create an invoice.</string>
@@ -191,7 +191,7 @@
     <string name="inv_pdf_reference">Invoice no.: %1$s</string>
     <string name="inv_pdf_date_time">Date: %1$s</string>
     <string name="inv_pdf_bill_to">Bill to</string>
-    <string name="inv_pdf_item_charges">Per item - Shipping %1$s â€¢ Packing %2$s</string>
+    <string name="inv_pdf_item_charges">Per item - Shipping %1$s • Packing %2$s</string>
     <string name="inv_pdf_subtotal">Subtotal</string>
     <string name="inv_pdf_tax">Tax (%1$s%%)</string>
     <string name="inv_pdf_item_shipping">Item shipping</string>
@@ -217,7 +217,7 @@
     <string name="biz_details_phone">Phone (optional)</string>
     <string name="biz_details_tax_id">Tax registration number (optional)</string>
     <string name="biz_details_save">Save</string>
-    <string name="biz_details_saving">Savingâ€¦</string>
+    <string name="biz_details_saving">Saving…</string>
 
     <!-- Add Item / Bill screen additions (added) -->
     <string name="tax_with_rate">Tax (%1$s)</string>
@@ -288,7 +288,7 @@
     <string name="history_filter_phone">Phone</string>
     <string name="history_filter_name">Name</string>
     <string name="history_filter_amount">Amount</string>
-    <string name="history_loading">Loading historyâ€¦</string>
+    <string name="history_loading">Loading history…</string>
     <string name="history_empty">No transactions yet.</string>
     <string name="history_no_match">No matching transactions.</string>
     <string name="history_permission_denied">You do not have permission to view full transaction history.</string>

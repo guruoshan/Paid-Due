@@ -8,7 +8,7 @@
     <string name="reporting_yesterday">Yesterday</string>
     <string name="reporting_this_week">This week</string>
     <string name="reporting_this_month">This month</string>
-    <string name="reporting_loading">Loading reportsâ€¦</string>
+    <string name="reporting_loading">Loading reports…</string>
     <string name="reporting_no_activity">No financial activity in this period.</string>
     <string name="reporting_access_denied">You do not have permission to view Reports.</string>
     <string name="reporting_integrity_error">Reports are unavailable because financial evidence needs review.</string>

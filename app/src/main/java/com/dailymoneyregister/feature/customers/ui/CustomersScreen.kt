@@ -118,7 +118,7 @@ fun CustomersScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Button(onClick = actions.onExportCustomers, modifier = Modifier.fillMaxWidth()) { Text("EXPORT CUSTOMERS") }
+            Button(onClick = actions.onExportCustomers, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.audit_export_customers)) }
             OutlinedTextField(
                 value = state.query,
                 onValueChange = actions.onQueryChange,

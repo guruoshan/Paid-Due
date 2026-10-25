@@ -305,7 +305,7 @@ private fun HistoryExpenseCard(
                     contentAlignment = androidx.compose.ui.Alignment.Center
                 ) {
                     Text(
-                        text = if (expense.isVoided) "EXPENSE VOIDED" else "EXPENSE",
+                        text = if (expense.isVoided) stringResource(R.string.audit_status_expense_voided) else stringResource(R.string.audit_status_expense),
                         modifier = Modifier.padding(horizontal = 4.dp),
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.labelSmall,
@@ -324,18 +324,18 @@ private fun HistoryExpenseCard(
             )
 
             Text(
-                text = "Ref: ${expense.displayReference}",
+                text = stringResource(R.string.audit_ref_label, expense.displayReference),
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = "Time: $timestamp",
+                text = stringResource(R.string.audit_time_label, timestamp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = if (expense.isVoided) "Status: VOIDED" else "Status: RECORDED",
+                text = stringResource(R.string.audit_status_label, if (expense.isVoided) stringResource(R.string.audit_status_voided) else stringResource(R.string.audit_status_recorded)),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -383,7 +383,7 @@ private fun HistoryExpenseCard(
                 ?.takeIf { expense.isVoided && it.isNotBlank() }
                 ?.let { reason ->
                     Text(
-                        text = "Void reason: $reason",
+                        text = stringResource(R.string.audit_void_reason_label, reason),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -502,19 +502,19 @@ private fun HistoryTransactionCard(
             )
 
             Text(
-                text = "Ref: ${financial.displayRef}",
+                text = stringResource(R.string.audit_ref_label, financial.displayRef),
                 fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = "Time: $timestamp",
+                text = stringResource(R.string.audit_time_label, timestamp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "Status: ${historyLifecycleLabel(financial.lifecycleStates)}",
+                text = stringResource(R.string.audit_status_label, historyLifecycleLabel(financial.lifecycleStates)),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -725,6 +725,6 @@ private fun historyLifecycleLabel(
         labels += label
     }
 
-    return labels.joinToString(" â€¢ ")
+    return labels.joinToString(" • ")
 }
 

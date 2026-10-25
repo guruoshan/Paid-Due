@@ -60,7 +60,7 @@ fun AdminHubScreen(
                         }
                     ) {
                         IconButton(onClick = onNavigateToNotifications) {
-                            Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                            Icon(Icons.Default.Notifications, contentDescription = stringResource(R.string.audit_notifications))
                         }
                     }
                     IconButton(onClick = onNavigateToSettings) {

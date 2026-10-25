@@ -164,11 +164,11 @@ internal fun ExpenseDetailsScreen(
             Button(
                 onClick = onBack
             ) {
-                Text("Back")
+                Text(stringResource(R.string.audit_back))
             }
 
             Text(
-                text = "Expense Details",
+                text = stringResource(R.string.audit_expense_details),
                 modifier =
                     Modifier
                         .weight(1f)
@@ -210,7 +210,7 @@ internal fun ExpenseDetailsScreen(
                 HorizontalDivider()
 
                 ExpenseDetailLine(
-                    label = "Category",
+                    label = stringResource(R.string.audit_category),
                     value =
                         expenseDetailsLabel(
                             details.category
@@ -218,7 +218,7 @@ internal fun ExpenseDetailsScreen(
                 )
 
                 ExpenseDetailLine(
-                    label = "Payment Method",
+                    label = stringResource(R.string.audit_payment_method),
                     value =
                         expenseDetailsLabel(
                             details.paymentCategory.name
@@ -226,7 +226,7 @@ internal fun ExpenseDetailsScreen(
                 )
 
                 ExpenseDetailLine(
-                    label = "Payment Channel",
+                    label = stringResource(R.string.audit_payment_channel),
                     value =
                         expenseDetailsLabel(
                             details.paymentChannel.name
@@ -234,7 +234,7 @@ internal fun ExpenseDetailsScreen(
                 )
 
                 ExpenseDetailLine(
-                    label = "Name",
+                    label = stringResource(R.string.audit_name),
                     value =
                         details.payeeName
                             ?.takeIf {
@@ -244,7 +244,7 @@ internal fun ExpenseDetailsScreen(
                 )
 
                 ExpenseDetailLine(
-                    label = "Phone",
+                    label = stringResource(R.string.audit_phone),
                     value =
                         details.payeePhone
                             ?.takeIf {
@@ -254,13 +254,13 @@ internal fun ExpenseDetailsScreen(
                 )
 
                 ExpenseDetailLine(
-                    label = "Reference",
+                    label = stringResource(R.string.audit_reference),
                     value =
                         details.displayReference
                 )
 
                 ExpenseDetailLine(
-                    label = "Note",
+                    label = stringResource(R.string.audit_note),
                     value =
                         details.note
                             ?.takeIf {
@@ -270,7 +270,7 @@ internal fun ExpenseDetailsScreen(
                 )
 
                 ExpenseDetailLine(
-                    label = "Date & Time",
+                    label = stringResource(R.string.audit_date_time),
                     value =
                         expenseDetailsDateTime(
                             details.occurredAt,
@@ -294,33 +294,33 @@ internal fun ExpenseDetailsScreen(
                         lifecycleReason = ""
                         showExpenseCorrection = true
                     }
-                ) { Text("Correct Expense") }
+                ) { Text(stringResource(R.string.audit_correct_expense)) }
                 OutlinedButton(
                     modifier = Modifier.weight(1f),
                     onClick = {
                         lifecycleReason = ""
                         showExpenseVoid = true
                     }
-                ) { Text("Void Expense") }
+                ) { Text(stringResource(R.string.audit_void_expense)) }
             }
         }
 
         if (showExpenseCorrection) {
             AlertDialog(
                 onDismissRequest = { showExpenseCorrection = false },
-                title = { Text("Correct Expense") },
+                title = { Text(stringResource(R.string.audit_correct_expense)) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = correctedAmountInput,
                             onValueChange = { correctedAmountInput = it },
-                            label = { Text("Corrected amount") },
+                            label = { Text(stringResource(R.string.audit_corrected_amount)) },
                             singleLine = true
                         )
                         OutlinedTextField(
                             value = lifecycleReason,
                             onValueChange = { lifecycleReason = it },
-                            label = { Text("Reason") }
+                            label = { Text(stringResource(R.string.audit_reason)) }
                         )
                     }
                 },
@@ -331,10 +331,10 @@ internal fun ExpenseDetailsScreen(
                             onCorrectExpense(correctedAmountInput, lifecycleReason)
                             showExpenseCorrection = false
                         }
-                    ) { Text("Save correction") }
+                    ) { Text(stringResource(R.string.audit_save_correction)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showExpenseCorrection = false }) { Text("Cancel") }
+                    TextButton(onClick = { showExpenseCorrection = false }) { Text(stringResource(R.string.audit_cancel)) }
                 }
             )
         }
@@ -342,14 +342,14 @@ internal fun ExpenseDetailsScreen(
         if (showExpenseVoid) {
             AlertDialog(
                 onDismissRequest = { showExpenseVoid = false },
-                title = { Text("Void Expense") },
+                title = { Text(stringResource(R.string.audit_void_expense)) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("This appends a void event and reversal. The original expense record is retained.")
+                        Text(stringResource(R.string.audit_void_expense_explanation))
                         OutlinedTextField(
                             value = lifecycleReason,
                             onValueChange = { lifecycleReason = it },
-                            label = { Text("Reason") }
+                            label = { Text(stringResource(R.string.audit_reason)) }
                         )
                     }
                 },
@@ -360,10 +360,10 @@ internal fun ExpenseDetailsScreen(
                             onVoidExpense(lifecycleReason)
                             showExpenseVoid = false
                         }
-                    ) { Text("Confirm void") }
+                    ) { Text(stringResource(R.string.audit_confirm_void)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showExpenseVoid = false }) { Text("Cancel") }
+                    TextButton(onClick = { showExpenseVoid = false }) { Text(stringResource(R.string.audit_cancel)) }
                 }
             )
         }
@@ -382,7 +382,8 @@ internal fun ExpenseDetailsScreen(
                         party = UniversalWhatsAppMessageComposer.Party(
                             businessName = businessName,
                             customerName = details.payeeName,
-                            customerPhone = details.payeePhone
+                            customerPhone = details.payeePhone,
+                            labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                         ),
                         formattedAmount =
                             com.dailymoneyregister.core.model.money.MoneyMinorUnits(
@@ -431,13 +432,13 @@ internal fun ExpenseDetailsScreen(
                         Color.White
                 )
         ) {
-            Text("Share on WhatsApp")
+            Text(stringResource(R.string.audit_share_whatsapp))
         }
 
         if (recipientPhone == null) {
             Text(
                 text =
-                    "No phone number was saved for this Expense.",
+                    stringResource(R.string.audit_no_phone_for_expense),
                 style =
                     MaterialTheme.typography.bodySmall,
                 color =
@@ -449,7 +450,7 @@ internal fun ExpenseDetailsScreen(
         HorizontalDivider()
 
         Text(
-            text = "Supporting Documents",
+            text = stringResource(R.string.audit_supporting_documents),
             fontWeight = FontWeight.SemiBold
         )
 
@@ -471,7 +472,7 @@ internal fun ExpenseDetailsScreen(
                     }
                 }
             ) {
-                Text("Take Photo")
+                Text(stringResource(R.string.audit_take_photo))
             }
 
             OutlinedButton(
@@ -481,7 +482,7 @@ internal fun ExpenseDetailsScreen(
                     chooseDocumentLauncher.launch(arrayOf("image/*", "application/pdf"))
                 }
             ) {
-                Text("Choose File")
+                Text(stringResource(R.string.audit_choose_file))
             }
         }
 
@@ -490,10 +491,10 @@ internal fun ExpenseDetailsScreen(
         }
 
         if (supportingDocumentsLoading) {
-            Text("Loading supporting documents...")
+            Text(stringResource(R.string.audit_loading_documents))
         } else if (supportingDocuments.isEmpty()) {
             Text(
-                text = "No supporting documents attached.",
+                text = stringResource(R.string.audit_no_supporting_documents),
                 style = MaterialTheme.typography.bodySmall
             )
         }
@@ -511,7 +512,7 @@ internal fun ExpenseDetailsScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = "Supporting document ${index + 1}",
+                        text = stringResource(R.string.audit_supporting_document_number, index + 1),
                         fontWeight = FontWeight.SemiBold
                     )
 
@@ -534,7 +535,7 @@ internal fun ExpenseDetailsScreen(
                                 runCatching { context.startActivity(intent) }
                             }
                         ) {
-                            Text("Open")
+                            Text(stringResource(R.string.audit_open))
                         }
 
                         TextButton(
@@ -551,7 +552,7 @@ internal fun ExpenseDetailsScreen(
                                 )
                             }
                         ) {
-                            Text("Share")
+                            Text(stringResource(R.string.audit_share))
                         }
                     }
                 }

@@ -158,7 +158,7 @@ internal fun RegisterMainContentHost(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Notifications,
-                            contentDescription = "Notifications",
+                            contentDescription = stringResource(R.string.audit_notifications),
                             modifier = Modifier.size(24.dp),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
@@ -510,7 +510,7 @@ onClick = {
                                             if (details == null) {
                                                 Toast.makeText(
                                                     context,
-                                                    "Saved sale details are unavailable.",
+                                                    context.getString(R.string.audit_saved_sale_details_unavailable),
                                                     Toast.LENGTH_SHORT
                                                 ).show()
                                                 return@loadSaleDetailsForWhatsApp
@@ -530,7 +530,7 @@ onClick = {
                                             } catch (_: IllegalArgumentException) {
                                                 Toast.makeText(
                                                     context,
-                                                    "Receipt is unavailable for this record.",
+                                                    context.getString(R.string.audit_receipt_unavailable),
                                                     Toast.LENGTH_SHORT
                                                 ).show()
                                                 return@loadSaleDetailsForWhatsApp
@@ -557,7 +557,7 @@ onClick = {
                                             ) {
                                                 Toast.makeText(
                                                     context,
-                                                    "Credit invoice details are unavailable.",
+                                                    context.getString(R.string.audit_credit_invoice_unavailable),
                                                     Toast.LENGTH_SHORT
                                                 ).show()
                                                 return@loadSaleDetailsForWhatsApp
@@ -569,7 +569,8 @@ onClick = {
                                                         party = UniversalWhatsAppMessageComposer.Party(
                                                             businessName = receipt.businessName,
                                                             customerName = receipt.customerName,
-                                                            customerPhone = receipt.customerPhone
+                                                            customerPhone = receipt.customerPhone,
+                                                            labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                                                         ),
                                                         formattedCreditGiven =
                                                             receipt.formattedMoney(creditGivenMinor),

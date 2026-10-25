@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="reporting_title">à¦°à¦¿à¦ªà§‹à¦°à§à¦Ÿ</string>
-    <string name="reporting_open">à¦°à¦¿à¦ªà§‹à¦°à§à¦Ÿ</string>
-    <string name="reporting_open_desc">à¦…à¦¨à§à¦®à§‹à¦¦à¦¿à¦¤ à¦†à¦°à§à¦¥à¦¿à¦• à¦•à¦¾à¦°à§à¦¯à¦•à¦²à¦¾à¦ª à¦“ à¦¸à¦¾à¦°à¦¾à¦‚à¦¶ à¦ªà¦°à§à¦¯à¦¾à¦²à§‹à¦šà¦¨à¦¾ à¦•à¦°à§à¦¨</string>
-    <string name="reporting_back">à¦«à¦¿à¦°à§‡ à¦¯à¦¾à¦¨</string>
-    <string name="reporting_today">à¦†à¦œ</string>
-    <string name="reporting_yesterday">à¦—à¦¤à¦•à¦¾à¦²</string>
-    <string name="reporting_this_week">à¦à¦‡ à¦¸à¦ªà§à¦¤à¦¾à¦¹</string>
-    <string name="reporting_this_month">à¦à¦‡ à¦®à¦¾à¦¸</string>
-    <string name="reporting_loading">à¦°à¦¿à¦ªà§‹à¦°à§à¦Ÿ à¦²à§‹à¦¡ à¦¹à¦šà§à¦›à§‡â€¦</string>
-    <string name="reporting_no_activity">à¦à¦‡ à¦¸à¦®à¦¯à¦¼à¦•à¦¾à¦²à§‡ à¦•à§‹à¦¨à§‹ à¦†à¦°à§à¦¥à¦¿à¦• à¦•à¦¾à¦°à§à¦¯à¦•à¦²à¦¾à¦ª à¦¨à§‡à¦‡à¥¤</string>
-    <string name="reporting_access_denied">à¦†à¦ªà¦¨à¦¾à¦° à¦°à¦¿à¦ªà§‹à¦°à§à¦Ÿ à¦¦à§‡à¦–à¦¾à¦° à¦…à¦¨à§à¦®à¦¤à¦¿ à¦¨à§‡à¦‡à¥¤</string>
-    <string name="reporting_integrity_error">à¦†à¦°à§à¦¥à¦¿à¦• à¦ªà§à¦°à¦®à¦¾à¦£ à¦ªà¦°à§à¦¯à¦¾à¦²à§‹à¦šà¦¨à¦¾ à¦ªà§à¦°à¦¯à¦¼à§‹à¦œà¦¨ à¦¬à¦²à§‡ à¦°à¦¿à¦ªà§‹à¦°à§à¦Ÿ à¦à¦–à¦¨ à¦‰à¦ªà¦²à¦­à§à¦¯ à¦¨à¦¯à¦¼à¥¤</string>
-    <string name="reporting_load_failed">à¦°à¦¿à¦ªà§‹à¦°à§à¦Ÿ à¦²à§‹à¦¡ à¦•à¦°à¦¾ à¦¯à¦¾à¦¯à¦¼à¦¨à¦¿à¥¤</string>
-    <string name="reporting_activity_count">%1$dà¦Ÿà¦¿ à¦†à¦°à§à¦¥à¦¿à¦• à¦•à¦¾à¦°à§à¦¯à¦•à¦²à¦¾à¦ª</string>
-    <string name="reporting_phase4a_foundation">à¦¬à¦¿à¦¸à§à¦¤à¦¾à¦°à¦¿à¦¤ à¦°à¦¿à¦ªà§‹à¦°à§à¦Ÿ à¦¸à¦¾à¦°à¦¿ à¦“ à¦«à¦¿à¦²à§à¦Ÿà¦¾à¦° à¦ªà¦°à¦¬à¦°à§à¦¤à§€ à¦°à¦¿à¦ªà§‹à¦°à§à¦Ÿà¦¿à¦‚ à¦§à¦¾à¦ªà§‡ à¦¯à§‹à¦— à¦¹à¦¬à§‡à¥¤</string>
+    <string name="reporting_title">রিপোর্ট</string>
+    <string name="reporting_open">রিপোর্ট</string>
+    <string name="reporting_open_desc">অনুমোদিত আর্থিক কার্যকলাপ ও সারাংশ পর্যালোচনা করুন</string>
+    <string name="reporting_back">ফিরে যান</string>
+    <string name="reporting_today">আজ</string>
+    <string name="reporting_yesterday">গতকাল</string>
+    <string name="reporting_this_week">এই সপ্তাহ</string>
+    <string name="reporting_this_month">এই মাস</string>
+    <string name="reporting_loading">রিপোর্ট লোড হচ্ছে…</string>
+    <string name="reporting_no_activity">এই সময়কালে কোনো আর্থিক কার্যকলাপ নেই।</string>
+    <string name="reporting_access_denied">আপনার রিপোর্ট দেখার অনুমতি নেই।</string>
+    <string name="reporting_integrity_error">আর্থিক প্রমাণ পর্যালোচনা প্রয়োজন বলে রিপোর্ট এখন উপলভ্য নয়।</string>
+    <string name="reporting_load_failed">রিপোর্ট লোড করা যায়নি।</string>
+    <string name="reporting_activity_count">%1$dটি আর্থিক কার্যকলাপ</string>
+    <string name="reporting_phase4a_foundation">বিস্তারিত রিপোর্ট সারি ও ফিল্টার পরবর্তী রিপোর্টিং ধাপে যোগ হবে।</string>
 </resources>
