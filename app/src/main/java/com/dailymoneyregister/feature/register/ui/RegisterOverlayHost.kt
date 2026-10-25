@@ -812,7 +812,7 @@ internal fun RegisterOverlayHost(
                     },
                     enabled = !state.isExecuting
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.audit_cancel))
                 }
             }
         )
