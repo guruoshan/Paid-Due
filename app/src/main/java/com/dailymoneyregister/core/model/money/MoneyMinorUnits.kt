@@ -29,6 +29,10 @@ value class MoneyMinorUnits(val amount: Long) : Comparable<MoneyMinorUnits> {
         return MoneyMinorUnits(Math.negateExact(this.amount))
     }
 
+    /** Absolute minor-unit value, failing closed if Long.MIN_VALUE cannot be represented. */
+    fun abs(): MoneyMinorUnits =
+        if (amount < 0L) MoneyMinorUnits(Math.negateExact(amount)) else this
+
     operator fun times(factor: Long): MoneyMinorUnits {
         return MoneyMinorUnits(Math.multiplyExact(this.amount, factor))
     }

@@ -475,7 +475,7 @@ object RecentActivityReadModelResolver {
                     category = identity.first,
                     channel = identity.second,
                     amountMinor = entries.fold(0L) { total, entry ->
-                        Math.addExact(total, kotlin.math.abs(entry.amountSignedMinor))
+                        Math.addExact(total, MoneyMinorUnits(entry.amountSignedMinor).abs().amount)
                     }
                 )
             }

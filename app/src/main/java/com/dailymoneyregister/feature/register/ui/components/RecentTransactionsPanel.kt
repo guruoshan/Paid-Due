@@ -301,7 +301,7 @@ private fun RecentTransactionRow(
             com.dailymoneyregister.core.model.financial.RecentActivityStatus.VOIDED -> stringResource(R.string.audit_status_voided)
         }
     }
-    val amountMagnitude = MoneyMinorUnits(kotlin.math.abs(transaction.signedEffect.amount))
+    val amountMagnitude = transaction.signedEffect.abs()
         .formatDisplay(currency)
     val amountText = when {
         transaction.type in setOf(
@@ -354,9 +354,7 @@ private fun RecentTransactionRow(
                 .filter { it.amountMinor != 0L }
                 .joinToString(" · ") { part ->
                     val amount =
-                        MoneyMinorUnits(
-                            kotlin.math.abs(part.amountMinor)
-                        ).formatDisplay(currency)
+                        MoneyMinorUnits(part.amountMinor).abs().formatDisplay(currency)
 
                     when (part.category) {
                         PaymentCategory.CREDIT ->
