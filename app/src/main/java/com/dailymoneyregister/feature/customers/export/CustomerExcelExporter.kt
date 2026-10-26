@@ -160,7 +160,7 @@ class CustomerExcelExporter @Inject constructor(
                         Activity(
                             c.getString(9), c.getLong(3), c.getString(5), c.getString(10), c.getString(11),
                             "AMOUNT_CORRECTION", c.getString(8) + " / correction " + c.getString(4),
-                            currency, decimals, Math.subtractExact(corrected, previous),
+                            currency, decimals, CustomerFinancialReconciliationMath.correctionDelta(previous, corrected),
                             status = "Correction event — previous " + money(previous, decimals) +
                                 "; corrected " + money(corrected, decimals),
                             relatedTransactionId = transactionId
@@ -720,6 +720,9 @@ internal object CustomerExcelWorkbook {
 internal object CustomerFinancialReconciliationMath {
     fun effectiveSaleAmount(originalAmountMinor: Long, latestCorrectedAmountMinor: Long?): Long =
         latestCorrectedAmountMinor ?: originalAmountMinor
+
+    fun correctionDelta(previousAmountMinor: Long, correctedAmountMinor: Long): Long =
+        Math.subtractExact(correctedAmountMinor, previousAmountMinor)
 
     fun sumMinor(values: Iterable<Long>): Long =
         values.fold(0L) { total, value -> Math.addExact(total, value) }

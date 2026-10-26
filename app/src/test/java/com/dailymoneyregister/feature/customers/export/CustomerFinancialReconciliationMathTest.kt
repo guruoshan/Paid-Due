@@ -10,9 +10,8 @@ class CustomerFinancialReconciliationMathTest {
     fun saleHistoryKeepsOriginalValueWhileSummariesUseLatestCorrection() {
         val originalAmount = 10_000L
         val latestCorrectedAmount = 12_000L
-        val correctionDelta = Math.subtractExact(latestCorrectedAmount, originalAmount)
+        val correctionDelta = CustomerFinancialReconciliationMath.correctionDelta(originalAmount, latestCorrectedAmount)
 
-        assertEquals(originalAmount, originalAmount)
         assertEquals(
             latestCorrectedAmount,
             CustomerFinancialReconciliationMath.effectiveSaleAmount(
