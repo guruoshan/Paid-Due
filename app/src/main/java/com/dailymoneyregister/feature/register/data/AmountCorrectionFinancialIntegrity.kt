@@ -200,6 +200,17 @@ object AmountCorrectionFinancialIntegrity {
                     transaction.id
                 )
 
+        // Mixed coupon + credit funding remains unsupported: amount correction
+        // must not change a coupon-backed sale's credit remainder implicitly.
+        if (
+            couponPart != null &&
+            remainderPart?.category == PaymentCategory.CREDIT
+        ) {
+            throw AmountCorrectionUnsupportedFundingException(
+                transaction.id
+            )
+        }
+
         try {
             requireSupportedAmountCorrectionIdentity(
                 category = category,
