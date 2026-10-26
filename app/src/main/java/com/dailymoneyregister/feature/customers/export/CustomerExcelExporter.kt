@@ -87,7 +87,12 @@ class CustomerExcelExporter @Inject constructor(
                         "SELECT corrected_amount_minor FROM amount_correction_events WHERE transaction_id=? ORDER BY occurred_at DESC,id DESC LIMIT 1",
                         arrayOf<Any?>(transactionId)
                     )
-                ).use { c -> if (c.moveToFirst()) c.getLong(0) else original }
+                ).use { c ->
+                    CustomerFinancialReconciliationMath.effectiveSaleAmount(
+                        original,
+                        if (c.moveToFirst()) c.getLong(0) else null
+                    )
+                }
             fun voided(transactionId: String): Boolean =
                 db.query(SimpleSQLiteQuery(
                     "SELECT 1 FROM void_events WHERE transaction_id=? LIMIT 1",
@@ -123,7 +128,8 @@ class CustomerExcelExporter @Inject constructor(
                         Activity(
                             customer.id, c.getLong(5), branches[c.getString(0)]?.name.orEmpty(),
                             customer.name, customer.phone, c.getString(1), c.getString(6).orEmpty(),
-                            currency, decimals, correctedAmount(transactionId, c.getLong(3)), creditMinor,
+                            // Keep original sale value in the event history; corrections are separate signed rows.
+                            currency, decimals, c.getLong(3), creditMinor,
                             paymentMethodForTransaction(db, transactionId, c.getString(1)),
                             if (isVoid) "VOIDED — excluded from net sales" else "Recorded",
                             relatedTransactionId = transactionId
@@ -454,7 +460,12 @@ class CustomerExcelExporter @Inject constructor(
                 val couponRefunds = rows.filter { it.type == "COUPON_PURCHASE_REFUND" }
                 val decimals = decimalsByCurrency[key.currency]
                     ?: com.dailymoneyregister.core.model.currency.CurrencyRegistry.findByCode(key.currency).decimalPlaces
-                val salesMinor = CustomerFinancialReconciliationMath.sumMinor(sales.map { it.amountMinor ?: 0L })
+                val salesMinor = CustomerFinancialReconciliationMath.sumMinor(sales.map { sale ->
+                    correctedAmount(
+                        sale.relatedTransactionId ?: error("Sale history is missing its original transaction ID"),
+                        sale.amountMinor ?: error("Sale history is missing its original amount")
+                    )
+                })
                 val creditFundingMinor = CustomerFinancialReconciliationMath.sumMinor(sales.map { it.creditMinor })
                 val repaidMinor = CustomerFinancialReconciliationMath.sumMinor(repayments.map { it.amountMinor ?: 0L })
                 val refundMinor = CustomerFinancialReconciliationMath.sumMinor(refunds.map { CustomerFinancialReconciliationMath.absoluteMinor(it.amountMinor ?: 0L) })
@@ -516,8 +527,9 @@ class CustomerExcelExporter @Inject constructor(
                 .map { sale ->
                     val transactionId = sale.relatedTransactionId
                         ?: error("Sale history is missing its original transaction ID")
-                    val saleMinor = sale.amountMinor
-                        ?: error("Sale history is missing its corrected amount")
+                    val originalSaleMinor = sale.amountMinor
+                        ?: error("Sale history is missing its original amount")
+                    val saleMinor = correctedAmount(transactionId, originalSaleMinor)
                     val refundRows = activities.filter {
                         it.type == "REFUND" && it.relatedTransactionId == transactionId
                     }
@@ -706,6 +718,9 @@ internal object CustomerExcelWorkbook {
 
 
 internal object CustomerFinancialReconciliationMath {
+    fun effectiveSaleAmount(originalAmountMinor: Long, latestCorrectedAmountMinor: Long?): Long =
+        latestCorrectedAmountMinor ?: originalAmountMinor
+
     fun sumMinor(values: Iterable<Long>): Long =
         values.fold(0L) { total, value -> Math.addExact(total, value) }
 

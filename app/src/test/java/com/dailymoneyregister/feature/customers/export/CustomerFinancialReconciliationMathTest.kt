@@ -7,6 +7,34 @@ import org.junit.Test
 class CustomerFinancialReconciliationMathTest {
 
     @Test
+    fun saleHistoryKeepsOriginalValueWhileSummariesUseLatestCorrection() {
+        val originalAmount = 10_000L
+        val latestCorrectedAmount = 12_000L
+        val correctionDelta = Math.subtractExact(latestCorrectedAmount, originalAmount)
+
+        assertEquals(originalAmount, originalAmount)
+        assertEquals(
+            latestCorrectedAmount,
+            CustomerFinancialReconciliationMath.effectiveSaleAmount(
+                originalAmount,
+                latestCorrectedAmount
+            )
+        )
+        assertEquals(
+            originalAmount,
+            CustomerFinancialReconciliationMath.effectiveSaleAmount(
+                originalAmount,
+                null
+            )
+        )
+        // The history rows (original + signed correction) reconcile to the effective value.
+        assertEquals(
+            latestCorrectedAmount,
+            CustomerFinancialReconciliationMath.sumMinor(listOf(originalAmount, correctionDelta))
+        )
+    }
+
+    @Test
     fun refundOnVoidedSaleRemainsInHistoryButIsNotDeductedFromNetSalesAgain() {
         val validSalesMinor = 10_000L
         val refunds = listOf(
