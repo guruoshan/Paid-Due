@@ -272,6 +272,7 @@ internal object ReportingAggregator {
             totalExpenses = MoneyMinorUnits(Math.addExact(cashExpenses, onlineExpenses)),
             cashInHand = MoneyMinorUnits(cashInHand),
             cashAtBank = MoneyMinorUnits(cashAtBank),
+            expectedCash = MoneyMinorUnits(cashInHand),
             counts = ReportingActivityCounts(
                 sales = salesCount,
                 creditRepayments = repaymentCount,

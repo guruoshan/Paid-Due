@@ -623,46 +623,105 @@ var salesCount = 0
                         "Day Closing Expense must have exactly one authoritative outflow settlement."
                     }
 
+                    val expenseEvents =
+                        database.expenseDao().getEventsForExpense(expense.id)
                     val expenseProjection =
                         ExpenseReadProjectionResolver.resolve(
                             expense = expense,
                             settlement = settlements.single(),
-                            events = database.expenseDao().getEventsForExpense(expense.id)
+                            events = expenseEvents
                         )
+                    // Keep the original expense in the shift where it occurred.
+                    // Corrections and voids are separate operations and must adjust
+                    // the shift in which those lifecycle actions occurred.
+                    val originalExpenseAmountMinor =
+                        expenseEvents.minWithOrNull(compareBy({ it.occurredAt }, { it.id }))
+                            ?.previousAmountMinor ?: expense.amountMinor
 
-                    // A voided expense contributes zero to Day Closing.
-                    // Its reversal settlement is retained as audit evidence only.
-                    if (!expenseProjection.isVoided) {
-                        when (
-                            expenseProjection.paymentCategory
-                        ) {
-                            PaymentCategory.CASH ->
-                                cashExpensesMinor =
-                                    Math.addExact(
-                                        cashExpensesMinor,
-                                        expenseProjection.amount.amount
-                                    )
+                    when (expenseProjection.paymentCategory) {
+                        PaymentCategory.CASH ->
+                            cashExpensesMinor =
+                                Math.addExact(cashExpensesMinor, originalExpenseAmountMinor)
 
-                            PaymentCategory.ONLINE ->
-                                onlineExpensesMinor =
-                                    Math.addExact(
-                                        onlineExpensesMinor,
-                                        expenseProjection.amount.amount
-                                    )
+                        PaymentCategory.ONLINE ->
+                            onlineExpensesMinor =
+                                Math.addExact(onlineExpensesMinor, originalExpenseAmountMinor)
 
-                            PaymentCategory.CREDIT,
-                            PaymentCategory.COUPON ->
-                                error(
-                                    "Unsupported Day Closing Expense payment category."
-                                )
-                        }
+                        PaymentCategory.CREDIT,
+                        PaymentCategory.COUPON ->
+                            error("Unsupported Day Closing Expense payment category.")
                     }
                 }
 
+                OperationType.RECORD_EXPENSE_CORRECTION -> {
+                    correctionCount += 1
+                    val expense = checkNotNull(
+                        database.expenseDao().getExpenseById(operation.subjectId)
+                    ) {
+                        "Day Closing Expense correction references a missing expense."
+                    }
+                    check(expense.businessId == session.business.id && expense.branchId == session.branch.id) {
+                        "Day Closing Expense correction escaped the active tenant."
+                    }
+                    val event = database.expenseDao().getEventsForExpense(expense.id)
+                        .singleOrNull { it.operationId == operation.id }
+                        ?: error("Day Closing Expense correction evidence is missing or ambiguous.")
+                    check(event.eventType.trim().uppercase() == "CORRECTED") {
+                        "Day Closing Expense correction event type mismatch."
+                    }
+                    val settlement = settlementsByOperationId[operation.id].orEmpty().singleOrNull()
+                        ?: error("Day Closing Expense correction settlement is missing or ambiguous.")
+                    check(settlement.entryPurpose == EntryPurpose.EXPENSE_CORRECTION) {
+                        "Day Closing Expense correction settlement purpose mismatch."
+                    }
+                    check(
+                        settlement.amountSignedMinor == Math.subtractExact(
+                            checkNotNull(event.previousAmountMinor),
+                            checkNotNull(event.newAmountMinor)
+                        )
+                    ) {
+                        "Day Closing Expense correction settlement does not match its event."
+                    }
+                    val movement = registerShiftExternalMovement(
+                        category = settlement.category,
+                        signedMinor = settlement.amountSignedMinor
+                    )
+                    cashLifecycleAdjustmentMinor = Math.addExact(cashLifecycleAdjustmentMinor, movement.cashMinor)
+                    onlineLifecycleAdjustmentMinor = Math.addExact(onlineLifecycleAdjustmentMinor, movement.onlineMinor)
+                }
+
                 OperationType.RECORD_EXPENSE_VOID -> {
-                    // The voided original expense contributes zero above. Do not
-                    // add its VOID_REVERSAL settlement again to expected cash.
-                    // The immutable reversal record remains available for audit.
+                    voidCount += 1
+                    val expense = checkNotNull(
+                        database.expenseDao().getExpenseById(operation.subjectId)
+                    ) {
+                        "Day Closing Expense void references a missing expense."
+                    }
+                    check(expense.businessId == session.business.id && expense.branchId == session.branch.id) {
+                        "Day Closing Expense void escaped the active tenant."
+                    }
+                    val event = database.expenseDao().getEventsForExpense(expense.id)
+                        .singleOrNull { it.operationId == operation.id }
+                        ?: error("Day Closing Expense void evidence is missing or ambiguous.")
+                    check(event.eventType.trim().uppercase() in setOf("VOID", "VOIDED")) {
+                        "Day Closing Expense void event type mismatch."
+                    }
+                    val settlement = settlementsByOperationId[operation.id].orEmpty().singleOrNull()
+                        ?: error("Day Closing Expense void settlement is missing or ambiguous.")
+                    check(settlement.entryPurpose == EntryPurpose.VOID_REVERSAL) {
+                        "Day Closing Expense void settlement purpose mismatch."
+                    }
+                    check(
+                        settlement.amountSignedMinor == checkNotNull(event.previousAmountMinor)
+                    ) {
+                        "Day Closing Expense void settlement does not match its event."
+                    }
+                    val movement = registerShiftExternalMovement(
+                        category = settlement.category,
+                        signedMinor = settlement.amountSignedMinor
+                    )
+                    cashLifecycleAdjustmentMinor = Math.addExact(cashLifecycleAdjustmentMinor, movement.cashMinor)
+                    onlineLifecycleAdjustmentMinor = Math.addExact(onlineLifecycleAdjustmentMinor, movement.onlineMinor)
                 }
 
                 OperationType.RECORD_VOID -> {

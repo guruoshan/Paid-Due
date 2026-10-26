@@ -199,6 +199,7 @@ class ReportingAggregatorTest {
         assertEquals(200L, summary.creditSalesOriginated.amount)
         assertEquals(550L, summary.cashInHand.amount)
         assertEquals(200L, summary.cashAtBank.amount)
+        assertEquals(550L, summary.expectedCash?.amount)
         assertEquals(100L, summary.cashRefunded.amount)
         assertEquals(1, summary.counts.sales)
         assertEquals(1, summary.counts.refunds)
