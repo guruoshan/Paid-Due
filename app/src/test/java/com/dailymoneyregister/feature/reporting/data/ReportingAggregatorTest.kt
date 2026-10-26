@@ -62,6 +62,48 @@ class ReportingAggregatorTest {
         lifecycleStatus = ReportLifecycleStatus.NORMAL,
         isCreditSale = paymentParts.any { it.category == PaymentCategory.CREDIT }
     )
+     
+        @Test
+    fun periodFallbackFloorsNegativeToZero() {
+        fun repayment(amount: Long) = CreditRepaymentReportRow(
+            stableId = "repayment:r1",
+            operationId = "operation-r1",
+            transactionId = null,
+            reference = null,
+            occurredAt = 200L,
+            currencyCode = "OMR",
+            branch = branch,
+            cashier = cashier,
+            person = person,
+            repaymentId = "r1",
+            amount = money(amount),
+            paymentCategory = PaymentCategory.CASH,
+            paymentChannel = PaymentChannel.CASH_TENDER,
+            allocations = emptyList(),
+            balanceBefore = null,
+            balanceAfter = null
+        )
+
+        val creditSale = sale(
+            id = "credit-1",
+            amount = 3_000L,
+            paymentParts = listOf(
+                part(PaymentCategory.CREDIT, PaymentChannel.CREDIT_ACCOUNT, 3_000L)
+            )
+        )
+
+        // Day 2 only: a repayment with no credit sale in range is floored to zero (audit §2.1).
+        assertEquals(
+            0L,
+            ReportingAggregator.build(listOf(repayment(1_000L))).creditOutstanding.amount
+        )
+
+        // Range containing the sale: 3.000 - 1.000 = 2.000.
+        assertEquals(
+            2_000L,
+            ReportingAggregator.build(listOf(creditSale, repayment(1_000L))).creditOutstanding.amount
+        )
+    }
 
     @Test
     fun saleRefundVoidCorrectionAndPaymentChangePreservePeriodSemantics() {
