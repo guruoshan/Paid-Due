@@ -169,12 +169,9 @@ object VoidFinancialIntegrity {
             throw VoidUnsupportedCouponException(transaction.id)
         }
 
-        // A switched sale can be voided only when nothing else touched it. With a
-        // correction or refund in the same lifetime, the reversal channel is ambiguous.
-        if (
-            record.paymentMethodChanges.isNotEmpty() &&
-            (record.amountCorrections.isNotEmpty() || record.refundEvents.isNotEmpty())
-        ) {
+        // Payment-method changes make the reversal destination ambiguous.
+        // Fail closed even when no correction or refund has followed the switch.
+        if (record.paymentMethodChanges.isNotEmpty()) {
             throw VoidAmbiguousSettlementException(transaction.id)
         }
 
