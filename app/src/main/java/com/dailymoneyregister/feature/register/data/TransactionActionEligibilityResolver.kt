@@ -119,6 +119,8 @@ internal object TransactionActionEligibilityResolver {
             } else {
                 null
             }
+                } catch (_: VoidAmbiguousSettlementException) {
+            VoidBlockReason.PAYMENT_RECORD_UNCLEAR
         } catch (_: RuntimeException) {
             null
         }

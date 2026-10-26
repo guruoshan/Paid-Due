@@ -20,7 +20,8 @@ import com.dailymoneyregister.core.model.financial.RecentFinancialActivity
  */
 enum class VoidBlockReason {
     CREDIT_SALE,
-    COUPON_SALE
+    COUPON_SALE,
+    PAYMENT_RECORD_UNCLEAR
 }
 
 data class TransactionActionEligibility(

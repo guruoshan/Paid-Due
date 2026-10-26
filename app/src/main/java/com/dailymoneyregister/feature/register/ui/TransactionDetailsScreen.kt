@@ -1,6 +1,7 @@
 package com.dailymoneyregister.feature.register.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import com.dailymoneyregister.feature.register.data.VoidBlockReason
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -516,9 +517,15 @@ fun TransactionDetailsScreen(
                     ) { Text(stringResource(R.string.tx_details_void)) }
                 }
 
-                actionEligibility.voidBlockReason?.let {
+                actionEligibility.voidBlockReason?.let { reason ->
                     Text(
-                        text = stringResource(R.string.tx_void_unavailable_credit_or_coupon),
+                        text = stringResource(
+                            when (reason) {
+                                VoidBlockReason.PAYMENT_RECORD_UNCLEAR ->
+                                    R.string.tx_void_unavailable_payment_unclear
+                                else -> R.string.tx_void_unavailable_credit_or_coupon
+                            }
+                        ),
                         style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                         color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
                     )

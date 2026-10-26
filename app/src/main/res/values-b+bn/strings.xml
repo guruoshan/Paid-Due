@@ -291,6 +291,7 @@
     <string name="tx_void_permission">এই লেনদেন বাতিল করার অনুমতি আপনার নেই।</string>
     <string name="tx_void_failed">লেনদেন বাতিল করা যায়নি। এর বর্তমান জীবনচক্রের অবস্থা দেখুন।</string>
     <string name="tx_void_unavailable_credit_or_coupon">ক্রেডিট বা কুপন বিক্রয়ের জন্য বাতিল (Void) পাওয়া যায় না। পরিবর্তে রিফান্ড ব্যবহার করুন।</string>
+        <string name="tx_void_unavailable_payment_unclear">এই বিক্রয়ের পেমেন্ট রেকর্ড স্পষ্ট নয়। কোনো টাকা পরিবর্তন করা হয়নি। অনুগ্রহ করে সাপোর্টের সাথে যোগাযোগ করুন।</string>
     <string name="tx_change_payment_title">পেমেন্ট পদ্ধতি পরিবর্তন করুন</string>
     <string name="tx_change_payment_current">বর্তমান পেমেন্ট: %1$s</string>
     <string name="tx_change_payment_confirm">পরিবর্তন নিশ্চিত করুন</string>

@@ -304,6 +304,7 @@
     <string name="tx_void_permission">ليس لديك إذن لإلغاء هذه المعاملة.</string>
     <string name="tx_void_failed">تعذر إلغاء المعاملة. راجع حالة دورة حياتها الحالية.</string>
     <string name="tx_void_unavailable_credit_or_coupon">لا يتوفر الإلغاء لمبيعات الآجل أو القسيمة. استخدم الاسترجاع بدلاً من ذلك.</string>
+    <string name="tx_void_unavailable_payment_unclear">سجل الدفع لهذه العملية غير واضح. لم يتم تغيير أي مبلغ. يرجى التواصل مع الدعم.</string>
     <string name="tx_change_payment_title">تغيير طريقة الدفع</string>
     <string name="tx_change_payment_current">الدفع الحالي: %1$s</string>
     <string name="tx_change_payment_confirm">تأكيد التغيير</string>

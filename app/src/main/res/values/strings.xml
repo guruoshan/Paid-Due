@@ -325,6 +325,7 @@
     <string name="tx_void_permission">You do not have permission to void this transaction.</string>
     <string name="tx_void_failed">The transaction could not be voided. Review its current lifecycle state.</string>
     <string name="tx_void_unavailable_credit_or_coupon">Void isn\'t available for credit or coupon sales. Use Refund instead.</string>
+    <string name="tx_void_unavailable_payment_unclear">The payment record for this sale is unclear. No money was changed. Please contact support.</string>
     <string name="tx_change_payment_title">Change payment method</string>
     <string name="tx_change_payment_current">Current payment: %1$s</string>
     <string name="tx_change_payment_confirm">Confirm change</string>

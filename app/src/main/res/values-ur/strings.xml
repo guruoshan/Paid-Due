@@ -291,6 +291,7 @@
     <string name="tx_void_permission">آپ کو یہ لین دین منسوخ کرنے کی اجازت نہیں ہے۔</string>
     <string name="tx_void_failed">لین دین منسوخ نہیں ہو سکا۔ اس کی موجودہ لائف سائیکل حالت دیکھیں۔</string>
     <string name="tx_void_unavailable_credit_or_coupon">کریڈٹ یا کوپن کی فروخت کے لیے وائڈ دستیاب نہیں ہے۔ اس کے بجائے ریفنڈ استعمال کریں۔</string>
+        <string name="tx_void_unavailable_payment_unclear">اس فروخت کا ادائیگی کا ریکارڈ واضح نہیں ہے۔ کوئی رقم تبدیل نہیں کی گئی۔ براہ کرم سپورٹ سے رابطہ کریں۔</string>
     <string name="tx_change_payment_title">ادائیگی کا طریقہ تبدیل کریں</string>
     <string name="tx_change_payment_current">موجودہ ادائیگی: %1$s</string>
     <string name="tx_change_payment_confirm">تبدیلی کی تصدیق کریں</string>

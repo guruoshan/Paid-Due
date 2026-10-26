@@ -93,4 +93,82 @@ class TransactionActionEligibilityResolverTest {
         )
         assertEquals(null, eligibility.voidBlockReason)
     }
+    private fun cashSaleWithChange(
+        previousMethod: PaymentCategory,
+        previousChannel: PaymentChannel,
+        newMethod: PaymentCategory,
+        newChannel: PaymentChannel
+    ) = TransactionFinancialRecord(
+        transaction = TransactionEntity(
+            id = "transaction-1",
+            branchId = "branch-1",
+            type = TransactionType.SALE,
+            subtotalMinor = 5_000L,
+            taxRateBps = 0,
+            taxableBaseMinor = 5_000L,
+            taxAmountMinor = 0L,
+            grandTotalMinor = 5_000L,
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            createdByUserId = "user-1",
+            deviceId = "device-1",
+            createdAt = 1L,
+            displayRef = "TX-1"
+        ),
+        settlements = listOf(
+            SettlementEntryEntity(
+                id = "settlement-1",
+                operationId = "operation-1",
+                subjectType = SubjectType.TRANSACTION,
+                subjectId = "transaction-1",
+                transactionId = "transaction-1",
+                entryPurpose = EntryPurpose.SALE_FUNDING,
+                category = PaymentCategory.CASH,
+                channel = PaymentChannel.CASH_TENDER,
+                amountSignedMinor = 5_000L,
+                currencyCode = "OMR",
+                confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                occurredAt = 100L,
+                actorUserId = "user-1"
+            )
+        ),
+        paymentMethodChanges = listOf(
+            com.dailymoneyregister.core.database.entity.PaymentMethodChangeEventEntity(
+                id = "change-1",
+                transactionId = "transaction-1",
+                operationId = "change-op-1",
+                previousMethod = previousMethod,
+                previousChannel = previousChannel,
+                newMethod = newMethod,
+                newChannel = newChannel,
+                actorUserId = "user-1",
+                occurredAt = 200L
+            )
+        )
+    )
+
+    @Test
+    fun brokenPaymentChangeChainGivesPaymentRecordUnclearReason() {
+        val eligibility = TransactionActionEligibilityResolver.resolve(
+            cashSaleWithChange(
+                PaymentCategory.ONLINE, PaymentChannel.MANUAL_QR,
+                PaymentCategory.CASH, PaymentChannel.CASH_TENDER
+            ),
+            emptyList()
+        )
+        assertFalse(eligibility.canVoid)
+        assertEquals(VoidBlockReason.PAYMENT_RECORD_UNCLEAR, eligibility.voidBlockReason)
+    }
+
+    @Test
+    fun validSwitchedSaleHasNoVoidBlockReason() {
+        val eligibility = TransactionActionEligibilityResolver.resolve(
+            cashSaleWithChange(
+                PaymentCategory.CASH, PaymentChannel.CASH_TENDER,
+                PaymentCategory.ONLINE, PaymentChannel.MANUAL_QR
+            ),
+            emptyList()
+        )
+        assertEquals(null, eligibility.voidBlockReason)
+    }
 }
