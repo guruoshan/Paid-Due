@@ -12,7 +12,7 @@
     <string name="reporting_credit_sales">Credit Sales Created</string>
     <string name="reporting_credit_repayments">Credit Repaid (Collections)</string>
     <string name="reporting_credit_outstanding">Credit Outstanding</string>
-    <string name="reporting_credit_outstanding_note">Credit activity for the selected period, not the customer's balance.</string>
+    <string name="reporting_credit_outstanding_note">Credit activity for the selected period; not the current customer balance.</string>
     <string name="reporting_coupon">Coupon</string>
     <string name="reporting_refunds">Refunds</string>
     <string name="reporting_expenses">Expenses</string>
