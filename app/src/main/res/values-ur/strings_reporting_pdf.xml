@@ -24,6 +24,7 @@
     <string name="pdf_metric_credit_sales">نئی ادھار فروخت</string>
     <string name="pdf_metric_credit_repaid">ادھار کی وصولی</string>
     <string name="pdf_metric_credit_outstanding">باقی ادھار</string>
+    <string name="pdf_credit_outstanding_note">منتخب مدت کی کریڈٹ سرگرمی، صارف کا بقایا بیلنس نہیں۔</string>
     <string name="pdf_metric_expected_cash">متوقع نقد پوزیشن (حساب شدہ)</string>
     <string name="pdf_not_available">دستیاب نہیں</string>
     <string name="pdf_status_report_not_ready">رپورٹ کا ڈیٹا تیار نہیں۔ رپورٹ لوڈ ہونے تک انتظار کریں۔</string>
