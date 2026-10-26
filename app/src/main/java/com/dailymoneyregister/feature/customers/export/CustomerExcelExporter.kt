@@ -748,7 +748,7 @@ internal object CustomerFinancialReconciliationMath {
     ): Long {
         val deductableRefunds = sumMinor(
             refunds.filter { (transactionId, _) -> transactionId !in voidedTransactionIds }
-                .map { kotlin.math.abs(it.second) }
+                .map { absoluteMinor(it.second) }
         )
         return Math.subtractExact(validSalesMinor, deductableRefunds)
     }
