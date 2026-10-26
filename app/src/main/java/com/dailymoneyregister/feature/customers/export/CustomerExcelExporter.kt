@@ -626,18 +626,6 @@ class CustomerExcelExporter @Inject constructor(
         runCatching { context.startActivity(intent) }
     }
 
-    private fun creditAmountForTransaction(db: SupportSQLiteDatabase, transactionId: String, decimalPlaces: Int): Double {
-        // Credit exposure is the signed CREDIT tender balance after any
-        // authoritative payment-method reclassification events.
-        val amountMinor = db.query(
-            SimpleSQLiteQuery(
-                "SELECT COALESCE(SUM(amount_signed_minor),0) FROM settlement_entries WHERE transaction_id=? AND category='CREDIT' AND entry_purpose IN ('SALE_FUNDING','PAYMENT_METHOD_RECLASSIFICATION')",
-                arrayOf<Any?>(transactionId)
-            )
-        ).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else 0L }
-        return amountMinor.coerceAtLeast(0L).toDouble() / Math.pow(10.0, decimalPlaces.toDouble())
-    }
-
     private fun paymentMethodForTransaction(db: SupportSQLiteDatabase, transactionId: String, transactionType: String): String {
         // The immutable payment-method-change event is the latest authoritative
         // tender snapshot. Otherwise use original sale/coupon funding evidence,
