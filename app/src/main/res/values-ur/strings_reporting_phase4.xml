@@ -11,6 +11,8 @@
     <string name="reporting_sales">فروخت</string>
     <string name="reporting_credit_sales">Credit sales</string>
     <string name="reporting_credit_repayments">Credit repayments</string>
+    <string name="reporting_credit_outstanding">بقایا کریڈٹ</string>
+    <string name="reporting_credit_outstanding_note">منتخب مدت کی کریڈٹ سرگرمی، صارف کا موجودہ بقایا نہیں۔</string>
     <string name="reporting_coupon">Coupon</string>
     <string name="reporting_refunds">واپسی</string>
     <string name="reporting_expenses">اخراجات</string>

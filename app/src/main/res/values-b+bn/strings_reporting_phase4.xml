@@ -11,6 +11,8 @@
     <string name="reporting_sales">বিক্রয়</string>
     <string name="reporting_credit_sales">Credit sales</string>
     <string name="reporting_credit_repayments">Credit repayments</string>
+    <string name="reporting_credit_outstanding">বকেয়া ক্রেডিট</string>
+    <string name="reporting_credit_outstanding_note">নির্বাচিত সময়ের ক্রেডিট কার্যকলাপ; এটি গ্রাহকের ব্যালেন্স নয়।</string>
     <string name="reporting_coupon">Coupon</string>
     <string name="reporting_refunds">রিফান্ড</string>
     <string name="reporting_expenses">খরচ</string>

@@ -11,6 +11,8 @@
     <string name="reporting_sales">बिक्री</string>
     <string name="reporting_credit_sales">Credit sales</string>
     <string name="reporting_credit_repayments">Credit repayments</string>
+    <string name="reporting_credit_outstanding">बकाया क्रेडिट</string>
+    <string name="reporting_credit_outstanding_note">चुनी गई अवधि की क्रेडिट गतिविधि, ग्राहक का वर्तमान बकाया नहीं।</string>
     <string name="reporting_coupon">Coupon</string>
     <string name="reporting_refunds">रिफंड</string>
     <string name="reporting_expenses">खर्च</string>

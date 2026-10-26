@@ -11,6 +11,8 @@
     <string name="reporting_sales">المبيعات</string>
     <string name="reporting_credit_sales">Credit sales</string>
     <string name="reporting_credit_repayments">Credit repayments</string>
+    <string name="reporting_credit_outstanding">الائتمان المستحق</string>
+    <string name="reporting_credit_outstanding_note">نشاط الائتمان للفترة المحددة، وليس رصيد العميل.</string>
     <string name="reporting_coupon">Coupon</string>
     <string name="reporting_refunds">المرتجعات</string>
     <string name="reporting_expenses">المصروفات</string>
