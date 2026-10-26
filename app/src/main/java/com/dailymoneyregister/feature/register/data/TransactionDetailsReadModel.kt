@@ -18,11 +18,17 @@ import com.dailymoneyregister.core.model.financial.RecentFinancialActivity
  * These booleans are not permission checks and are not a financial source of
  * truth. Command execution must still run the authoritative validators.
  */
+enum class VoidBlockReason {
+    CREDIT_SALE,
+    COUPON_SALE
+}
+
 data class TransactionActionEligibility(
     val canCorrectAmount: Boolean = false,
     val canRefund: Boolean = false,
     val canVoid: Boolean = false,
-    val canChangePaymentMethod: Boolean = false
+    val canChangePaymentMethod: Boolean = false,
+    val voidBlockReason: VoidBlockReason? = null
 )
 
 /**

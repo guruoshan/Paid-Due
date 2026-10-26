@@ -490,10 +490,8 @@ fun TransactionDetailsScreen(
                         )
                     }
 
-                    // Refund is intentionally not offered for Credit sales. Credit returns
-                    // are handled through the credit balance/repayment flow, not the
-                    // generic cash/online refund action.
-                    if (creditReturnRoute == CreditReturnUiRoute.NON_CREDIT) {
+                    // Refund is offered for every sale. Credit sales open the credit-return mode
+                    // of the same dialog, which reduces unpaid Credit with no payout.
                         Button(
                             onClick = {
                                 refundAmountInput.value = transaction.netAmount
@@ -507,7 +505,6 @@ fun TransactionDetailsScreen(
                             enabled = canRefund,
                             modifier = Modifier.weight(1f)
                         ) { Text(stringResource(R.string.tx_details_refund)) }
-                    }
 
                     Button(
                         onClick = {
@@ -517,6 +514,14 @@ fun TransactionDetailsScreen(
                         enabled = canVoid,
                         modifier = Modifier.weight(1f)
                     ) { Text(stringResource(R.string.tx_details_void)) }
+                }
+
+                actionEligibility.voidBlockReason?.let {
+                    Text(
+                        text = stringResource(R.string.tx_void_unavailable_credit_or_coupon),
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
                 Button(
@@ -704,58 +709,59 @@ fun TransactionDetailsScreen(
                                                 "The return reduces unpaid Credit first. " +
                                                     "Any refundable paid value will use the destination selected below."
                                             } else {
-                                                "The return reduces unpaid Credit first. " +
-                                                    "The selected destination is used only if refundable paid value exists."
+                                                "Nothing has been repaid, so this return only reduces the customer's debt. No money is paid out."
                                             }
                                     )
 
-                                    Text(
-                                        stringResource(
-                                            R.string.tx_refund_destination
-                                        )
-                                    )
-
-                                    TransactionActionChoice(
-                                        selected =
-                                            refundDestination.value ==
-                                                PaymentCategory.CASH,
-                                        label = stringResource(R.string.tx_payment_cash),
-                                        enabled =
-                                            !actionInProgress,
-                                        onClick = {
-                                            refundDestination.value =
-                                                PaymentCategory.CASH
-                                        }
-                                    )
-
-                                    TransactionActionChoice(
-                                        selected =
-                                            refundDestination.value ==
-                                                PaymentCategory.ONLINE,
-                                        label = stringResource(R.string.tx_payment_online),
-                                        enabled =
-                                            !actionInProgress,
-                                        onClick = {
-                                            refundDestination.value =
-                                                PaymentCategory.ONLINE
-                                        }
-                                    )
-
-                                    TransactionActionChoice(
-                                        selected =
-                                            refundDestination.value ==
-                                                PaymentCategory.COUPON,
-                                        label =
+                                    if (creditReturnRoute != CreditReturnUiRoute.UNPAID_CREDIT) {
+                                        Text(
                                             stringResource(
-                                                R.string.tx_refund_to_coupon
-                                            ),
-                                        enabled =
-                                            !actionInProgress,
-                                        onClick = {
-                                            refundDestination.value =
-                                                PaymentCategory.COUPON
-                                        }
-                                    )
+                                                R.string.tx_refund_destination
+                                            )
+                                        )
+
+                                        TransactionActionChoice(
+                                            selected =
+                                                refundDestination.value ==
+                                                    PaymentCategory.CASH,
+                                            label = stringResource(R.string.tx_payment_cash),
+                                            enabled =
+                                                !actionInProgress,
+                                            onClick = {
+                                                refundDestination.value =
+                                                    PaymentCategory.CASH
+                                            }
+                                        )
+
+                                        TransactionActionChoice(
+                                            selected =
+                                                refundDestination.value ==
+                                                    PaymentCategory.ONLINE,
+                                            label = stringResource(R.string.tx_payment_online),
+                                            enabled =
+                                                !actionInProgress,
+                                            onClick = {
+                                                refundDestination.value =
+                                                    PaymentCategory.ONLINE
+                                            }
+                                        )
+
+                                        TransactionActionChoice(
+                                            selected =
+                                                refundDestination.value ==
+                                                    PaymentCategory.COUPON,
+                                            label =
+                                                stringResource(
+                                                    R.string.tx_refund_to_coupon
+                                                ),
+                                            enabled =
+                                                !actionInProgress,
+                                            onClick = {
+                                                refundDestination.value =
+                                                    PaymentCategory.COUPON
+                                            }
+                                        )
+                                    }
                                 } else {
                                     Text(
                                         stringResource(
