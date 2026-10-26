@@ -22,8 +22,10 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Report Android SDK environment
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          test -d "$ANDROID_HOME/platform-tools" || true
       - name: Compile debug app and run unit tests
         run: ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon --stacktrace
       - name: Upload unit test reports
