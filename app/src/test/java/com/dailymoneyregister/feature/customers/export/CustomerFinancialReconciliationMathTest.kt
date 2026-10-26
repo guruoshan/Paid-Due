@@ -65,6 +65,20 @@ class CustomerFinancialReconciliationMathTest {
     }
 
     @Test
+    fun minimumLongRefundFailsClosedInsteadOfWrappingAbsoluteValue() {
+        try {
+            CustomerFinancialReconciliationMath.netSalesAfterRefunds(
+                validSalesMinor = 10_000L,
+                refunds = listOf("sale" to Long.MIN_VALUE),
+                voidedTransactionIds = emptySet()
+            )
+            throw AssertionError("Expected unrepresentable refund magnitude to fail closed")
+        } catch (_: IllegalArgumentException) {
+            // Long.MIN_VALUE has no representable positive absolute value.
+        }
+    }
+
+    @Test
     fun checkedMinorUnitSumFailsRatherThanWrappingOnOverflow() {
         try {
             CustomerFinancialReconciliationMath.sumMinor(listOf(Long.MAX_VALUE, 1L))
