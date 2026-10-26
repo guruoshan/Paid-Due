@@ -273,7 +273,7 @@ class CustomerExcelExporter @Inject constructor(
                             customer.id, c.getLong(5), branches[c.getString(1)]?.name.orEmpty(),
                             customer.name, customer.phone,
                             if (c.getString(8) == "COUPON_PURCHASE") "COUPON_PURCHASE_REFUND" else "REFUND",
-                            c.getString(6), currency, decimals, -kotlin.math.abs(c.getLong(4)),
+                            c.getString(6), currency, decimals, Math.negateExact(CustomerFinancialReconciliationMath.absoluteMinor(c.getLong(4))),
                             payment = paymentMethodForTransaction(db, refundTransactionId, c.getString(8)),
                             status = if (originalSaleWasVoided)
                                 "Refund history — original sale also voided; not deducted twice"
