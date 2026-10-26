@@ -171,4 +171,67 @@ class TransactionActionEligibilityResolverTest {
         )
         assertEquals(null, eligibility.voidBlockReason)
     }
+    private fun couponSale(vararg parts: SettlementEntryEntity) = TransactionFinancialRecord(
+        transaction = TransactionEntity(
+            id = "transaction-1",
+            branchId = "branch-1",
+            type = TransactionType.SALE,
+            subtotalMinor = 5_000L,
+            taxRateBps = 0,
+            taxableBaseMinor = 5_000L,
+            taxAmountMinor = 0L,
+            grandTotalMinor = 5_000L,
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            createdByUserId = "user-1",
+            deviceId = "device-1",
+            createdAt = 1L,
+            displayRef = "TX-1"
+        ),
+        settlements = parts.toList()
+    )
+
+    private fun fundingPart(
+        id: String,
+        category: PaymentCategory,
+        channel: PaymentChannel,
+        amount: Long
+    ) = SettlementEntryEntity(
+        id = id,
+        operationId = "operation-1",
+        subjectType = SubjectType.TRANSACTION,
+        subjectId = "transaction-1",
+        transactionId = "transaction-1",
+        entryPurpose = EntryPurpose.SALE_FUNDING,
+        category = category,
+        channel = channel,
+        amountSignedMinor = amount,
+        currencyCode = "OMR",
+        confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+        occurredAt = 100L,
+        actorUserId = "user-1"
+    )
+
+    @Test
+    fun couponSaleWithCashRemainderCanBeCorrected() {
+        val eligibility = TransactionActionEligibilityResolver.resolve(
+            couponSale(
+                fundingPart("s-coupon", PaymentCategory.COUPON, PaymentChannel.COUPON_WALLET, 2_000L),
+                fundingPart("s-cash", PaymentCategory.CASH, PaymentChannel.CASH_TENDER, 3_000L)
+            ),
+            emptyList()
+        )
+        assertEquals(true, eligibility.canCorrectAmount)
+    }
+
+    @Test
+    fun couponOnlySaleCannotBeCorrected() {
+        val eligibility = TransactionActionEligibilityResolver.resolve(
+            couponSale(
+                fundingPart("s-coupon-only", PaymentCategory.COUPON, PaymentChannel.COUPON_WALLET, 5_000L)
+            ),
+            emptyList()
+        )
+        assertEquals(false, eligibility.canCorrectAmount)
+    }
 }
