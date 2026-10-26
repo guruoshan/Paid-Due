@@ -166,22 +166,14 @@ class ReportingUiProjectionTest {
             )
 
         assertEquals(
-            7,
+            8,
             cards.size
         )
         assertEquals("+ OMR 0.900", cards[0].amountText)
         assertEquals("+ OMR 0.650", cards[1].amountText)
         assertEquals("+ OMR 0.225", cards[2].amountText)
-        assertEquals("- OMR 0.100", cards[5].amountText)
-        assertEquals("- OMR 0.040", cards[6].amountText)
-
-        assertTrue(
-            cards.none {
-                it.amountText.contains(
-                    "outstanding",
-                    ignoreCase = true
-                )
-            }
-        )
+        assertEquals(ReportingSummaryMetric.CREDIT_OUTSTANDING, cards[5].metric)
+        assertEquals("- OMR 0.100", cards[6].amountText)
+        assertEquals("- OMR 0.040", cards[7].amountText)
     }
 }

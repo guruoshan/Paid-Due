@@ -624,6 +624,13 @@ private fun ReportingSummarySection(
             }
         }
     }
+
+    if (cards.any { it.metric == ReportingSummaryMetric.CREDIT_OUTSTANDING }) {
+        Text(
+            text = stringResource(R.string.reporting_credit_outstanding_note),
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
 }
 
 @Composable
@@ -654,6 +661,11 @@ private fun summaryMetricLabel(
         ReportingSummaryMetric.CREDIT_REPAYMENTS ->
             stringResource(
                 R.string.reporting_credit_repayments
+            )
+
+        ReportingSummaryMetric.CREDIT_OUTSTANDING ->
+            stringResource(
+                R.string.reporting_credit_outstanding
             )
 
         ReportingSummaryMetric.REFUNDS ->
