@@ -2509,8 +2509,10 @@ class RegisterRepository @Inject constructor(
              * authoritative Credit balance and must therefore also reduce the
              * remaining FIFO obligation for that transaction.
              *
-             * Positive adjustments are deliberately not interpreted as return
-             * debt reduction here.
+             * Positive Amount Correction adjustments increase this sale's
+             * effective obligation below; they are not interpreted as return
+             * debt reduction. Negative adjustments (returns and downward
+             * corrections) reduce the obligation independently of repayments.
              */
             val transactionAdjustments =
                 relevant.filter {
