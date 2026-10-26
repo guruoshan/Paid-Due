@@ -24,6 +24,7 @@
     <string name="pdf_metric_credit_sales">Credit Sales Created</string>
     <string name="pdf_metric_credit_repaid">Credit Repaid (Collections)</string>
     <string name="pdf_metric_credit_outstanding">Credit Outstanding</string>
+    <string name="pdf_credit_outstanding_note">Credit activity for the selected period, not the customer\'s balance.</string>
     <string name="pdf_metric_expected_cash">Expected Cash Position (Calculated)</string>
     <string name="pdf_not_available">Not available</string>
     <string name="pdf_status_report_not_ready">Report data is not ready. Please wait for reporting to finish loading.</string>

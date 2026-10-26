@@ -8,6 +8,8 @@ import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
+import com.dailymoneyregister.core.database.entity.CreditLedgerEventEntity
+import com.dailymoneyregister.core.database.entity.CustomerEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.RefundEventEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
@@ -16,6 +18,7 @@ import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
 import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.ConfirmationType
+import com.dailymoneyregister.core.model.enums.CreditLedgerType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.OperationStatus
 import com.dailymoneyregister.core.model.enums.OperationType
@@ -240,6 +243,80 @@ class AmountCorrectionFinancialCoreIntegrationTest {
 
         database.close()
     }
+
+    @Test
+    fun productionCreditCorrection_updatesDebtWithSignedAdjustment_andReplaysExactlyOnce() =
+        runBlocking {
+            val transaction = seedCreditSale(
+                transactionId = "credit-correction-ledger",
+                amountMinor = 10_000L
+            )
+            val command = newCommand(
+                transactionId = transaction.id,
+                correctedAmountMinor = 12_000L,
+                occurredAt = transaction.createdAt + 1_000L
+            )
+
+            val first = repository.executeAmountCorrection(command)
+            assertTrue(first is CommandResult.Success)
+            assertEquals(
+                12_000L,
+                database.ledgerDao().getCreditBalance(
+                    checkNotNull(transaction.customerId),
+                    transaction.currencyCode
+                )
+            )
+
+            val adjustment = database.ledgerDao()
+                .getCreditEventsForOperations(listOf(command.operationId.value))
+                .single()
+            assertEquals(CreditLedgerType.ADJUSTMENT, adjustment.type)
+            assertEquals(2_000L, adjustment.amountSignedMinor)
+            assertEquals(transaction.id, adjustment.transactionId)
+
+            val correctionSettlement = correctionSettlements(transaction.id).single()
+            assertEquals(PaymentCategory.CREDIT, correctionSettlement.category)
+            assertEquals(PaymentChannel.CREDIT_ACCOUNT, correctionSettlement.channel)
+            assertEquals(2_000L, correctionSettlement.amountSignedMinor)
+
+            val replay = repository.executeAmountCorrection(command)
+            assertTrue(replay is CommandResult.Success)
+            replay as CommandResult.Success
+            assertTrue(replay.isIdempotentReplay)
+            assertEquals(
+                1,
+                database.ledgerDao()
+                    .getCreditEventsForOperations(listOf(command.operationId.value))
+                    .size
+            )
+            assertEquals(
+                1,
+                correctionSettlements(transaction.id).size
+            )
+
+            val decrease = repository.executeAmountCorrection(
+                newCommand(
+                    transactionId = transaction.id,
+                    correctedAmountMinor = 11_000L,
+                    occurredAt = transaction.createdAt + 2_000L
+                )
+            )
+            assertTrue(decrease is CommandResult.Success)
+            assertEquals(
+                11_000L,
+                database.ledgerDao().getCreditBalance(
+                    checkNotNull(transaction.customerId),
+                    transaction.currencyCode
+                )
+            )
+            assertEquals(
+                listOf(2_000L, -1_000L),
+                database.ledgerDao()
+                    .getCreditLedgerForCustomer(checkNotNull(transaction.customerId))
+                    .filter { it.type == CreditLedgerType.ADJUSTMENT }
+                    .map { it.amountSignedMinor }
+            )
+        }
 
     @Test
     fun productionCorrection_increase_writesOnlyPositiveDelta_andPreservesOriginal() =
@@ -874,6 +951,80 @@ class AmountCorrectionFinancialCoreIntegrationTest {
             reason =
                 "Amount Correction integration test"
         )
+    }
+
+    private suspend fun seedCreditSale(
+        transactionId: String,
+        amountMinor: Long,
+        occurredAt: Long = System.currentTimeMillis() - 10_000L
+    ): TransactionEntity {
+        val customerId = "credit-customer-$transactionId"
+        val customer = CustomerEntity(
+            id = customerId,
+            businessId = businessId,
+            canonicalPhone = "+96891234567",
+            name = "Credit Correction Customer",
+            createdAt = occurredAt,
+            updatedAt = occurredAt
+        )
+        database.customerDao().insertCustomer(customer)
+
+        val operationId = "credit-sale-operation-$transactionId"
+        insertSucceededOperation(
+            id = operationId,
+            operationType = OperationType.RECORD_SALE,
+            transactionId = transactionId,
+            occurredAt = occurredAt
+        )
+
+        val transaction = TransactionEntity(
+            id = transactionId,
+            branchId = branchId,
+            type = TransactionType.SALE,
+            customerId = customerId,
+            subtotalMinor = amountMinor,
+            taxRateBps = 0,
+            taxableBaseMinor = amountMinor,
+            taxAmountMinor = 0L,
+            grandTotalMinor = amountMinor,
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            createdByUserId = actorId,
+            deviceId = deviceId,
+            createdAt = occurredAt,
+            displayRef = "CORR-$transactionId"
+        )
+        database.transactionDao().insertTransaction(transaction)
+        database.transactionDao().insertSettlement(
+            SettlementEntryEntity(
+                id = "credit-sale-settlement-$transactionId",
+                operationId = operationId,
+                subjectType = SubjectType.TRANSACTION,
+                subjectId = transactionId,
+                transactionId = transactionId,
+                entryPurpose = EntryPurpose.SALE_FUNDING,
+                category = PaymentCategory.CREDIT,
+                channel = PaymentChannel.CREDIT_ACCOUNT,
+                amountSignedMinor = amountMinor,
+                currencyCode = "OMR",
+                confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                occurredAt = occurredAt,
+                actorUserId = actorId
+            )
+        )
+        database.ledgerDao().insertCreditEvent(
+            CreditLedgerEventEntity(
+                id = "$operationId:credit",
+                operationId = operationId,
+                customerId = customerId,
+                type = CreditLedgerType.OBLIGATION,
+                amountSignedMinor = amountMinor,
+                currencyCode = "OMR",
+                transactionId = transactionId,
+                occurredAt = occurredAt
+            )
+        )
+        return transaction
     }
 
     private suspend fun seedCashSale(

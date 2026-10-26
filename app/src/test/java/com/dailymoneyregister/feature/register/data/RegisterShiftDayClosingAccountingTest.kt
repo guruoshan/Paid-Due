@@ -1,6 +1,8 @@
 package com.dailymoneyregister.feature.register.data
 
 import com.dailymoneyregister.core.model.enums.PaymentCategory
+import com.dailymoneyregister.feature.register.ui.DayClosingVarianceStatus
+import com.dailymoneyregister.feature.register.ui.dayClosingReconciliation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -45,6 +47,29 @@ class RegisterShiftDayClosingAccountingTest {
                 9_000L
             )
         )
+    }
+
+    @Test
+    fun openingCountIsExcludedFromExpectedCash() {
+        // Opening float is not an input to the expected-cash formula (audit §2.2).
+        val expected = registerShiftExpectedCashMinor(
+            cashSalesMinor = 5_000L,
+            cashCreditRepaymentsMinor = 0L,
+            cashCouponFundingMinor = 0L,
+            cashLifecycleAdjustmentMinor = 0L,
+            cashRefundsMinor = 0L,
+            cashExpensesMinor = 0L
+        )
+        assertEquals(5_000L, expected)
+
+        val result = requireNotNull(
+            dayClosingReconciliation(
+                expectedCashMinor = expected,
+                countedCashMinor = 25_000L
+            )
+        )
+        assertEquals(20_000L, result.differenceMinor)
+        assertEquals(DayClosingVarianceStatus.OVER, result.status)
     }
 
     @Test

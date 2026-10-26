@@ -46,6 +46,12 @@ class AmountCorrectionBelowRefundedAmountException(
     "Corrected amount for transaction '$transactionId' cannot be below already-refunded value"
 )
 
+class AmountCorrectionBelowCouponAmountException(
+    transactionId: String
+) : IllegalStateException(
+    "Corrected amount for transaction '$transactionId' cannot be below the coupon amount used"
+)
+
 class AmountCorrectionNoOpException(
     transactionId: String
 ) : IllegalStateException(
@@ -165,17 +171,45 @@ object AmountCorrectionFinancialIntegrity {
             )
         }
 
+                // A coupon sale with a remainder has exactly two funding parts.
+        // The correction applies to the remainder only; the coupon wallet
+        // is never touched.
+        val couponPart =
+            view.fundingBreakdown.singleOrNull {
+                it.category == PaymentCategory.COUPON
+            }
+
+        val remainderPart =
+            if (couponPart != null && view.fundingBreakdown.size == 2) {
+                view.fundingBreakdown.first { it !== couponPart }
+            } else {
+                null
+            }
+
         val category =
-            view.currentPaymentCategory
+            remainderPart?.category
+                ?: view.currentPaymentCategory
                 ?: throw AmountCorrectionUnsupportedFundingException(
                     transaction.id
                 )
 
         val channel =
-            view.currentPaymentChannel
+            remainderPart?.channel
+                ?: view.currentPaymentChannel
                 ?: throw AmountCorrectionUnsupportedFundingException(
                     transaction.id
                 )
+
+        // Mixed coupon + credit funding remains unsupported: amount correction
+        // must not change a coupon-backed sale's credit remainder implicitly.
+        if (
+            couponPart != null &&
+            remainderPart?.category == PaymentCategory.CREDIT
+        ) {
+            throw AmountCorrectionUnsupportedFundingException(
+                transaction.id
+            )
+        }
 
         try {
             requireSupportedAmountCorrectionIdentity(
@@ -186,6 +220,16 @@ object AmountCorrectionFinancialIntegrity {
             error: IllegalArgumentException
         ) {
             throw AmountCorrectionUnsupportedFundingException(
+                transaction.id
+            )
+        }
+
+        if (
+            couponPart != null &&
+            remainderPart != null &&
+            correctedAmountMinor < couponPart.amountMinor
+        ) {
+            throw AmountCorrectionBelowCouponAmountException(
                 transaction.id
             )
         }

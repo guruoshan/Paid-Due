@@ -42,7 +42,8 @@ data class ReportingPdfSnapshot(
     val reportDate: String,
     val periodLabel: String,
     val metrics: List<ReportPdfMetric>,
-    val transactions: List<ReportPdfTransaction>
+    val transactions: List<ReportPdfTransaction>,
+    val metricNote: String? = null
 )
 
 /** Renders a reporting snapshot only; this class never reads or changes financial records. */
@@ -170,6 +171,12 @@ object ReportingPdfRenderer {
                 drawLocalizedText(canvas, metric.value, x + 8f, top + 30f, valuePaint, cardWidth - 16f)
             }
             y += ((snapshot.metrics.size + 3) / 4) * 49f + 5f
+
+            snapshot.metricNote?.let { note ->
+                val notePaint = paint(toneColor(ReportValueTone.OPERATIONAL), 8f, false)
+                drawLocalizedText(canvas, note, left, y + 10f, notePaint, right - left)
+                y += 16f
+            }
         }
 
         val columnWidths = floatArrayOf(98f, 92f, 130f, 145f, 130f, 139f)

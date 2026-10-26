@@ -3,6 +3,7 @@ package com.dailymoneyregister.feature.register.data
 import com.dailymoneyregister.core.database.entity.CreditRepaymentAllocationEntity
 import com.dailymoneyregister.core.database.readmodel.TransactionFinancialRecord
 import com.dailymoneyregister.core.model.enums.PaymentCategory
+import com.dailymoneyregister.core.model.enums.TransactionType
 import com.dailymoneyregister.core.model.financial.FinancialReadModelResolver
 
 /**
@@ -39,6 +40,11 @@ internal object TransactionActionEligibilityResolver {
                 ),
             canChangePaymentMethod =
                 canChangePaymentMethod(
+                    record = record,
+                    creditAllocations = creditAllocations
+                ),
+            voidBlockReason =
+                voidBlockReason(
                     record = record,
                     creditAllocations = creditAllocations
                 )
@@ -91,6 +97,33 @@ internal object TransactionActionEligibilityResolver {
                     false
                 }
             }
+
+    private fun voidBlockReason(
+        record: TransactionFinancialRecord,
+        creditAllocations: List<CreditRepaymentAllocationEntity>
+    ): VoidBlockReason? =
+        try {
+            VoidFinancialIntegrity.validate(
+                record = record,
+                creditAllocations = creditAllocations
+            )
+
+            null
+        } catch (_: VoidUnsupportedCreditException) {
+            VoidBlockReason.CREDIT_SALE
+        } catch (_: VoidCreditRepaymentExistsException) {
+            VoidBlockReason.CREDIT_SALE
+        } catch (_: VoidUnsupportedCouponException) {
+            if (record.transaction.type == TransactionType.SALE) {
+                VoidBlockReason.COUPON_SALE
+            } else {
+                null
+            }
+                } catch (_: VoidAmbiguousSettlementException) {
+            VoidBlockReason.PAYMENT_RECORD_UNCLEAR
+        } catch (_: RuntimeException) {
+            null
+        }
 
     private fun canVoid(
         record: TransactionFinancialRecord,

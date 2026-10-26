@@ -24,6 +24,7 @@
     <string name="pdf_metric_credit_sales">नई उधार बिक्री</string>
     <string name="pdf_metric_credit_repaid">उधार वसूली</string>
     <string name="pdf_metric_credit_outstanding">बकाया उधार</string>
+    <string name="pdf_credit_outstanding_note">चयनित अवधि की क्रेडिट गतिविधि, ग्राहक का बकाया शेष नहीं।</string>
     <string name="pdf_metric_expected_cash">अपेक्षित नकदी स्थिति (गणना की गई)</string>
     <string name="pdf_not_available">उपलब्ध नहीं</string>
     <string name="pdf_status_report_not_ready">रिपोर्ट डेटा तैयार नहीं है। रिपोर्ट लोड होने तक प्रतीक्षा करें।</string>

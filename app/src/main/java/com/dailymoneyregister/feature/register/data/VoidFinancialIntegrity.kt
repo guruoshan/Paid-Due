@@ -169,7 +169,12 @@ object VoidFinancialIntegrity {
             throw VoidUnsupportedCouponException(transaction.id)
         }
 
-        if (record.paymentMethodChanges.isNotEmpty()) {
+        // A switched sale can be voided only when nothing else touched it. With a
+        // correction or refund in the same lifetime, the reversal channel is ambiguous.
+        if (
+            record.paymentMethodChanges.isNotEmpty() &&
+            (record.amountCorrections.isNotEmpty() || record.refundEvents.isNotEmpty())
+        ) {
             throw VoidAmbiguousSettlementException(transaction.id)
         }
 
@@ -196,7 +201,8 @@ object VoidFinancialIntegrity {
             throw VoidAmbiguousSettlementException(transaction.id)
         }
 
-        val fundingChannel = fundingChannels.single()
+        // The reversal goes to the channel the money is in now, after any switches.
+        val fundingChannel = currentFundingIdentity(record, fundingChannels.single())
 
         if (fundingChannel.first == PaymentCategory.CREDIT) {
             throw VoidUnsupportedCreditException(transaction.id)
@@ -339,6 +345,27 @@ object VoidFinancialIntegrity {
         } catch (_: ArithmeticException) {
             throw VoidAmbiguousSettlementException(transactionId)
         }
+    }
+
+    private fun currentFundingIdentity(
+        record: TransactionFinancialRecord,
+        originalChannel: Pair<PaymentCategory, PaymentChannel>
+    ): Pair<PaymentCategory, PaymentChannel> {
+        var current = originalChannel
+        record.paymentMethodChanges
+            .sortedBy { it.occurredAt }
+            .forEach { change ->
+                val nextChannel = change.newChannel
+                if (
+                    change.previousMethod != current.first ||
+                    change.previousChannel != current.second ||
+                    nextChannel == null
+                ) {
+                    throw VoidAmbiguousSettlementException(record.transaction.id)
+                }
+                current = change.newMethod to nextChannel
+            }
+        return current
     }
 
     private fun requireTransactionSettlement(
