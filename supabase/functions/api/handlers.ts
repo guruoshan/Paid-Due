@@ -42,15 +42,17 @@ async function syncCustomerDirectoryAdmin(request: Request, accessToken: string)
     const rawLimit = url.searchParams.get("limit") || "100";
     const limit = Number(rawLimit);
     const after = url.searchParams.get("after_updated_at");
+    const afterPhone = url.searchParams.get("after_canonical_phone");
     if (!businessId || businessId.length > 128 || !branchId || branchId.length > 128 ||
         !Number.isInteger(limit) || limit < 1 || limit > 500 ||
-        (after !== null && (!Number.isFinite(Date.parse(after)) || after.length > 64))) {
+        (after !== null && (!Number.isFinite(Date.parse(after)) || after.length > 64)) ||
+        (afterPhone !== null && (!after || !PHONE_REGEX.test(afterPhone)))) {
       return json({ outcome: "INVALID_REQUEST" }, 400);
     }
     try {
       const rows = await rpcAsUser("sync_customer_directory_admin_list", {
         p_business_id: businessId, p_branch_id: branchId,
-        p_after_updated_at: after, p_limit: limit,
+        p_after_updated_at: after, p_after_canonical_phone: afterPhone, p_limit: limit,
       }, accessToken);
       return json({ customers: Array.isArray(rows) ? rows : [] }, 200);
     } catch (error: any) {
@@ -84,6 +86,9 @@ async function syncCustomerDirectoryAdmin(request: Request, accessToken: string)
     if (!Array.isArray(rows) || rows.length !== 1) throw new Error("CUSTOMER_SYNC_RESULT_INVALID");
     return json({ customer: rows[0] }, 200);
   } catch (error: any) {
+    if (error.outcome === "CUSTOMER_IDENTITY_CONFLICT" || error.message === "CUSTOMER_IDENTITY_CONFLICT") {
+      return json({ outcome: "CUSTOMER_IDENTITY_CONFLICT" }, 409);
+    }
     if (error.status === 400) return json({ outcome: "INVALID_CUSTOMER" }, 400);
     if (error.status === 401 || error.status === 403) return json({ outcome: "FORBIDDEN" }, 403);
     return json({ outcome: "CUSTOMER_SYNC_UNAVAILABLE" }, 503);

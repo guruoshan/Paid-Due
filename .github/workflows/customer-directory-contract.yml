@@ -21,6 +21,11 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.120.0
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Run customer-directory API router tests
+        run: deno test supabase/functions/api/router_test.ts
       - name: Start isolated PostgreSQL
         run: |
           mkdir -p /tmp/customer-directory-gate/supabase/migrations
@@ -39,6 +44,11 @@ jobs:
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/20261012212934_customer_directory_sync_contract.sql
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261012212941_admin_customer_directory_sync.sql
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/20261012212941_admin_customer_directory_sync.sql
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261024190000_repair_admin_customer_directory_sync_after_rpc_retirement.sql
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261027175000_reject_customer_directory_identity_conflicts.sql
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/20261027175000_customer_directory_identity_conflicts.sql
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261027190000_customer_directory_keyset_pagination.sql
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/20261027190000_customer_directory_keyset_pagination.sql
       - name: Stop isolated PostgreSQL
         if: always()
         run: supabase stop --no-backup --workdir /tmp/customer-directory-gate

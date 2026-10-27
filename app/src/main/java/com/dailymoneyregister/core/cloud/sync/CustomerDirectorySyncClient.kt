@@ -77,19 +77,44 @@ class CustomerDirectorySyncClient @Inject constructor(
 
         // Pull the shared business directory. Existing local IDs are preserved;
         // remote IDs become aliases to those rows instead of replacing their keys.
-        val query = "?business_id=${encode(businessId)}&branch_id=${encode(branchId)}&limit=500"
-        val response = request(
-            url = "$baseUrl/customers/sync$query",
-            method = "GET",
-            token = token,
-            body = null
-        )
-        val customers = response.optJSONArray("customers") ?: JSONArray()
-        for (index in 0 until customers.length()) {
-            reconcile(customers.getJSONObject(index), businessId)
+        // Keyset pagination uses the final row's (updated_at, canonical_phone) tuple.
+        // An empty page is the explicit end marker; a full page always triggers another request.
+        var afterUpdatedAt: String? = null
+        var afterCanonicalPhone: String? = null
+        var pulled = 0
+        while (true) {
+            val query = buildString {
+                append("?business_id=${encode(businessId)}")
+                append("&branch_id=${encode(branchId)}&limit=500")
+                afterUpdatedAt?.let { append("&after_updated_at=${encode(it)}") }
+                afterCanonicalPhone?.let { append("&after_canonical_phone=${encode(it)}") }
+            }
+            val response = request(
+                url = "$baseUrl/customers/sync$query",
+                method = "GET",
+                token = token,
+                body = null
+            )
+            val customers = response.optJSONArray("customers") ?: JSONArray()
+            if (customers.length() == 0) break
+            for (index in 0 until customers.length()) {
+                reconcile(customers.getJSONObject(index), businessId)
+            }
+            pulled += customers.length()
+            val last = customers.getJSONObject(customers.length() - 1)
+            val nextUpdatedAt = last.optString("updated_at")
+            val nextCanonicalPhone = last.optString("canonical_phone")
+            require(nextUpdatedAt.isNotBlank() && nextCanonicalPhone.isNotBlank()) {
+                "CUSTOMER_SYNC_CURSOR_INVALID"
+            }
+            require(nextUpdatedAt != afterUpdatedAt || nextCanonicalPhone != afterCanonicalPhone) {
+                "CUSTOMER_SYNC_CURSOR_STALLED"
+            }
+            afterUpdatedAt = nextUpdatedAt
+            afterCanonicalPhone = nextCanonicalPhone
         }
         lastSyncByBusiness[syncKey] = System.currentTimeMillis()
-        Log.i(TAG, "CUSTOMER_DIRECTORY_SYNC_OK business=$businessId pushed=${localCustomers.size} pulled=${customers.length()}")
+        Log.i(TAG, "CUSTOMER_DIRECTORY_SYNC_OK business=$businessId pushed=${localCustomers.size} pulled=$pulled")
     }
 
     private suspend fun reconcile(row: JSONObject, expectedBusinessId: String) {
