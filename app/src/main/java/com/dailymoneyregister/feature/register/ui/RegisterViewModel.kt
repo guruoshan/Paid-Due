@@ -1619,7 +1619,6 @@ if (
             transactionDetails = null
         )
     }
-    fun clearErrorMessage() { _uiState.value = _uiState.value.copy(errorMessage = null) }
 
     /** Resets only the unsaved register draft; no repository or DAO is touched. */
     fun clearDraft() {

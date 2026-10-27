@@ -8,7 +8,6 @@ import androidx.room.Update
 import com.dailymoneyregister.core.database.entity.CustomerEntity
 import com.dailymoneyregister.core.database.entity.CustomerIdAliasEntity
 import com.dailymoneyregister.core.database.entity.DocumentEntity
-import kotlinx.coroutines.flow.Flow
 
 /** One row of the Customers list: the customer plus a count of linked invoices. */
 data class CustomerSummary(
@@ -66,8 +65,6 @@ interface CustomerDao {
     @Query("SELECT * FROM customers WHERE business_id = :businessId ORDER BY name ASC")
     suspend fun getCustomersForBusiness(businessId: String): List<CustomerEntity>
 
-    @Query("SELECT * FROM customers WHERE business_id = :businessId ORDER BY name ASC")
-    fun observeCustomersForBusiness(businessId: String): Flow<List<CustomerEntity>>
 
     @Query("SELECT * FROM customers WHERE business_id = :businessId AND (name LIKE '%' || :query || '%' OR canonical_phone LIKE '%' || :query || '%') LIMIT 50")
     suspend fun searchCustomers(businessId: String, query: String): List<CustomerEntity>

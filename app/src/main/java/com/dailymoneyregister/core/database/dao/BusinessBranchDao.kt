@@ -8,7 +8,6 @@ import androidx.room.Transaction
 import androidx.room.Update
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
-import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BusinessBranchDao {
@@ -21,9 +20,6 @@ interface BusinessBranchDao {
 
     @Query("SELECT * FROM businesses LIMIT 1")
     suspend fun getFirstBusiness(): BusinessEntity?
-
-    @Query("SELECT * FROM businesses LIMIT 1")
-    fun observeFirstBusiness(): Flow<BusinessEntity?>
 
     @Query("SELECT * FROM businesses WHERE id = :businessId")
     suspend fun getBusinessById(businessId: String): BusinessEntity?
@@ -53,6 +49,4 @@ interface BusinessBranchDao {
     @Query("SELECT * FROM branches WHERE business_id = :businessId LIMIT 1")
     suspend fun getFirstBranch(businessId: String): BranchEntity?
 
-    @Query("SELECT * FROM branches WHERE business_id = :businessId LIMIT 1")
-    fun observeFirstBranch(businessId: String): Flow<BranchEntity?>
 }

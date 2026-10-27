@@ -145,15 +145,6 @@ object ReportingPdfRenderer {
             }
         }
 
-        fun clipped(text: String, p: Paint, width: Float): String {
-            val value = text.replace('\n', ' ').ifBlank { "—" }
-            if (p.measureText(value) <= width) return value
-            var result = value
-            while (result.isNotEmpty() && p.measureText("$result…") > width) {
-                result = result.dropLast(1)
-            }
-            return if (result.isEmpty()) "…" else "$result…"
-        }
 
         fun drawMetrics() {
             val canvas = checkNotNull(page).canvas
