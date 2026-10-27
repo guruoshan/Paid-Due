@@ -97,7 +97,12 @@ BEGIN
   v_local_date := (v_occurred_at AT TIME ZONE 'UTC')::date;
   v_payload := jsonb_build_object(
     'operation_id', 'source-capture-test-op',
-    'business_id', 'biz-test'
+    'business_id', 'biz-test',
+    'branch_id', 'branch-test',
+    'device_id', 'source-capture-device',
+    'operation_type', 'CLOSE_CASH_SHIFT',
+    'command_schema_version', 1,
+    'occurred_at', floor(extract(epoch FROM v_occurred_at) * 1000)::bigint
   );
   v_canonical_text := v_payload::text;
   v_digest := encode(extensions.digest(convert_to(v_canonical_text, 'UTF8'), 'sha256'), 'hex');
