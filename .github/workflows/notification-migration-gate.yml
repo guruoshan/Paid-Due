@@ -68,6 +68,7 @@ jobs:
           psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261013230803_customer_directory_permission_enforcement.sql
           psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261013230811_release_blocker_security_hardening.sql
           psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261014150651_capture_live_function_definitions.sql
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261027193000_financial_envelope_metadata_consistency.sql
       - name: Verify release-blocker security, permission and replay behavior
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
@@ -76,6 +77,10 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
         run: psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/20261014150651_live_function_source_reconciliation.sql
+      - name: Verify financial envelope replay and metadata consistency
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/20261027193000_financial_envelope_idempotency.sql
       - name: Stop disposable Supabase
         if: always() && steps.setup-supabase-cli.outcome == 'success'
         run: supabase stop --no-backup --workdir /tmp/supabase-notification-gate
