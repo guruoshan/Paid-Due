@@ -84,6 +84,9 @@ async function syncCustomerDirectoryAdmin(request: Request, accessToken: string)
     if (!Array.isArray(rows) || rows.length !== 1) throw new Error("CUSTOMER_SYNC_RESULT_INVALID");
     return json({ customer: rows[0] }, 200);
   } catch (error: any) {
+    if (error.outcome === "CUSTOMER_IDENTITY_CONFLICT" || error.message === "CUSTOMER_IDENTITY_CONFLICT") {
+      return json({ outcome: "CUSTOMER_IDENTITY_CONFLICT" }, 409);
+    }
     if (error.status === 400) return json({ outcome: "INVALID_CUSTOMER" }, 400);
     if (error.status === 401 || error.status === 403) return json({ outcome: "FORBIDDEN" }, 403);
     return json({ outcome: "CUSTOMER_SYNC_UNAVAILABLE" }, 503);
