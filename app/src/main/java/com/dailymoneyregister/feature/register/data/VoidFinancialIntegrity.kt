@@ -169,10 +169,21 @@ object VoidFinancialIntegrity {
             throw VoidUnsupportedCouponException(transaction.id)
         }
 
-        // Payment-method changes make the reversal destination ambiguous.
-        // Fail closed even when no correction or refund has followed the switch.
+        /*
+         * A persisted payment-method change is usable only when its operation
+         * has the complete, balanced reclassification pair. Reuse the existing
+         * authoritative validator before resolving the current funding identity
+         * or calculating the reversible amount.
+         */
         if (record.paymentMethodChanges.isNotEmpty()) {
-            throw VoidAmbiguousSettlementException(transaction.id)
+            try {
+                PaymentMethodChangeFinancialIntegrity.validate(
+                    record = record,
+                    creditAllocations = creditAllocations
+                )
+            } catch (_: PaymentMethodChangeAmbiguousSettlementException) {
+                throw VoidAmbiguousSettlementException(transaction.id)
+            }
         }
 
         record.settlements.forEach { settlement ->
@@ -302,8 +313,14 @@ object VoidFinancialIntegrity {
                     }
                 }
 
+                EntryPurpose.PAYMENT_METHOD_RECLASSIFICATION -> {
+                    if (record.paymentMethodChanges.isEmpty()) {
+                        throw VoidAmbiguousSettlementException(transaction.id)
+                    }
+                    // The operation-linked pair was validated above.
+                }
+
                 EntryPurpose.VOID_REVERSAL,
-                EntryPurpose.PAYMENT_METHOD_RECLASSIFICATION,
                 EntryPurpose.CREDIT_REPAYMENT_COLLECTION,
                 EntryPurpose.COUPON_PURCHASE_FUNDING,
                 EntryPurpose.EXPENSE_OUTFLOW,
