@@ -69,7 +69,7 @@ Command: `git grep -w -h -- <name> -- . | wc -l`. Result: `1` (declaration only)
 | `observeFirstBusiness()` (Room query) | core/database/dao/BusinessBranchDao.kt:26 | Declared once, zero callers. | HIGH | Low |
 | `observeCustomersForBusiness()` (Room query) | core/database/dao/CustomerDao.kt:70 | Declared once, zero callers. | HIGH | Low |
 | `getCashiersForBranch()` (Room query) | core/database/dao/UserDao.kt:126 | Declared once, zero callers. Cashier leftover. | HIGH | Low |
-| `RemoteEmployeeDirectory` class (whole file) | app/src/androidTest/.../feature/admin/data/RemoteEmployeeDirectory.kt | Class name has zero references outside its own file, but the same file also defines `CloudCashierDirectoryEntry` and `EmployeeDirectoryCloudSource`, which `CashierManagementRepository.kt` uses. | NOT SAFE | high. |
+| `RemoteEmployeeDirectory` class (whole file) | app/src/androidTest/.../feature/admin/data/RemoteEmployeeDirectory.kt | Removed in the cleanup PR. The file's two shared types (CloudCashierDirectoryEntry, EmployeeDirectoryCloudSource) were moved to CashierManagementRepository.kt; the rest of the file was deleted. | NOT SAFE | Removed in the cleanup PR. |
 | `getAllSupported()` | core/model/currency/CurrencyConfig.kt:92 | Declared once, zero callers. Currency configuration feeds historical decimal handling. | MEDIUM | Medium. Not in the safe batch. |
 | `getThrottler()` | feature/auth/data/AuthRepository.kt:437 | Declared once, zero callers. PIN throttling is security-related. | MEDIUM | Medium. Not in the safe batch. |
 | `loadSaleItemsForWhatsApp()` | feature/register/ui/RegisterViewModel.kt:677 | Declared once, zero callers. May be a removed WhatsApp feature, and it touches sale data. | MEDIUM | Medium. Confirm the feature is retired first. |
@@ -105,7 +105,7 @@ Context: migration `20261023050000_retire_cashier_feature.sql` dropped the cashi
 
 | Item / path | Where it is used | Assessment | Safe to remove? |
 |---|---|---|---|
-| androidTest/.../feature/admin/data/RemoteEmployeeDirectory.kt | Nothing else | Dead. Calls a dropped function. | No. Its shared types are still used by `CashierManagementRepository.kt`. |
+| androidTest/.../feature/admin/data/RemoteEmployeeDirectory.kt | Nothing else | Dead. Calls a dropped function. | Removed. |
 | androidTest/.../feature/admin/data/CashierManagementRepository.kt | Used by DmrDatabaseIntegrationTest and TrustedSessionIntegrationTest | Live test helper, but it calls dropped functions (`update_admin_cashier_permissions`, `remove_admin_cashier`, `list_admin_cashiers_with_permissions`). Those tests will fail. | **No.** Rewrite or delete the tests that use it, then remove it. |
 | androidTest/.../feature/admin/data/CashierPermissionsConfig.kt | Used by CashierManagementRepository and DmrDatabaseIntegrationTest | Same as above. | **No**, until the tests are rewritten. |
 | androidTest/.../feature/admin/data/CreateCashierPayloadCodec.kt | Used by CashierManagementRepository | Same as above. | **No**, until the tests are rewritten. |
@@ -150,3 +150,5 @@ The eight-item batch was completed in PR #82. Item 9 was not removed because the
 ## Corrections
 
 Corrected after PR #82: `RemoteEmployeeDirectory.kt` is not safe to delete, because it defines types used by `CashierManagementRepository.kt`.
+
+Updated after the cleanup PR: RemoteEmployeeDirectory.kt was removed, with its shared types moved to CashierManagementRepository.kt.

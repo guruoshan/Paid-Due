@@ -19,6 +19,8 @@ import com.dailymoneyregister.core.identity.PhoneNumberNormalizer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import javax.inject.Inject
 
 
@@ -389,3 +391,22 @@ private fun CashierPermissionsConfig.toRemotePermissionMap(): Map<String, Boolea
     "MANAGE_PRODUCTS" to canManageProducts,
     "VIEW_REPORTS" to canViewReports
 )
+
+
+@Serializable
+data class CloudCashierDirectoryEntry(
+    @SerialName("local_user_id") val userId: String,
+    @SerialName("membership_id") val membershipId: String,
+    @SerialName("branch_id") val branchId: String,
+    @SerialName("display_name") val displayName: String,
+    @SerialName("canonical_phone") val canonicalPhone: String,
+    @SerialName("is_active") val isActive: Boolean,
+    @SerialName("permissions") val permissions: Map<String, Boolean>,
+    @SerialName("is_removed") val isRemoved: Boolean = false
+)
+
+interface EmployeeDirectoryCloudSource {
+    suspend fun listCashiers(): List<CloudCashierDirectoryEntry>
+    suspend fun updateCashierPermissions(membershipId: String, permissions: Map<String, Boolean>)
+    suspend fun removeCashier(membershipId: String)
+}
