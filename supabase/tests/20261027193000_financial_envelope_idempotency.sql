@@ -129,7 +129,7 @@ BEGIN
   v_occurred_at := to_timestamp(v_app_occurred_ms::numeric / 1000);
   v_local_date := (v_occurred_at AT TIME ZONE 'UTC')::date;
   v_canonical_text := format(
-    '{"operation_id":"%s","business_id":"biz-test","branch_id":"branch-test","actor_user_id":"app-style-admin-user","device_id":"idempotency-app-style-device","operation_type":"CLOSE_CASH_SHIFT","occurred_at":%s,"command_schema_version":1,"request_fingerprint":"sha256:app-style-request-fingerprint","intent_payload":"{\\\"cash_shift_id\\\":\\\"app-style-shift\\\",\\\"counted_amount_minor\\\":123456}","subject_type":"CASH_SHIFT","subject_id":"app-style-shift","transaction_id":"","cash_shift_id":"app-style-shift"}',
+    '{"operation_id":"%s","business_id":"biz-test","branch_id":"branch-test","actor_user_id":"app-style-admin-user","device_id":"idempotency-app-style-device","operation_type":"CLOSE_CASH_SHIFT","occurred_at":%s,"command_schema_version":1,"request_fingerprint":"sha256:app-style-request-fingerprint","intent_payload":"{}","subject_type":"CASH_SHIFT","subject_id":"app-style-shift","transaction_id":"","cash_shift_id":"app-style-shift"}',
     v_operation_id, v_app_occurred_ms
   );
   v_payload := v_canonical_text::jsonb;
