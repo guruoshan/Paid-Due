@@ -69,7 +69,7 @@ Command: `git grep -w -h -- <name> -- . | wc -l`. Result: `1` (declaration only)
 | `observeFirstBusiness()` (Room query) | core/database/dao/BusinessBranchDao.kt:26 | Declared once, zero callers. | HIGH | Low |
 | `observeCustomersForBusiness()` (Room query) | core/database/dao/CustomerDao.kt:70 | Declared once, zero callers. | HIGH | Low |
 | `getCashiersForBranch()` (Room query) | core/database/dao/UserDao.kt:126 | Declared once, zero callers. Cashier leftover. | HIGH | Low |
-| `RemoteEmployeeDirectory` class (whole file) | app/src/androidTest/.../feature/admin/data/RemoteEmployeeDirectory.kt | Zero references outside its own file. Injected only by its own constructor, with no module that requests it. Calls the dropped `list_admin_cashiers` function. | HIGH | Low |
+| `RemoteEmployeeDirectory` class (whole file) | app/src/androidTest/.../feature/admin/data/RemoteEmployeeDirectory.kt | Class name has zero references outside its own file, but the same file also defines `CloudCashierDirectoryEntry` and `EmployeeDirectoryCloudSource`, which `CashierManagementRepository.kt` uses. | NOT SAFE | high. |
 | `getAllSupported()` | core/model/currency/CurrencyConfig.kt:92 | Declared once, zero callers. Currency configuration feeds historical decimal handling. | MEDIUM | Medium. Not in the safe batch. |
 | `getThrottler()` | feature/auth/data/AuthRepository.kt:437 | Declared once, zero callers. PIN throttling is security-related. | MEDIUM | Medium. Not in the safe batch. |
 | `loadSaleItemsForWhatsApp()` | feature/register/ui/RegisterViewModel.kt:677 | Declared once, zero callers. May be a removed WhatsApp feature, and it touches sale data. | MEDIUM | Medium. Confirm the feature is retired first. |
@@ -105,7 +105,7 @@ Context: migration `20261023050000_retire_cashier_feature.sql` dropped the cashi
 
 | Item / path | Where it is used | Assessment | Safe to remove? |
 |---|---|---|---|
-| androidTest/.../feature/admin/data/RemoteEmployeeDirectory.kt | Nothing else | Dead. Calls a dropped function. | **Yes** (in the safe batch) |
+| androidTest/.../feature/admin/data/RemoteEmployeeDirectory.kt | Nothing else | Dead. Calls a dropped function. | No. Its shared types are still used by `CashierManagementRepository.kt`. |
 | androidTest/.../feature/admin/data/CashierManagementRepository.kt | Used by DmrDatabaseIntegrationTest and TrustedSessionIntegrationTest | Live test helper, but it calls dropped functions (`update_admin_cashier_permissions`, `remove_admin_cashier`, `list_admin_cashiers_with_permissions`). Those tests will fail. | **No.** Rewrite or delete the tests that use it, then remove it. |
 | androidTest/.../feature/admin/data/CashierPermissionsConfig.kt | Used by CashierManagementRepository and DmrDatabaseIntegrationTest | Same as above. | **No**, until the tests are rewritten. |
 | androidTest/.../feature/admin/data/CreateCashierPayloadCodec.kt | Used by CashierManagementRepository | Same as above. | **No**, until the tests are rewritten. |
@@ -125,7 +125,7 @@ Context: migration `20261023050000_retire_cashier_feature.sql` dropped the cashi
 
 ## Safe first batch
 
-These nine items have zero references, no registration, and low removal risk. They could go in one small pull request. That pull request should run `./gradlew test` and `./gradlew :app:lintDebug` before merging, because neither could be run here.
+The eight-item batch is complete: eight items were removed in PR #82. The pull request ran CI; see PR #82 for its checks.
 
 1. `activityTypeLabel` in `feature/reporting/ui/ReportingScreen.kt`
 2. `clearErrorMessage()` in `feature/register/ui/RegisterViewModel.kt`
@@ -135,9 +135,9 @@ These nine items have zero references, no registration, and low removal risk. Th
 6. `observeFirstBusiness()` in `core/database/dao/BusinessBranchDao.kt`
 7. `observeCustomersForBusiness()` in `core/database/dao/CustomerDao.kt`
 8. `getCashiersForBranch()` in `core/database/dao/UserDao.kt`
-9. `RemoteEmployeeDirectory.kt` in `app/src/androidTest/.../feature/admin/data/`
+9. `RemoteEmployeeDirectory.kt` — Not removed. See correction above.
 
-The batch is smaller than 10 because the evidence supports only nine. The medium-confidence items are excluded on purpose. `pixel-sync-log.txt` is also excluded because it is not code; it can go in a separate hygiene commit.
+The eight-item batch was completed in PR #82. Item 9 was not removed because the file defines shared types used by `CashierManagementRepository.kt`. The medium-confidence items are excluded on purpose. `pixel-sync-log.txt` is also excluded because it is not code; it can go in a separate hygiene commit.
 
 ## What could not be checked
 
@@ -146,3 +146,7 @@ The batch is smaller than 10 because the evidence supports only nine. The medium
 - Full resource (drawable, layout, string) reference analysis: not done.
 - Reflection and serialization references: checked only through text search.
 - Live Supabase state: not inspected, and not changed.
+
+## Corrections
+
+Corrected after PR #82: `RemoteEmployeeDirectory.kt` is not safe to delete, because it defines types used by `CashierManagementRepository.kt`.
