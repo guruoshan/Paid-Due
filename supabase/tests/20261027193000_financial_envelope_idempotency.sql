@@ -18,6 +18,7 @@ DECLARE
   v_saved_digest text;
   v_operation_id text;
   v_app_occurred_ms bigint;
+  v_fraction integer;
 BEGIN
   PERFORM set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
   v_local_date := (v_occurred_at AT TIME ZONE 'UTC')::date;
@@ -107,7 +108,7 @@ BEGIN
   BEGIN
     PERFORM * FROM public.ingest_financial_envelope(
       'biz-test', v_operation_id, 'branch-test', 'admin-membership-test',
-      'idempotency-test-device', 'RECORD_SALE', 1, v_occurred_at, 'UTC',
+      'idempotency-test-device', 'RECORD_SALE', 2, v_occurred_at, 'UTC',
       v_local_date, v_canonical_text, v_digest, v_payload
     );
     RAISE EXCEPTION 'FAIL: expected ENVELOPE_METADATA_MISMATCH';
@@ -121,38 +122,43 @@ BEGIN
     RAISE EXCEPTION 'FAIL: metadata mismatch stored % rows, expected 0', v_count;
   END IF;
 
-  -- 4. App-style codec envelope: millisecond epoch timestamp plus the codec's
-  -- ordinary root fields. The RPC timestamp is sent as Instant.toString() ISO-8601,
-  -- which PostgreSQL parses to the same instant at millisecond precision.
-  v_operation_id := 'idempotency-app-style-test-op';
-  v_app_occurred_ms := floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint - 5000;
-  v_occurred_at := to_timestamp(v_app_occurred_ms::numeric / 1000);
-  v_local_date := (v_occurred_at AT TIME ZONE 'UTC')::date;
-  v_canonical_text := format(
-    '{"operation_id":"%s","business_id":"biz-test","branch_id":"branch-test","actor_user_id":"app-style-admin-user","device_id":"idempotency-app-style-device","operation_type":"CLOSE_CASH_SHIFT","occurred_at":%s,"command_schema_version":1,"request_fingerprint":"sha256:app-style-request-fingerprint","intent_payload":"{}","subject_type":"CASH_SHIFT","subject_id":"app-style-shift","transaction_id":"","cash_shift_id":"app-style-shift"}',
-    v_operation_id, v_app_occurred_ms
-  );
-  v_payload := v_canonical_text::jsonb;
-  v_digest := encode(extensions.digest(convert_to(v_canonical_text, 'UTF8'), 'sha256'), 'hex');
+  -- 4. App-style compact JSON envelope for millisecond timestamps whose
+  -- fractional millisecond digits are .001, .999, .123 and .500 seconds.
+  -- RPC timestamp values are produced from the same epoch milliseconds.
+  FOREACH v_fraction IN ARRAY ARRAY[1, 999, 123, 500] LOOP
+    v_operation_id := format('idempotency-app-style-ms-%s-test-op', v_fraction);
+    v_app_occurred_ms :=
+      floor(extract(epoch FROM date_trunc('second', clock_timestamp())) * 1000)::bigint
+      + v_fraction;
+    v_occurred_at := to_timestamp(v_app_occurred_ms::numeric / 1000);
+    v_local_date := (v_occurred_at AT TIME ZONE 'UTC')::date;
+    v_canonical_text := format(
+      '{"operation_id":"%s","business_id":"biz-test","branch_id":"branch-test","actor_user_id":"app-style-admin-user","device_id":"idempotency-app-style-device","operation_type":"CLOSE_CASH_SHIFT","occurred_at":%s,"command_schema_version":1,"request_fingerprint":"sha256:app-style-request-fingerprint","intent_payload":"{}","subject_type":"CASH_SHIFT","subject_id":"app-style-shift","transaction_id":"","cash_shift_id":"app-style-shift"}',
+      v_operation_id, v_app_occurred_ms
+    );
+    v_payload := v_canonical_text::jsonb;
+    v_digest := encode(extensions.digest(convert_to(v_canonical_text, 'UTF8'), 'sha256'), 'hex');
 
-  SELECT * INTO v_result FROM public.ingest_financial_envelope(
-    'biz-test', v_operation_id, 'branch-test', 'admin-membership-test',
-    'idempotency-app-style-device', 'CLOSE_CASH_SHIFT', 1, v_occurred_at, 'UTC',
-    v_local_date, v_canonical_text, v_digest, v_payload
-  );
-  IF v_result.status <> 'ACKNOWLEDGED' OR v_result.duplicate THEN
-    RAISE EXCEPTION 'FAIL: app-style millisecond envelope must be accepted';
-  END IF;
+    SELECT * INTO v_result FROM public.ingest_financial_envelope(
+      'biz-test', v_operation_id, 'branch-test', 'admin-membership-test',
+      'idempotency-app-style-device', 'CLOSE_CASH_SHIFT', 1, v_occurred_at, 'UTC',
+      v_local_date, v_canonical_text, v_digest, v_payload
+    );
+    IF v_result.status <> 'ACKNOWLEDGED' OR v_result.duplicate THEN
+      RAISE EXCEPTION 'FAIL: app-style millisecond envelope with fraction % must be accepted', v_fraction;
+    END IF;
 
-  SELECT count(*) INTO v_count FROM private.financial_operation_envelopes AS envelope
-  WHERE envelope.business_id = 'biz-test' AND envelope.operation_id = v_operation_id;
-  IF v_count <> 1 THEN
-    RAISE EXCEPTION 'FAIL: app-style envelope stored % rows, expected 1', v_count;
-  END IF;
+    SELECT count(*) INTO v_count FROM private.financial_operation_envelopes AS envelope
+    WHERE envelope.business_id = 'biz-test' AND envelope.operation_id = v_operation_id;
+    IF v_count <> 1 THEN
+      RAISE EXCEPTION 'FAIL: app-style envelope fraction % stored % rows, expected 1', v_fraction, v_count;
+    END IF;
+  END LOOP;
 
   RAISE NOTICE 'PASS: exact replay acknowledges duplicate and stores one row';
   RAISE NOTICE 'PASS: changed content collides and stored row is unchanged';
   RAISE NOTICE 'PASS: transport/canonical metadata mismatch rejected before storage';
+  RAISE NOTICE 'PASS: app-style millisecond fractions .001, .999, .123 and .500 accepted';
 END
 $test$;
 
