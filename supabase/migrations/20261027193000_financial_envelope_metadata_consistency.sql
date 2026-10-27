@@ -118,7 +118,7 @@ BEGIN
     p_operation_type, p_schema_version, p_occurred_at, p_branch_timezone_id,
     p_business_local_date, p_canonical_text, p_canonical_sha256, p_canonical_payload
   )
-  ON CONFLICT (business_id, operation_id) DO NOTHING
+  ON CONFLICT ON CONSTRAINT financial_operation_envelopes_pkey DO NOTHING
   RETURNING e.canonical_sha256 INTO v_inserted_hash;
 
   IF v_inserted_hash IS NOT NULL THEN
