@@ -54,7 +54,6 @@ BEGIN
       'business-a','branch-a','identity-b','+96890000201','Conflicting Customer','2026-01-01T00:00:00Z'
     );
   EXCEPTION WHEN unique_violation THEN
-    GET STACKED DIAGNOSTICS v_count = ROW_COUNT;
     v_conflict := true;
   END;
   IF NOT v_conflict THEN
