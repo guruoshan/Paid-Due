@@ -128,23 +128,11 @@ BEGIN
   v_app_occurred_ms := floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint - 5000;
   v_occurred_at := to_timestamp(v_app_occurred_ms::numeric / 1000);
   v_local_date := (v_occurred_at AT TIME ZONE 'UTC')::date;
-  v_payload := jsonb_build_object(
-    'operation_id', v_operation_id,
-    'business_id', 'biz-test',
-    'branch_id', 'branch-test',
-    'actor_user_id', 'app-style-admin-user',
-    'device_id', 'idempotency-app-style-device',
-    'operation_type', 'CLOSE_CASH_SHIFT',
-    'occurred_at', v_app_occurred_ms,
-    'command_schema_version', 1,
-    'request_fingerprint', 'sha256:app-style-request-fingerprint',
-    'intent_payload', '{"cash_shift_id":"app-style-shift","counted_amount_minor":123456}',
-    'subject_type', 'CASH_SHIFT',
-    'subject_id', 'app-style-shift',
-    'transaction_id', '',
-    'cash_shift_id', 'app-style-shift'
+  v_canonical_text := format(
+    '{"operation_id":"%s","business_id":"biz-test","branch_id":"branch-test","actor_user_id":"app-style-admin-user","device_id":"idempotency-app-style-device","operation_type":"CLOSE_CASH_SHIFT","occurred_at":%s,"command_schema_version":1,"request_fingerprint":"sha256:app-style-request-fingerprint","intent_payload":"{\\\"cash_shift_id\\\":\\\"app-style-shift\\\",\\\"counted_amount_minor\\\":123456}","subject_type":"CASH_SHIFT","subject_id":"app-style-shift","transaction_id":"","cash_shift_id":"app-style-shift"}',
+    v_operation_id, v_app_occurred_ms
   );
-  v_canonical_text := v_payload::text;
+  v_payload := v_canonical_text::jsonb;
   v_digest := encode(extensions.digest(convert_to(v_canonical_text, 'UTF8'), 'sha256'), 'hex');
 
   SELECT * INTO v_result FROM public.ingest_financial_envelope(
