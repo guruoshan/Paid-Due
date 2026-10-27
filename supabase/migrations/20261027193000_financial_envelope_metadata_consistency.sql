@@ -87,7 +87,7 @@ BEGIN
      OR p_canonical_payload -> 'operation_type' IS DISTINCT FROM to_jsonb(p_operation_type)
      OR p_canonical_payload -> 'command_schema_version' IS DISTINCT FROM to_jsonb(p_schema_version)
      OR p_canonical_payload -> 'occurred_at' IS DISTINCT FROM
-          to_jsonb(floor(extract(epoch FROM p_occurred_at) * 1000)::bigint)
+          to_jsonb(round(extract(epoch FROM p_occurred_at) * 1000)::bigint)
   THEN
     RAISE EXCEPTION 'ENVELOPE_METADATA_MISMATCH';
   END IF;
