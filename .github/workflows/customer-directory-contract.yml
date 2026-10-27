@@ -21,6 +21,11 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.120.0
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Run customer-directory API router tests
+        run: deno test supabase/functions/api/router_test.ts
       - name: Start isolated PostgreSQL
         run: |
           mkdir -p /tmp/customer-directory-gate/supabase/migrations
