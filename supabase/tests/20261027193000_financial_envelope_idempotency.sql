@@ -17,6 +17,7 @@ DECLARE
   v_saved_text text;
   v_saved_digest text;
   v_operation_id text;
+  v_app_occurred_ms bigint;
 BEGIN
   PERFORM set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
   v_local_date := (v_occurred_at AT TIME ZONE 'UTC')::date;
@@ -118,6 +119,47 @@ BEGIN
   WHERE business_id = 'biz-test' AND operation_id = v_operation_id;
   IF v_count <> 0 THEN
     RAISE EXCEPTION 'FAIL: metadata mismatch stored % rows, expected 0', v_count;
+  END IF;
+
+  -- 4. App-style codec envelope: millisecond epoch timestamp plus the codec's
+  -- ordinary root fields. The RPC timestamp is sent as Instant.toString() ISO-8601,
+  -- which PostgreSQL parses to the same instant at millisecond precision.
+  v_operation_id := 'idempotency-app-style-test-op';
+  v_app_occurred_ms := floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint - 5000;
+  v_occurred_at := to_timestamp(v_app_occurred_ms::numeric / 1000);
+  v_local_date := (v_occurred_at AT TIME ZONE 'UTC')::date;
+  v_payload := jsonb_build_object(
+    'operation_id', v_operation_id,
+    'business_id', 'biz-test',
+    'branch_id', 'branch-test',
+    'actor_user_id', 'app-style-admin-user',
+    'device_id', 'idempotency-app-style-device',
+    'operation_type', 'CLOSE_CASH_SHIFT',
+    'occurred_at', v_app_occurred_ms,
+    'command_schema_version', 1,
+    'request_fingerprint', 'sha256:app-style-request-fingerprint',
+    'intent_payload', '{"cash_shift_id":"app-style-shift","counted_amount_minor":123456}',
+    'subject_type', 'CASH_SHIFT',
+    'subject_id', 'app-style-shift',
+    'transaction_id', '',
+    'cash_shift_id', 'app-style-shift'
+  );
+  v_canonical_text := v_payload::text;
+  v_digest := encode(extensions.digest(convert_to(v_canonical_text, 'UTF8'), 'sha256'), 'hex');
+
+  SELECT * INTO v_result FROM public.ingest_financial_envelope(
+    'biz-test', v_operation_id, 'branch-test', 'admin-membership-test',
+    'idempotency-app-style-device', 'CLOSE_CASH_SHIFT', 1, v_occurred_at, 'UTC',
+    v_local_date, v_canonical_text, v_digest, v_payload
+  );
+  IF v_result.status <> 'ACKNOWLEDGED' OR v_result.duplicate THEN
+    RAISE EXCEPTION 'FAIL: app-style millisecond envelope must be accepted';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM private.financial_operation_envelopes AS envelope
+  WHERE envelope.business_id = 'biz-test' AND envelope.operation_id = v_operation_id;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'FAIL: app-style envelope stored % rows, expected 1', v_count;
   END IF;
 
   RAISE NOTICE 'PASS: exact replay acknowledges duplicate and stores one row';
