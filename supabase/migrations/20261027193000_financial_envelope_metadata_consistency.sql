@@ -48,7 +48,6 @@ begin
      or p_canonical_payload ->> 'business_id' is distinct from p_business_id
   then raise exception 'PAYLOAD_MISMATCH'; end if;
 
-  -- Added metadata consistency checks; all preceding live logic is unchanged.
   if p_canonical_payload -> 'branch_id' is distinct from to_jsonb(p_branch_id)
      or p_canonical_payload -> 'device_id' is distinct from to_jsonb(p_device_id)
      or p_canonical_payload -> 'operation_type' is distinct from to_jsonb(p_operation_type)
