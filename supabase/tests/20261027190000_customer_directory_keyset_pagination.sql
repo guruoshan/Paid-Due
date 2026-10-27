@@ -32,8 +32,8 @@ FROM generate_series(1,1201) AS i;
 DO $test$
 DECLARE
   v_page record;
-  v_first record;
-  v_replay record;
+  v_first_page text[];
+  v_replay_page text[];
   v_after_updated_at timestamptz := NULL;
   v_after_phone text := NULL;
   v_page_count integer;
@@ -42,29 +42,47 @@ DECLARE
   v_unique integer;
   v_empty integer;
 BEGIN
-  -- Page boundary collision: first page ends inside a set with one shared timestamp.
-  SELECT * INTO v_first FROM public.sync_customer_directory_admin_list(
+  -- Replay the same first-page request and compare every returned identity.
+  SELECT array_agg(customer_id ORDER BY updated_at, canonical_phone) INTO v_first_page
+  FROM public.sync_customer_directory_admin_list(
     'pagination-business-a','pagination-branch-a',NULL,NULL,500
-  ) LIMIT 1;
-  IF v_first.customer_id IS NULL THEN RAISE EXCEPTION 'first page unexpectedly empty'; END IF;
-
-  -- Replaying an identical cursor must produce the same first page, not mutate state.
-  SELECT * INTO v_replay FROM public.sync_customer_directory_admin_list(
+  );
+  SELECT array_agg(customer_id ORDER BY updated_at, canonical_phone) INTO v_replay_page
+  FROM public.sync_customer_directory_admin_list(
     'pagination-business-a','pagination-branch-a',NULL,NULL,500
-  ) LIMIT 1;
-  IF v_replay.customer_id <> v_first.customer_id OR v_replay.canonical_phone <> v_first.canonical_phone THEN
-    RAISE EXCEPTION 'replay returned a different first row';
+  );
+  IF cardinality(v_first_page) <> 500 OR v_replay_page IS DISTINCT FROM v_first_page THEN
+    RAISE EXCEPTION 'replay did not return the same complete first page';
   END IF;
 
-  -- Walk every page using the complete (updated_at, canonical_phone) key.
+  -- Save the first page's final tuple, then insert a row that sorts before it
+  -- while pagination is in progress. It must not duplicate or shift later pages;
+  -- a fresh traversal must pick it up on the next sync pass.
+  SELECT updated_at, canonical_phone INTO v_after_updated_at, v_after_phone
+  FROM public.sync_customer_directory_admin_list(
+    'pagination-business-a','pagination-branch-a',NULL,NULL,500
+  )
+  ORDER BY updated_at DESC, canonical_phone DESC
+  LIMIT 1;
+  INSERT INTO private.customer_directory(
+    business_id,canonical_phone,customer_id,display_name,created_at,updated_at,
+    created_by_membership_id,updated_by_membership_id
+  ) VALUES (
+    'pagination-business-a','+96880000000','pagination-concurrent-before-cursor',
+    'Concurrent earlier key','2026-10-01T00:00:00Z','2026-10-01T00:00:00Z',
+    'pagination-admin','pagination-admin'
+  );
+
+  -- Count the first page, then walk the remaining pages with the strict tuple.
+  v_total := cardinality(v_first_page);
+  v_pages := 1;
   LOOP
     v_page_count := 0;
     FOR v_page IN SELECT * FROM public.sync_customer_directory_admin_list(
       'pagination-business-a','pagination-branch-a',v_after_updated_at,v_after_phone,500
     ) LOOP
       v_page_count := v_page_count + 1;
-      IF v_page_count = 1 AND v_after_updated_at IS NOT NULL
-         AND (v_page.updated_at, v_page.canonical_phone) <= (v_after_updated_at, v_after_phone) THEN
+      IF (v_page.updated_at, v_page.canonical_phone) <= (v_after_updated_at, v_after_phone) THEN
         RAISE EXCEPTION 'keyset cursor did not advance strictly';
       END IF;
       v_after_updated_at := v_page.updated_at;
@@ -76,7 +94,9 @@ BEGIN
   END LOOP;
 
   SELECT count(DISTINCT customer_id) INTO v_unique
-  FROM private.customer_directory WHERE business_id='pagination-business-a';
+  FROM private.customer_directory
+  WHERE business_id='pagination-business-a'
+    AND customer_id <> 'pagination-concurrent-before-cursor';
   IF v_total <> 1201 OR v_unique <> 1201 OR v_pages <> 3 THEN
     RAISE EXCEPTION 'multi-page traversal mismatch: total %, unique %, pages %', v_total, v_unique, v_pages;
   END IF;
@@ -87,25 +107,19 @@ BEGIN
   );
   IF v_empty <> 0 THEN RAISE EXCEPTION 'final cursor did not return an empty page'; END IF;
 
-  -- Concurrent insert before the already-issued cursor is not duplicated in this
-  -- traversal; a fresh traversal from NULL sees it. This documents bounded,
-  -- repeatable keyset semantics rather than claiming a cross-request snapshot.
-  INSERT INTO private.customer_directory(
-    business_id,canonical_phone,customer_id,display_name,created_at,updated_at,
-    created_by_membership_id,updated_by_membership_id
-  ) VALUES (
-    'pagination-business-a','+96880000000','pagination-concurrent-before-cursor',
-    'Concurrent earlier key','2026-10-01T00:00:00Z','2026-10-01T00:00:00Z',
-    'pagination-admin','pagination-admin'
-  );
-  SELECT count(*) INTO v_empty FROM public.sync_customer_directory_admin_list(
-    'pagination-business-a','pagination-branch-a',v_after_updated_at,v_after_phone,500
-  );
-  IF v_empty <> 0 THEN RAISE EXCEPTION 'earlier-key concurrent insert unexpectedly crossed cursor'; END IF;
+  -- The concurrent earlier-key row is outside this pass's cursor but visible on
+  -- the next full sync from NULL; this is not a cross-request snapshot guarantee.
   SELECT count(*) INTO v_empty FROM public.sync_customer_directory_admin_list(
     'pagination-business-a','pagination-branch-a',NULL,NULL,500
   );
   IF v_empty <> 500 THEN RAISE EXCEPTION 'fresh traversal did not restart at first page'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.sync_customer_directory_admin_list(
+      'pagination-business-a','pagination-branch-a',NULL,NULL,500
+    ) WHERE customer_id='pagination-concurrent-before-cursor'
+  ) THEN
+    RAISE EXCEPTION 'fresh traversal did not pick up concurrent insert';
+  END IF;
 END;
 $test$;
 
