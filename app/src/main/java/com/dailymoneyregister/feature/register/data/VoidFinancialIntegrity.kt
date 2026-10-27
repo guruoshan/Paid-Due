@@ -300,7 +300,7 @@ object VoidFinancialIntegrity {
                     if (record.paymentMethodChanges.isEmpty()) {
                         throw VoidAmbiguousSettlementException(transaction.id)
                     }
-                    // The operation-linked pair was validated above.
+                    // Repository execution validates the operation-linked pair before this gate.
                 }
 
                 EntryPurpose.VOID_REVERSAL,
