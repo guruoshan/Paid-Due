@@ -127,11 +127,7 @@ BEGIN
     RAISE EXCEPTION 'Exact financial-envelope replay must be ACKNOWLEDGED as duplicate';
   END IF;
 
-  v_collision_payload := jsonb_build_object(
-    'operation_id', 'source-capture-test-op',
-    'business_id', 'biz-test',
-    'collision', true
-  );
+  v_collision_payload := v_payload || jsonb_build_object('collision', true);
   v_canonical_text := v_collision_payload::text;
   v_digest := encode(extensions.digest(convert_to(v_canonical_text, 'UTF8'), 'sha256'), 'hex');
   BEGIN
@@ -149,8 +145,8 @@ BEGIN
   END;
 
   SELECT count(*) INTO v_count
-  FROM private.financial_operation_envelopes
-  WHERE business_id = 'biz-test' AND operation_id = 'source-capture-test-op';
+  FROM private.financial_operation_envelopes AS envelope
+  WHERE envelope.business_id = 'biz-test' AND envelope.operation_id = 'source-capture-test-op';
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'Idempotent upload/collision handling changed financial envelope count';
   END IF;
