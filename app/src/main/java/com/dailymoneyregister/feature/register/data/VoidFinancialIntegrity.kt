@@ -169,23 +169,6 @@ object VoidFinancialIntegrity {
             throw VoidUnsupportedCouponException(transaction.id)
         }
 
-        /*
-         * A persisted payment-method change is usable only when its operation
-         * has the complete, balanced reclassification pair. Reuse the existing
-         * authoritative validator before resolving the current funding identity
-         * or calculating the reversible amount.
-         */
-        if (record.paymentMethodChanges.isNotEmpty()) {
-            try {
-                PaymentMethodChangeFinancialIntegrity.validate(
-                    record = record,
-                    creditAllocations = creditAllocations
-                )
-            } catch (_: PaymentMethodChangeAmbiguousSettlementException) {
-                throw VoidAmbiguousSettlementException(transaction.id)
-            }
-        }
-
         record.settlements.forEach { settlement ->
             requireTransactionSettlement(transaction.id, transaction.currencyCode, settlement)
         }
