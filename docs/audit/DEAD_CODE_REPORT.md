@@ -1,111 +1,148 @@
 # Dead-Code and Repository Hygiene Report
 
-- **Audit target:** `guruoshan/Paid-Due`, branch `main`
-- **Main commit audited:** `84a054eb40ae6df9acf753e34bd119a9d271f113` (2026-10-27)
-- **Report branch:** `audit/dead-code-report-20261028`
-- **Scope:** report-only. No application files, migrations, Supabase data, or deployment targets were changed.
-- **Important limitation:** the available environment could read GitHub's repository tree, but could not clone the repository or execute Gradle locally. Consequently, this is a **partial, evidence-bounded audit**, not a claim that all requested scans passed or that the repository is free of unused code.
+- **Repository:** guruoshan/Paid-Due
+- **Audited:** `main` at `84a054eb40ae6df9acf753e34bd119a9d271f113` (2026-10-27 commit "PD-01: deterministic customer-directory pagination (#80)")
+- **Date of audit:** 2026-10-28
+- **Scope:** report only. No application file, migration, Supabase object, or deployment was changed. Nothing was deleted, moved, merged, or deployed.
 
 ## Summary
 
-1. Main was identified at `84a054e`; its recursive Git tree contains 798 entries and was not truncated.
-2. A local clone attempt failed because this execution environment could not resolve `github.com`.
-3. `:app:lintDebug`, Detekt/ktlint, source-wide grep, and an R8 `-printusage` build were **not run**.
-4. No symbol or resource is labelled HIGH-confidence unused without whole-repository reference and registration checks.
-5. The tree confirms a set of cashier/staff-named files under `app/src/androidTest` and cashier-related SQL under `BOARDLOCK/staged_sql`; their runtime relevance has not been proven.
-6. `BOARDLOCK/staged_sql` files are not migrations, but must not be deleted based on naming alone.
-7. No file is recommended for immediate deletion in this report; preserve financial code and every migration.
-
-## Commands and observed results
-
-| Command / operation | Result |
-|---|---|
-| `git clone --depth 1 --branch main https://github.com/guruoshan/Paid-Due.git /tmp/Paid-Due-audit` | **FAILED:** `fatal: unable to access 'https://github.com/guruoshan/Paid-Due.git/': Could not resolve host: github.com` |
-| GitHub API read: `GET /repos/guruoshan/Paid-Due/branches/main` | **SUCCESS:** main commit `84a054eb40ae6df9acf753e34bd119a9d271f113`; tree `4a3ec8cbcf85c93460b546957d3f22a425ee4886`. |
-| GitHub API read: `GET /repos/guruoshan/Paid-Due/git/trees/4a3ec8cbcf85c93460b546957d3f22a425ee4886?recursive=1` | **SUCCESS:** `truncated=false`, `count=798`. File paths and blob sizes were returned. This is a tree inventory, not a source-reference scan. |
-| `./gradlew :app:lintDebug` | **NOT RUN:** no working clone/Gradle project was available in this environment. No lint findings or clean result are claimed. |
-| Detekt / ktlint | **NOT RUN:** plugin/task availability could not be checked by executing Gradle. |
-| Release build with R8 `-printusage` | **NOT RUN:** no build was possible. Whether signing secrets would be required was therefore not established. |
-| Whole-repository grep / reference checks | **NOT RUN:** a complete local checkout was unavailable. No zero-reference claims are made. |
+1. A full clone of `main` succeeded in this audit, so the file-level checks below were run on the real source, not a tree listing.
+2. Android lint, the Gradle build, detekt, ktlint and the R8 usage report could **not** run. This environment has no Android SDK and cannot reach the Gradle or Maven servers. The repo also has no detekt or ktlint configuration.
+3. The unused-code findings come from a whole-repo text search (every declared name counted across all files). They are strong evidence but not compiler proof.
+4. 25 main-source Kotlin files exceed 600 lines. `RegisterViewModel.kt` has 75 public functions and `RegisterRepository.kt` has 43; the limit used is 25.
+5. Nine items meet the bar of zero references, no registration, and low risk. They are listed as the safe first batch. That is fewer than the 10 requested, because the evidence did not support more.
+6. The cashier feature was retired by migration `20261023050000_retire_cashier_feature.sql`, which dropped its database functions. Several test helpers still call those functions and will fail. They need rewriting, not simple deletion.
+7. Financial code is marked DO NOT TOUCH throughout. The BOARDLOCK staged SQL is kept, because its own README says it is historical material.
+8. A pattern scan found no private keys or live API keys in tracked files. Signing values are read from environment variables.
+9. The only clearly stray file is `pixel-sync-log.txt`, an empty file in the repo root.
 
 ## God files
 
-**Status: not yet measurable.** The requested threshold is source line count over 600 lines, plus public-function and constructor-dependency counts for classes/ViewModels. The recursive Git tree provides byte sizes, not source line counts or parsed Kotlin declarations. Without source retrieval and a runnable checkout, listing files as exceeding those thresholds would be guesswork.
+Lines are counted from the checkout. "Jobs" are taken from the file name and its public functions; the files were not read line by line.
 
 | File | Lines | What jobs it does | Recommendation |
 |---|---:|---|---|
-| No verified entries | Not measured | No file was inspected sufficiently to make a supported responsibility summary. | Re-run source line-count and Kotlin declaration scans in a checkout before recommending splits. |
+| app/.../feature/register/data/RegisterRepository.kt | 8,731 | Central register data access: sales, refunds, expenses, shifts (43 public functions). | Do not split now. It is on the financial path. Plan a split as its own project with full test coverage. |
+| app/.../feature/register/ui/RegisterViewModel.kt | 3,530 | Screen state for the whole register (75 public functions). | **Split.** Separate view models or state holders per panel (sale, refund, history, details). |
+| app/.../feature/register/ui/CouponCompactDialogR7A.kt | 1,897 | Coupon dialog UI in one file. | Split into smaller composables. |
+| app/.../feature/register/ui/TransactionDetailsScreen.kt | 1,848 | Full transaction details screen. | Split by section (header, items, payments, actions). |
+| app/.../feature/customers/ui/CustomerDetailScreen.kt | 1,660 | Customer detail screen. | Split by section. |
+| app/.../feature/register/ui/RegisterExpensePresentation.kt | 1,337 | Formatting for expense display. | Split by expense type; low risk. |
+| app/.../core/cloud/sync/RemoteEnvelopeMaterializer.kt | 1,242 | Turns cloud records into local records (sync). | DO NOT TOUCH. Sync and financial path. |
+| app/.../core/database/security/DatabaseEncryptionMigrator.kt | 1,110 | Encrypts the local database. | DO NOT TOUCH. Security-critical. |
+| app/.../feature/register/ui/RegisterOverlayHost.kt | 1,042 | Hosts the register overlay dialogs. | Split by overlay type. |
+| app/.../feature/reporting/ui/ReportingScreen.kt | 970 | Reporting screen. | Split by report type. |
+| app/.../feature/register/data/RegisterShiftReportReadRepository.kt | 897 | Reads shift reports. | Leave for now; read-only financial path. |
+| app/.../core/database/DmrDatabase.kt | 897 | Room database definition and migrations. | DO NOT TOUCH. Contains migration history. |
+| app/.../feature/customers/ui/CustomersViewModel.kt | 845 | Customer list state (16 public functions). | Split list, search and export state. |
+| app/.../feature/reporting/data/ReportingRowMappers.kt | 829 | Maps database rows into report rows. | Split by report. |
+| app/.../feature/register/data/RefundCommand.kt | 783 | Refund execution. | DO NOT TOUCH. Financial command. |
+| app/.../feature/customers/export/CustomerExcelExporter.kt | 755 | Builds the customer Excel export. | Split by sheet. |
+| app/.../feature/register/ui/HistoryScreen.kt | 730 | Transaction history screen. | Split by list and filter. |
+| app/.../feature/reporting/domain/ReportingModels.kt | 715 | Data models for reports. | Leave; it is a model file. |
+| app/.../feature/register/data/CashSalePayloadCodec.kt | 697 | Encodes cash sales for sync. | DO NOT TOUCH. Financial sync contract. |
+| app/.../feature/register/data/CreditSalePayloadCodec.kt | 691 | Encodes credit sales for sync. | DO NOT TOUCH. Financial sync contract. |
+| app/.../feature/register/ui/RegisterMainContent.kt | 663 | Main register layout. | Leave for now. |
+| app/.../feature/register/data/CreditReturnPlan.kt | 655 | Plans credit returns. | DO NOT TOUCH. Financial logic. |
+| app/.../feature/register/ui/RegisterCustomerOverlayDialogs.kt | 638 | Customer dialogs in the register. | Split by dialog. |
+| app/.../feature/setup/ui/SetupViewModel.kt | 635 | Onboarding state (18 public functions). | Split by onboarding step. |
+| app/.../core/cloud/sync/FinancialSyncEngine.kt | 633 | Financial sync engine. | DO NOT TOUCH. |
 
-Required command for the next local pass: `find app -type f -name '*.kt' -print0 | xargs -0 wc -l | sort -nr`. This command was **not executed** here; it is recorded as a follow-up command, not evidence.
+Classes with more than 25 public functions (main source): `RegisterViewModel` (75), `RegisterRepository` (43). Data-access interfaces `TransactionDao` (32) and `LedgerDao` (28) are also over the count, but DAO interfaces are normally large, so they are not recommended for splitting.
+
+**Not measured:** constructor-dependency counts (the "more than 8" rule). Doing this properly needs a Kotlin parser or the compiler, which could not run.
 
 ## Unused code
 
-**No item qualifies as HIGH confidence.** The required whole-repository cross-check (including app, Supabase, workflows, docs, scripts, manifest, XML resources, navigation, DI, Room, WorkManager, serialization and reflective/string references) could not be performed. A lack of a result from GitHub code search would not prove zero references.
+Method: each declared name in `app/src/main` was searched across the whole repo with `git grep -w`. A name counted as unused only if it appeared once, at its declaration. Hilt `@Module`, `@Provides` and `@Binds` declarations were excluded because they are registered by annotation. The `androidTest` cashier helpers were checked separately.
 
-| Item | File | Evidence (command + result) | Confidence | Risk of removal |
+Command: `git grep -w -h -- <name> -- . | wc -l`. Result: `1` (declaration only).
+
+| Item | File | Evidence | Confidence | Risk of removing |
 |---|---|---|---|---|
-| No verified unused declaration/resource | Not established | `./gradlew :app:lintDebug` — not run; clone failed with DNS resolution error. Whole-repository grep — not run. | NONE / unverified | Unknown; do not remove. |
+| `activityTypeLabel` (private composable) | feature/reporting/ui/ReportingScreen.kt:838 | Declared once, zero callers. | HIGH | Low |
+| `clearErrorMessage()` | feature/register/ui/RegisterViewModel.kt:1622 | Declared once, zero callers. | HIGH | Low |
+| `clearQrError()` | feature/settings/ui/SettingsViewModel.kt:75 | Declared once, zero callers. | HIGH | Low |
+| `clipped()` (local function) | feature/reporting/pdf/ReportingPdfRenderer.kt:148 | Declared once, zero callers. | HIGH | Low |
+| `observeFirstBranch()` (Room query) | core/database/dao/BusinessBranchDao.kt:57 | Declared once, zero callers. No registration beyond the query annotation. | HIGH | Low |
+| `observeFirstBusiness()` (Room query) | core/database/dao/BusinessBranchDao.kt:26 | Declared once, zero callers. | HIGH | Low |
+| `observeCustomersForBusiness()` (Room query) | core/database/dao/CustomerDao.kt:70 | Declared once, zero callers. | HIGH | Low |
+| `getCashiersForBranch()` (Room query) | core/database/dao/UserDao.kt:126 | Declared once, zero callers. Cashier leftover. | HIGH | Low |
+| `RemoteEmployeeDirectory` class (whole file) | app/src/androidTest/.../feature/admin/data/RemoteEmployeeDirectory.kt | Zero references outside its own file. Injected only by its own constructor, with no module that requests it. Calls the dropped `list_admin_cashiers` function. | HIGH | Low |
+| `getAllSupported()` | core/model/currency/CurrencyConfig.kt:92 | Declared once, zero callers. Currency configuration feeds historical decimal handling. | MEDIUM | Medium. Not in the safe batch. |
+| `getThrottler()` | feature/auth/data/AuthRepository.kt:437 | Declared once, zero callers. PIN throttling is security-related. | MEDIUM | Medium. Not in the safe batch. |
+| `loadSaleItemsForWhatsApp()` | feature/register/ui/RegisterViewModel.kt:677 | Declared once, zero callers. May be a removed WhatsApp feature, and it touches sale data. | MEDIUM | Medium. Confirm the feature is retired first. |
+| `canUpload()` | core/cloud/sync/FinancialSyncOperationPolicy.kt:45 | Declared once, zero callers. Sync policy. | MEDIUM | **DO NOT TOUCH** (financial sync). |
+| `observeOperationsForTransaction()` | core/database/dao/OperationDao.kt:90 | Declared once, zero callers. Operations ledger. | MEDIUM | **DO NOT TOUCH** (financial ledger). |
+| `CurrencySnapshot` | core/model/currency/CurrencyConfig.kt:24 | Declared once. Documented as a permanent record of currency at transaction time. | — | **DO NOT TOUCH** (financial). |
+| `TransactionTaxSnapshot` | core/model/tax/TaxRoundingPolicy.kt:97 | Declared once. Documented as an immutable tax record. | — | **DO NOT TOUCH** (financial). |
 
-### Static-analysis and shrinker evidence
+**Registered and therefore excluded:** `CommandModule`, `SecurityModule`, `ReportingModule`, `BusinessRestorerModule`, `InboundEnvelopeApplierModule`, and their `provide*` / `bind*` functions. They appear once each but are registered by Hilt.
 
-- **Android lint:** no `UnusedResources` or `UnusedDeclaration` findings can be reported because lint did not run.
-- **Detekt/ktlint:** availability and findings are unknown; tasks were not run. In particular, no result is claimed for `UnusedPrivateMember`, `UnusedPrivateProperty`, `LongMethod`, `LargeClass`, or `TooManyFunctions`.
-- **R8:** no release build or `-printusage` output was produced. There is no R8 evidence in this audit.
+**Resources:** 386 string names were checked with a loose text match. None was flagged, but this check is weak and is not evidence that no resource is unused. Drawables and layouts were not checked.
 
-### Mandatory cross-check rule
-
-Before any candidate is called unused, search its exact identifier and relevant string/resource names across the entire repository, then check manifest, Hilt/Dagger, Room, WorkManager, serialization, navigation, reflection and string-based registration. A candidate with a financial responsibility must also be reviewed for indirect accounting/reconciliation effects. None of these checks is represented as completed here.
+**Tool evidence not available:** Android lint `UnusedResources` and `UnusedDeclaration`, detekt `UnusedPrivateMember` and `UnusedPrivateProperty`, and the R8 usage report all could not run.
 
 ## Irrelevant files
 
-The tree confirms the following *review candidates*, not proven junk. Their names and location alone do not justify removal. Byte sizes are from the Git tree; they are not claims about file contents beyond the path/name.
-
-| Path | Size (bytes) | Why review it | Safe to remove? |
+| Path | Size (bytes) | Why it does not belong | Safe to remove? |
 |---|---:|---|---|
-| `BOARDLOCK/staged_sql/fetch_cashier_financial_envelopes.sql` | 2,528 | Staged SQL outside `supabase/migrations`; cashier-specific name suggests a retired workflow may still be documented/staged. Check current operational runbooks and references first. | **NO — unverified** |
-| `BOARDLOCK/staged_sql/fetch_cashier_metadata.sql` | 3,708 | Staged SQL outside migrations; may be retained as operational recovery material. | **NO — unverified** |
-| `BOARDLOCK/staged_sql/fetch_cashier_restoration.sql` | 3,324 | Staged SQL outside migrations; restoration script can have operational significance even if cashier UI is retired. | **NO — unverified** |
-| `BOARDLOCK/staged_sql/list_admin_cashiers.sql` | 2,897 | Staged SQL outside migrations; verify whether it supports an admin audit/legacy recovery path. | **NO — unverified** |
-| `BOARDLOCK/staged_sql/verify_and_restore_staff_by_phone.sql` | 1,251 | Staged SQL outside migrations; staff restoration may be legacy operational material. | **NO — unverified** |
+| pixel-sync-log.txt | 0 | Empty log file in the repo root. | **Yes** |
+| BOARDLOCK/staged_sql/fetch_cashier_financial_envelopes.sql | 2,528 | Staged SQL, not a migration. README says the file may be useful historical material. | No. Keep. |
+| BOARDLOCK/staged_sql/fetch_cashier_metadata.sql | 3,708 | Same as above. | No. Keep. |
+| BOARDLOCK/staged_sql/fetch_cashier_restoration.sql | 3,324 | Same as above. | No. Keep. |
+| BOARDLOCK/staged_sql/list_admin_cashiers.sql | 2,897 | Same as above. Its function was dropped in production. | No. Keep as history. |
+| BOARDLOCK/staged_sql/verify_and_restore_staff_by_phone.sql | 1,251 | Staged SQL with zero references anywhere in the repo. | No, pending owner decision. The README says to keep stale staged files. |
 
-No committed secret, private key, keystore, backup ZIP, export, screenshot, duplicate/copy file, or large-binary issue is declared present or absent: content and full binary/secret scanning were not run. **No secret value was requested or displayed.** If a secret is confirmed in a future scan, mark it **URGENT**, do not reproduce its value, and follow the repository's incident-response process.
+**Not found:** zip, APK, AAB, keystore, `.jks`, `.p12`, backup, export, or screenshot files in the tracked tree. No `local.properties` or `google-services.json` is committed. The `.agents/` and `release-audit/` folders were listed but not reviewed, because they are documentation.
+
+**Secret scan (pattern based, no values displayed):** no `BEGIN ... PRIVATE KEY` markers and no live-key prefixes (`sk_live_`, `AKIA...`). The `service_role` matches are SQL `GRANT` statements, not key values. `app/build.gradle.kts` reads signing values from environment variables. **No URGENT items.**
 
 ## Cashier leftovers
 
-The paths below are confirmed by the recursive tree. Because the local source-wide reference scan could not run, this is a **confirmed-name inventory, not an exhaustive list of every cashier/staff string, test, resource, or migration**.
+Context: migration `20261023050000_retire_cashier_feature.sql` dropped the cashier database functions. Its comments say cashier memberships are kept as anonymised tombstones because financial records still point to their IDs. Cashier data therefore remains in historical records.
 
-| Item / path | Evidence | Assessment | Safe to remove? |
+| Item / path | Where it is used | Assessment | Safe to remove? |
 |---|---|---|---|
-| `app/src/androidTest/java/com/dailymoneyregister/feature/admin/data/CashierManagementRepository.kt` | Recursive tree contains this path (blob size 16,210 bytes). | Test-source package contains a cashier management repository by name; inspect its test fixtures/imports and production counterpart before deciding. | **Not established** |
-| `app/src/androidTest/java/com/dailymoneyregister/feature/admin/data/CashierPermissionsConfig.kt` | Recursive tree contains this path (839 bytes). | Cashier permission test/config artefact by name; may encode compatibility expectations. | **Not established** |
-| `app/src/androidTest/java/com/dailymoneyregister/feature/admin/data/CreateCashierPayloadCodec.kt` | Recursive tree contains this path (7,652 bytes). | Cashier payload codec in Android test source; verify whether current sync compatibility tests still depend on it. | **Not established** |
-| `app/src/androidTest/java/com/dailymoneyregister/feature/admin/data/RemoteEmployeeDirectory.kt` | Recursive tree contains this path (2,768 bytes). | Employee-directory test-source artefact; “employee” does not by itself prove a retired cashier feature. | **Not established** |
-| `BOARDLOCK/staged_sql/fetch_cashier_financial_envelopes.sql` | Recursive tree contains this path (2,528 bytes). | Legacy/staged SQL candidate; check operational references and whether it is needed for historical recovery. | **NO — unverified** |
-| `BOARDLOCK/staged_sql/fetch_cashier_metadata.sql` | Recursive tree contains this path (3,708 bytes). | Legacy/staged SQL candidate; check operational references. | **NO — unverified** |
-| `BOARDLOCK/staged_sql/fetch_cashier_restoration.sql` | Recursive tree contains this path (3,324 bytes). | Restoration script may have recovery value. | **NO — unverified** |
-| `BOARDLOCK/staged_sql/list_admin_cashiers.sql` | Recursive tree contains this path (2,897 bytes). | Legacy/staged admin query candidate; verify audit and recovery use. | **NO — unverified** |
-| `BOARDLOCK/staged_sql/verify_and_restore_staff_by_phone.sql` | Recursive tree contains this path (1,251 bytes). | Staff-named recovery script; scope is not established by filename. | **NO — unverified** |
-
-**Removal safety:** no cashier-related path above is approved for removal by this report. In particular, do not delete or rewrite anything under `supabase/migrations`, and do not remove compatibility tests or recovery SQL without verifying callers and operational ownership.
+| androidTest/.../feature/admin/data/RemoteEmployeeDirectory.kt | Nothing else | Dead. Calls a dropped function. | **Yes** (in the safe batch) |
+| androidTest/.../feature/admin/data/CashierManagementRepository.kt | Used by DmrDatabaseIntegrationTest and TrustedSessionIntegrationTest | Live test helper, but it calls dropped functions (`update_admin_cashier_permissions`, `remove_admin_cashier`, `list_admin_cashiers_with_permissions`). Those tests will fail. | **No.** Rewrite or delete the tests that use it, then remove it. |
+| androidTest/.../feature/admin/data/CashierPermissionsConfig.kt | Used by CashierManagementRepository and DmrDatabaseIntegrationTest | Same as above. | **No**, until the tests are rewritten. |
+| androidTest/.../feature/admin/data/CreateCashierPayloadCodec.kt | Used by CashierManagementRepository | Same as above. | **No**, until the tests are rewritten. |
+| core/database/dao/UserDao.getCashiersForBranch | Zero callers | Dead query. | **Yes** (in the safe batch) |
+| core/database/dao/UserDao.getCashiers | Only DmrDatabaseIntegrationTest | Used by a test. | No, until that test is rewritten. |
+| core/database/dao/UserDao.observeCashiers | Only CashierManagementRepository (test) | Used by a test helper. | No. |
+| core/database/dao/CashShiftDao.getLatestShiftForCashier | Several callers | Used by shift logic. | No. |
+| core/database/entity and dao CloudStaffIdentity (Entity, Dao) | Several callers | Room table that may still hold data. Removing it needs a database migration. | **No.** |
+| app/DmrApplication.retireCashierCredentials | Called from startup | This is the retirement cleanup. | No. |
+| core/cloud/sync/FinancialSyncEngine.LEGACY_RETIRED_CASHIER_OPERATION_ID | 3 occurrences | Guard for old sync records. | No. |
+| core/database/security/FinancialImmutabilityCallback.cloudCashierActorPredicate | 3 occurrences | Financial integrity rule. | **DO NOT TOUCH.** |
+| feature/reporting/* (ReportingCashierOption, cashier name mapping) | Several callers | Reports still show historical cashier names. | No. |
+| supabase/functions/staff-activate, staff-invite, staff-open, staff-preview | Not evaluated in depth | These may call cashier-era database functions. The check used did not find direct calls. Review against the live deployment before any change. | **No, not evaluated.** |
+| supabase/migrations/* (all cashier-named migrations) | — | Migration history. | **DO NOT TOUCH.** Never delete a migration. |
+| supabase/tests/* (cashier tests) | — | Database tests. | No. Review separately. |
+| BOARDLOCK/staged_sql/* | Referenced by BOARDLOCK docs | Covered in the irrelevant-files section. | No. |
 
 ## Safe first batch
 
-**No items qualify yet.** The requested bar is 10–20 items with HIGH confidence and LOW risk, established by zero references plus registration checks and supported by lint/static-analysis evidence. Those checks were unavailable, so naming 10–20 deletions would be unsafe and would violate the evidence standard. The staged SQL and cashier-named test artefacts above are review candidates only, not a deletion batch.
+These nine items have zero references, no registration, and low removal risk. They could go in one small pull request. That pull request should run `./gradlew test` and `./gradlew :app:lintDebug` before merging, because neither could be run here.
 
-## Exact commands run and results
+1. `activityTypeLabel` in `feature/reporting/ui/ReportingScreen.kt`
+2. `clearErrorMessage()` in `feature/register/ui/RegisterViewModel.kt`
+3. `clearQrError()` in `feature/settings/ui/SettingsViewModel.kt`
+4. `clipped()` in `feature/reporting/pdf/ReportingPdfRenderer.kt`
+5. `observeFirstBranch()` in `core/database/dao/BusinessBranchDao.kt`
+6. `observeFirstBusiness()` in `core/database/dao/BusinessBranchDao.kt`
+7. `observeCustomersForBusiness()` in `core/database/dao/CustomerDao.kt`
+8. `getCashiersForBranch()` in `core/database/dao/UserDao.kt`
+9. `RemoteEmployeeDirectory.kt` in `app/src/androidTest/.../feature/admin/data/`
 
-1. `git clone --depth 1 --branch main https://github.com/guruoshan/Paid-Due.git /tmp/Paid-Due-audit`  
-   Result: `fatal: unable to access 'https://github.com/guruoshan/Paid-Due.git/': Could not resolve host: github.com` (exit status 128).
+The batch is smaller than 10 because the evidence supports only nine. The medium-confidence items are excluded on purpose. `pixel-sync-log.txt` is also excluded because it is not code; it can go in a separate hygiene commit.
 
-2. GitHub API read of `https://api.github.com/repos/guruoshan/Paid-Due/branches/main`  
-   Result: main SHA `84a054eb40ae6df9acf753e34bd119a9d271f113`; tree SHA `4a3ec8cbcf85c93460b546957d3f22a425ee4886`.
+## What could not be checked
 
-3. GitHub API read of `https://api.github.com/repos/guruoshan/Paid-Due/git/trees/4a3ec8cbcf85c93460b546957d3f22a425ee4886?recursive=1`  
-   Result: `truncated=false`, `count=798`.
-
-4. `./gradlew :app:lintDebug` — **not run**, because no local checkout could be obtained.
-5. Detekt/ktlint tasks — **not run**, because Gradle task availability could not be established.
-6. Release build with R8 `-printusage` — **not run**, because the build could not be run.
-7. Whole-repository grep — **not run**, because the local checkout could not be obtained.
-
-**Audit conclusion:** this report deliberately records the execution blocker rather than inventing line counts, lint results, reference counts, or deletion recommendations. Re-run the incomplete scans in an environment with a working checkout before using this report to plan cleanup.
+- Android lint, Gradle build, detekt, ktlint, R8 `-printusage`: not run (no Android SDK; Gradle and Maven servers unreachable).
+- Constructor-dependency counts: not measured.
+- Full resource (drawable, layout, string) reference analysis: not done.
+- Reflection and serialization references: checked only through text search.
+- Live Supabase state: not inspected, and not changed.
