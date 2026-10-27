@@ -70,15 +70,26 @@ BEGIN
   v_changed_payload := v_payload || jsonb_build_object('collision_test_marker', true);
   v_canonical_text := v_changed_payload::text;
   v_digest := encode(extensions.digest(convert_to(v_canonical_text, 'UTF8'), 'sha256'), 'hex');
+  SELECT count(*) INTO v_count FROM private.collision_audit
+  WHERE operation_id = v_operation_id;
+  DECLARE
+    v_audit_count_before integer := v_count;
   BEGIN
-    PERFORM * FROM public.ingest_financial_envelope(
+    SELECT * INTO v_result FROM public.ingest_financial_envelope(
       'biz-test', v_operation_id, 'branch-test', 'admin-membership-test',
       'idempotency-test-device', 'CLOSE_CASH_SHIFT', 1, v_occurred_at, 'UTC',
       v_local_date, v_canonical_text, v_digest, v_changed_payload
     );
-    RAISE EXCEPTION 'FAIL: expected OPERATION_COLLISION';
-  EXCEPTION WHEN OTHERS THEN
-    IF SQLERRM <> 'OPERATION_COLLISION' THEN RAISE; END IF;
+    IF v_result.status <> 'OPERATION_COLLISION' OR v_result.operation_id <> v_operation_id
+       OR v_result.canonical_sha256 <> v_digest OR v_result.duplicate THEN
+      RAISE EXCEPTION 'FAIL: changed content must return OPERATION_COLLISION';
+    END IF;
+    SELECT count(*) INTO v_count FROM private.collision_audit
+    WHERE operation_id = v_operation_id;
+    IF v_count <> v_audit_count_before + 1 THEN
+      RAISE EXCEPTION 'FAIL: collision audit count increased by %, expected exactly 1',
+        v_count - v_audit_count_before;
+    END IF;
   END;
 
   SELECT count(*) INTO v_count FROM private.financial_operation_envelopes
