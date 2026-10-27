@@ -42,6 +42,23 @@ class TaxRoundingPolicyTest {
     }
 
     @Test
+    fun halfUpRoundsExactHalfAwayFromZeroForPositiveTax() {
+        val policy = HalfUpTaxPolicy()
+
+        // 970 * 5% = 48.5 minor units -> HALF_UP rounds to 49.
+        assertEquals(
+            MoneyMinorUnits(49L),
+            policy.calculateTax(MoneyMinorUnits(970L), 500)
+        )
+
+        // 990 * 5% = 49.5 minor units -> HALF_UP rounds to 50.
+        assertEquals(
+            MoneyMinorUnits(50L),
+            policy.calculateTax(MoneyMinorUnits(990L), 500)
+        )
+    }
+
+    @Test
     fun testHalfEvenBankersRounding() {
         val policy = HalfEvenTaxPolicy()
 

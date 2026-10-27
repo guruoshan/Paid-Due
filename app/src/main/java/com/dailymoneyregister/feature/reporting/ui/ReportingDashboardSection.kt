@@ -147,6 +147,11 @@ private fun dashboardMetricLabel(
                 R.string.reporting_credit_repayments
             )
 
+        ReportingSummaryMetric.CREDIT_OUTSTANDING ->
+            stringResource(
+                R.string.reporting_credit_outstanding
+            )
+
         ReportingSummaryMetric.REFUNDS ->
             stringResource(
                 R.string.reporting_refunds

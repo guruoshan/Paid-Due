@@ -439,7 +439,7 @@ internal object ReportingRowMappers {
                     category = identity.first,
                     channel = identity.second,
                     amount = MoneyMinorUnits(
-                        sumExact(entries.map { kotlin.math.abs(it.amountSignedMinor) })
+                        sumExact(entries.map { MoneyMinorUnits(it.amountSignedMinor).abs().amount })
                     )
                 )
             }

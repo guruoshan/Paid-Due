@@ -24,6 +24,7 @@
     <string name="pdf_metric_credit_sales">المبيعات الآجلة المنشأة</string>
     <string name="pdf_metric_credit_repaid">تحصيل سداد الائتمان</string>
     <string name="pdf_metric_credit_outstanding">الائتمان المستحق</string>
+    <string name="pdf_credit_outstanding_note">نشاط الائتمان للفترة المحددة، وليس رصيد العميل.</string>
     <string name="pdf_metric_expected_cash">النقد المتوقع (محسوب)</string>
     <string name="pdf_not_available">غير متاح</string>
     <string name="pdf_status_report_not_ready">بيانات التقرير غير جاهزة. يرجى الانتظار حتى ينتهي تحميل التقرير.</string>

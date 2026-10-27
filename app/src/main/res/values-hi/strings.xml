@@ -290,6 +290,8 @@
     <string name="tx_void_saved">रद्दीकरण सहेजा गया।</string>
     <string name="tx_void_permission">आपको यह लेन-देन रद्द करने की अनुमति नहीं है।</string>
     <string name="tx_void_failed">लेन-देन रद्द नहीं किया जा सका। इसकी वर्तमान जीवनचक्र स्थिति देखें।</string>
+    <string name="tx_void_unavailable_credit_or_coupon">क्रेडिट या कूपन बिक्री के लिए वॉइड उपलब्ध नहीं है। इसके बजाय रिफ़ंड का उपयोग करें।</string>
+        <string name="tx_void_unavailable_payment_unclear">इस बिक्री का भुगतान रिकॉर्ड स्पष्ट नहीं है। कोई राशि नहीं बदली गई। कृपया सहायता से संपर्क करें।</string>
     <string name="tx_change_payment_title">भुगतान विधि बदलें</string>
     <string name="tx_change_payment_current">वर्तमान भुगतान: %1$s</string>
     <string name="tx_change_payment_confirm">बदलाव की पुष्टि करें</string>

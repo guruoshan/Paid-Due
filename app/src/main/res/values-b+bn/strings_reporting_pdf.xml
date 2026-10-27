@@ -24,6 +24,7 @@
     <string name="pdf_metric_credit_sales">নতুন বাকির বিক্রি</string>
     <string name="pdf_metric_credit_repaid">বাকি আদায়</string>
     <string name="pdf_metric_credit_outstanding">বকেয়া বাকি</string>
+    <string name="pdf_credit_outstanding_note">নির্বাচিত সময়ের ক্রেডিট কার্যকলাপ, গ্রাহকের ব্যালেন্স নয়।</string>
     <string name="pdf_metric_expected_cash">প্রত্যাশিত নগদ অবস্থান (হিসাব করা)</string>
     <string name="pdf_not_available">পাওয়া যাচ্ছে না</string>
     <string name="pdf_status_report_not_ready">রিপোর্টের তথ্য প্রস্তুত নয়। রিপোর্ট লোড হওয়া পর্যন্ত অপেক্ষা করুন।</string>

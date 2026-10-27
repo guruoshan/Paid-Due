@@ -41,6 +41,7 @@ enum class ReportingSummaryMetric {
     CASH_AT_BANK,
     CREDIT_SALES,
     CREDIT_REPAYMENTS,
+    CREDIT_OUTSTANDING,
     REFUNDS,
     EXPENSES
 }
@@ -251,6 +252,14 @@ object ReportingUiProjection {
                 ReportingSummaryMetric.CREDIT_REPAYMENTS,
                 formatSignedMoney(
                     repaymentTotal,
+                    decimalPlaces,
+                    currencySymbol
+                )
+            ),
+            ReportingSummaryUiModel(
+                ReportingSummaryMetric.CREDIT_OUTSTANDING,
+                formatSignedMoney(
+                    summary.creditOutstanding,
                     decimalPlaces,
                     currencySymbol
                 )

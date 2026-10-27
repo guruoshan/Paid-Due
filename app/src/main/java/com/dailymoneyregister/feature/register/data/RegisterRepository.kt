@@ -2509,21 +2509,21 @@ class RegisterRepository @Inject constructor(
              * authoritative Credit balance and must therefore also reduce the
              * remaining FIFO obligation for that transaction.
              *
-             * Positive adjustments are deliberately not interpreted as return
-             * debt reduction here.
+             * Positive Amount Correction adjustments increase this sale's
+             * effective obligation below; they are not interpreted as return
+             * debt reduction. Negative adjustments (returns and downward
+             * corrections) reduce the obligation independently of repayments.
              */
-            val creditReturnDebtReductionMinor =
-                relevant
-                    .asSequence()
-                    .filter {
-                        it.type == com.dailymoneyregister.core.model.enums.CreditLedgerType.ADJUSTMENT
-                    }
-                    .filter {
+            val transactionAdjustments =
+                relevant.filter {
+                    it.type == com.dailymoneyregister.core.model.enums.CreditLedgerType.ADJUSTMENT &&
                         it.transactionId == transactionId
-                    }
-                    .filter {
-                        it.amountSignedMinor < 0L
-                    }
+                }
+
+            val creditReturnDebtReductionMinor =
+                transactionAdjustments
+                    .asSequence()
+                    .filter { it.amountSignedMinor < 0L }
                     .fold(0L) { total, adjustment ->
                         Math.addExact(
                             total,
@@ -2533,6 +2533,30 @@ class RegisterRepository @Inject constructor(
                         )
                     }
 
+            var creditCorrectionIncreaseMinor = 0L
+            for (adjustment in transactionAdjustments.filter { it.amountSignedMinor > 0L }) {
+                val adjustmentOperation =
+                    database.operationDao().getOperationById(
+                        adjustment.operationId
+                    )
+                if (
+                    adjustmentOperation?.operationType ==
+                    OperationType.RECORD_AMOUNT_CORRECTION
+                ) {
+                    creditCorrectionIncreaseMinor =
+                        Math.addExact(
+                            creditCorrectionIncreaseMinor,
+                            adjustment.amountSignedMinor
+                        )
+                }
+            }
+
+            val effectiveObligationMinor =
+                Math.addExact(
+                    obligation.amountSignedMinor,
+                    creditCorrectionIncreaseMinor
+                )
+
             val totalDebtExtinguishedMinor =
                 Math.addExact(
                     allocated,
@@ -2541,14 +2565,14 @@ class RegisterRepository @Inject constructor(
 
             check(
                 totalDebtExtinguishedMinor <=
-                    obligation.amountSignedMinor
+                    effectiveObligationMinor
             ) {
-                "Credit debt-extinguishment evidence exceeds original obligation."
+                "Credit debt-extinguishment evidence exceeds corrected obligation."
             }
 
             val remaining =
                 Math.subtractExact(
-                    obligation.amountSignedMinor,
+                    effectiveObligationMinor,
                     totalDebtExtinguishedMinor
                 )
 
@@ -3877,6 +3901,28 @@ class RegisterRepository @Inject constructor(
                 financialDelta
             )
 
+            if (validated.currentCategory == PaymentCategory.CREDIT) {
+                val customerId =
+                    transaction.customerId
+                        ?: throw IllegalStateException(
+                            "Credit Amount Correction customer evidence is missing"
+                        )
+
+                ledgerDao.insertCreditEvent(
+                    com.dailymoneyregister.core.database.entity.CreditLedgerEventEntity(
+                        id = "${command.operationId.value}:amount-correction-credit",
+                        operationId = command.operationId.value,
+                        customerId = customerId,
+                        type = com.dailymoneyregister.core.model.enums.CreditLedgerType.ADJUSTMENT,
+                        amountSignedMinor = validated.deltaMinor,
+                        currencyCode = transaction.currencyCode,
+                        transactionId = transaction.id,
+                        repaymentId = null,
+                        occurredAt = command.occurredAt
+                    )
+                )
+            }
+
             Pair(
                 AmountCorrectionExecutionResult(
                     transactionId =
@@ -4071,6 +4117,45 @@ class RegisterRepository @Inject constructor(
                 event.occurredAt
         ) {
             "Amount Correction replay settlement audit mismatch"
+        }
+
+        val creditEvents =
+            ledgerDao.getCreditEventsForOperations(
+                listOf(operation.id)
+            )
+
+        if (settlement.category == PaymentCategory.CREDIT) {
+            val customerId =
+                transaction.customerId
+                    ?: throw IllegalStateException(
+                        "Amount Correction replay credit customer is missing"
+                    )
+            val creditAdjustment =
+                creditEvents.singleOrNull()
+                    ?: throw IllegalStateException(
+                        "Amount Correction replay credit adjustment is missing or ambiguous"
+                    )
+
+            check(
+                creditAdjustment.id ==
+                    "${operation.id}:amount-correction-credit" &&
+                    creditAdjustment.operationId == operation.id &&
+                    creditAdjustment.customerId == customerId &&
+                    creditAdjustment.type ==
+                    com.dailymoneyregister.core.model.enums.CreditLedgerType.ADJUSTMENT &&
+                    creditAdjustment.amountSignedMinor ==
+                    precondition.expectedDeltaMinor &&
+                    creditAdjustment.currencyCode == transaction.currencyCode &&
+                    creditAdjustment.transactionId == expectedTransactionId &&
+                    creditAdjustment.repaymentId == null &&
+                    creditAdjustment.occurredAt == operation.occurredAt
+            ) {
+                "Amount Correction replay credit adjustment mismatch"
+            }
+        } else {
+            check(creditEvents.isEmpty()) {
+                "Non-credit Amount Correction unexpectedly has credit-ledger evidence"
+            }
         }
 
         return AmountCorrectionExecutionResult(
@@ -5132,6 +5217,21 @@ class RegisterRepository @Inject constructor(
                 throw IllegalStateException(
                     "Transaction belongs to another branch"
                 )
+            }
+
+            /*
+             * Validate persisted payment-method-change operations before Refund
+             * admission resolves a destination or calculates refundable value.
+             */
+            if (authoritativeRecord.paymentMethodChanges.isNotEmpty()) {
+                try {
+                    PaymentMethodChangeFinancialIntegrity.validate(
+                        record = authoritativeRecord,
+                        creditAllocations = allocations
+                    )
+                } catch (_: PaymentMethodChangeAmbiguousSettlementException) {
+                    throw RefundAmbiguousSettlementException(transaction.id)
+                }
             }
 
             val validated =
@@ -7848,6 +7948,22 @@ class RegisterRepository @Inject constructor(
                 throw IllegalStateException(
                     "Transaction belongs to another branch"
                 )
+            }
+
+            /*
+             * Require every persisted payment-method change to have its
+             * operation-linked reclassification pair before reversal amount
+             * or destination resolution can proceed.
+             */
+            if (authoritativeRecord.paymentMethodChanges.isNotEmpty()) {
+                try {
+                    PaymentMethodChangeFinancialIntegrity.validate(
+                        record = authoritativeRecord,
+                        creditAllocations = allocations
+                    )
+                } catch (_: PaymentMethodChangeAmbiguousSettlementException) {
+                    throw VoidAmbiguousSettlementException(transaction.id)
+                }
             }
 
             val validated =

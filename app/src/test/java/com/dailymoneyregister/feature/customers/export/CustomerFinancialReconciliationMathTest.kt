@@ -7,6 +7,33 @@ import org.junit.Test
 class CustomerFinancialReconciliationMathTest {
 
     @Test
+    fun saleHistoryKeepsOriginalValueWhileSummariesUseLatestCorrection() {
+        val originalAmount = 10_000L
+        val latestCorrectedAmount = 12_000L
+        val correctionDelta = CustomerFinancialReconciliationMath.correctionDelta(originalAmount, latestCorrectedAmount)
+
+        assertEquals(
+            latestCorrectedAmount,
+            CustomerFinancialReconciliationMath.effectiveSaleAmount(
+                originalAmount,
+                latestCorrectedAmount
+            )
+        )
+        assertEquals(
+            originalAmount,
+            CustomerFinancialReconciliationMath.effectiveSaleAmount(
+                originalAmount,
+                null
+            )
+        )
+        // The history rows (original + signed correction) reconcile to the effective value.
+        assertEquals(
+            latestCorrectedAmount,
+            CustomerFinancialReconciliationMath.sumMinor(listOf(originalAmount, correctionDelta))
+        )
+    }
+
+    @Test
     fun refundOnVoidedSaleRemainsInHistoryButIsNotDeductedFromNetSalesAgain() {
         val validSalesMinor = 10_000L
         val refunds = listOf(
@@ -35,6 +62,20 @@ class CustomerFinancialReconciliationMathTest {
                 saleMinor = 1_000L, refundMinor = 900L, isVoided = true
             ).contains("net contribution is zero")
         )
+    }
+
+    @Test
+    fun minimumLongRefundFailsClosedInsteadOfWrappingAbsoluteValue() {
+        try {
+            CustomerFinancialReconciliationMath.netSalesAfterRefunds(
+                validSalesMinor = 10_000L,
+                refunds = listOf("sale" to Long.MIN_VALUE),
+                voidedTransactionIds = emptySet()
+            )
+            throw AssertionError("Expected unrepresentable refund magnitude to fail closed")
+        } catch (_: IllegalArgumentException) {
+            // Long.MIN_VALUE has no representable positive absolute value.
+        }
     }
 
     @Test

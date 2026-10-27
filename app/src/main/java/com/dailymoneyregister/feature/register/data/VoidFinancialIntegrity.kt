@@ -169,10 +169,6 @@ object VoidFinancialIntegrity {
             throw VoidUnsupportedCouponException(transaction.id)
         }
 
-        if (record.paymentMethodChanges.isNotEmpty()) {
-            throw VoidAmbiguousSettlementException(transaction.id)
-        }
-
         record.settlements.forEach { settlement ->
             requireTransactionSettlement(transaction.id, transaction.currencyCode, settlement)
         }
@@ -196,7 +192,8 @@ object VoidFinancialIntegrity {
             throw VoidAmbiguousSettlementException(transaction.id)
         }
 
-        val fundingChannel = fundingChannels.single()
+        // The reversal goes to the channel the money is in now, after any switches.
+        val fundingChannel = currentFundingIdentity(record, fundingChannels.single())
 
         if (fundingChannel.first == PaymentCategory.CREDIT) {
             throw VoidUnsupportedCreditException(transaction.id)
@@ -299,8 +296,14 @@ object VoidFinancialIntegrity {
                     }
                 }
 
+                EntryPurpose.PAYMENT_METHOD_RECLASSIFICATION -> {
+                    if (record.paymentMethodChanges.isEmpty()) {
+                        throw VoidAmbiguousSettlementException(transaction.id)
+                    }
+                    // Repository execution validates the operation-linked pair before this gate.
+                }
+
                 EntryPurpose.VOID_REVERSAL,
-                EntryPurpose.PAYMENT_METHOD_RECLASSIFICATION,
                 EntryPurpose.CREDIT_REPAYMENT_COLLECTION,
                 EntryPurpose.COUPON_PURCHASE_FUNDING,
                 EntryPurpose.EXPENSE_OUTFLOW,
@@ -339,6 +342,27 @@ object VoidFinancialIntegrity {
         } catch (_: ArithmeticException) {
             throw VoidAmbiguousSettlementException(transactionId)
         }
+    }
+
+    private fun currentFundingIdentity(
+        record: TransactionFinancialRecord,
+        originalChannel: Pair<PaymentCategory, PaymentChannel>
+    ): Pair<PaymentCategory, PaymentChannel> {
+        var current = originalChannel
+        record.paymentMethodChanges
+            .sortedBy { it.occurredAt }
+            .forEach { change ->
+                val nextChannel = change.newChannel
+                if (
+                    change.previousMethod != current.first ||
+                    change.previousChannel != current.second ||
+                    nextChannel == null
+                ) {
+                    throw VoidAmbiguousSettlementException(record.transaction.id)
+                }
+                current = change.newMethod to nextChannel
+            }
+        return current
     }
 
     private fun requireTransactionSettlement(

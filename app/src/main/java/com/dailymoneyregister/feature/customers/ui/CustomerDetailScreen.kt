@@ -1,5 +1,6 @@
 package com.dailymoneyregister.feature.customers.ui
 
+import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -796,7 +797,7 @@ fun CustomerDetailScreen(
                                                                             labels = UniversalWhatsAppMessageComposer.MessageLabels.from(context)
                                                                         ),
                                                                         formattedAmount =
-                                                                            money(kotlin.math.abs(row.amountSignedMinor)),
+                                                                            money(MoneyMinorUnits(row.amountSignedMinor).abs().amount),
                                                                         paymentMethod =
                                                                             row.repaymentMethodName
                                                                                 ?.lowercase()
@@ -972,7 +973,7 @@ fun CustomerDetailScreen(
                                                     occurredAt = repayment.occurredAt,
                                                     title = stringResource(R.string.audit_payment_received),
                                                     detail = repayment.repaymentMethodName ?: "Repayment",
-                                                    amountMinor = kotlin.math.abs(repayment.amountSignedMinor),
+                                                    amountMinor = MoneyMinorUnits(repayment.amountSignedMinor).abs().amount,
                                                     currencyCode = repayment.currencyCode,
                                                     isMoneyOut = false,
                                                     reference = null

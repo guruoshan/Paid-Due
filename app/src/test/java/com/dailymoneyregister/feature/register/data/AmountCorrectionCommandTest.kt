@@ -142,22 +142,33 @@ class AmountCorrectionCommandTest {
         )
     }
 
-    @Test(expected = IllegalArgumentException::class)
-    fun creditFundingIsFailClosed() {
+    @Test
+    fun creditFundingUsesCreditAccountIdentity() {
 
-        AmountCorrectionFinancialPrecondition(
-            stateFingerprint =
-                "c".repeat(64),
-            expectedPreviousAmountMinor =
-                10000L,
-            expectedRefundedAmountMinor =
-                0L,
-            expectedCurrentCategory =
-                PaymentCategory.CREDIT,
-            expectedCurrentChannel =
-                PaymentChannel.CREDIT_ACCOUNT,
-            expectedDeltaMinor =
-                1000L
+        val precondition =
+            AmountCorrectionFinancialPrecondition(
+                stateFingerprint =
+                    "c".repeat(64),
+                expectedPreviousAmountMinor =
+                    10000L,
+                expectedRefundedAmountMinor =
+                    0L,
+                expectedCurrentCategory =
+                    PaymentCategory.CREDIT,
+                expectedCurrentChannel =
+                    PaymentChannel.CREDIT_ACCOUNT,
+                expectedDeltaMinor =
+                    1000L
+            )
+
+        assertEquals(
+            PaymentCategory.CREDIT,
+            precondition.expectedCurrentCategory
+        )
+
+        assertEquals(
+            PaymentChannel.CREDIT_ACCOUNT,
+            precondition.expectedCurrentChannel
         )
     }
 

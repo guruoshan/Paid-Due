@@ -71,6 +71,7 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
     val pdfPdfMetricCreditSales = stringResource(R.string.pdf_metric_credit_sales)
     val pdfPdfMetricCreditRepaid = stringResource(R.string.pdf_metric_credit_repaid)
     val pdfPdfMetricCreditOutstanding = stringResource(R.string.pdf_metric_credit_outstanding)
+    val pdfCreditOutstandingNote = stringResource(R.string.pdf_credit_outstanding_note)
     val pdfPdfMetricExpectedCash = stringResource(R.string.pdf_metric_expected_cash)
     val pdfPdfNotAvailable = stringResource(R.string.pdf_not_available)
     val pdfPdfActivitySale = stringResource(R.string.pdf_activity_sale)
@@ -196,6 +197,7 @@ fun ReportingPdfActions(state: ReportingUiState, modifier: Modifier = Modifier) 
             reportDate = reportDate,
             periodLabel = periodLabel,
             metrics = metrics,
+            metricNote = pdfCreditOutstandingNote,
             transactions = rows
         )
     }

@@ -81,4 +81,17 @@ class MoneyMinorUnitsTest {
         val formatted = refund.formatDisplay(config.decimalPlaces, config.symbol, false)
         assertEquals("-3.000 OMR", formatted)
     }
+    @Test
+    fun absUsesExactNegationAndFailsClosedForLongMinValue() {
+        assertEquals(MoneyMinorUnits(100L), MoneyMinorUnits(-100L).abs())
+        assertEquals(MoneyMinorUnits(100L), MoneyMinorUnits(100L).abs())
+
+        try {
+            MoneyMinorUnits(Long.MIN_VALUE).abs()
+            throw AssertionError("Expected Long.MIN_VALUE absolute value to fail closed")
+        } catch (_: ArithmeticException) {
+            // Expected: the positive magnitude is not representable as a Long.
+        }
+    }
+
 }

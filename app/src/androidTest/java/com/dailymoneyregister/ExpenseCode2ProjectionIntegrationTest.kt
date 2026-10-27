@@ -327,6 +327,73 @@ class ExpenseCode2ProjectionIntegrationTest {
     }
 
     @Test
+    fun dayClosingKeepsExpenseLifecycleDeltasInTheActionShift() = runBlocking {
+        val admin = user.copy(
+            id = "expense-code2-lifecycle-admin",
+            displayName = "Expense Lifecycle Admin",
+            username = "expense_code2_lifecycle_admin",
+            role = UserRole.ADMIN
+        )
+        val adminMembership = membership.copy(
+            id = "expense-code2-lifecycle-admin-membership",
+            userId = admin.id,
+            role = UserRole.ADMIN
+        )
+        database.userDao().insertUser(admin)
+        database.userDao().insertMembership(adminMembership)
+        SessionManager.setSession(ActiveSession(business, branch, admin, adminMembership))
+
+        val original = command(
+            suffix = "shift-lifecycle",
+            amountMinor = 5_000L,
+            occurredAt = 1_700_000_000_000L
+        ).copy(actorUserId = admin.id)
+        execute(original)
+
+        val correction = ExpenseLifecycleCommand(
+            operationId = OperationId("expense-code2-op-shift-correction"),
+            businessId = business.id,
+            branchId = branch.id,
+            actorUserId = admin.id,
+            deviceId = deviceIdentityProvider.deviceId,
+            occurredAt = 1_700_000_001_000L,
+            expenseId = original.expenseId,
+            action = ExpenseLifecycleCommand.Action.CORRECT,
+            correctedAmountMinor = 3_000L,
+            reason = "Corrected amount"
+        )
+        val correctionResult = repository.executeExpenseLifecycle(correction)
+        assertTrue("Expense correction should succeed: $correctionResult", correctionResult is CommandResult.Success)
+
+        val correctedReport = requireNotNull(repository.getCurrentRegisterShiftReport())
+        assertEquals(5_000L, correctedReport.cashExpensesMinor)
+        assertEquals(2_000L, correctedReport.cashLifecycleAdjustmentMinor)
+        assertEquals(-3_000L, correctedReport.expectedCashMinor)
+        assertEquals(1, correctedReport.correctionCount)
+
+        val void = ExpenseLifecycleCommand(
+            operationId = OperationId("expense-code2-op-shift-void"),
+            businessId = business.id,
+            branchId = branch.id,
+            actorUserId = admin.id,
+            deviceId = deviceIdentityProvider.deviceId,
+            occurredAt = 1_700_000_002_000L,
+            expenseId = original.expenseId,
+            action = ExpenseLifecycleCommand.Action.VOID,
+            reason = "Voided expense"
+        )
+        val voidResult = repository.executeExpenseLifecycle(void)
+        assertTrue("Expense void should succeed: $voidResult", voidResult is CommandResult.Success)
+
+        val voidedReport = requireNotNull(repository.getCurrentRegisterShiftReport())
+        assertEquals(5_000L, voidedReport.cashExpensesMinor)
+        assertEquals(5_000L, voidedReport.cashLifecycleAdjustmentMinor)
+        assertEquals(0L, voidedReport.expectedCashMinor)
+        assertEquals(1, voidedReport.correctionCount)
+        assertEquals(1, voidedReport.voidCount)
+    }
+
+    @Test
     fun recentExpenseAppearsExactlyOnceWithoutFakeTransactionId() =
         runBlocking {
 

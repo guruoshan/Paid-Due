@@ -416,9 +416,11 @@ internal fun requireSupportedAmountCorrectionIdentity(
         }
 
         PaymentCategory.CREDIT -> {
-            throw IllegalArgumentException(
-                "Credit Amount Correction requires separately approved credit-obligation semantics"
-            )
+            require(
+                channel == PaymentChannel.CREDIT_ACCOUNT
+            ) {
+                "Credit Amount Correction must use CREDIT_ACCOUNT"
+            }
         }
 
         PaymentCategory.COUPON -> {
