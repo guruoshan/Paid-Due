@@ -19,6 +19,7 @@ DECLARE
   v_operation_id text;
   v_app_occurred_ms bigint;
   v_fraction integer;
+  v_audit_count_before integer;
 BEGIN
   PERFORM set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
   v_local_date := (v_occurred_at AT TIME ZONE 'UTC')::date;
@@ -70,10 +71,8 @@ BEGIN
   v_changed_payload := v_payload || jsonb_build_object('collision_test_marker', true);
   v_canonical_text := v_changed_payload::text;
   v_digest := encode(extensions.digest(convert_to(v_canonical_text, 'UTF8'), 'sha256'), 'hex');
-  SELECT count(*) INTO v_count FROM private.collision_audit
+  SELECT count(*) INTO v_audit_count_before FROM private.collision_audit
   WHERE operation_id = v_operation_id;
-  DECLARE
-    v_audit_count_before integer := v_count;
   BEGIN
     SELECT * INTO v_result FROM public.ingest_financial_envelope(
       'biz-test', v_operation_id, 'branch-test', 'admin-membership-test',
