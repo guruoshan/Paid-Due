@@ -5219,6 +5219,21 @@ class RegisterRepository @Inject constructor(
                 )
             }
 
+            /*
+             * Validate persisted payment-method-change operations before Refund
+             * admission resolves a destination or calculates refundable value.
+             */
+            if (authoritativeRecord.paymentMethodChanges.isNotEmpty()) {
+                try {
+                    PaymentMethodChangeFinancialIntegrity.validate(
+                        record = authoritativeRecord,
+                        creditAllocations = allocations
+                    )
+                } catch (_: PaymentMethodChangeAmbiguousSettlementException) {
+                    throw RefundAmbiguousSettlementException(transaction.id)
+                }
+            }
+
             val validated =
                 RefundFinancialIntegrity.validate(
                     record =
@@ -7933,6 +7948,22 @@ class RegisterRepository @Inject constructor(
                 throw IllegalStateException(
                     "Transaction belongs to another branch"
                 )
+            }
+
+            /*
+             * Require every persisted payment-method change to have its
+             * operation-linked reclassification pair before reversal amount
+             * or destination resolution can proceed.
+             */
+            if (authoritativeRecord.paymentMethodChanges.isNotEmpty()) {
+                try {
+                    PaymentMethodChangeFinancialIntegrity.validate(
+                        record = authoritativeRecord,
+                        creditAllocations = allocations
+                    )
+                } catch (_: PaymentMethodChangeAmbiguousSettlementException) {
+                    throw VoidAmbiguousSettlementException(transaction.id)
+                }
             }
 
             val validated =
