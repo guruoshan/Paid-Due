@@ -55,6 +55,23 @@ CREATE TABLE public.business_memberships (
     OR (role = 'CASHIER' AND auth_user_id IS NULL AND staff_identity_id IS NOT NULL)
   )
 );
+CREATE TABLE private.collision_audit (
+  collision_id bigserial PRIMARY KEY,
+  operation_id text NOT NULL,
+  operation_type text NOT NULL,
+  business_id text NOT NULL,
+  branch_id text NOT NULL,
+  membership_id text NOT NULL,
+  device_id text NOT NULL,
+  incoming_digest text NOT NULL,
+  stored_digest text NOT NULL,
+  incoming_canonical_text text NOT NULL,
+  stored_canonical_text text NOT NULL,
+  incoming_payload jsonb NOT NULL,
+  stored_payload jsonb NOT NULL,
+  field_diff jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 CREATE TABLE private.financial_operation_envelopes (
   business_id text NOT NULL,
   operation_id text NOT NULL,
