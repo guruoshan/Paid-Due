@@ -72,7 +72,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun clearQrError() { _qrError.value = null }
 
     // ------------------------------------------------------------------
     // Business details

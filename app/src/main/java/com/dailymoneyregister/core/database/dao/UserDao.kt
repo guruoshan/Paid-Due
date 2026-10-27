@@ -112,21 +112,6 @@ interface UserDao {
     @Query("SELECT * FROM user_accounts WHERE business_id = :businessId AND role = 'CASHIER'")
     suspend fun getCashiers(businessId: String): List<UserAccountEntity>
 
-    @Query("""
-        SELECT DISTINCT u.*
-        FROM user_accounts u
-        INNER JOIN user_branch_memberships m ON m.user_id = u.id
-        WHERE u.business_id = :businessId
-          AND u.role = 'CASHIER'
-          AND u.is_active = 1
-          AND m.branch_id = :branchId
-          AND m.role = 'CASHIER'
-        ORDER BY u.display_name COLLATE NOCASE
-    """)
-    suspend fun getCashiersForBranch(
-        businessId: String,
-        branchId: String
-    ): List<UserAccountEntity>
 
     @Query("SELECT * FROM user_accounts WHERE business_id = :businessId AND role = 'CASHIER'")
     fun observeCashiers(businessId: String): Flow<List<UserAccountEntity>>
