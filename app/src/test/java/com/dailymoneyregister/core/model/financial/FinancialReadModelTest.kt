@@ -569,7 +569,7 @@ class FinancialReadModelTest {
         channel = PaymentChannel.CASH_TENDER,
         amountSignedMinor = amount,
         currencyCode = "OMR",
-        confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+        confirmationType = ConfirmationType.ADMIN_CONFIRMED,
         occurredAt = occurredAt,
         actorUserId = "user-1"
     )
