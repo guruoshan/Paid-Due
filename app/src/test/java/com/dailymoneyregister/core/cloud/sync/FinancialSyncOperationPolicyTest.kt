@@ -7,19 +7,21 @@ import org.junit.Test
 
 class FinancialSyncOperationPolicyTest {
     @Test
-    fun roleAwareStatesFailClosed() {
-        assertEquals(
-            FinancialSyncDeliveryState.QUEUED,
-            FinancialSyncOperationPolicy.initialState(UserRole.CASHIER, OperationType.RECORD_SALE)
-        )
-        assertEquals(
-            FinancialSyncDeliveryState.QUEUED,
-            FinancialSyncOperationPolicy.initialState(UserRole.CASHIER, OperationType.RECORD_EXPENSE)
-        )
-        assertEquals(
-            FinancialSyncDeliveryState.QUEUED,
-            FinancialSyncOperationPolicy.initialState(UserRole.CASHIER, OperationType.CLOSE_CASH_SHIFT)
-        )
+    fun onlyAdminFinancialOperationsEnterTheUploadQueue() {
+        listOf(
+            OperationType.RECORD_SALE,
+            OperationType.RECORD_EXPENSE,
+            OperationType.CLOSE_CASH_SHIFT
+        ).forEach { type ->
+            assertEquals(
+                FinancialSyncDeliveryState.QUEUED,
+                FinancialSyncOperationPolicy.initialState(UserRole.ADMIN, type)
+            )
+            assertEquals(
+                FinancialSyncDeliveryState.NOT_APPLICABLE,
+                FinancialSyncOperationPolicy.initialState(UserRole.CASHIER, type)
+            )
+        }
         assertEquals(
             FinancialSyncDeliveryState.NOT_APPLICABLE,
             FinancialSyncOperationPolicy.initialState(UserRole.ADMIN, OperationType.CREATE_CASHIER)
