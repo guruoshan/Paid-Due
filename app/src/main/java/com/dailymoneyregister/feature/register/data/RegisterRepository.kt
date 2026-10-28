@@ -1553,7 +1553,7 @@ class RegisterRepository @Inject constructor(
                     funding = SaleFinancialWriter.FundingIdentity(
                         PaymentCategory.CASH,
                         PaymentChannel.CASH_TENDER,
-                        ConfirmationType.CASHIER_CONFIRMED
+                        ConfirmationType.ADMIN_CONFIRMED
                     ),
                     customerId = customerId
                 )
@@ -1577,7 +1577,7 @@ class RegisterRepository @Inject constructor(
         funding = SaleFinancialWriter.FundingIdentity(
             PaymentCategory.CREDIT,
             PaymentChannel.CREDIT_ACCOUNT,
-            ConfirmationType.CASHIER_CONFIRMED
+            ConfirmationType.ADMIN_CONFIRMED
         ),
         customerId = customerId
     )
@@ -2384,7 +2384,7 @@ class RegisterRepository @Inject constructor(
             currencyCode = command.currencyCode,
             confirmationType =
                 com.dailymoneyregister.core.model.enums.ConfirmationType
-                    .CASHIER_CONFIRMED,
+                    .ADMIN_CONFIRMED,
             occurredAt = command.occurredAt,
             actorUserId = command.actorUserId
         )
@@ -3359,7 +3359,7 @@ class RegisterRepository @Inject constructor(
     private fun onlineFunding() = SaleFinancialWriter.FundingIdentity(
         PaymentCategory.ONLINE,
         PaymentChannel.MANUAL_QR,
-        ConfirmationType.CASHIER_CONFIRMED
+        ConfirmationType.ADMIN_CONFIRMED
     )
 
     private suspend fun validateOnlineSale(
@@ -3911,7 +3911,7 @@ class RegisterRepository @Inject constructor(
                     currencyCode =
                         transaction.currencyCode,
                     confirmationType =
-                        ConfirmationType.CASHIER_CONFIRMED,
+                        ConfirmationType.ADMIN_CONFIRMED,
                     occurredAt =
                         command.occurredAt,
                     actorUserId =
@@ -4130,7 +4130,7 @@ class RegisterRepository @Inject constructor(
 
         check(
             settlement.confirmationType ==
-                ConfirmationType.CASHIER_CONFIRMED
+                ConfirmationType.ADMIN_CONFIRMED
         ) {
             "Amount Correction replay confirmation mismatch"
         }
@@ -4623,7 +4623,7 @@ class RegisterRepository @Inject constructor(
                 channel = validated.currentChannel,
                 amountSignedMinor = Math.negateExact(amount),
                 currencyCode = transaction.currencyCode,
-                confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                confirmationType = ConfirmationType.ADMIN_CONFIRMED,
                 occurredAt = command.occurredAt,
                 actorUserId = command.actorUserId
             )
@@ -4639,7 +4639,7 @@ class RegisterRepository @Inject constructor(
                 channel = command.newChannel,
                 amountSignedMinor = amount,
                 currencyCode = transaction.currencyCode,
-                confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                confirmationType = ConfirmationType.ADMIN_CONFIRMED,
                 occurredAt = command.occurredAt,
                 actorUserId = command.actorUserId
             )
@@ -4738,7 +4738,7 @@ class RegisterRepository @Inject constructor(
                     settlement.transactionId == expectedTransactionId &&
                     settlement.entryPurpose == EntryPurpose.PAYMENT_METHOD_RECLASSIFICATION &&
                     settlement.currencyCode == transaction.currencyCode &&
-                    settlement.confirmationType == ConfirmationType.CASHIER_CONFIRMED &&
+                    settlement.confirmationType == ConfirmationType.ADMIN_CONFIRMED &&
                     settlement.actorUserId == event.actorUserId &&
                     settlement.occurredAt == event.occurredAt
             ) {
@@ -5807,7 +5807,7 @@ class RegisterRepository @Inject constructor(
                                 currencyCode =
                                     transaction.currencyCode,
                                 confirmationType =
-                                    ConfirmationType.CASHIER_CONFIRMED,
+                                    ConfirmationType.ADMIN_CONFIRMED,
                                 occurredAt =
                                     command.occurredAt,
                                 actorUserId =
@@ -5856,7 +5856,7 @@ class RegisterRepository @Inject constructor(
                                     currencyCode =
                                         transaction.currencyCode,
                                     confirmationType =
-                                        ConfirmationType.CASHIER_CONFIRMED,
+                                        ConfirmationType.ADMIN_CONFIRMED,
                                     occurredAt =
                                         command.occurredAt,
                                     actorUserId =
@@ -5907,7 +5907,7 @@ class RegisterRepository @Inject constructor(
                                             currencyCode =
                                                 transaction.currencyCode,
                                             confirmationType =
-                                                ConfirmationType.CASHIER_CONFIRMED,
+                                                ConfirmationType.ADMIN_CONFIRMED,
                                             occurredAt =
                                                 command.occurredAt,
                                             actorUserId =
@@ -5955,7 +5955,7 @@ class RegisterRepository @Inject constructor(
                                     currencyCode =
                                         transaction.currencyCode,
                                     confirmationType =
-                                        ConfirmationType.CASHIER_CONFIRMED,
+                                        ConfirmationType.ADMIN_CONFIRMED,
                                     occurredAt =
                                         command.occurredAt,
                                     actorUserId =
@@ -8043,7 +8043,7 @@ class RegisterRepository @Inject constructor(
                     validated.reversibleAmountMinor
                 ),
                 currencyCode = transaction.currencyCode,
-                confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                confirmationType = ConfirmationType.ADMIN_CONFIRMED,
                 occurredAt = command.occurredAt,
                 actorUserId = command.actorUserId
             )
@@ -8476,7 +8476,7 @@ class RegisterRepository @Inject constructor(
                                 funding = SaleFinancialWriter.FundingIdentity(
                                     PaymentCategory.CASH,
                                     PaymentChannel.CASH_TENDER,
-                                    ConfirmationType.CASHIER_CONFIRMED
+                                    ConfirmationType.ADMIN_CONFIRMED
                                 ),
                                 customerId = customerId
                             )
@@ -8664,7 +8664,7 @@ class RegisterRepository @Inject constructor(
                 funding = SaleFinancialWriter.FundingIdentity(
                     PaymentCategory.CASH,
                     PaymentChannel.CASH_TENDER,
-                    ConfirmationType.CASHIER_CONFIRMED
+                    ConfirmationType.ADMIN_CONFIRMED
                 ),
                 customerId = customerId
             )
