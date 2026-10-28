@@ -109,12 +109,6 @@ interface UserDao {
     @Query("SELECT * FROM user_accounts WHERE business_id = :businessId AND role = 'ADMIN' LIMIT 1")
     suspend fun getFirstAdmin(businessId: String): UserAccountEntity?
 
-    @Query("SELECT * FROM user_accounts WHERE business_id = :businessId AND role = 'CASHIER'")
-    suspend fun getCashiers(businessId: String): List<UserAccountEntity>
-
-
-    @Query("SELECT * FROM user_accounts WHERE business_id = :businessId AND role = 'CASHIER'")
-    fun observeCashiers(businessId: String): Flow<List<UserAccountEntity>>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertMembership(membership: UserBranchMembershipEntity)
