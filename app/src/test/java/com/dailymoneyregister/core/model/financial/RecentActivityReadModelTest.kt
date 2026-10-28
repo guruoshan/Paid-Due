@@ -483,7 +483,7 @@ class RecentActivityReadModelTest {
         channel = channel,
         amountSignedMinor = amount,
         currencyCode = "OMR",
-        confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+        confirmationType = ConfirmationType.ADMIN_CONFIRMED,
         occurredAt = occurredAt,
         actorUserId = "user"
     )
