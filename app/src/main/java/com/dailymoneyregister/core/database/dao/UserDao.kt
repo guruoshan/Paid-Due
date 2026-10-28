@@ -9,7 +9,6 @@ import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.entity.HumanIdentityEntity
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
 import com.dailymoneyregister.core.model.enums.UserRole
-import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface UserDao {
