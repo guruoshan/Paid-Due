@@ -269,7 +269,7 @@ class CreditSaleFinancialIntegrationTest {
             )
 
             assertEquals(
-                ConfirmationType.CASHIER_CONFIRMED,
+                ConfirmationType.ADMIN_CONFIRMED,
                 settlement.confirmationType
             )
 
