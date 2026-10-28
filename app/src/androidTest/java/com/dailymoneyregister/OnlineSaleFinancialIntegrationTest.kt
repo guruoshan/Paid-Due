@@ -56,12 +56,12 @@ class OnlineSaleFinancialIntegrationTest {
         currencySymbol = "OMR", timezoneId = "Asia/Muscat", createdAt = 0L, updatedAt = 0L
     )
     private val user = UserAccountEntity(
-        id = "online-cashier", businessId = business.id, displayName = "Online Cashier",
-        username = "online_cashier", role = UserRole.CASHIER, authType = AuthType.PIN,
+        id = "online-cashier", businessId = business.id, displayName = "Online Admin",
+        username = "online_admin", role = UserRole.ADMIN, authType = AuthType.PIN,
         credentialHash = "hash", credentialSalt = "salt", createdAt = 0L, updatedAt = 0L
     )
     private val membership = UserBranchMembershipEntity(
-        id = "online-membership", userId = user.id, branchId = branch.id, role = UserRole.CASHIER,
+        id = "online-membership", userId = user.id, branchId = branch.id, role = UserRole.ADMIN,
         canCreateSale = true, canAcceptCash = true, canAcceptOnline = true, createdAt = 0L
     )
 
