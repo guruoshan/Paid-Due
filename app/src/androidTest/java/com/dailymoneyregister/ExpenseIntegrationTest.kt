@@ -857,7 +857,7 @@ class ExpenseIntegrationTest {
         }
 
     @Test
-    fun unauthenticatedActorCannotRecordExpense() =
+    fun expenseWithForgedActorCannotRecordExpense() =
         runBlocking {
 
             val forged =
@@ -887,6 +887,29 @@ class ExpenseIntegrationTest {
                     .getSettlementsForOperation(
                         forged.operationId.value
                     )
+                    .isEmpty()
+            )
+        }
+
+    @Test
+    fun unauthenticatedActorCannotRecordExpense() =
+        runBlocking {
+            val unauthenticated = command("no-session")
+            SessionManager.clearSession()
+
+            val result = repository.executeExpense(unauthenticated)
+
+            assertTrue(
+                "Expense without an authenticated session must be denied: $result",
+                result is CommandResult.PermissionDenied
+            )
+            assertNull(
+                database.expenseDao()
+                    .getExpenseByOperationId(unauthenticated.operationId.value)
+            )
+            assertTrue(
+                database.transactionDao()
+                    .getSettlementsForOperation(unauthenticated.operationId.value)
                     .isEmpty()
             )
         }

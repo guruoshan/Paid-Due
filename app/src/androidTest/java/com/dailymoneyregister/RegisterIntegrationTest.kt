@@ -30,6 +30,8 @@ import com.dailymoneyregister.core.model.ids.TransactionId
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import com.dailymoneyregister.core.security.TrustedSessionStore
+import com.dailymoneyregister.core.security.ActiveSession
+import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.feature.register.data.CashSaleCommand
 import com.dailymoneyregister.feature.register.data.RegisterRepository
 import com.dailymoneyregister.feature.register.domain.DraftItem
@@ -97,38 +99,39 @@ class RegisterIntegrationTest {
 
         // Seed Business and Branch so Foreign Keys pass
         val now = System.currentTimeMillis()
-        database.businessBranchDao().insertBusiness(
-            BusinessEntity(
-                id = "biz-1",
-                name = "Test Business",
-                createdAt = now,
-                updatedAt = now
-            )
+        val testBusiness = BusinessEntity(
+            id = "biz-1",
+            name = "Test Business",
+            createdAt = now,
+            updatedAt = now
         )
-        database.businessBranchDao().insertBranch(
-            BranchEntity(
-                id = "branch-1",
-                businessId = "biz-1",
-                name = "Test Branch",
-                code = "TST",
-                countryCode = "OM",
-                currencyCode = "OMR",
-                currencyDecimalPlaces = 3,
-                currencySymbol = "OMR",
-                timezoneId = "Asia/Muscat",
-                createdAt = now,
-                updatedAt = now
-            )
+        val testBranch = BranchEntity(
+            id = "branch-1",
+            businessId = "biz-1",
+            name = "Test Branch",
+            code = "TST",
+            countryCode = "OM",
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat",
+            createdAt = now,
+            updatedAt = now
         )
+        database.businessBranchDao().insertBusiness(testBusiness)
+        database.businessBranchDao().insertBranch(testBranch)
 
-        // Seed authoritative cashier identity and branch permissions.
-        // Cash-sale tests must not rely only on caller-supplied objects.
+        // Seed authoritative Admin identity and branch permissions plus a valid session.
         database.userDao().insertUser(testUser)
         database.userDao().insertMembership(testMembershipAuthorized)
+        SessionManager.setSession(
+            ActiveSession(testBusiness, testBranch, testUser, testMembershipAuthorized)
+        )
     }
 
     @After
     fun tearDown() {
+        SessionManager.clearSession()
         database.close()
     }
 
@@ -410,6 +413,39 @@ class RegisterIntegrationTest {
         )
     }
     @Test
+    fun testCashSaleRejectedWithoutAuthenticatedSession() = runBlocking {
+        val opId = OperationId.generate()
+        val txId = TransactionId.generate()
+        val command = CashSaleCommand(
+            operationId = opId,
+            businessId = "biz-1",
+            branchId = "branch-1",
+            actorUserId = testUser.id,
+            transactionIdVal = txId,
+            draftState = DraftState(manualAmount = MoneyMinorUnits(1000L)),
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            deviceId = "test-device",
+        )
+
+        SessionManager.clearSession()
+        val result = repository.executeCashSale(
+            command,
+            testUser,
+            testMembershipAuthorized
+        )
+
+        assertTrue(
+            "Cash sale without an authenticated session must be denied",
+            result is CommandResult.PermissionDenied
+        )
+        assertNull(database.operationDao().getOperationById(opId.value))
+        assertTrue(
+            database.transactionDao().getSettlementsForOperation(opId.value).isEmpty()
+        )
+    }
+
+    @Test
     fun testUnauthorizedCashierSaleRejected() = runBlocking {
         val opId = OperationId.generate()
         val txId = TransactionId.generate()
@@ -438,6 +474,11 @@ class RegisterIntegrationTest {
 
         // Permission checks use the authoritative membership stored in Room.
         database.userDao().updateMembership(deniedMembership)
+        val business = database.businessBranchDao().getBusinessById("biz-1")!!
+        val branch = database.businessBranchDao().getBranchById("branch-1")!!
+        SessionManager.setSession(
+            ActiveSession(business, branch, deniedUser, deniedMembership)
+        )
 
         val result = repository.executeCashSale(
             command,
