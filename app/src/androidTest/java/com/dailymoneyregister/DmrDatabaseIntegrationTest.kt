@@ -1560,7 +1560,7 @@ class DmrDatabaseIntegrationTest {
     }
 
     @Test
-    fun testSaleWithoutSessionIsDeniedAndWritesNothing() = runBlocking {
+    fun testSaleForUserNeedingPinChangeIsDeniedAndWritesNothing() = runBlocking {
         val setup = (setupRepository.executeSetup(SetupParams(
             businessName = "Restricted Sale Shop",
             branchName = "Main",
@@ -1581,6 +1581,7 @@ class DmrDatabaseIntegrationTest {
 
         val adminId = setup.adminUserId.value
         val admin = database.userDao().getUserById(adminId)!!
+        val business = database.businessBranchDao().getBusinessById(setup.businessId.value)!!
         val branch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
         val membership = database.userDao().getMembership(adminId, branch.id)!!
 
@@ -1599,14 +1600,19 @@ class DmrDatabaseIntegrationTest {
             deviceId = "test-device"
         )
 
-        SessionManager.clearSession()
+        SessionManager.setSession(ActiveSession(
+            business = business,
+            branch = branch,
+            user = admin,
+            membership = membership,
+            requiresPinChange = true
+        ))
         val restrictedResult = registerRepository.executeCashSale(restrictedCommand, admin, membership)
         assertTrue(restrictedResult is CommandResult.PermissionDenied)
         assertNull(database.transactionDao().getTransactionById(restrictedTransactionId.value))
         assertTrue(database.transactionDao().getSettlementsForTransaction(restrictedTransactionId.value).isEmpty())
         assertNull(database.operationDao().getOperationById(restrictedOperationId.value))
 
-        SessionManager.clearSession()
         val bypassAttempt = registerRepository.executeCashSale(restrictedCommand, admin, membership)
         assertTrue(bypassAttempt is CommandResult.PermissionDenied)
         assertNull(database.transactionDao().getTransactionById(restrictedTransactionId.value))
