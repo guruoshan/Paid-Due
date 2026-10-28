@@ -50,7 +50,7 @@ class SaleFinancialWriter(private val transactionDao: TransactionDao) {
 
     companion object {
         fun validateFundingIdentity(identity: FundingIdentity) {
-        require(identity.confirmationType == ConfirmationType.CASHIER_CONFIRMED) {
+        require(identity.confirmationType == ConfirmationType.ADMIN_CONFIRMED) {
             "Sale funding must be cashier confirmed."
         }
         require(
