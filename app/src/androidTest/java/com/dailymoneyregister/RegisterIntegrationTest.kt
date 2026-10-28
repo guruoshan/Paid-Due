@@ -59,8 +59,8 @@ class RegisterIntegrationTest {
         id = "cashier-test-1",
         businessId = "biz-1",
         displayName = "Cashier Test",
-        username = "cashier_test",
-        role = UserRole.CASHIER,
+        username = "register_admin",
+        role = UserRole.ADMIN,
         authType = AuthType.PIN,
         credentialHash = "hash",
         credentialSalt = "salt",
@@ -72,7 +72,7 @@ class RegisterIntegrationTest {
         id = "mem-1",
         userId = "cashier-test-1",
         branchId = "branch-1",
-        role = UserRole.CASHIER,
+        role = UserRole.ADMIN,
         canCreateSale = true,
         canAcceptCash = true,
         canAcceptOnline = true,
@@ -83,7 +83,7 @@ class RegisterIntegrationTest {
         id = "mem-1",
         userId = "cashier-test-1",
         branchId = "branch-1",
-        role = UserRole.CASHIER,
+        role = UserRole.ADMIN,
         canCreateSale = false, // DENIED!
         canAcceptCash = false, // DENIED!
         createdAt = 0L
@@ -121,7 +121,7 @@ class RegisterIntegrationTest {
         database.businessBranchDao().insertBusiness(testBusiness)
         database.businessBranchDao().insertBranch(testBranch)
 
-        // Seed authoritative identity and permissions, plus the authenticated test session.
+        // Seed authoritative Admin identity and branch permissions plus a valid session.
         database.userDao().insertUser(testUser)
         database.userDao().insertMembership(testMembershipAuthorized)
         SessionManager.setSession(
@@ -428,7 +428,6 @@ class RegisterIntegrationTest {
             deviceId = "test-device",
         )
 
-        // Valid caller-supplied identity objects must not substitute for login.
         SessionManager.clearSession()
         val result = repository.executeCashSale(
             command,
@@ -451,12 +450,21 @@ class RegisterIntegrationTest {
         val opId = OperationId.generate()
         val txId = TransactionId.generate()
         val draft = DraftState(manualAmount = MoneyMinorUnits(1000L))
+        val deniedUser = testUser.copy(
+            id = "cashier-denial-user", displayName = "Cashier Denial",
+            username = "register_denial_cashier", role = UserRole.CASHIER
+        )
+        val deniedMembership = testMembershipUnauthorized.copy(
+            id = "cashier-denial-membership", userId = deniedUser.id, role = UserRole.CASHIER
+        )
+        database.userDao().insertUser(deniedUser)
+        database.userDao().insertMembership(deniedMembership)
 
         val command = CashSaleCommand(
             operationId = opId,
             businessId = "biz-1",
             branchId = "branch-1",
-            actorUserId = testUser.id,
+            actorUserId = deniedUser.id,
             transactionIdVal = txId,
             draftState = draft,
             currencyCode = "OMR",
@@ -465,12 +473,17 @@ class RegisterIntegrationTest {
         )
 
         // Permission checks use the authoritative membership stored in Room.
-        database.userDao().updateMembership(testMembershipUnauthorized)
+        database.userDao().updateMembership(deniedMembership)
+        val business = database.businessBranchDao().getBusinessById("biz-1")!!
+        val branch = database.businessBranchDao().getBranchById("branch-1")!!
+        SessionManager.setSession(
+            ActiveSession(business, branch, deniedUser, deniedMembership)
+        )
 
         val result = repository.executeCashSale(
             command,
-            testUser,
-            testMembershipUnauthorized
+            deniedUser,
+            deniedMembership
         )
 
         assertTrue(
