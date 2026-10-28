@@ -313,7 +313,7 @@ class FinancialSyncEngineTest {
                     put("channel", "CASH_TENDER")
                     put("amount_signed_minor", 1000L)
                     put("currency_code", "OMR")
-                    put("confirmation_type", "CASHIER_CONFIRMED")
+                    put("confirmation_type", "ADMIN_CONFIRMED")
                 })
             })
         }
