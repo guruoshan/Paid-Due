@@ -85,12 +85,15 @@ class VoidFinancialCoreIntegrationTest {
 
     private val businessId = "void-test-business"
     private val branchId = "void-test-branch"
-    private val actorId = "void-authorized-user"
+    private val cashierActorId = "void-authorized-user"
+    private var actorId = cashierActorId
+    private val adminActorId = "void-authorized-admin"
     private val unauthorizedActorId = "void-unauthorized-user"
     private val deviceId = "void-test-device"
 
     @Before
     fun setUp() = runBlocking {
+        actorId = cashierActorId
         context = ApplicationProvider.getApplicationContext()
         database = DmrDatabase.createInMemory(context)
 
@@ -147,6 +150,35 @@ class VoidFinancialCoreIntegrationTest {
                 userId = actorId,
                 branchId = branchId,
                 role = UserRole.CASHIER,
+                canCreateSale = true,
+                canAcceptCash = true,
+                canVoid = true,
+                createdAt = now
+            )
+        )
+
+
+        database.userDao().insertUser(
+            UserAccountEntity(
+                id = adminActorId,
+                businessId = businessId,
+                displayName = "Void Admin",
+                username = "void_admin",
+                role = UserRole.ADMIN,
+                authType = AuthType.PIN,
+                credentialHash = "hash",
+                credentialSalt = "salt",
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        database.userDao().insertMembership(
+            UserBranchMembershipEntity(
+                id = "void-admin-membership",
+                userId = adminActorId,
+                branchId = branchId,
+                role = UserRole.ADMIN,
                 canCreateSale = true,
                 canAcceptCash = true,
                 canVoid = true,
@@ -222,6 +254,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_newOperationWithoutAuthenticatedSession_persistsNothing() =
         runBlocking {
+            useAdminActor()
             val tx = seedAuthoritativeSaleFixture(
                 transactionId = "void-no-session",
                 amountMinor = 4_000L
@@ -242,6 +275,7 @@ class VoidFinancialCoreIntegrationTest {
 
     @Test
     fun productionVoid_normalSale_createsExactlyOneExactReversal() = runBlocking {
+            useAdminActor()
         val original = seedAuthoritativeSaleFixture(
             transactionId = "void-normal",
             amountMinor = 10_000L
@@ -322,6 +356,7 @@ class VoidFinancialCoreIntegrationTest {
 
     @Test
     fun productionVoid_partialRefund_reversesOnlyRemainingValue() = runBlocking {
+            useAdminActor()
         val tx = seedAuthoritativeSaleFixture(
             transactionId = "void-partial-refund",
             amountMinor = 10_000L
@@ -367,6 +402,7 @@ class VoidFinancialCoreIntegrationTest {
 
     @Test
     fun productionVoid_splitRefundOutflows_failClosed() = runBlocking {
+            useAdminActor()
         val tx = seedAuthoritativeSaleFixture(
             transactionId = "void-split-refund-history",
             amountMinor = 10_000L
@@ -405,6 +441,7 @@ class VoidFinancialCoreIntegrationTest {
 
     @Test
     fun productionVoid_fullRefund_createsNoAdditionalReversal() = runBlocking {
+            useAdminActor()
         val tx = seedAuthoritativeSaleFixture(
             transactionId = "void-full-refund",
             amountMinor = 10_000L
@@ -445,6 +482,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_correctionAndRefund_useAuthoritativeRemainingValue() =
         runBlocking {
+            useAdminActor()
 
             val upward = seedAuthoritativeSaleFixture(
                 transactionId = "void-correct-up",
@@ -533,6 +571,7 @@ class VoidFinancialCoreIntegrationTest {
 
     @Test
     fun productionVoid_brokenCorrectionHistory_failsClosed() = runBlocking {
+            useAdminActor()
         val tx = seedAuthoritativeSaleFixture(
             transactionId = "void-broken-correction",
             amountMinor = 10_000L
@@ -566,6 +605,7 @@ class VoidFinancialCoreIntegrationTest {
 
     @Test
     fun productionVoid_underfundedSettlement_failsClosed() = runBlocking {
+            useAdminActor()
         val tx = seedAuthoritativeSaleFixture(
             transactionId = "void-underfunded",
             amountMinor = 10_000L,
@@ -622,6 +662,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_sameOperation_replaysWithoutDuplicate_andAlteredReplayConflicts() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedAuthoritativeSaleFixture(
                 transactionId = "void-replay",
@@ -742,6 +783,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_differentOperation_cannotReverseSameTransactionTwice() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedAuthoritativeSaleFixture(
                 transactionId = "void-second-operation",
@@ -792,6 +834,7 @@ class VoidFinancialCoreIntegrationTest {
      */
     @Test
     fun databaseGuard_directDuplicateVoidRows_areRejected() = runBlocking {
+            useAdminActor()
         val txA = seedAuthoritativeSaleFixture(
             transactionId = "void-db-a",
             amountMinor = 1_000L
@@ -864,6 +907,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_settlementInsertFailure_rollsBackVoidEvent() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedAuthoritativeSaleFixture(
                 transactionId = "void-atomic-rollback",
@@ -913,6 +957,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_concurrentDifferentOperations_createOneEconomicReversal() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedAuthoritativeSaleFixture(
                 transactionId = "void-concurrent",
@@ -1062,6 +1107,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_pendingRecovery_stateChanged_movesToReconciliationWithoutReversal() =
         runBlocking {
+            useAdminActor()
             val tx = seedAuthoritativeSaleFixture(
                 transactionId = "void-recovery-state-changed",
                 amountMinor = 10_000L
@@ -1158,6 +1204,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_balancingCorruptLifecycleSettlements_failClosed() =
         runBlocking {
+            useAdminActor()
             val tx = seedAuthoritativeSaleFixture(
                 transactionId = "void-balanced-corruption",
                 amountMinor = 10_000L
@@ -1206,6 +1253,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun commandExecutor_sameFingerprintDifferentDurablePayload_isRejected() =
         runBlocking {
+            useAdminActor()
             val tx = seedAuthoritativeSaleFixture(
                 transactionId = "void-durable-payload-binding",
                 amountMinor = 2_000L
@@ -1245,6 +1293,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_creditFundedTransaction_isBlockedWithoutFinancialMutation() =
         runBlocking {
+            useAdminActor()
             val tx = seedAuthoritativeSaleFixture(
                 transactionId = "void-boundary-credit-funded",
                 amountMinor = 10_000L,
@@ -1273,6 +1322,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_couponFundedTransaction_isBlockedWithoutFinancialMutation() =
         runBlocking {
+            useAdminActor()
             val tx = seedAuthoritativeSaleFixture(
                 transactionId = "void-boundary-coupon-funded",
                 amountMinor = 10_000L,
@@ -1301,6 +1351,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_paymentMethodChangeExists_isBlockedWithoutFinancialMutation() =
         runBlocking {
+            useAdminActor()
             val tx = seedAuthoritativeSaleFixture(
                 transactionId = "void-boundary-payment-change",
                 amountMinor = 10_000L
@@ -1353,6 +1404,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_creditRepaymentAllocationExists_isBlockedWithoutFinancialMutation() =
         runBlocking {
+            useAdminActor()
             val tx = seedAuthoritativeSaleFixture(
                 transactionId = "void-boundary-credit-allocation",
                 amountMinor = 10_000L
@@ -1395,6 +1447,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_mixedCashAndOnlineFunding_isBlockedAsAmbiguous() =
         runBlocking {
+            useAdminActor()
             val tx = seedAuthoritativeSaleFixture(
                 transactionId = "void-boundary-mixed-funding",
                 amountMinor = 10_000L,
@@ -1442,6 +1495,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_missingSaleFunding_isBlockedAsAmbiguous() =
         runBlocking {
+            useAdminActor()
             val tx = seedAuthoritativeSaleFixture(
                 transactionId = "void-boundary-missing-funding",
                 amountMinor = 10_000L,
@@ -1472,6 +1526,7 @@ class VoidFinancialCoreIntegrationTest {
     @Test
     fun productionVoid_realWriter_makesOlderSaleAppearInTodayRecent() =
         runBlocking {
+            useAdminActor()
 
             val zone =
                 ZoneId.of("Asia/Muscat")
@@ -1568,6 +1623,31 @@ class VoidFinancialCoreIntegrationTest {
      * These helpers create authoritative prerequisite history directly in the
      * isolated test DB. They are NOT production writer tests.
      */
+
+
+    private suspend fun useAdminActor() {
+        actorId = adminActorId
+        val sessionBusiness = checkNotNull(
+            database.businessBranchDao().getBusinessById(businessId)
+        )
+        val sessionBranch = checkNotNull(
+            database.businessBranchDao().getBranchById(branchId)
+        )
+        val sessionActor = checkNotNull(
+            database.userDao().getUserById(adminActorId)
+        )
+        val sessionMembership = checkNotNull(
+            database.userDao().getMembership(adminActorId, branchId)
+        )
+        SessionManager.setSession(
+            ActiveSession(
+                business = sessionBusiness,
+                branch = sessionBranch,
+                user = sessionActor,
+                membership = sessionMembership
+            )
+        )
+    }
 
     private suspend fun seedAuthoritativeSaleFixture(
         transactionId: String,
