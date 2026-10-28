@@ -134,7 +134,7 @@ class ReportingRowMappersTest {
         channel = channel,
         amountSignedMinor = amount,
         currencyCode = "OMR",
-        confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+        confirmationType = ConfirmationType.ADMIN_CONFIRMED,
         occurredAt = 100L,
         actorUserId = "user-1"
     )
