@@ -154,12 +154,7 @@ fun DmrApp(
 
             return@LaunchedEffect
         }
-        /*
-         * A previously trusted Cashier session is valid local device
-         * authority even when this device never performed Admin setup.
-         *
-         * This is required for employee-only devices.
-         */
+        // Only a trusted ADMIN/password session may enter the active product.
         val restoredSession =
             trustedSessionRestorer.restore()
 
@@ -214,8 +209,8 @@ fun DmrApp(
     /*
      * Fail closed.
      *
-     * If startup recovery could not be completed, the cashier is not
-     * allowed into the register. The user can retry the recovery pass.
+     * If startup recovery could not be completed, no active session is
+     * allowed into the register. The Admin can retry the recovery pass.
      */
     startupRecoveryError?.let { errorMessage ->
 
