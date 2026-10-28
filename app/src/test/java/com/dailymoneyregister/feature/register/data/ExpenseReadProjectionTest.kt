@@ -69,7 +69,7 @@ class ExpenseReadProjectionTest {
             channel = channel,
             amountSignedMinor = -expense.amountMinor,
             currencyCode = expense.currencyCode,
-            confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+            confirmationType = ConfirmationType.ADMIN_CONFIRMED,
             occurredAt = expense.occurredAt,
             actorUserId = expense.actorUserId
         )
