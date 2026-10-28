@@ -597,7 +597,7 @@ class CreditRepaymentIntegrationTest {
             )
 
             assertEquals(
-                ConfirmationType.CASHIER_CONFIRMED,
+                ConfirmationType.ADMIN_CONFIRMED,
                 collection.confirmationType
             )
 
