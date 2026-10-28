@@ -55,7 +55,7 @@ data class CouponSaleCommand(
         currencyCode, currencyDecimalPlaces, DraftState(manualAmount = MoneyMinorUnits(amountMinor)),
         SaleFinancialWriter.FundingIdentity(fundingCategory,
             if (fundingCategory == PaymentCategory.CASH) PaymentChannel.CASH_TENDER else PaymentChannel.MANUAL_QR,
-            ConfirmationType.CASHIER_CONFIRMED),
+            ConfirmationType.ADMIN_CONFIRMED),
         TransactionType.COUPON_PURCHASE, customerId
     )
 }
@@ -91,7 +91,7 @@ data class CouponRedemptionCommand(
         operationId.value, subjectId, branchId, actorUserId, deviceId, occurredAt,
         sale.currencyCode, sale.currencyDecimalPlaces, sale.draftState,
         SaleFinancialWriter.FundingIdentity(PaymentCategory.COUPON, PaymentChannel.COUPON_WALLET,
-            ConfirmationType.CASHIER_CONFIRMED), customerId = customerId,
+            ConfirmationType.ADMIN_CONFIRMED), customerId = customerId,
         couponAmountMinor = amountMinor, couponRemainderCategory = remainderCategory
     )
 
@@ -165,7 +165,7 @@ data class CouponTopUpCommand(
         funding = SaleFinancialWriter.FundingIdentity(
             fundingCategory,
             if (fundingCategory == PaymentCategory.CASH) PaymentChannel.CASH_TENDER else PaymentChannel.MANUAL_QR,
-            ConfirmationType.CASHIER_CONFIRMED
+            ConfirmationType.ADMIN_CONFIRMED
         ),
         transactionType = TransactionType.COUPON_PURCHASE,
         customerId = customerId
