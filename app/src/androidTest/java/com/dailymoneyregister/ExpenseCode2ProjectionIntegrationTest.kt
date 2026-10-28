@@ -251,7 +251,7 @@ class ExpenseCode2ProjectionIntegrationTest {
             val adminUser = user.copy(
                 id = "expense-code2-admin",
                 displayName = "Expense Code 2 Admin",
-                username = "expense_code2_admin",
+                username = "expense_code2_admin_void",
                 role = UserRole.ADMIN
             )
             val adminMembership = membership.copy(
