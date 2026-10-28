@@ -73,9 +73,9 @@ class ExpenseCode2ProjectionIntegrationTest {
         UserAccountEntity(
             id = "expense-code2-user",
             businessId = business.id,
-            displayName = "Expense Code 2 Cashier",
-            username = "expense_code2_cashier",
-            role = UserRole.CASHIER,
+            displayName = "Expense Code 2 Admin",
+            username = "expense_code2_admin",
+            role = UserRole.ADMIN,
             authType = AuthType.PIN,
             credentialHash = "hash",
             credentialSalt = "salt",
@@ -88,7 +88,7 @@ class ExpenseCode2ProjectionIntegrationTest {
             id = "expense-code2-membership",
             userId = user.id,
             branchId = branch.id,
-            role = UserRole.CASHIER,
+            role = UserRole.ADMIN,
             canCreateSale = true,
             canAcceptCash = true,
             canAcceptOnline = true,
@@ -129,7 +129,7 @@ class ExpenseCode2ProjectionIntegrationTest {
         database.userDao()
             .insertMembership(membership)
 
-        restoreCashierSession()
+        restoreAdminSession()
     }
 
     @After
@@ -138,7 +138,7 @@ class ExpenseCode2ProjectionIntegrationTest {
         database.close()
     }
 
-    private fun restoreCashierSession() {
+    private fun restoreAdminSession() {
 
         SessionManager.setSession(
             ActiveSession(
@@ -251,7 +251,7 @@ class ExpenseCode2ProjectionIntegrationTest {
             val adminUser = user.copy(
                 id = "expense-code2-admin",
                 displayName = "Expense Code 2 Admin",
-                username = "expense_code2_admin",
+                username = "expense_code2_admin_void",
                 role = UserRole.ADMIN
             )
             val adminMembership = membership.copy(
@@ -675,10 +675,8 @@ class ExpenseCode2ProjectionIntegrationTest {
             /*
              * History requires VIEW_BROAD_HISTORY.
              *
-             * Use the same authenticated identity and branch, but elevate only
-             * the in-memory test session role so this test exercises History's
-             * read projection rather than being blocked by cashier History
-             * policy. No production membership or database row is changed.
+             * Read the projection using the authenticated Admin identity and
+             * same branch. No production membership or database row is changed.
              */
             val historyUser =
                 user.copy(

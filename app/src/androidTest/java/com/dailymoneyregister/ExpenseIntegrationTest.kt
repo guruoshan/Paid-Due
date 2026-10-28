@@ -70,9 +70,9 @@ class ExpenseIntegrationTest {
         UserAccountEntity(
             id = "expense-test-user",
             businessId = business.id,
-            displayName = "Expense Cashier",
-            username = "expense_test_cashier",
-            role = UserRole.CASHIER,
+            displayName = "Expense Admin Actor",
+            username = "expense_test_admin_actor",
+            role = UserRole.ADMIN,
             authType = AuthType.PIN,
             credentialHash = "hash",
             credentialSalt = "salt",
@@ -85,7 +85,7 @@ class ExpenseIntegrationTest {
             id = "expense-test-membership",
             userId = user.id,
             branchId = branch.id,
-            role = UserRole.CASHIER,
+            role = UserRole.ADMIN,
             canCreateSale = true,
             canAcceptCash = true,
             canAcceptOnline = true,
@@ -514,7 +514,7 @@ class ExpenseIntegrationTest {
         }
 
     @Test
-    fun expenseUsesAuthenticatedCashierAndCurrentShift() =
+    fun expenseUsesAuthenticatedAdminAndCurrentShift() =
         runBlocking {
 
             val command =
