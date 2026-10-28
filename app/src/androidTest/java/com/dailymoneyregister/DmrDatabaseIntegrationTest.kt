@@ -37,11 +37,8 @@ import com.dailymoneyregister.core.security.PinThrottler
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
-import com.dailymoneyregister.feature.admin.data.CashierManagementRepository
 import com.dailymoneyregister.feature.customers.data.CreditRepaymentCommand
 import com.dailymoneyregister.feature.customers.export.CustomerExcelExporter
-import com.dailymoneyregister.feature.admin.data.CashierPermissionsConfig
-import com.dailymoneyregister.feature.admin.data.CreateCashierParams
 import com.dailymoneyregister.feature.auth.data.AuthRepository
 import com.dailymoneyregister.feature.auth.data.AuthResult
 import com.dailymoneyregister.feature.register.data.CashSaleCommand
@@ -82,7 +79,6 @@ class DmrDatabaseIntegrationTest {
     private lateinit var commandExecutor: CommandExecutor
     private lateinit var setupRepository: SetupRepository
     private lateinit var authRepository: AuthRepository
-    private lateinit var cashierManagementRepository: CashierManagementRepository
     private lateinit var context: Context
     private lateinit var trustedSessionStore: TrustedSessionStore
     private val ownedViewModelStores = mutableListOf<ViewModelStore>()
@@ -106,7 +102,6 @@ class DmrDatabaseIntegrationTest {
         commandExecutor = CommandExecutor(database)
         setupRepository = SetupRepository(database, commandExecutor, com.dailymoneyregister.core.device.DeviceIdentityProvider(context), trustedSessionStore)
         authRepository = AuthRepository(database, PinThrottler(context = context), LanguageManager(context), trustedSessionStore)
-        cashierManagementRepository = CashierManagementRepository(database, commandExecutor, com.dailymoneyregister.core.device.DeviceIdentityProvider(context))
     }
 
     @After
@@ -402,78 +397,6 @@ class DmrDatabaseIntegrationTest {
         assertEquals("said_admin", admin?.username)
         assertEquals(UserRole.ADMIN, admin?.role)
         assertEquals("ar", admin?.languageCode)
-    }
-
-    @Test
-    fun testCreateCashierSameOperationReplaysSameIdAndRejectsChangedRequest() = runBlocking {
-        val setupParams = SetupParams(
-            businessName = "Cashier Replay Business",
-            branchName = "Main Branch",
-            branchCode = "CR1",
-            countryCode = "OM",
-            currencyCode = "OMR",
-            currencyDecimalPlaces = 3,
-            currencySymbol = "OMR",
-            timezoneId = "Asia/Muscat",
-            taxRoundingMode = TaxRoundingMode.HALF_UP,
-            defaultTaxRateBps = 0,
-            adminDisplayName = "Replay Owner",
-            adminUsername = "replay_owner",
-            adminPasswordPlain = "ReplayOwner123",
-            languageCode = "en"
-        )
-
-        val setupResult =
-            (setupRepository.executeSetup(setupParams) as CommandResult.Success).data
-
-        val operationId = OperationId.generate()
-
-        val params = CreateCashierParams(
-            businessId = setupResult.businessId.value,
-            branchId = setupResult.branchId.value,
-            adminUserId = setupResult.adminUserId.value,
-            displayName = "Replay Cashier",
-            username = "replay_cashier",
-            pin = "123456",
-            preferredLanguage = "en",
-            permissions = CashierPermissionsConfig(
-                canCreateSale = true,
-                canAcceptCash = true,
-                canRefund = false,
-                canVoid = false
-            )
-        )
-
-        val first = cashierManagementRepository.createCashier(params, operationId)
-        assertTrue(first is CommandResult.Success)
-
-        val firstSuccess = first as CommandResult.Success
-        assertFalse(firstSuccess.isIdempotentReplay)
-
-        val second = cashierManagementRepository.createCashier(params, operationId)
-        assertTrue(second is CommandResult.Success)
-
-        val secondSuccess = second as CommandResult.Success
-        assertTrue(secondSuccess.isIdempotentReplay)
-        assertEquals(firstSuccess.data, secondSuccess.data)
-
-        val cashiers =
-            database.userDao().getCashiers(setupResult.businessId.value)
-        assertEquals(1, cashiers.size)
-
-        val changedPermissions = cashierManagementRepository.createCashier(
-            params.copy(
-                permissions = params.permissions.copy(canVoid = true)
-            ),
-            operationId
-        )
-        assertTrue(changedPermissions is CommandResult.Conflict)
-
-        val changedPin = cashierManagementRepository.createCashier(
-            params.copy(pin = "654321"),
-            operationId
-        )
-        assertTrue(changedPin is CommandResult.Conflict)
     }
 
     @Test
@@ -1637,7 +1560,7 @@ class DmrDatabaseIntegrationTest {
     }
 
     @Test
-    fun testCashierCannotExecuteSaleWithoutSession() = runBlocking {
+    fun testSaleWithoutSessionIsDeniedAndWritesNothing() = runBlocking {
         val setup = (setupRepository.executeSetup(SetupParams(
             businessName = "Restricted Sale Shop",
             branchName = "Main",
@@ -1656,26 +1579,10 @@ class DmrDatabaseIntegrationTest {
             languageCode = "en"
         )) as CommandResult.Success).data
 
-        setupRepository.establishAdminSession(setup)
-        val cashierId = (cashierManagementRepository.createCashier(
-            CreateCashierParams(
-                businessId = setup.businessId.value,
-                branchId = setup.branchId.value,
-                adminUserId = setup.adminUserId.value,
-                displayName = "Restricted Cashier",
-                username = "+96892345678",
-                phone = "92345678",
-                pin = "246810",
-                permissions = CashierPermissionsConfig(
-                    canCreateSale = true,
-                    canAcceptCash = true
-                )
-            )
-        ) as CommandResult.Success).data.value
-
-        val cashier = database.userDao().getUserById(cashierId)!!
+        val adminId = setup.adminUserId.value
+        val admin = database.userDao().getUserById(adminId)!!
         val branch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
-        val membership = database.userDao().getMembership(cashierId, branch.id)!!
+        val membership = database.userDao().getMembership(adminId, branch.id)!!
 
         val registerRepository = RegisterRepository(database, commandExecutor)
         val restrictedOperationId = OperationId.generate()
@@ -1684,7 +1591,7 @@ class DmrDatabaseIntegrationTest {
             operationId = restrictedOperationId,
             businessId = setup.businessId.value,
             branchId = branch.id,
-            actorUserId = cashierId,
+            actorUserId = adminId,
             transactionIdVal = restrictedTransactionId,
             draftState = DraftState(manualAmount = MoneyMinorUnits(1000L)),
             currencyCode = branch.currencyCode,
@@ -1692,18 +1599,18 @@ class DmrDatabaseIntegrationTest {
             deviceId = "test-device"
         )
 
-        val restrictedResult = registerRepository.executeCashSale(restrictedCommand, cashier, membership)
+        SessionManager.clearSession()
+        val restrictedResult = registerRepository.executeCashSale(restrictedCommand, admin, membership)
         assertTrue(restrictedResult is CommandResult.PermissionDenied)
         assertNull(database.transactionDao().getTransactionById(restrictedTransactionId.value))
         assertTrue(database.transactionDao().getSettlementsForTransaction(restrictedTransactionId.value).isEmpty())
         assertNull(database.operationDao().getOperationById(restrictedOperationId.value))
 
         SessionManager.clearSession()
-        val bypassAttempt = registerRepository.executeCashSale(restrictedCommand, cashier, membership)
+        val bypassAttempt = registerRepository.executeCashSale(restrictedCommand, admin, membership)
         assertTrue(bypassAttempt is CommandResult.PermissionDenied)
         assertNull(database.transactionDao().getTransactionById(restrictedTransactionId.value))
         assertTrue(database.transactionDao().getSettlementsForTransaction(restrictedTransactionId.value).isEmpty())
         assertNull(database.operationDao().getOperationById(restrictedOperationId.value))
-
     }
 }

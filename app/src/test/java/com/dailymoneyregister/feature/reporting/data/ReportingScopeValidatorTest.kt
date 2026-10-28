@@ -94,20 +94,6 @@ class ReportingScopeValidatorTest {
     }
 
     @Test
-    fun cashierIsDeniedBecauseReportsAreAdminOnly() {
-        val cashierSession = ActiveSession(
-            business = business,
-            branch = b1,
-            user = cashier,
-            membership = null
-        )
-
-        assertDenied(ReportingDenyReason.NOT_PERMITTED) {
-            ReportingAccessValidator.validate(cashierSession, scope(), allBranches, null)
-        }
-    }
-
-    @Test
     fun adminWhoMustChangePinIsDenied() {
         assertDenied(ReportingDenyReason.NOT_PERMITTED) {
             ReportingAccessValidator.validate(
@@ -193,12 +179,12 @@ class ReportingScopeValidatorTest {
     }
 
     @Test
-    fun adminWithKnownCashierAndSingleBranchIsGranted() {
+    fun adminWithValidSingleBranchIsGranted() {
         val access = ReportingAccessValidator.validate(
             session(),
-            scope(branchId = "b2", cashierUserId = "cashier"),
+            scope(branchId = "b2"),
             allBranches,
-            true
+            null
         )
 
         assertEquals(listOf("b2"), access.branchIds)
