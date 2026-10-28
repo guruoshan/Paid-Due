@@ -1816,7 +1816,7 @@ private fun confirmationLabel(
     confirmation: ConfirmationType
 ): String {
     return when (confirmation) {
-        ConfirmationType.CASHIER_CONFIRMED ->
+        ConfirmationType.ADMIN_CONFIRMED ->
             stringResource(
                 R.string.tx_confirmation_cashier
             )
