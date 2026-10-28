@@ -795,6 +795,65 @@ class DmrDatabaseIntegrationTest {
 
 
     @Test
+    fun testOperationFingerprintMismatchIsRejected() = runBlocking {
+        val opId = OperationId.generate()
+        var counter = 0
+
+        fun command(fingerprint: String): OperationCommand =
+            object : OperationCommand {
+                override val operationId = opId
+                override val businessId = "biz-fingerprint"
+                override val branchId = "branch-fingerprint"
+                override val operationType = OperationType.CREATE_BUSINESS
+                override val subjectType = SubjectType.BUSINESS
+                override val subjectId = "biz-fingerprint"
+                override val transactionId = null
+                override val actorUserId = "admin-fingerprint"
+                override val deviceId = "DEV-FINGERPRINT"
+                override val occurredAt = 1000L
+                override val requestFingerprint = fingerprint
+                override val intentPayload = "Payload content"
+            }
+
+        val firstResult = commandExecutor.execute(
+            command = command("fingerprint-original"),
+            replayResolver = { op ->
+                op.resultReferenceId
+                    ?: throw IllegalStateException("Replay failed: missing business result reference")
+            }
+        ) {
+            counter++
+            database.businessBranchDao().insertBusiness(
+                BusinessEntity("biz-fingerprint", "Fingerprint Test", 1000L, 1000L)
+            )
+            Pair("biz-fingerprint", Pair("BUSINESS", "biz-fingerprint"))
+        }
+        assertTrue(firstResult is CommandResult.Success)
+        assertEquals(1, counter)
+
+        val storedBefore = database.operationDao().getOperationById(opId.value)
+        assertNotNull(storedBefore)
+        assertEquals(OperationStatus.SUCCEEDED, storedBefore?.status)
+
+        val rejected = commandExecutor.execute(
+            command = command("fingerprint-changed"),
+            replayResolver = { op ->
+                op.resultReferenceId
+                    ?: throw IllegalStateException("Replay failed: missing business result reference")
+            }
+        ) {
+            counter++
+            Pair("biz-fingerprint", Pair("BUSINESS", "biz-fingerprint"))
+        }
+        assertTrue(rejected is CommandResult.Conflict)
+
+        val storedAfter = database.operationDao().getOperationById(opId.value)
+        assertEquals(storedBefore, storedAfter)
+        assertEquals(OperationStatus.SUCCEEDED, storedAfter?.status)
+        assertEquals(1, counter)
+    }
+
+    @Test
     fun testSucceededOperationCannotBeDowngradedToFailed() = runBlocking {
         val operationId = OperationId.generate().value
         val fingerprint = "terminal-state-guard"
