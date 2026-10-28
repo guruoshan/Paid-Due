@@ -109,7 +109,7 @@ fun SettingsScreen(
                         Text(stringResource(R.string.profile_branch, s.branch.name, s.branch.code), fontSize = 15.sp)
                         Text(stringResource(R.string.profile_currency, s.branch.currencyCode, s.branch.currencyDecimalPlaces.toString()), fontSize = 15.sp)
                         Text(stringResource(R.string.profile_timezone, s.branch.timezoneId), fontSize = 15.sp)
-                        Text(stringResource(R.string.profile_user, s.user.displayName, stringResource(if (s.user.role == com.dailymoneyregister.core.model.enums.UserRole.ADMIN) R.string.role_admin else R.string.role_cashier)), fontSize = 15.sp)
+                        Text(stringResource(R.string.profile_user, s.user.displayName, stringResource(R.string.role_admin)), fontSize = 15.sp)
                     }
                 }
             }
