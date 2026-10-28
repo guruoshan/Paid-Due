@@ -228,7 +228,7 @@ class DmrDatabaseIntegrationTest {
                 channel = PaymentChannel.CASH_TENDER,
                 amountSignedMinor = amount,
                 currencyCode = branch.currencyCode,
-                confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                confirmationType = ConfirmationType.ADMIN_CONFIRMED,
                 occurredAt = occurredAt,
                 actorUserId = actorUserId
             )
@@ -1238,7 +1238,7 @@ class DmrDatabaseIntegrationTest {
                 amountSignedMinor = 100L,
                 currencyCode = "OMR",
                 confirmationType =
-                    ConfirmationType.CASHIER_CONFIRMED,
+                    ConfirmationType.ADMIN_CONFIRMED,
                 occurredAt = 1_000L,
                 actorUserId = orphanOperation.actorUserId
             )
