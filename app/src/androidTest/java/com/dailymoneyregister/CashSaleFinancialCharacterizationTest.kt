@@ -510,7 +510,7 @@ class CashSaleFinancialCharacterizationTest {
         assertEquals(PaymentChannel.CASH_TENDER, settlement.channel)
         assertEquals(1500L, settlement.amountSignedMinor)
         assertEquals("OMR", settlement.currencyCode)
-        assertEquals(ConfirmationType.CASHIER_CONFIRMED, settlement.confirmationType)
+        assertEquals(ConfirmationType.ADMIN_CONFIRMED, settlement.confirmationType)
         assertNull(settlement.qrProfileIdSnapshot)
         assertEquals(1700000000000L, settlement.occurredAt)
         assertEquals("user-characterization", settlement.actorUserId)
