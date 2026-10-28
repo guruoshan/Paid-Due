@@ -11,13 +11,8 @@ enum class OperationType {
     CREATE_BUSINESS,
     CREATE_BRANCH,
     CREATE_ADMIN,
-    CREATE_CASHIER,
     UPDATE_USER_LANGUAGE,
     UPDATE_BUSINESS_PROFILE,
-    UPDATE_CASHIER,
-    UPDATE_CASHIER_PERMISSIONS,
-    DISABLE_CASHIER,
-    ENABLE_CASHIER,
     ADMIN_RESET_PIN,
     RECORD_SALE,
     RECORD_CREDIT_REPAYMENT,
@@ -68,7 +63,7 @@ enum class PaymentChannel {
 }
 
 enum class ConfirmationType {
-    CASHIER_CONFIRMED,
+    ADMIN_CONFIRMED,
     PROVIDER_APPROVED
 }
 
@@ -116,8 +111,7 @@ enum class CashShiftEventType {
 }
 
 enum class UserRole {
-    ADMIN,
-    CASHIER
+    ADMIN
 }
 
 enum class AuthType {
