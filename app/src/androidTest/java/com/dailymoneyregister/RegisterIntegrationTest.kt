@@ -57,8 +57,8 @@ class RegisterIntegrationTest {
         id = "cashier-test-1",
         businessId = "biz-1",
         displayName = "Cashier Test",
-        username = "cashier_test",
-        role = UserRole.CASHIER,
+        username = "register_admin",
+        role = UserRole.ADMIN,
         authType = AuthType.PIN,
         credentialHash = "hash",
         credentialSalt = "salt",
@@ -70,7 +70,7 @@ class RegisterIntegrationTest {
         id = "mem-1",
         userId = "cashier-test-1",
         branchId = "branch-1",
-        role = UserRole.CASHIER,
+        role = UserRole.ADMIN,
         canCreateSale = true,
         canAcceptCash = true,
         canAcceptOnline = true,
@@ -81,7 +81,7 @@ class RegisterIntegrationTest {
         id = "mem-1",
         userId = "cashier-test-1",
         branchId = "branch-1",
-        role = UserRole.CASHIER,
+        role = UserRole.ADMIN,
         canCreateSale = false, // DENIED!
         canAcceptCash = false, // DENIED!
         createdAt = 0L
