@@ -133,7 +133,7 @@ internal class ExpenseFinancialRepository(
                         ),
                         amountSignedMinor = delta,
                         currencyCode = current.currencyCode,
-                        confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                        confirmationType = ConfirmationType.ADMIN_CONFIRMED,
                         qrProfileIdSnapshot = null,
                         occurredAt = command.occurredAt,
                         actorUserId = command.actorUserId,
@@ -376,7 +376,7 @@ internal class ExpenseFinancialRepository(
                     currencyCode =
                         command.currencyCode,
                     confirmationType =
-                        ConfirmationType.CASHIER_CONFIRMED,
+                        ConfirmationType.ADMIN_CONFIRMED,
                     qrProfileIdSnapshot =
                         null,
                     occurredAt =
