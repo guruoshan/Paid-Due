@@ -68,7 +68,7 @@ class FinancialEnvelopeCodecTest {
         channel = PaymentChannel.CASH_TENDER,
         amountSignedMinor = 1000L,
         currencyCode = "OMR",
-        confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+        confirmationType = ConfirmationType.ADMIN_CONFIRMED,
         occurredAt = 1000L,
         actorUserId = "user-1"
     )
