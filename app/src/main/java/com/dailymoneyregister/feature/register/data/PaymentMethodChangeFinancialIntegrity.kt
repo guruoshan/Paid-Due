@@ -325,7 +325,7 @@ object PaymentMethodChangeFinancialIntegrity {
             settlement.transactionId != transactionId ||
             settlement.entryPurpose != EntryPurpose.PAYMENT_METHOD_RECLASSIFICATION ||
             settlement.currencyCode != currencyCode ||
-            settlement.confirmationType != ConfirmationType.CASHIER_CONFIRMED ||
+            settlement.confirmationType != ConfirmationType.ADMIN_CONFIRMED ||
             settlement.actorUserId != changeActorUserId ||
             settlement.occurredAt != changeOccurredAt
         ) {
