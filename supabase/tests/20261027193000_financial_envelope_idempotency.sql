@@ -24,6 +24,65 @@ BEGIN
   PERFORM set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
   v_local_date := (v_occurred_at AT TIME ZONE 'UTC')::date;
 
+  -- Direct RPC security: an unauthenticated request must not write financial data.
+  IF has_function_privilege(
+       'anon',
+       'public.ingest_financial_envelope(text,text,text,text,text,text,integer,timestamptz,text,date,text,text,jsonb)'::regprocedure,
+       'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'FAIL: anon must not be able to execute financial ingest';
+  END IF;
+
+  v_operation_id := 'idempotency-no-session-test-op';
+  v_payload := jsonb_build_object(
+    'operation_id', v_operation_id,
+    'business_id', 'biz-test',
+    'branch_id', 'branch-test',
+    'device_id', 'idempotency-auth-test-device',
+    'operation_type', 'CLOSE_CASH_SHIFT',
+    'command_schema_version', 1,
+    'occurred_at', floor(extract(epoch FROM v_occurred_at) * 1000)::bigint
+  );
+  v_canonical_text := v_payload::text;
+  v_digest := encode(extensions.digest(convert_to(v_canonical_text, 'UTF8'), 'sha256'), 'hex');
+
+  PERFORM set_config('request.jwt.claim.sub', '', true);
+  BEGIN
+    PERFORM * FROM public.ingest_financial_envelope(
+      'biz-test', v_operation_id, 'branch-test', 'admin-membership-test',
+      'idempotency-auth-test-device', 'CLOSE_CASH_SHIFT', 1, v_occurred_at, 'UTC',
+      v_local_date, v_canonical_text, v_digest, v_payload
+    );
+    RAISE EXCEPTION 'FAIL: unauthenticated direct RPC request was accepted';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+  SELECT count(*) INTO v_count FROM private.financial_operation_envelopes
+  WHERE business_id = 'biz-test' AND operation_id = v_operation_id;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'FAIL: unauthenticated RPC wrote a financial envelope';
+  END IF;
+
+  -- An authenticated user without Admin membership must also be rejected.
+  PERFORM set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
+  BEGIN
+    PERFORM * FROM public.ingest_financial_envelope(
+      'biz-test', v_operation_id, 'branch-test', 'admin-membership-test',
+      'idempotency-auth-test-device', 'CLOSE_CASH_SHIFT', 1, v_occurred_at, 'UTC',
+      v_local_date, v_canonical_text, v_digest, v_payload
+    );
+    RAISE EXCEPTION 'FAIL: non-member direct RPC request was accepted';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+  SELECT count(*) INTO v_count FROM private.financial_operation_envelopes
+  WHERE business_id = 'biz-test' AND operation_id = v_operation_id;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'FAIL: non-member RPC wrote a financial envelope';
+  END IF;
+
+  PERFORM set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+
   -- 1. Exact replay: one stored envelope, duplicate acknowledgement on replay.
   v_operation_id := 'idempotency-replay-test-op';
   v_payload := jsonb_build_object(
