@@ -1,4 +1,4 @@
-﻿package com.dailymoneyregister
+package com.dailymoneyregister
 
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -75,9 +75,9 @@ class CreditRepaymentIntegrationTest {
         UserAccountEntity(
             id = "credit-repay-user",
             businessId = business.id,
-            displayName = "Credit Cashier",
-            username = "credit_repay_cashier",
-            role = UserRole.CASHIER,
+            displayName = "Credit Admin",
+            username = "credit_repay_admin",
+            role = UserRole.ADMIN,
             authType = AuthType.PIN,
             credentialHash = "hash",
             credentialSalt = "salt",
@@ -90,7 +90,7 @@ class CreditRepaymentIntegrationTest {
             id = "credit-repay-membership",
             userId = user.id,
             branchId = branch.id,
-            role = UserRole.CASHIER,
+            role = UserRole.ADMIN,
             canCreateSale = true,
             canAcceptCash = true,
             canAcceptOnline = true,
