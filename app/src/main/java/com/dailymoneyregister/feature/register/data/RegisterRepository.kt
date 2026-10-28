@@ -1344,12 +1344,6 @@ class RegisterRepository @Inject constructor(
         // 2. BOARDLOCK: authoritative identity, branch, permission, currency and money validation.
         // Never trust only the UI/caller for financial truth.
 
-        if (actorUser.id != command.actorUserId) {
-            return CommandResult.PermissionDenied(
-                "Cash sale actor does not match the authenticated user"
-            )
-        }
-
         if (SessionManager.currentSession.value?.user?.id == actorUser.id &&
             SessionManager.currentSession.value?.requiresPinChange == true
         ) {
