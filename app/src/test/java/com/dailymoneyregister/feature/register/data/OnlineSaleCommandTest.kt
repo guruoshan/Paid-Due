@@ -81,7 +81,7 @@ class OnlineSaleCommandTest {
                 SaleFinancialWriter.FundingIdentity(
                     PaymentCategory.ONLINE,
                     PaymentChannel.SOFTPOS,
-                    ConfirmationType.CASHIER_CONFIRMED
+                    ConfirmationType.ADMIN_CONFIRMED
                 )
             )
         }
