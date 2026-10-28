@@ -24,9 +24,9 @@ class CouponSaleIntegrationTest {
     private val branch = BranchEntity("coupon-branch", business.id, "Main", "MAIN", "OM", "OMR", 3,
         "OMR", "Asia/Muscat", createdAt = 0, updatedAt = 0)
     private val user = UserAccountEntity(id = "coupon-user", businessId = business.id, displayName = "Cashier",
-        username = "coupon-cashier", role = UserRole.CASHIER, authType = AuthType.PIN,
+        username = "coupon-admin", role = UserRole.ADMIN, authType = AuthType.PIN,
         credentialHash = "hash", credentialSalt = "salt", createdAt = 0, updatedAt = 0)
-    private val member = UserBranchMembershipEntity("coupon-member", user.id, branch.id, UserRole.CASHIER,
+    private val member = UserBranchMembershipEntity("coupon-member", user.id, branch.id, UserRole.ADMIN,
         canCreateSale = true, canAcceptCash = true, canAcceptOnline = true, canCreateCreditSale = true,
         canUseCoupon = true, canRefund = true, createdAt = 0)
 
