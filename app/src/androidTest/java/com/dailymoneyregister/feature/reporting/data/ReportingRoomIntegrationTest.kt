@@ -182,7 +182,7 @@ class ReportingRoomIntegrationTest {
                 channel = PaymentChannel.CASH_TENDER,
                 amountSignedMinor = 1_250L,
                 currencyCode = branch.currencyCode,
-                confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                confirmationType = ConfirmationType.ADMIN_CONFIRMED,
                 occurredAt = occurredAt,
                 actorUserId = cloudCashierId
             )
@@ -387,7 +387,7 @@ class ReportingRoomIntegrationTest {
                 channel = PaymentChannel.CASH_TENDER,
                 amountSignedMinor = -1_250L,
                 currencyCode = branch.currencyCode,
-                confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                confirmationType = ConfirmationType.ADMIN_CONFIRMED,
                 occurredAt = 1_600L,
                 actorUserId = cloudCashierId
             )
