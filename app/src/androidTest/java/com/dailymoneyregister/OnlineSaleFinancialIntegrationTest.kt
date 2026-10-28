@@ -56,12 +56,12 @@ class OnlineSaleFinancialIntegrationTest {
         currencySymbol = "OMR", timezoneId = "Asia/Muscat", createdAt = 0L, updatedAt = 0L
     )
     private val user = UserAccountEntity(
-        id = "online-cashier", businessId = business.id, displayName = "Online Cashier",
-        username = "online_cashier", role = UserRole.CASHIER, authType = AuthType.PIN,
+        id = "online-cashier", businessId = business.id, displayName = "Online Admin",
+        username = "online_admin", role = UserRole.ADMIN, authType = AuthType.PIN,
         credentialHash = "hash", credentialSalt = "salt", createdAt = 0L, updatedAt = 0L
     )
     private val membership = UserBranchMembershipEntity(
-        id = "online-membership", userId = user.id, branchId = branch.id, role = UserRole.CASHIER,
+        id = "online-membership", userId = user.id, branchId = branch.id, role = UserRole.ADMIN,
         canCreateSale = true, canAcceptCash = true, canAcceptOnline = true, createdAt = 0L
     )
 
@@ -145,8 +145,8 @@ class OnlineSaleFinancialIntegrationTest {
 
     @Test
     fun missingAcceptOnlineRejectsBeforeMutation() = runBlocking {
-        val deniedUser = user.copy(id = "denied-online", username = "denied_online")
-        val deniedMembership = membership.copy(id = "denied-membership", userId = deniedUser.id, canAcceptOnline = false)
+        val deniedUser = user.copy(id = "denied-online", username = "denied_online", role = UserRole.CASHIER)
+        val deniedMembership = membership.copy(id = "denied-membership", userId = deniedUser.id, role = UserRole.CASHIER, canAcceptOnline = false)
         database.userDao().insertUser(deniedUser)
         database.userDao().insertMembership(deniedMembership)
         SessionManager.setSession(ActiveSession(business, branch, deniedUser, deniedMembership))
@@ -158,8 +158,8 @@ class OnlineSaleFinancialIntegrationTest {
 
     @Test
     fun missingCreateSaleRejectsBeforeMutation() = runBlocking {
-        val deniedUser = user.copy(id = "no-create", username = "no_create")
-        val deniedMembership = membership.copy(id = "no-create-membership", userId = deniedUser.id, canCreateSale = false)
+        val deniedUser = user.copy(id = "no-create", username = "no_create", role = UserRole.CASHIER)
+        val deniedMembership = membership.copy(id = "no-create-membership", userId = deniedUser.id, role = UserRole.CASHIER, canCreateSale = false)
         database.userDao().insertUser(deniedUser)
         database.userDao().insertMembership(deniedMembership)
         SessionManager.setSession(ActiveSession(business, branch, deniedUser, deniedMembership))
