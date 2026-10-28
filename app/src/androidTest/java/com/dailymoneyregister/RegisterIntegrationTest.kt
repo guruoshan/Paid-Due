@@ -764,7 +764,7 @@ class RegisterIntegrationTest {
         transactionId = "recovery-tx", entryPurpose = EntryPurpose.SALE_FUNDING,
         category = PaymentCategory.CASH, channel = PaymentChannel.CASH_TENDER,
         amountSignedMinor = 2730, currencyCode = "OMR",
-        confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+        confirmationType = ConfirmationType.ADMIN_CONFIRMED,
         occurredAt = 1700000000000L, actorUserId = testUser.id
     )
 
@@ -907,7 +907,7 @@ class RegisterIntegrationTest {
             expected.copy(subjectId = "other-tx"),
             expected.copy(subjectType = SubjectType.values().first { it != SubjectType.TRANSACTION }),
             expected.copy(entryPurpose = EntryPurpose.values().first { it != EntryPurpose.SALE_FUNDING }),
-            expected.copy(confirmationType = ConfirmationType.values().first { it != ConfirmationType.CASHIER_CONFIRMED }),
+            expected.copy(confirmationType = ConfirmationType.values().first { it != ConfirmationType.ADMIN_CONFIRMED }),
             expected.copy(actorUserId = "other"), expected.copy(occurredAt = 1700000000001L)
         )
         for (variant in variants) {
