@@ -309,7 +309,7 @@ class SecurityAuthTest {
             PermissionAction.REFUND
         )
 
-        assertTrue(
+        assertFalse(
             PermissionChecker.isPermitted(
                 cashierUser,
                 membershipRestricted,
