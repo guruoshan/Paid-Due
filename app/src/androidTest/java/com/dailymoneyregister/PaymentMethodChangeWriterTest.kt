@@ -31,13 +31,13 @@ class PaymentMethodChangeWriterTest {
         currencySymbol = "OMR", timezoneId = "Asia/Muscat", createdAt = 1000L, updatedAt = 1000L
     )
     private val actor = UserAccountEntity(
-        id = "pm-user", businessId = business.id, displayName = "Test", username = "test",
-        role = UserRole.CASHIER, authType = AuthType.PIN, credentialHash = "test",
+        id = "pm-user", businessId = business.id, displayName = "Test Admin", username = "payment_method_admin",
+        role = UserRole.ADMIN, authType = AuthType.PIN, credentialHash = "test",
         credentialSalt = "test", createdAt = 1000L, updatedAt = 1000L
     )
     private val membership = UserBranchMembershipEntity(
         id = "pm-membership", userId = actor.id, branchId = branch.id,
-        role = UserRole.CASHIER, canChangePaymentMethod = true, createdAt = 1000L
+        role = UserRole.ADMIN, canChangePaymentMethod = true, createdAt = 1000L
     )
     private val original = TransactionEntity(
         id = "pm-sale", branchId = branch.id, type = TransactionType.SALE,
