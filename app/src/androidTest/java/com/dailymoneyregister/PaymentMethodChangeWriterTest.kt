@@ -51,7 +51,7 @@ class PaymentMethodChangeWriterTest {
         subjectId = original.id, transactionId = original.id, entryPurpose = EntryPurpose.SALE_FUNDING,
         category = PaymentCategory.CASH, channel = PaymentChannel.CASH_TENDER,
         amountSignedMinor = 5000L, currencyCode = "OMR",
-        confirmationType = ConfirmationType.CASHIER_CONFIRMED, occurredAt = 1000L, actorUserId = actor.id
+        confirmationType = ConfirmationType.ADMIN_CONFIRMED, occurredAt = 1000L, actorUserId = actor.id
     )
 
     @Before fun setUp() = runBlocking {
@@ -103,7 +103,7 @@ class PaymentMethodChangeWriterTest {
             assertEquals(original.id, it.subjectId)
             assertEquals(SubjectType.TRANSACTION, it.subjectType)
             assertEquals("OMR", it.currencyCode)
-            assertEquals(ConfirmationType.CASHIER_CONFIRMED, it.confirmationType)
+            assertEquals(ConfirmationType.ADMIN_CONFIRMED, it.confirmationType)
             assertEquals(actor.id, it.actorUserId)
             assertEquals(2000L, it.occurredAt)
         }
