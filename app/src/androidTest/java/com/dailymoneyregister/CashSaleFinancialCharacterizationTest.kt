@@ -26,6 +26,8 @@ import com.dailymoneyregister.core.model.ids.OperationId
 import com.dailymoneyregister.core.model.ids.TransactionId
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
+import com.dailymoneyregister.core.security.ActiveSession
+import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.feature.register.data.CashSaleCommand
 import com.dailymoneyregister.feature.register.data.CashSalePayloadCodec
 import com.dailymoneyregister.feature.register.data.RegisterRepository
@@ -58,6 +60,7 @@ class CashSaleFinancialCharacterizationTest {
 
     @After
     fun tearDown() {
+        SessionManager.clearSession()
         database.close()
     }
 
@@ -688,35 +691,34 @@ class CashSaleFinancialCharacterizationTest {
     }
 
     private suspend fun seedAuthoritativeFixture() {
-        database.businessBranchDao().insertBusiness(
-            BusinessEntity(
-                id = "biz-characterization",
-                name = "Characterization Business",
-                createdAt = 1700000000000L,
-                updatedAt = 1700000000000L
-            )
+        val business = BusinessEntity(
+            id = "biz-characterization",
+            name = "Characterization Business",
+            createdAt = 1700000000000L,
+            updatedAt = 1700000000000L
         )
-
-        database.businessBranchDao().insertBranch(
-            BranchEntity(
-                id = "branch-characterization",
-                businessId = "biz-characterization",
-                name = "Characterization Branch",
-                code = "CHAR",
-                countryCode = "OM",
-                currencyCode = "OMR",
-                currencyDecimalPlaces = 3,
-                currencySymbol = "OMR",
-                timezoneId = "Asia/Muscat",
-                taxRoundingMode = TaxRoundingMode.HALF_UP,
-                defaultTaxRateBps = 0,
-                createdAt = 1700000000000L,
-                updatedAt = 1700000000000L
-            )
+        val branch = BranchEntity(
+            id = "branch-characterization",
+            businessId = "biz-characterization",
+            name = "Characterization Branch",
+            code = "CHAR",
+            countryCode = "OM",
+            currencyCode = "OMR",
+            currencyDecimalPlaces = 3,
+            currencySymbol = "OMR",
+            timezoneId = "Asia/Muscat",
+            taxRoundingMode = TaxRoundingMode.HALF_UP,
+            defaultTaxRateBps = 0,
+            createdAt = 1700000000000L,
+            updatedAt = 1700000000000L
         )
-
+        database.businessBranchDao().insertBusiness(business)
+        database.businessBranchDao().insertBranch(branch)
         database.userDao().insertUser(fixtureUser)
         database.userDao().insertMembership(fixtureMembership)
+        SessionManager.setSession(
+            ActiveSession(business, branch, fixtureUser, fixtureMembership)
+        )
     }
 
     private val fixtureUser = UserAccountEntity(
