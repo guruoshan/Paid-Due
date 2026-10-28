@@ -48,7 +48,7 @@ class TransactionActionEligibilityResolverTest {
                 channel = channel,
                 amountSignedMinor = 5_000L,
                 currencyCode = "OMR",
-                confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                confirmationType = ConfirmationType.ADMIN_CONFIRMED,
                 occurredAt = 100L,
                 actorUserId = "user-1"
             )
@@ -127,7 +127,7 @@ class TransactionActionEligibilityResolverTest {
                 channel = PaymentChannel.CASH_TENDER,
                 amountSignedMinor = 5_000L,
                 currencyCode = "OMR",
-                confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+                confirmationType = ConfirmationType.ADMIN_CONFIRMED,
                 occurredAt = 100L,
                 actorUserId = "user-1"
             )
@@ -207,7 +207,7 @@ class TransactionActionEligibilityResolverTest {
         channel = channel,
         amountSignedMinor = amount,
         currencyCode = "OMR",
-        confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+        confirmationType = ConfirmationType.ADMIN_CONFIRMED,
         occurredAt = 100L,
         actorUserId = "user-1"
     )
