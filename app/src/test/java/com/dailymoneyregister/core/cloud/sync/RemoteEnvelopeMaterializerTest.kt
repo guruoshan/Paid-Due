@@ -311,7 +311,7 @@ class RemoteEnvelopeMaterializerTest {
                 put("channel", "CASH_TENDER")
                 put("amount_signed_minor", -100L)
                 put("currency_code", "OMR")
-                put("confirmation_type", ConfirmationType.CASHIER_CONFIRMED.name)
+                put("confirmation_type", ConfirmationType.ADMIN_CONFIRMED.name)
                 put("actor_user_id", actorUserId)
                 put("occurred_at", occurredAt)
             }))
@@ -358,7 +358,7 @@ class RemoteEnvelopeMaterializerTest {
                 put("channel", "CASH_TENDER")
                 put("amount_signed_minor", -1_000L)
                 put("currency_code", "OMR")
-                put("confirmation_type", "CASHIER_CONFIRMED")
+                put("confirmation_type", "ADMIN_CONFIRMED")
                 put("actor_user_id", actorUserId)
                 put("occurred_at", occurredAt)
             }))
@@ -410,7 +410,7 @@ class RemoteEnvelopeMaterializerTest {
             put("operation_id", paymentChangeOperationId)
             put("operation_type", "RECORD_PAYMENT_METHOD_CHANGE")
             put("settlements", JSONArray()
-                .put(settlement("payment-change-cash", "CASH", "CASH_TENDER", -1_000L, "CASHIER_CONFIRMED"))
+                .put(settlement("payment-change-cash", "CASH", "CASH_TENDER", -1_000L, "ADMIN_CONFIRMED"))
                 .put(settlement("payment-change-online", "ONLINE", "MANUAL_QR", 1_000L, "PROVIDER_APPROVED")))
             put("financial_evidence", JSONObject().put(
                 "payment_method_change_events",
@@ -477,7 +477,7 @@ class RemoteEnvelopeMaterializerTest {
             put("channel", "CASH_TENDER")
             put("amount_signed_minor", 1000L)
             put("currency_code", "OMR")
-            put("confirmation_type", ConfirmationType.CASHIER_CONFIRMED.name)
+            put("confirmation_type", ConfirmationType.ADMIN_CONFIRMED.name)
             put("actor_user_id", actorId)
         }
         val transaction = JSONObject().apply {
