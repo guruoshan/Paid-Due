@@ -710,7 +710,7 @@ class RefundFinancialCoreIntegrationTest {
                 newRefundCommand(
                     transactionId = tx.id,
                     amountMinor = 1_000L,
-                    actor = unauthorizedActorId
+                    actor = adminActorId
                 )
 
             val result =

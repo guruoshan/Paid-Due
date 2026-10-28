@@ -640,7 +640,7 @@ class VoidFinancialCoreIntegrationTest {
         val command =
             newVoidCommand(
                 transactionId = tx.id,
-                actor = unauthorizedActorId
+                actor = adminActorId
             )
 
         val result =
