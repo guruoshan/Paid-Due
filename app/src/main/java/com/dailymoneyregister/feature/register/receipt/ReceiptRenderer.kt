@@ -51,6 +51,25 @@ object ReceiptRenderer {
     fun renderEvent(context: Context, event: EventReceipt): File =
         draw(context, event.reference, buildEventLines(event, context))
 
+    /** Business-level day-close card; values come from the existing day-close projection. */
+    fun renderDaySummary(context: Context, summary: EventReceipt): File =
+        draw(context, summary.reference, buildDaySummaryLines(summary, context))
+
+    internal fun buildDaySummaryLines(summary: EventReceipt, context: Context): List<Line> = buildList {
+        addHeader(summary.businessName, summary.heading, context)
+        add(Line(summary.title, bold = true))
+        summary.reference.takeIf(String::isNotBlank)?.let {
+            add(Line(context.getString(R.string.audit_receipt_reference, it)))
+        }
+        summary.dateTime?.takeIf(String::isNotBlank)?.let {
+            add(Line(context.getString(R.string.audit_receipt_date_time, it)))
+        }
+        add(Line(""))
+        summary.rows.forEach { add(Line(it.label + ": " + it.value)) }
+        add(Line(""))
+        add(Line("Powered by Paid&Due", bold = true))
+    }
+
     internal fun buildLines(receipt: ReceiptReadModel): List<Line> = buildList {
         addHeader(receipt.businessName, "RECEIPT")
         add(Line("Reference: ${receipt.reference}"))

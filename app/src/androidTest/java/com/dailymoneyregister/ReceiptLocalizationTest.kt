@@ -4,10 +4,16 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.content.Intent
+import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dailymoneyregister.feature.register.receipt.ReceiptReadModel
 import com.dailymoneyregister.feature.register.receipt.ReceiptRenderer
+import com.dailymoneyregister.feature.register.receipt.ReceiptSharing
+import com.dailymoneyregister.feature.customers.ui.PreparedWhatsAppMessage
+import com.dailymoneyregister.feature.customers.ui.WhatsAppAttachment
+import com.dailymoneyregister.feature.customers.ui.WhatsAppTransport
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -89,6 +95,58 @@ class ReceiptLocalizationTest {
             }
         } finally {
             generated.forEach { it.delete() }
+        }
+    }
+
+    @Test
+    fun dayCloseDashboardRendersPngAndUsesBusinessLevelShareIntent() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val summary = ReceiptRenderer.EventReceipt(
+            businessName = "Sample Business",
+            title = "Day Close Summary",
+            reference = "DAY-CLOSE-PREVIEW",
+            dateTime = "2026-10-29 12:30",
+            customerName = null,
+            heading = "DAY CLOSE SUMMARY",
+            rows = listOf(
+                ReceiptRenderer.EventReceipt.Row("Branch", "MAIN"),
+                ReceiptRenderer.EventReceipt.Row("Sales count", "12"),
+                ReceiptRenderer.EventReceipt.Row("Gross sales", "OMR 125.000"),
+                ReceiptRenderer.EventReceipt.Row("Expected cash", "OMR 82.500"),
+                ReceiptRenderer.EventReceipt.Row("Counted cash", "OMR 82.500")
+            )
+        )
+        val file = ReceiptRenderer.renderDaySummary(context, summary)
+        try {
+            assertTrue("Day-close dashboard must be a PNG", file.name.endsWith(".png"))
+            assertVisibleImage(file, "day-close dashboard", "en")
+            val lines = ReceiptRenderer.buildDaySummaryLines(summary, context).map { it.text }
+            assertTrue(lines.last() == "Powered by Paid&Due")
+            assertTrue(ReceiptSharing.DAY_SUMMARY_MESSAGE ==
+                "Please check today's cash register dashboard.\n\nPowered by Paid&Due")
+
+            val prepared = PreparedWhatsAppMessage(
+                text = ReceiptSharing.DAY_SUMMARY_MESSAGE,
+                recipientPhone = "",
+                attachment = WhatsAppAttachment(
+                    contentUri = Uri.parse("content://com.dailymoneyregister.fileprovider/receipts/day-close.png"),
+                    mimeType = "image/png",
+                    subject = "Day Close Summary"
+                )
+            )
+            val intent = WhatsAppTransport.buildBusinessLevelSendIntent(context, prepared)
+            assertTrue(intent.action == Intent.ACTION_SEND)
+            assertTrue(intent.type == "image/png")
+            assertTrue(intent.getStringExtra(Intent.EXTRA_TEXT) == ReceiptSharing.DAY_SUMMARY_MESSAGE)
+            assertTrue(intent.hasExtra(Intent.EXTRA_STREAM))
+            assertTrue("Business-level share must not require a customer JID", !intent.hasExtra("jid"))
+
+            val previewDirectory = context.getExternalFilesDir("day-close-preview")
+                ?: error("External app files directory unavailable for dashboard preview artifact")
+            check(previewDirectory.mkdirs() || previewDirectory.isDirectory)
+            file.copyTo(File(previewDirectory, "day-close-dashboard-preview.png"), overwrite = true)
+        } finally {
+            file.delete()
         }
     }
 

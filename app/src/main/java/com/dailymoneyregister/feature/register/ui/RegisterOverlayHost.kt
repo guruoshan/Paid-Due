@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -24,6 +25,8 @@ import com.dailymoneyregister.feature.settings.ui.MerchantQrImage
 import com.dailymoneyregister.feature.invoice.ui.InvoiceFlow
 import com.dailymoneyregister.feature.invoice.ui.InvoiceViewModel
 import com.dailymoneyregister.core.database.entity.ProductEntity
+import com.dailymoneyregister.feature.register.receipt.ReceiptRenderer
+import com.dailymoneyregister.feature.register.receipt.ReceiptSharing
 
 @Composable
 internal fun RegisterOverlayHost(
@@ -39,6 +42,7 @@ internal fun RegisterOverlayHost(
     activeUser: com.dailymoneyregister.core.database.entity.UserAccountEntity?,
     onNavigateToSettings: () -> Unit
 ) {
+    val shareContext = LocalContext.current
     if (state.destination == RegisterDestination.Register && state.overlay == RegisterOverlay.DayClosing) {
         AlertDialog(
             onDismissRequest = {
@@ -458,13 +462,56 @@ internal fun RegisterOverlayHost(
             confirmButton = {
                 if (state.dayClosingReport != null) {
                     if (state.dayClosingResult != null) {
-                        Button(
-                            onClick =
-                                viewModel::closeDayClosing
-                        ) {
-                            Text(
-                                stringResource(R.string.done)
-                            )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    val report = state.dayClosingReport
+                                    val result = state.dayClosingResult
+                                    if (report != null && result != null) {
+                                        fun money(minor: Long): String =
+                                            com.dailymoneyregister.core.model.money
+                                                .MoneyMinorUnits(minor)
+                                                .formatDisplay(decimalPlaces, currencySymbol)
+                                        val reconciliation = result.reconciliation
+                                        val summary = ReceiptRenderer.EventReceipt(
+                                            businessName = activeBusiness?.name.orEmpty().ifBlank { "Paid&Due" },
+                                            title = shareContext.getString(R.string.day_close_summary_title),
+                                            reference = report.shift.shiftId.value,
+                                            dateTime = result.closedAtDisplay,
+                                            customerName = null,
+                                            heading = "DAY CLOSE SUMMARY",
+                                            rows = listOf(
+                                                ReceiptRenderer.EventReceipt.Row("Branch", report.shift.branchId),
+                                                ReceiptRenderer.EventReceipt.Row("Sales count", report.salesCount.toString()),
+                                                ReceiptRenderer.EventReceipt.Row("Gross sales", money(report.grossSalesMinor)),
+                                                ReceiptRenderer.EventReceipt.Row("Cash sales", money(report.cashSalesMinor)),
+                                                ReceiptRenderer.EventReceipt.Row("Online sales", money(report.onlineSalesMinor)),
+                                                ReceiptRenderer.EventReceipt.Row("Credit given", money(report.creditGivenMinor)),
+                                                ReceiptRenderer.EventReceipt.Row("Credit repaid", money(report.totalCreditRepaymentsMinor)),
+                                                ReceiptRenderer.EventReceipt.Row("Coupons used", money(report.couponUsedMinor)),
+                                                ReceiptRenderer.EventReceipt.Row("Coupons issued", money(report.couponIssuedMinor)),
+                                                ReceiptRenderer.EventReceipt.Row("Coupon top-ups", money(report.couponTopUpMinor)),
+                                                ReceiptRenderer.EventReceipt.Row("Cash refunds", money(report.cashRefundsMinor)),
+                                                ReceiptRenderer.EventReceipt.Row("Online refunds", money(report.onlineRefundsMinor)),
+                                                ReceiptRenderer.EventReceipt.Row("Refund count", report.refundCount.toString()),
+                                                ReceiptRenderer.EventReceipt.Row("Void count", report.voidCount.toString()),
+                                                ReceiptRenderer.EventReceipt.Row("Correction count", report.correctionCount.toString()),
+                                                ReceiptRenderer.EventReceipt.Row("Cash expenses", money(report.cashExpensesMinor)),
+                                                ReceiptRenderer.EventReceipt.Row("Online expenses", money(report.onlineExpensesMinor)),
+                                                ReceiptRenderer.EventReceipt.Row("Expected cash", money(report.expectedCashMinor)),
+                                                ReceiptRenderer.EventReceipt.Row("Counted cash", money(reconciliation.countedCashMinor)),
+                                                ReceiptRenderer.EventReceipt.Row("Cash difference", money(reconciliation.differenceMinor))
+                                            )
+                                        )
+                                        ReceiptSharing.shareDaySummary(shareContext, summary)
+                                    }
+                                }
+                            ) {
+                                Text(stringResource(R.string.share_day_summary))
+                            }
+                            Button(onClick = viewModel::closeDayClosing) {
+                                Text(stringResource(R.string.done))
+                            }
                         }
                     } else if (state.dayClosingReview) {
                         Button(
