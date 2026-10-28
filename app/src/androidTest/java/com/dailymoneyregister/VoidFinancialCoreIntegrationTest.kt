@@ -637,6 +637,8 @@ class VoidFinancialCoreIntegrationTest {
             amountMinor = 4_000L
         )
 
+        // Keep the CASHIER session from setUp while the command actor is ADMIN.
+        // This preserves the production actor/session mismatch denial, not a role-permission denial.
         val command =
             newVoidCommand(
                 transactionId = tx.id,
