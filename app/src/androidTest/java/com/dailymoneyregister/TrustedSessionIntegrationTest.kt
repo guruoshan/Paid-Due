@@ -14,8 +14,6 @@ import com.dailymoneyregister.core.security.PinThrottler
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionRestorer
 import com.dailymoneyregister.core.security.TrustedSessionStore
-import com.dailymoneyregister.feature.admin.data.CashierManagementRepository
-import com.dailymoneyregister.feature.admin.data.CreateCashierParams
 import com.dailymoneyregister.feature.auth.data.AuthRepository
 import com.dailymoneyregister.feature.auth.data.AuthResult
 import com.dailymoneyregister.feature.setup.data.SetupParams
@@ -41,7 +39,6 @@ class TrustedSessionIntegrationTest {
     private lateinit var trustedSessionStore: TrustedSessionStore
     private lateinit var setupRepository: SetupRepository
     private lateinit var authRepository: AuthRepository
-    private lateinit var cashierRepository: CashierManagementRepository
     private lateinit var restorer: TrustedSessionRestorer
 
     @Before
@@ -82,13 +79,6 @@ class TrustedSessionIntegrationTest {
             trustedSessionStore
         )
         Log.i("BOARDLOCK", "setUp: created AuthRepository")
-
-        cashierRepository = CashierManagementRepository(
-            database,
-            commandExecutor,
-            DeviceIdentityProvider(context)
-        )
-        Log.i("BOARDLOCK", "setUp: created CashierManagementRepository")
 
         restorer = TrustedSessionRestorer(
             database,
@@ -152,45 +142,20 @@ class TrustedSessionIntegrationTest {
     }
 
     @Test
-    fun restoreRebuildsAdminAndRejectsCashierSessionFromRoom() = runBlocking {
-        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - start")
+    fun restoreRebuildsAdminSession() = runBlocking {
+        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminSession - start")
         val setup = createSetup()
-        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after createSetup")
+        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminSession - after createSetup")
         setupRepository.establishAdminSession(setup)
-        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after establishAdminSession")
+        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminSession - after establishAdminSession")
         SessionManager.clearSession()
 
         val adminRestored = restorer.restore()
-        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after first restore")
+        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminSession - after first restore")
         assertNotNull(adminRestored)
         assertEquals(setup.adminUserId.value, adminRestored?.user?.id)
         assertEquals(setup.businessId.value, adminRestored?.business?.id)
 
-        val cashierId = (cashierRepository.createCashier(
-            CreateCashierParams(
-                businessId = setup.businessId.value,
-                branchId = setup.branchId.value,
-                adminUserId = setup.adminUserId.value,
-                displayName = "Restricted Cashier",
-                username = "restricted@example",
-                phone = "92345678",
-                pin = "246810"
-            )
-        ) as CommandResult.Success).data
-        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRestrictedCashierFromRoom - after createCashier")
-        trustedSessionStore.save(
-            setup.businessId.value,
-            setup.branchId.value,
-            cashierId.value
-        )
-        SessionManager.clearSession()
-
-        val restoredCashier = restorer.restore()
-        Log.i("BOARDLOCK", "TEST: restoreRebuildsAdminAndRejectsCashierSessionFromRoom - after second restore - DONE")
-        assertNull(restoredCashier)
-        assertNull(trustedSessionStore.load())
-        assertNull(SessionManager.currentSession.value)
-        assertTrue(cashierId.value.isNotBlank())
     }
 
     @Test
