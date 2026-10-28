@@ -1344,9 +1344,7 @@ class RegisterRepository @Inject constructor(
         // 2. BOARDLOCK: authoritative identity, branch, permission, currency and money validation.
         // Never trust only the UI/caller for financial truth.
 
-        if (SessionManager.currentSession.value?.user?.id == actorUser.id &&
-            SessionManager.currentSession.value?.requiresPinChange == true
-        ) {
+        if (session.requiresPinChange) {
             return CommandResult.PermissionDenied("Cashier must create a new PIN before using the register")
         }
 
