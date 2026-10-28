@@ -153,7 +153,7 @@ class AmountCorrectionFinancialCoreIntegrationTest {
                     username =
                         "amount_correction_cashier",
                     role =
-                        UserRole.CASHIER,
+                        UserRole.ADMIN,
                     authType =
                         AuthType.PIN,
                     credentialHash =
@@ -177,7 +177,7 @@ class AmountCorrectionFinancialCoreIntegrationTest {
                     branchId =
                         branchId,
                     role =
-                        UserRole.CASHIER,
+                        UserRole.ADMIN,
                     canCreateSale =
                         true,
                     canAcceptCash =
