@@ -449,7 +449,7 @@ class FinancialSyncOutboxV13Test {
                 '$settlementId', '$operationId', 'TRANSACTION',
                 '$tx', '$tx', 'SALE_FUNDING', '$category',
                 '$channel', 1000, 'OMR',
-                'CASHIER_CONFIRMED', 100, 'cashier-test'
+                'ADMIN_CONFIRMED', 100, 'cashier-test'
             )
             """
         )
