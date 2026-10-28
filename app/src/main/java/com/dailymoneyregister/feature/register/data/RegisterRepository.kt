@@ -1308,7 +1308,40 @@ class RegisterRepository @Inject constructor(
         actorUser: UserAccountEntity,
         actorMembership: UserBranchMembershipEntity?
     ): CommandResult<TransactionEntity> {
-        // 1. BOARDLOCK: authoritative identity, branch, permission, currency and money validation.
+        // 1. Require a live authenticated session before accepting a new cash sale.
+        // Caller-supplied actor and membership objects are not proof of login.
+        val session = SessionManager.currentSession.value
+            ?: return CommandResult.PermissionDenied(
+                "Cash sale requires an authenticated session"
+            )
+
+        if (session.user.id != actorUser.id ||
+            session.user.id != command.actorUserId
+        ) {
+            return CommandResult.PermissionDenied(
+                "Cash sale actor does not match the authenticated session"
+            )
+        }
+
+        if (session.business.id != command.businessId ||
+            session.branch.id != command.branchId
+        ) {
+            return CommandResult.PermissionDenied(
+                "Cash sale business/branch does not match the authenticated session"
+            )
+        }
+
+        session.membership?.let { sessionMembership ->
+            if (sessionMembership.userId != actorUser.id ||
+                sessionMembership.branchId != command.branchId
+            ) {
+                return CommandResult.PermissionDenied(
+                    "Cash sale membership does not match the authenticated session"
+                )
+            }
+        }
+
+        // 2. BOARDLOCK: authoritative identity, branch, permission, currency and money validation.
         // Never trust only the UI/caller for financial truth.
 
         if (actorUser.id != command.actorUserId) {
