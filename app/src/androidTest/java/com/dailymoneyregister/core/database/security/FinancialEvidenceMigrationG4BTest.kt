@@ -173,7 +173,7 @@ class FinancialEvidenceMigrationG4BTest {
                 ('g4-settlement','g4-credit-op','TRANSACTION',
                  'g4-sale','g4-sale','SALE_FUNDING',
                  'CREDIT','CREDIT_LEDGER',10000,'OMR',
-                 'CASHIER_CONFIRMED',200,'g4-user')
+                 'ADMIN_CONFIRMED',200,'g4-user')
                 """.trimIndent()
             )
 
