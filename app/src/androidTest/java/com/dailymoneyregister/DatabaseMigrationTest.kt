@@ -173,7 +173,7 @@ class DatabaseMigrationTest {
             assertEquals("CASH_TENDER", cursor.getString(7))
             assertEquals(1234L, cursor.getLong(8))
             assertEquals("OMR", cursor.getString(9))
-            assertEquals("CASHIER_CONFIRMED", cursor.getString(10))
+            assertEquals("ADMIN_CONFIRMED", cursor.getString(10))
             assertEquals("qr-profile-snapshot", cursor.getString(11))
             assertEquals(1111L, cursor.getLong(12))
             assertEquals("migration-user", cursor.getString(13))
@@ -2138,7 +2138,7 @@ class DatabaseMigrationTest {
                 "CASH_TENDER",
                 amountMinor,
                 "OMR",
-                "CASHIER_CONFIRMED",
+                "ADMIN_CONFIRMED",
                 qrProfileId,
                 1111L,
                 "migration-user",
