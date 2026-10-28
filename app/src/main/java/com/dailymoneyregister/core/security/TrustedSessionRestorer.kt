@@ -45,48 +45,20 @@ class TrustedSessionRestorer @Inject constructor(
             return invalidate()
         }
 
-        // Owner/admin is the only active authenticated role. Keep the legacy
-        // cashier restoration branch below for source compatibility, but fail
-        // closed before it can create a live session.
+        // ADMIN/password is the only supported session type. UserRole.CASHIER
+        // remains decodable only for historical local data; it cannot restore.
         if (user.role != UserRole.ADMIN || user.authType != AuthType.PASSWORD) {
             return invalidate()
         }
 
-        val membership =
-            userDao.getMembership(
-                user.id,
-                branch.id
-            )
-
-        val session =
-            when {
-                user.role == UserRole.ADMIN &&
-                    user.authType == AuthType.PASSWORD -> {
-                    ActiveSession(
-                        business = business,
-                        branch = branch,
-                        user = user,
-                        membership = membership,
-                        requiresPinChange = false
-                    )
-                }
-
-                user.role == UserRole.CASHIER &&
-                    user.authType == AuthType.PIN &&
-                    membership != null -> {
-                    ActiveSession(
-                        business = business,
-                        branch = branch,
-                        user = user,
-                        membership = membership,
-                        requiresPinChange = user.mustChangePin
-                    )
-                }
-
-                else -> {
-                    return invalidate()
-                }
-            }
+        val membership = userDao.getMembership(user.id, branch.id)
+        val session = ActiveSession(
+            business = business,
+            branch = branch,
+            user = user,
+            membership = membership,
+            requiresPinChange = false
+        )
 
         SessionManager.setSession(session)
 

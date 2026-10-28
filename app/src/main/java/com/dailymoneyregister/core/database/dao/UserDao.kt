@@ -9,7 +9,6 @@ import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.entity.HumanIdentityEntity
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
 import com.dailymoneyregister.core.model.enums.UserRole
-import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface UserDao {
@@ -109,12 +108,6 @@ interface UserDao {
     @Query("SELECT * FROM user_accounts WHERE business_id = :businessId AND role = 'ADMIN' LIMIT 1")
     suspend fun getFirstAdmin(businessId: String): UserAccountEntity?
 
-    @Query("SELECT * FROM user_accounts WHERE business_id = :businessId AND role = 'CASHIER'")
-    suspend fun getCashiers(businessId: String): List<UserAccountEntity>
-
-
-    @Query("SELECT * FROM user_accounts WHERE business_id = :businessId AND role = 'CASHIER'")
-    fun observeCashiers(businessId: String): Flow<List<UserAccountEntity>>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertMembership(membership: UserBranchMembershipEntity)

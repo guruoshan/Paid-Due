@@ -284,6 +284,14 @@ class RemoteBusinessRestorer @Inject constructor(
         permissions: Map<String, Boolean>,
         activatedAtMillis: Long
     ): RemoteBusinessRestorationResult {
+        // This method is also a materialization boundary: reject legacy CASHIER
+        // payloads here so no caller can recreate an active cashier account.
+        if (role != UserRole.ADMIN || authType != AuthType.PASSWORD) {
+            return RemoteBusinessRestorationResult.Failed(
+                "Only Admin identities can be restored"
+            )
+        }
+
         val requiredPermissionKeys = setOf(
             "CREATE_SALE",
             "ACCEPT_CASH",
@@ -314,12 +322,10 @@ class RemoteBusinessRestorer @Inject constructor(
             val localUser = userDao.getUserById(userId)
             require(
                 localUser == null ||
-                    (role == UserRole.CASHIER &&
-                        authType == AuthType.PIN &&
-                        localUser.businessId == businessId &&
+                    (localUser.businessId == businessId &&
                         localUser.identityId == userId &&
-                        localUser.role == UserRole.CASHIER &&
-                        localUser.authType == AuthType.PIN)
+                        localUser.role == UserRole.ADMIN &&
+                        localUser.authType == AuthType.PASSWORD)
             ) { "Existing user conflicts with authenticated cloud identity" }
             val localIdentity = userDao.getHumanIdentityById(userId)
             require(localIdentity == null || localIdentity.canonicalPhone == canonicalPhone) { "Identity phone conflict" }

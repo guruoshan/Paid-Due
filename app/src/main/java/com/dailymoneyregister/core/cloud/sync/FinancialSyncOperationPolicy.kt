@@ -20,26 +20,16 @@ object FinancialSyncOperationPolicy {
         OperationType.CLOSE_CASH_SHIFT
     )
 
-    val cashierUploadable = setOf(
-        OperationType.RECORD_SALE,
-        OperationType.RECORD_CREDIT_REPAYMENT,
-        OperationType.RECORD_COUPON_PURCHASE,
-        OperationType.RECORD_REFUND,
-        OperationType.RECORD_VOID,
-        OperationType.RECORD_AMOUNT_CORRECTION,
-        OperationType.RECORD_PAYMENT_METHOD_CHANGE,
-        OperationType.RECORD_EXPENSE,
-        OperationType.OPEN_CASH_SHIFT,
-        OperationType.COUNT_CASH_SHIFT,
-        OperationType.CLOSE_CASH_SHIFT
-    )
-
+    /**
+     * Only ADMIN-created financial operations may enter the active upload queue.
+     * The legacy role enum remains for decoding old outbox/history rows; it does
+     * not grant upload capability.
+     */
     fun initialState(role: UserRole, type: OperationType): FinancialSyncDeliveryState =
-        when {
-            role == UserRole.ADMIN && type in adminUploadable -> FinancialSyncDeliveryState.QUEUED
-            role == UserRole.CASHIER && type in cashierUploadable -> FinancialSyncDeliveryState.QUEUED
-            role == UserRole.CASHIER && type in adminUploadable -> FinancialSyncDeliveryState.NOT_SYNCABLE_YET
-            else -> FinancialSyncDeliveryState.NOT_APPLICABLE
+        if (role == UserRole.ADMIN && type in adminUploadable) {
+            FinancialSyncDeliveryState.QUEUED
+        } else {
+            FinancialSyncDeliveryState.NOT_APPLICABLE
         }
 
     fun canUpload(role: UserRole, type: OperationType): Boolean =

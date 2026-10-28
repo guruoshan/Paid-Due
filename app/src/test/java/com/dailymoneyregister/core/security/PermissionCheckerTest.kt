@@ -51,9 +51,17 @@ class PermissionCheckerTest {
     }
 
     @Test
-    fun documentPermissionsIgnoreLegacyFlagsForCashierWithMembership() {
-        assertTrue(PermissionChecker.isPermitted(cashier, emptyMembership, PermissionAction.ISSUE_INVOICE))
-        assertTrue(PermissionChecker.isPermitted(cashier, emptyMembership, PermissionAction.ISSUE_RECEIPT))
+    fun legacyCashierMembershipNeverAuthorizesActions() {
+        PermissionAction.entries.forEach { action ->
+            assertFalse(PermissionChecker.isPermitted(cashier, emptyMembership, action))
+            assertFalse(
+                PermissionChecker.isPermitted(
+                    cashier,
+                    emptyMembership.copy(canCreateSale = true, canRefund = true, canViewReports = true),
+                    action
+                )
+            )
+        }
     }
 
     @Test
@@ -70,42 +78,46 @@ class PermissionCheckerTest {
     }
 
     @Test
-    fun sensitiveMembershipPermissionsRemainUnchanged() {
-        val cases = listOf(
-            PermissionAction.CREATE_CREDIT_SALE to emptyMembership.copy(canCreateCreditSale = true),
-            PermissionAction.USE_COUPON to emptyMembership.copy(canUseCoupon = true),
-            PermissionAction.REFUND to emptyMembership.copy(canRefund = true),
-            PermissionAction.VOID to emptyMembership.copy(canVoid = true),
-            PermissionAction.CORRECT_AMOUNT to emptyMembership.copy(canCorrectAmount = true),
-            PermissionAction.CHANGE_PAYMENT_METHOD to emptyMembership.copy(canChangePaymentMethod = true)
+    fun legacyPermissionFlagsDoNotGrantCashierAccess() {
+        val enabled = emptyMembership.copy(
+            canCreateCreditSale = true,
+            canUseCoupon = true,
+            canRefund = true,
+            canVoid = true,
+            canCorrectAmount = true,
+            canChangePaymentMethod = true,
+            canViewBroadHistory = true,
+            canManageProducts = true
         )
-
-        cases.forEach { (action, enabledMembership) ->
-            assertFalse(PermissionChecker.isPermitted(cashier, emptyMembership, action))
-            assertTrue(PermissionChecker.isPermitted(cashier, enabledMembership, action))
+        PermissionAction.entries.forEach { action ->
+            assertFalse(PermissionChecker.isPermitted(cashier, enabled, action))
         }
     }
 
     @Test
-    fun sessionGateRejectsMissingStaleAndInactiveCashierMemberships() {
-        val valid = activeSession(emptyMembership)
-        assertTrue(PermissionChecker.isPermitted(valid, PermissionAction.ISSUE_INVOICE))
-        assertTrue(PermissionChecker.isPermitted(valid, PermissionAction.ISSUE_RECEIPT))
-        assertFalse(PermissionChecker.isPermitted(valid, PermissionAction.VIEW_REPORTS))
+    fun sessionGateRejectsLegacyCashierAndAllowsValidAdmin() {
+        val legacyCashierSession = activeSession(emptyMembership)
+        PermissionAction.entries.forEach { action ->
+            assertFalse(PermissionChecker.isPermitted(legacyCashierSession, action))
+        }
 
-        assertFalse(PermissionChecker.isPermitted(valid.copy(membership = null), PermissionAction.ISSUE_INVOICE))
-        assertFalse(PermissionChecker.isPermitted(valid.copy(membership = null), PermissionAction.ISSUE_RECEIPT))
-        assertFalse(PermissionChecker.isPermitted(valid.copy(membership = null), PermissionAction.VIEW_REPORTS))
+        val adminSession = legacyCashierSession.copy(
+            user = admin,
+            membership = emptyMembership.copy(userId = admin.id, role = UserRole.ADMIN)
+        )
+        PermissionAction.entries.forEach { action ->
+            assertTrue(PermissionChecker.isPermitted(adminSession, action))
+        }
         assertFalse(
             PermissionChecker.isPermitted(
-                valid.copy(membership = emptyMembership.copy(branchId = "other-branch")),
-                PermissionAction.ISSUE_RECEIPT
+                adminSession.copy(user = admin.copy(isActive = false)),
+                PermissionAction.CREATE_SALE
             )
         )
         assertFalse(
             PermissionChecker.isPermitted(
-                valid.copy(user = cashier.copy(isActive = false)),
-                PermissionAction.ISSUE_INVOICE
+                adminSession.copy(branch = adminSession.branch.copy(businessId = "other-business")),
+                PermissionAction.CREATE_SALE
             )
         )
     }

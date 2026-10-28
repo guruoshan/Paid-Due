@@ -90,7 +90,7 @@ class RegisterSessionResetTest {
             businessId = business.id,
             displayName = "Cashier",
             username = "cashier",
-            role = UserRole.CASHIER,
+            role = UserRole.ADMIN,
             authType = AuthType.PIN,
             credentialHash = "hash",
             credentialSalt = "salt",

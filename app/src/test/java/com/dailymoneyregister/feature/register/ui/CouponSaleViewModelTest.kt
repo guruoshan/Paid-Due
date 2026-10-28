@@ -22,7 +22,7 @@ class CouponSaleViewModelTest {
     private val branch = BranchEntity("branch", business.id, "Main", "MAIN", "OM", "OMR", 3,
         "OMR", "Asia/Muscat", createdAt = 0, updatedAt = 0)
     private val user = UserAccountEntity(id = "user", businessId = business.id, displayName = "Cashier",
-        username = "cashier", role = UserRole.CASHIER, authType = AuthType.PIN,
+        username = "cashier", role = UserRole.ADMIN, authType = AuthType.PASSWORD,
         credentialHash = "hash", credentialSalt = "salt", createdAt = 0, updatedAt = 0)
     private lateinit var vm: RegisterViewModel
     @Before fun setup() {
