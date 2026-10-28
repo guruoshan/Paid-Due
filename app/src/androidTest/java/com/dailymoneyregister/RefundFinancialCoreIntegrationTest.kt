@@ -69,12 +69,15 @@ class RefundFinancialCoreIntegrationTest {
 
     private val businessId = "refund-test-business"
     private val branchId = "refund-test-branch"
-    private val actorId = "refund-authorized-user"
+    private val cashierActorId = "refund-authorized-user"
+    private var actorId = cashierActorId
+    private val adminActorId = "refund-authorized-admin"
     private val unauthorizedActorId = "refund-unauthorized-user"
     private val deviceId = "refund-test-device"
 
     @Before
     fun setUp() = runBlocking {
+        actorId = cashierActorId
         context = ApplicationProvider.getApplicationContext()
         database = DmrDatabase.createInMemory(context)
 
@@ -131,6 +134,37 @@ class RefundFinancialCoreIntegrationTest {
                 userId = actorId,
                 branchId = branchId,
                 role = UserRole.CASHIER,
+                canCreateSale = true,
+                canAcceptCash = true,
+                canAcceptOnline = true,
+                canRefund = true,
+                canVoid = true,
+                createdAt = now
+            )
+        )
+
+
+        database.userDao().insertUser(
+            UserAccountEntity(
+                id = adminActorId,
+                businessId = businessId,
+                displayName = "Refund Admin",
+                username = "refund_admin",
+                role = UserRole.ADMIN,
+                authType = AuthType.PIN,
+                credentialHash = "hash",
+                credentialSalt = "salt",
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+
+        database.userDao().insertMembership(
+            UserBranchMembershipEntity(
+                id = "refund-admin-membership",
+                userId = adminActorId,
+                branchId = branchId,
+                role = UserRole.ADMIN,
                 canCreateSale = true,
                 canAcceptCash = true,
                 canAcceptOnline = true,
@@ -208,6 +242,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_newOperationWithoutAuthenticatedSession_persistsNothing() =
         runBlocking {
+            useAdminActor()
             val tx = seedSale(
                 transactionId = "refund-no-session",
                 amountMinor = 4_000L
@@ -237,6 +272,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_inactiveActor_persistsNothing() =
         runBlocking {
+            useAdminActor()
             val tx = seedSale(
                 transactionId = "refund-inactive-actor",
                 amountMinor = 4_000L
@@ -273,6 +309,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_mustChangePinActor_persistsNothing() =
         runBlocking {
+            useAdminActor()
             val tx = seedSale(
                 transactionId = "refund-pin-change-actor",
                 amountMinor = 4_000L
@@ -308,6 +345,7 @@ class RefundFinancialCoreIntegrationTest {
 
     @Test
     fun productionRefund_partial_createsExactEventAndOutflow() = runBlocking {
+            useAdminActor()
         val tx = seedSale(
             transactionId = "refund-partial",
             amountMinor = 10_000L
@@ -375,6 +413,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_partialPartialFull_reachesZeroWithoutRewritingSale() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedSale(
                 transactionId = "refund-three-stage",
@@ -438,6 +477,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_overRefund_isBlockedWithoutFinancialMutation() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedSale(
                 transactionId = "refund-over",
@@ -482,6 +522,7 @@ class RefundFinancialCoreIntegrationTest {
 
     @Test
     fun productionRefund_afterVoid_isBlocked() = runBlocking {
+            useAdminActor()
         val tx = seedSale(
             transactionId = "refund-after-void",
             amountMinor = 8_000L
@@ -520,6 +561,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_sameOperation_replaysAndAlteredReplayConflicts() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedSale(
                 transactionId = "refund-replay",
@@ -591,6 +633,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_destinationMustMatchAuthoritativeFunding() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedSale(
                 transactionId = "refund-destination",
@@ -625,6 +668,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_onlineFunding_refundsBackToSameOnlineChannel() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedSale(
                 transactionId = "refund-online",
@@ -662,11 +706,13 @@ class RefundFinancialCoreIntegrationTest {
                 amountMinor = 4_000L
             )
 
+            // Keep the CASHIER session from setUp while the command actor is ADMIN.
+            // This preserves the production actor/session mismatch denial, not a role-permission denial.
             val command =
                 newRefundCommand(
                     transactionId = tx.id,
                     amountMinor = 1_000L,
-                    actor = unauthorizedActorId
+                    actor = adminActorId
                 )
 
             val result =
@@ -695,6 +741,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_settlementFailure_rollsBackRefundEvent() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedSale(
                 transactionId = "refund-rollback",
@@ -743,6 +790,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_concurrentOperations_cannotOverRefund() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedSale(
                 transactionId = "refund-concurrent",
@@ -893,6 +941,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_creditFundedTransaction_isBlockedWithoutFinancialMutation() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedSale(
                 transactionId = "refund-boundary-credit-funded",
@@ -925,6 +974,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_unpaidCredit_reducesDebtWithoutCashOnlineOrCoupon() =
         runBlocking {
+            useAdminActor()
 
             val now =
                 System.currentTimeMillis() -
@@ -1175,6 +1225,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_couponFundedTransaction_isBlockedWithoutFinancialMutation() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedSale(
                 transactionId = "refund-boundary-coupon-funded",
@@ -1207,6 +1258,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_paymentMethodChangeExists_isBlockedWithoutFinancialMutation() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedSale(
                 transactionId = "refund-boundary-payment-change",
@@ -1278,6 +1330,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_creditRepaymentAllocationExists_isBlockedWithoutFinancialMutation() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedSale(
                 transactionId = "refund-boundary-credit-allocation",
@@ -1323,6 +1376,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_mixedCashAndOnlineFunding_isBlockedAsAmbiguous() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedSale(
                 transactionId = "refund-boundary-mixed-funding",
@@ -1387,6 +1441,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_missingSaleFunding_isBlockedAsAmbiguous() =
         runBlocking {
+            useAdminActor()
 
             val tx = seedSale(
                 transactionId = "refund-boundary-missing-funding",
@@ -1580,6 +1635,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_realWriter_makesOlderSaleAppearInTodayRecent() =
         runBlocking {
+            useAdminActor()
 
             val zone =
                 ZoneId.of("Asia/Muscat")
@@ -1655,6 +1711,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_b2b_returnBelowUnpaidCredit_reducesDebtOnly() =
         runBlocking {
+            useAdminActor()
 
             val scenario =
                 seedB2CreditScenario(
@@ -1723,6 +1780,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_b2b_returnExactlyUnpaidCredit_extinguishesDebtWithoutPaidValueRefund() =
         runBlocking {
+            useAdminActor()
 
             val scenario =
                 seedB2CreditScenario(
@@ -1785,6 +1843,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_b2b_returnCrossesUnpaidBoundary_refundsOnlyPaidExcess() =
         runBlocking {
+            useAdminActor()
 
             val scenario =
                 seedB2CreditScenario(
@@ -1880,6 +1939,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_b2b_fullReturn_refundsOnlyActuallyPaidValue() =
         runBlocking {
+            useAdminActor()
 
             val scenario =
                 seedB2CreditScenario(
@@ -1973,6 +2033,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_b2b_mixedRepaymentFunding_preservesCashAndOnlineIdentity() =
         runBlocking {
+            useAdminActor()
 
             val scenario =
                 seedB2CreditScenario(
@@ -2089,6 +2150,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_b2b_sameOperation_replaysWithoutDuplicateFinancialEvidence() =
         runBlocking {
+            useAdminActor()
 
             val scenario =
                 seedB2CreditScenario(
@@ -2243,6 +2305,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_b2_destinationCash_refundsOnlyPaidValueToCash() =
         runBlocking {
+            useAdminActor()
 
             val scenario =
                 seedB2CreditScenario(
@@ -2421,6 +2484,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_b2_destinationOnline_refundsOnlyPaidValueToOnline() =
         runBlocking {
+            useAdminActor()
 
             val scenario =
                 seedB2CreditScenario(
@@ -2603,6 +2667,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_b2_destinationCoupon_refundsOnlyPaidValueToCoupon() =
         runBlocking {
+            useAdminActor()
 
             val scenario =
                 seedB2CreditScenario(
@@ -2817,6 +2882,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_b2b_fullReturnToCoupon_creditsOnlyPaidValueAndNeverCreatesDoubleValue() =
         runBlocking {
+            useAdminActor()
 
             /*
              * BOARDLOCK regression:
@@ -3149,6 +3215,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_b2b_missingRepaymentEvidence_failsClosedWithoutFinancialMutation() =
         runBlocking {
+            useAdminActor()
 
             val now =
                 System.currentTimeMillis() -
@@ -3368,6 +3435,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_b2_couponFundedRepayment_selectedDestinationsNeverCreateDoubleValue() =
         runBlocking {
+            useAdminActor()
 
             data class Destination(
                 val suffix: String,
@@ -3685,6 +3753,7 @@ class RefundFinancialCoreIntegrationTest {
     @Test
     fun productionRefund_b2_selectedDestinationWriteFailure_rollsBackEntireEconomicReversal() =
         runBlocking {
+            useAdminActor()
 
             val scenario =
                 seedB2CreditScenario(
@@ -3834,6 +3903,31 @@ class RefundFinancialCoreIntegrationTest {
         val transaction: TransactionEntity,
         val returnAt: Long
     )
+
+
+    private suspend fun useAdminActor() {
+        actorId = adminActorId
+        val sessionBusiness = checkNotNull(
+            database.businessBranchDao().getBusinessById(businessId)
+        )
+        val sessionBranch = checkNotNull(
+            database.businessBranchDao().getBranchById(branchId)
+        )
+        val sessionActor = checkNotNull(
+            database.userDao().getUserById(adminActorId)
+        )
+        val sessionMembership = checkNotNull(
+            database.userDao().getMembership(adminActorId, branchId)
+        )
+        SessionManager.setSession(
+            ActiveSession(
+                business = sessionBusiness,
+                branch = sessionBranch,
+                user = sessionActor,
+                membership = sessionMembership
+            )
+        )
+    }
 
     private suspend fun seedB2CreditScenario(
         suffix: String,
