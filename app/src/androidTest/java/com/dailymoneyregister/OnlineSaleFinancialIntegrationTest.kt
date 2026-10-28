@@ -97,7 +97,7 @@ class OnlineSaleFinancialIntegrationTest {
         assertEquals(EntryPurpose.SALE_FUNDING, settlements.single().entryPurpose)
         assertEquals(PaymentCategory.ONLINE, settlements.single().category)
         assertEquals(PaymentChannel.MANUAL_QR, settlements.single().channel)
-        assertEquals(ConfirmationType.CASHIER_CONFIRMED, settlements.single().confirmationType)
+        assertEquals(ConfirmationType.ADMIN_CONFIRMED, settlements.single().confirmationType)
         assertEquals(5000L, settlements.single().amountSignedMinor)
     }
 
