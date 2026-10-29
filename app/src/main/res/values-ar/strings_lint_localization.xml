@@ -114,4 +114,6 @@
     <string name="invite_expiry_note">تنتهي صلاحية هذه الدعوة الآمنة خلال 48 ساعة، ويمكن استخدامها مرة واحدة فقط.</string>
     <string name="reporting_cash_in_hand">النقد المتوفر</string>
     <string name="reporting_cash_at_bank">النقد في البنك</string>
+    <string name="share_day_summary">مشاركة ملخص اليوم</string>
+    <string name="day_close_summary_title">ملخص إغلاق اليوم</string>
 </resources>

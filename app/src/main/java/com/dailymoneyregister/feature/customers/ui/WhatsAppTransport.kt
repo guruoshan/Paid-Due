@@ -26,6 +26,33 @@ object WhatsAppTransport {
     internal const val WHATSAPP_BUSINESS_PACKAGE = "com.whatsapp.w4b"
     private const val WHATSAPP_JID_SUFFIX = "@s.whatsapp.net"
 
+    /** Business-level sharing: no recipient JID; always use Android's standard share sheet. */
+    fun shareBusinessLevel(
+        context: Context,
+        prepared: PreparedWhatsAppMessage,
+        chooserTitle: String = context.getString(R.string.share)
+    ) {
+        val sendIntent = buildBusinessLevelSendIntent(context, prepared)
+        val chooser = Intent.createChooser(sendIntent, chooserTitle)
+        if (context !is Activity) chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(chooser)
+    }
+
+    internal fun buildBusinessLevelSendIntent(
+        context: Context,
+        prepared: PreparedWhatsAppMessage
+    ): Intent = Intent(Intent.ACTION_SEND).apply {
+        type = prepared.attachment?.mimeType ?: "text/plain"
+        putExtra(Intent.EXTRA_TEXT, prepared.text)
+        prepared.attachment?.let { attachment ->
+            putExtra(Intent.EXTRA_STREAM, attachment.contentUri)
+            attachment.subject?.takeIf(String::isNotBlank)?.let {
+                putExtra(Intent.EXTRA_SUBJECT, it)
+            }
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    }
+
     fun share(
         context: Context,
         prepared: PreparedWhatsAppMessage,

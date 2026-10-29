@@ -84,6 +84,21 @@ jobs:
 
       - name: Run unit tests, instrumentation tests, and assemble debug APK
         run: ./gradlew --no-daemon :app:testDebugUnitTest :app:connectedDebugAndroidTest :app:assembleDebug
+      - name: Collect generated day-close dashboard PNG
+        if: always()
+        run: |
+          mkdir -p app/build/outputs/day-close-dashboard
+          adb pull /sdcard/Android/data/com.dailymoneyregister/files/day-close-preview/day-close-dashboard-preview.png app/build/outputs/day-close-dashboard/day-close-dashboard-preview.png || true
+
+      - name: Upload generated day-close dashboard PNG
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: day-close-dashboard-preview-${{ github.run_id }}
+          path: app/build/outputs/day-close-dashboard/day-close-dashboard-preview.png
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload Android test reports on failure
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

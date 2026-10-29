@@ -114,4 +114,6 @@
     <string name="invite_expiry_note">اس محفوظ دعوت کی میعاد 48 گھنٹوں میں ختم ہو جائے گی اور اسے صرف ایک بار استعمال کیا جا سکتا ہے۔</string>
     <string name="reporting_cash_in_hand">ہاتھ میں نقد رقم</string>
     <string name="reporting_cash_at_bank">بینک میں نقد رقم</string>
+    <string name="share_day_summary">دن کا خلاصہ شیئر کریں</string>
+    <string name="day_close_summary_title">دن کے اختتام کا خلاصہ</string>
 </resources>

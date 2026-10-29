@@ -114,4 +114,6 @@
     <string name="invite_expiry_note">इस सुरक्षित आमंत्रण की समय-सीमा 48 घंटे में समाप्त हो जाएगी और इसे केवल एक बार इस्तेमाल किया जा सकता है।</string>
     <string name="reporting_cash_in_hand">हाथ में नकदी</string>
     <string name="reporting_cash_at_bank">बैंक में नकदी</string>
+    <string name="share_day_summary">दिन का सारांश साझा करें</string>
+    <string name="day_close_summary_title">दिन बंद होने का सारांश</string>
 </resources>

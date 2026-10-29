@@ -27,6 +27,33 @@ import java.io.File
  */
 object ReceiptSharing {
 
+    internal const val DAY_SUMMARY_MESSAGE =
+        "Please check today's cash register dashboard.\n\nPowered by Paid&Due"
+
+    /** Share the completed day-close PNG through the standard Android share sheet. */
+    fun shareDaySummary(context: Context, summary: ReceiptRenderer.EventReceipt) {
+        if (!isIssuePermitted(context)) return
+        val file = ReceiptRenderer.renderDaySummary(context.applicationContext, summary)
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+        WhatsAppTransport.shareBusinessLevel(
+            context = context,
+            prepared = PreparedWhatsAppMessage(
+                text = DAY_SUMMARY_MESSAGE,
+                recipientPhone = "",
+                attachment = WhatsAppAttachment(
+                    contentUri = uri,
+                    mimeType = "image/png",
+                    subject = "Day Close Summary"
+                )
+            ),
+            chooserTitle = context.getString(R.string.share_day_summary)
+        )
+    }
+
     /** Sale-style receipt (items, totals, payment): cash, credit, online, coupon payment. */
     fun shareWhatsApp(
         context: Context,
