@@ -39,7 +39,6 @@
     <string name="add_cashier">کیشیئر شامل کریں</string>
     <string name="no_cashiers">ابھی تک کوئی کیشیئر شامل نہیں کیا گیا۔ پہلا کیشیئر بنانے کے لیے \'+\' دبائیں۔</string>
     <string name="cashier_pin_hint">6 ہندسے (مثال: 123456)</string>
-    <string name="cashier_language_summary">\@%1$s • زبان: %2$s</string>
     <string name="backspace">بیک اسپیس</string>
     <string name="clear_key">C</string>
     <string name="lockout_countdown">مقفل: %1$s سیکنڈ</string>
@@ -96,7 +95,6 @@
     <string name="business_name_required">کاروبار کا نام خالی نہیں ہو سکتا</string>
     <string name="admin_details_required">ایڈمن کا نام اور صارف نام درکار ہیں، پاس ورڈ کم از کم 6 حروف کا ہونا چاہیے</string>
     <string name="setup_failed">سیٹ اپ ناکام ہو گیا</string>
-    <string name="cashier_created">کیشیئر \'%1$s\' کامیابی سے بن گیا</string>
     <string name="payment_credit_name">ادھار</string>
     <string name="payment_online_name">آن لائن</string>
     <string name="coupon_loading">لوڈ ہو رہا ہے…</string>

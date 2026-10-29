@@ -6,7 +6,6 @@
     <string name="add_cashier">Add Cashier</string>
     <string name="no_cashiers">No cashiers added yet. Tap \'+\' to create your first cashier.</string>
     <string name="cashier_pin_hint">6 digits (e.g. 123456)</string>
-    <string name="cashier_language_summary">\@%1$s • Language: %2$s</string>
     <string name="backspace">Backspace</string>
     <string name="clear_key">C</string>
     <string name="lockout_countdown">Locked out: %1$ss</string>
@@ -72,7 +71,6 @@
     <string name="business_name_required">Business name cannot be blank</string>
     <string name="admin_details_required">Admin name and username are required, password must be &gt;= 6 characters</string>
     <string name="setup_failed">Setup failed</string>
-    <string name="cashier_created">Cashier \'%1$s\' created successfully</string>
     <string name="language_en_native" translatable="false">English</string>
     <string name="language_ar_native" translatable="false">العربية</string>
     <string name="language_hi_native" translatable="false">हिन्दी</string>
