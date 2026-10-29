@@ -39,7 +39,6 @@
     <string name="add_cashier">ক্যাশিয়ার যোগ করুন</string>
     <string name="no_cashiers">এখনও কোনো ক্যাশিয়ার যোগ করা হয়নি। প্রথম ক্যাশিয়ার তৈরি করতে \'+\' চাপুন।</string>
     <string name="cashier_pin_hint">6 অংক (যেমন 123456)</string>
-    <string name="cashier_language_summary">\@%1$s • ভাষা: %2$s</string>
     <string name="backspace">ব্যাকস্পেস</string>
     <string name="clear_key">C</string>
     <string name="lockout_countdown">লক: %1$s সেকেন্ড</string>
@@ -96,7 +95,6 @@
     <string name="business_name_required">ব্যবসার নাম ফাঁকা রাখা যাবে না</string>
     <string name="admin_details_required">অ্যাডমিনের নাম ও ইউজারনেম আবশ্যক, পাসওয়ার্ড কমপক্ষে 6 অক্ষরের হতে হবে</string>
     <string name="setup_failed">সেটআপ ব্যর্থ হয়েছে</string>
-    <string name="cashier_created">ক্যাশিয়ার \'%1$s\' সফলভাবে তৈরি হয়েছে</string>
     <string name="payment_credit_name">বাকি</string>
     <string name="payment_online_name">অনলাইন</string>
     <string name="coupon_loading">লোড হচ্ছে…</string>
