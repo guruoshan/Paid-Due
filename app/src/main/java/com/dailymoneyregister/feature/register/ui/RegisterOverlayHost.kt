@@ -475,7 +475,7 @@ internal fun RegisterOverlayHost(
                                         val reconciliation = result.reconciliation
                                         val summary = ReceiptRenderer.EventReceipt(
                                             businessName = activeBusiness?.name.orEmpty().ifBlank { "Paid&Due" },
-                                            title = shareContext.getString(R.string.day_close_summary_title),
+                                            title = stringResource(R.string.day_close_summary_title),
                                             reference = report.shift.shiftId.value,
                                             dateTime = result.closedAtDisplay,
                                             customerName = null,

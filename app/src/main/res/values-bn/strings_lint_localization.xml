@@ -114,4 +114,6 @@
     <string name="invite_expiry_note">এই নিরাপদ আমন্ত্রণের মেয়াদ ৪৮ ঘণ্টায় শেষ হবে এবং এটি একবারই ব্যবহার করা যাবে।</string>
     <string name="reporting_cash_in_hand">হাতে থাকা নগদ</string>
     <string name="reporting_cash_at_bank">ব্যাংকে থাকা নগদ</string>
+    <string name="share_day_summary">দিনের সারাংশ শেয়ার করুন</string>
+    <string name="day_close_summary_title">দিন বন্ধের সারাংশ</string>
 </resources>
