@@ -463,6 +463,8 @@ internal fun RegisterOverlayHost(
                 if (state.dayClosingReport != null) {
                     if (state.dayClosingResult != null) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val dayCloseSummaryTitle =
+                                stringResource(R.string.day_close_summary_title)
                             OutlinedButton(
                                 onClick = {
                                     val report = state.dayClosingReport
@@ -475,7 +477,7 @@ internal fun RegisterOverlayHost(
                                         val reconciliation = result.reconciliation
                                         val summary = ReceiptRenderer.EventReceipt(
                                             businessName = activeBusiness?.name.orEmpty().ifBlank { "Paid&Due" },
-                                            title = stringResource(R.string.day_close_summary_title),
+                                            title = dayCloseSummaryTitle,
                                             reference = report.shift.shiftId.value,
                                             dateTime = result.closedAtDisplay,
                                             customerName = null,
