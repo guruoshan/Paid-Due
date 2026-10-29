@@ -46,7 +46,6 @@
 
     <!-- Cashier Management -->
     <string name="manage_cashiers">کیشیئرز کا انتظام</string>
-    <string name="create_cashier">نیا کیشیئر بنائیں</string>
     <string name="cashier_name">کیشیئر کا نام</string>
     <string name="cashier_pin">6 ہندسوں کا پن</string>
     <string name="save_cashier">کیشیئر محفوظ کریں</string>

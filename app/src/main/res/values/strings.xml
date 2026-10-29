@@ -47,7 +47,6 @@
 
     <!-- Cashier Management -->
     <string name="manage_cashiers">Manage Cashiers</string>
-    <string name="create_cashier">Create New Cashier</string>
     <string name="cashier_name">Cashier Name</string>
     <string name="cashier_pin">6-Digit PIN</string>
     <string name="save_cashier">Save Cashier</string>
