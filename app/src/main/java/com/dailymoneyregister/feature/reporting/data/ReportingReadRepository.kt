@@ -504,12 +504,6 @@ class RoomReportingReadRepository(
         return result
     }
 
-    private suspend fun <T> loadChunkedWithBusiness(
-        ids: Collection<String>,
-        @Suppress("UNUSED_PARAMETER") businessId: String,
-        loader: suspend (List<String>) -> List<T>
-    ): List<T> = loadChunked(ids, loader)
-
     private fun requireTransaction(
         transactionsById: Map<String, TransactionEntity>,
         transactionId: String,
