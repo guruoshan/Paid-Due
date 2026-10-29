@@ -668,34 +668,6 @@ class RegisterViewModel internal constructor(
                 expenseSupportingDocumentAttaching = false
             )
     }
-    /**
-     * Loads the authoritative read-only lifetime projection for one transaction.
-     *
-     * This function does not mutate financial state and does not use Today's Recent
-     * list as the Transaction Details source.
-     */
-    fun loadSaleItemsForWhatsApp(
-        transactionId: String,
-        onLoaded: (List<com.dailymoneyregister.core.database.entity.TransactionItemEntity>) -> Unit
-    ) {
-        if (transactionId.isBlank()) {
-            onLoaded(emptyList())
-            return
-        }
-
-        viewModelScope.launch {
-            val items =
-                try {
-                    loadSaleItems(transactionId)
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    emptyList()
-                }
-
-            onLoaded(items)
-        }
-    }
-
     /** Loads the saved transaction, items, and funding evidence for sharing. */
     fun loadSaleDetailsForWhatsApp(
         transactionId: String,
