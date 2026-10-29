@@ -88,8 +88,6 @@ object CurrencyRegistry {
             decimalPlaces = 2
         )
     }
-
-    fun getAllSupported(): List<CurrencyConfig> = all.values.toList()
 }
 
 /**
