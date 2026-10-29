@@ -55,7 +55,16 @@ object FinancialEnvelopeCodec {
         root.put("subject_type", operation.subjectType.name)
         root.put("subject_id", operation.subjectId)
         root.put("transaction_id", operation.transactionId.orEmpty())
-        root.put("cash_shift_id", operation.cashShiftId.orEmpty())
+        // Lifecycle operations identify their shift through subject_id. Keep this
+        // field empty so legacy rows and retries serialize to the same canonical
+        // payload even if a client version populated cashShiftId on admission.
+        val canonicalCashShiftId = when (operation.operationType) {
+            OperationType.OPEN_CASH_SHIFT,
+            OperationType.COUNT_CASH_SHIFT,
+            OperationType.CLOSE_CASH_SHIFT -> ""
+            else -> operation.cashShiftId.orEmpty()
+        }
+        root.put("cash_shift_id", canonicalCashShiftId)
         if (financialEvidence.length() > 0) {
             root.put("financial_evidence", financialEvidence)
         }
