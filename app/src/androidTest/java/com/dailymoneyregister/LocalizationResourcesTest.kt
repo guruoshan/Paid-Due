@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Configuration
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dailymoneyregister.core.ui.UiText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -30,6 +31,7 @@ class LocalizationResourcesTest {
                 assertTrue("profile_currency must preserve the currency for $code", currency.contains("OMR"))
                 assertTrue("profile_currency must preserve the precision for $code", currency.contains("3"))
             }
+            assertEquals("Repository detail", UiText.Dynamic("Repository detail").resolve(context))
             assertEquals(if (code == "ar" || code == "ur") 1 else 0,
                 context.resources.configuration.layoutDirection)
         }
