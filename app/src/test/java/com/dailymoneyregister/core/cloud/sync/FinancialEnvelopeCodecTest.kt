@@ -15,6 +15,7 @@ import com.dailymoneyregister.core.model.enums.SubjectType
 import com.dailymoneyregister.core.model.enums.TransactionType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -72,6 +73,77 @@ class FinancialEnvelopeCodecTest {
         occurredAt = 1000L,
         actorUserId = "user-1"
     )
+
+    @Test
+    fun openCashShiftCanonicalPayloadIgnoresCashShiftAttribution() {
+        assertLifecyclePayloadIsStable(OperationType.OPEN_CASH_SHIFT)
+    }
+
+    @Test
+    fun countCashShiftCanonicalPayloadIgnoresCashShiftAttribution() {
+        assertLifecyclePayloadIsStable(OperationType.COUNT_CASH_SHIFT)
+    }
+
+    @Test
+    fun closeCashShiftCanonicalPayloadIgnoresCashShiftAttribution() {
+        assertLifecyclePayloadIsStable(OperationType.CLOSE_CASH_SHIFT)
+    }
+
+    @Test
+    fun lifecycleDigestRemainsStableAcrossRetries() {
+        for (type in lifecycleTypes) {
+            val first = FinancialEnvelopeCodec.encode(lifecycleOperation(type, null))
+            val retry = FinancialEnvelopeCodec.encode(lifecycleOperation(type, "shift-1"))
+
+            assertEquals(type.name, first.canonicalText, retry.canonicalText)
+            assertEquals(type.name, first.canonicalSha256, retry.canonicalSha256)
+        }
+    }
+
+    @Test
+    fun financialOperationStillSerializesRealCashShiftId() {
+        val attributedSale = operation.copy(cashShiftId = "shift-actual")
+        val encoded = FinancialEnvelopeCodec.encode(attributedSale, transaction = transaction)
+
+        assertEquals("shift-actual", encoded.jsonPayload.getString("cash_shift_id"))
+    }
+
+    @Test
+    fun genuineFinancialPayloadChangeChangesCanonicalDigest() {
+        val original = FinancialEnvelopeCodec.encode(operation, transaction = transaction)
+        val changed = FinancialEnvelopeCodec.encode(
+            operation.copy(requestFingerprint = "genuinely-different-request"),
+            transaction = transaction
+        )
+
+        assertNotEquals(original.canonicalSha256, changed.canonicalSha256)
+        assertNotEquals(original.canonicalText, changed.canonicalText)
+    }
+
+    private val lifecycleTypes = listOf(
+        OperationType.OPEN_CASH_SHIFT,
+        OperationType.COUNT_CASH_SHIFT,
+        OperationType.CLOSE_CASH_SHIFT
+    )
+
+    private fun lifecycleOperation(type: OperationType, cashShiftId: String?) = operation.copy(
+        id = "operation-${type.name.lowercase()}",
+        operationType = type,
+        subjectType = SubjectType.CASH_SHIFT,
+        subjectId = "shift-1",
+        transactionId = null,
+        cashShiftId = cashShiftId
+    )
+
+    private fun assertLifecyclePayloadIsStable(type: OperationType) {
+        val withoutAttribution = FinancialEnvelopeCodec.encode(lifecycleOperation(type, null))
+        val withAttribution = FinancialEnvelopeCodec.encode(lifecycleOperation(type, "shift-1"))
+
+        assertEquals(type.name, "", withoutAttribution.jsonPayload.getString("cash_shift_id"))
+        assertEquals(type.name, "", withAttribution.jsonPayload.getString("cash_shift_id"))
+        assertEquals(type.name, withoutAttribution.canonicalText, withAttribution.canonicalText)
+        assertEquals(type.name, withoutAttribution.canonicalSha256, withAttribution.canonicalSha256)
+    }
 
     @Test
     fun encodeProducesValidCanonicalDigestAndPayload() {
