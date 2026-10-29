@@ -434,7 +434,4 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    fun getThrottler(): PinThrottler =
-        pinThrottler
 }
-
