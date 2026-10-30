@@ -1,3 +1,9 @@
+## Scope of this PR
+
+- This PR covers the extracted helper declarations and the timeline model only.
+- The `TransactionDetailsScreen` function body is not split in this PR.
+- Header, action, item-list, and timeline-section extraction described below is planned for a separate PR.
+
 # Transaction Details Screen split — proposal (Step 1 only)
 
 ## Scope and audited base
