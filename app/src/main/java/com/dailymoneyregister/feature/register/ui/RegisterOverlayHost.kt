@@ -18,7 +18,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dailymoneyregister.R
-import com.dailymoneyregister.core.ui.PhoneNumberInput
 import com.dailymoneyregister.core.ui.PhoneNumberInputValue
 import com.dailymoneyregister.feature.register.ui.components.*
 import com.dailymoneyregister.feature.settings.ui.MerchantQrImage
@@ -27,6 +26,13 @@ import com.dailymoneyregister.feature.invoice.ui.InvoiceViewModel
 import com.dailymoneyregister.core.database.entity.ProductEntity
 import com.dailymoneyregister.feature.register.receipt.ReceiptRenderer
 import com.dailymoneyregister.feature.register.receipt.ReceiptSharing
+import com.dailymoneyregister.feature.register.ui.dialogs.CashCustomerDialog
+import com.dailymoneyregister.feature.register.ui.dialogs.DayClosingCashTotals
+import com.dailymoneyregister.feature.register.ui.dialogs.DayClosingConfirmActions
+import com.dailymoneyregister.feature.register.ui.dialogs.DayClosingDismissAction
+import com.dailymoneyregister.feature.register.ui.dialogs.DayClosingReconciliationSummary
+import com.dailymoneyregister.feature.register.ui.dialogs.DayClosingResultDetails
+import com.dailymoneyregister.feature.register.ui.dialogs.OnlinePaymentCustomerSection
 
 @Composable
 internal fun RegisterOverlayHost(
@@ -186,64 +192,15 @@ internal fun RegisterOverlayHost(
                                         currencySymbol
                                     )
     
-                            Column(
-                                verticalArrangement =
-                                    Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    stringResource(
-                                        R.string.dmr21_day_cash_sales,
-                                        cashSalesDisplay
-                                    )
-                                )
-
-                                Text(
-                                    stringResource(
-                                        R.string.dmr21_day_cash_coupon_funding,
-                                        cashCouponFundingDisplay
-                                    )
-                                )
-    
-                                Text(
-                                    stringResource(
-                                        R.string.dmr21_day_cash_credit_payments,
-                                        cashCreditDisplay
-                                    )
-                                )
-    
-                                Text(
-                                    stringResource(
-                                        R.string.dmr21_day_cash_refunds,
-                                        cashRefundDisplay
-                                    )
-                                )
-    
-                                Text(
-                                    stringResource(
-                                        R.string.dmr21_day_cash_expenses,
-                                        cashExpenseDisplay
-                                    )
-                                )
-    
-                                Text(
-                                    text =
-                                        stringResource(
-                                            R.string.dmr21_day_expected_cash,
-                                            expectedCashDisplay
-                                        ),
-                                    fontWeight =
-                                        FontWeight.Bold
-                                )
-    
-                                Text(
-                                    stringResource(
-                                        R.string.dmr21_day_online_expenses,
-                                        onlineExpenseDisplay
-                                    ),
-                                    style =
-                                        MaterialTheme.typography.bodySmall
-                                )
-                            }
+                            DayClosingCashTotals(
+                                cashSalesDisplay = cashSalesDisplay,
+                                cashCouponFundingDisplay = cashCouponFundingDisplay,
+                                cashCreditDisplay = cashCreditDisplay,
+                                cashRefundDisplay = cashRefundDisplay,
+                                cashExpenseDisplay = cashExpenseDisplay,
+                                expectedCashDisplay = expectedCashDisplay,
+                                onlineExpenseDisplay = onlineExpenseDisplay
+                            )
                         }
     
                         OutlinedTextField(
@@ -360,87 +317,22 @@ internal fun RegisterOverlayHost(
                                         )
                                 }
 
-                            HorizontalDivider()
-
-                            Column(
-                                verticalArrangement =
-                                    Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    stringResource(
-                                        R.string
-                                            .dmr22_expected_cash,
-                                        expectedDisplay
-                                    )
-                                )
-
-                                Text(
-                                    stringResource(
-                                        R.string
-                                            .dmr22_cash_counted,
-                                        countedDisplay
-                                    )
-                                )
-
-                                Text(
-                                    text =
-                                        stringResource(
-                                            R.string
-                                                .dmr22_difference,
-                                            differenceDisplay
-                                        ),
-                                    fontWeight =
-                                        FontWeight.Bold
-                                )
-
-                                Text(
-                                    text =
-                                        stringResource(
-                                            R.string
-                                                .dmr22_status,
-                                            statusDisplay
-                                        ),
-                                    fontWeight =
-                                        FontWeight.Bold
-                                )
-                            }
+                            DayClosingReconciliationSummary(
+                                expectedDisplay = expectedDisplay,
+                                countedDisplay = countedDisplay,
+                                differenceDisplay = differenceDisplay,
+                                statusDisplay = statusDisplay
+                            )
                         }
 
                         state.dayClosingResult?.let {
                             result ->
 
-                            HorizontalDivider()
-
-                            Column(
-                                verticalArrangement =
-                                    Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    stringResource(
-                                        R.string
-                                            .dmr22_shift_owner,
-                                        result
-                                            .shiftOwnerDisplayName
-                                    )
-                                )
-
-                                Text(
-                                    stringResource(
-                                        R.string
-                                            .dmr22_closed_by,
-                                        result
-                                            .closedByDisplayName
-                                    )
-                                )
-
-                                Text(
-                                    stringResource(
-                                        R.string
-                                            .dmr22_closed_at,
-                                        result.closedAtDisplay
-                                    )
-                                )
-                            }
+                            DayClosingResultDetails(
+                                shiftOwnerDisplayName = result.shiftOwnerDisplayName,
+                                closedByDisplayName = result.closedByDisplayName,
+                                closedAtDisplay = result.closedAtDisplay
+                            )
                         }
 
                         if (state.dayClosingReview) {
@@ -460,106 +352,66 @@ internal fun RegisterOverlayHost(
                 }
             },
             confirmButton = {
-                if (state.dayClosingReport != null) {
-                    if (state.dayClosingResult != null) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            val dayCloseSummaryTitle =
-                                stringResource(R.string.day_close_summary_title)
-                            OutlinedButton(
-                                onClick = {
-                                    val report = state.dayClosingReport
-                                    val result = state.dayClosingResult
-                                    if (report != null && result != null) {
-                                        fun money(minor: Long): String =
-                                            com.dailymoneyregister.core.model.money
-                                                .MoneyMinorUnits(minor)
-                                                .formatDisplay(decimalPlaces, currencySymbol)
-                                        val reconciliation = result.reconciliation
-                                        val summary = ReceiptRenderer.EventReceipt(
-                                            businessName = activeBusiness?.name.orEmpty().ifBlank { "Paid&Due" },
-                                            title = dayCloseSummaryTitle,
-                                            reference = report.shift.shiftId.value,
-                                            dateTime = result.closedAtDisplay,
-                                            customerName = null,
-                                            heading = "DAY CLOSE SUMMARY",
-                                            rows = listOf(
-                                                ReceiptRenderer.EventReceipt.Row("Branch", report.shift.branchId),
-                                                ReceiptRenderer.EventReceipt.Row("Sales count", report.salesCount.toString()),
-                                                ReceiptRenderer.EventReceipt.Row("Gross sales", money(report.grossSalesMinor)),
-                                                ReceiptRenderer.EventReceipt.Row("Cash sales", money(report.cashSalesMinor)),
-                                                ReceiptRenderer.EventReceipt.Row("Online sales", money(report.onlineSalesMinor)),
-                                                ReceiptRenderer.EventReceipt.Row("Credit given", money(report.creditGivenMinor)),
-                                                ReceiptRenderer.EventReceipt.Row("Credit repaid", money(report.totalCreditRepaymentsMinor)),
-                                                ReceiptRenderer.EventReceipt.Row("Coupons used", money(report.couponUsedMinor)),
-                                                ReceiptRenderer.EventReceipt.Row("Coupons issued", money(report.couponIssuedMinor)),
-                                                ReceiptRenderer.EventReceipt.Row("Coupon top-ups", money(report.couponTopUpMinor)),
-                                                ReceiptRenderer.EventReceipt.Row("Cash refunds", money(report.cashRefundsMinor)),
-                                                ReceiptRenderer.EventReceipt.Row("Online refunds", money(report.onlineRefundsMinor)),
-                                                ReceiptRenderer.EventReceipt.Row("Refund count", report.refundCount.toString()),
-                                                ReceiptRenderer.EventReceipt.Row("Void count", report.voidCount.toString()),
-                                                ReceiptRenderer.EventReceipt.Row("Correction count", report.correctionCount.toString()),
-                                                ReceiptRenderer.EventReceipt.Row("Cash expenses", money(report.cashExpensesMinor)),
-                                                ReceiptRenderer.EventReceipt.Row("Online expenses", money(report.onlineExpensesMinor)),
-                                                ReceiptRenderer.EventReceipt.Row("Expected cash", money(report.expectedCashMinor)),
-                                                ReceiptRenderer.EventReceipt.Row("Counted cash", money(reconciliation.countedCashMinor)),
-                                                ReceiptRenderer.EventReceipt.Row("Cash difference", money(reconciliation.differenceMinor))
-                                            )
-                                        )
-                                        ReceiptSharing.shareDaySummary(shareContext, summary)
-                                    }
-                                }
-                            ) {
-                                Text(stringResource(R.string.share_day_summary))
-                            }
-                            Button(onClick = viewModel::closeDayClosing) {
-                                Text(stringResource(R.string.done))
-                            }
-                        }
-                    } else if (state.dayClosingReview) {
-                        Button(
-                            onClick =
-                                viewModel::confirmDayClosing,
-                            enabled = !state.isExecuting
-                        ) {
-                            Text(
-                                if (state.isExecuting) {
-                                    stringResource(R.string.dmr20_closing)
-                                } else {
-                                    stringResource(R.string.dmr20_confirm_close)
-                                }
+                DayClosingConfirmActions(
+                    hasReport = state.dayClosingReport != null,
+                    hasResult = state.dayClosingResult != null,
+                    isReview = state.dayClosingReview,
+                    isExecuting = state.isExecuting,
+                    onShareSummary = { dayCloseSummaryTitle ->
+                        val report = state.dayClosingReport
+                        val result = state.dayClosingResult
+                        if (report != null && result != null) {
+                            fun money(minor: Long): String =
+                                com.dailymoneyregister.core.model.money
+                                    .MoneyMinorUnits(minor)
+                                    .formatDisplay(decimalPlaces, currencySymbol)
+                            val reconciliation = result.reconciliation
+                            val summary = ReceiptRenderer.EventReceipt(
+                                businessName = activeBusiness?.name.orEmpty().ifBlank { "Paid&Due" },
+                                title = dayCloseSummaryTitle,
+                                reference = report.shift.shiftId.value,
+                                dateTime = result.closedAtDisplay,
+                                customerName = null,
+                                heading = "DAY CLOSE SUMMARY",
+                                rows = listOf(
+                                    ReceiptRenderer.EventReceipt.Row("Branch", report.shift.branchId),
+                                    ReceiptRenderer.EventReceipt.Row("Sales count", report.salesCount.toString()),
+                                    ReceiptRenderer.EventReceipt.Row("Gross sales", money(report.grossSalesMinor)),
+                                    ReceiptRenderer.EventReceipt.Row("Cash sales", money(report.cashSalesMinor)),
+                                    ReceiptRenderer.EventReceipt.Row("Online sales", money(report.onlineSalesMinor)),
+                                    ReceiptRenderer.EventReceipt.Row("Credit given", money(report.creditGivenMinor)),
+                                    ReceiptRenderer.EventReceipt.Row("Credit repaid", money(report.totalCreditRepaymentsMinor)),
+                                    ReceiptRenderer.EventReceipt.Row("Coupons used", money(report.couponUsedMinor)),
+                                    ReceiptRenderer.EventReceipt.Row("Coupons issued", money(report.couponIssuedMinor)),
+                                    ReceiptRenderer.EventReceipt.Row("Coupon top-ups", money(report.couponTopUpMinor)),
+                                    ReceiptRenderer.EventReceipt.Row("Cash refunds", money(report.cashRefundsMinor)),
+                                    ReceiptRenderer.EventReceipt.Row("Online refunds", money(report.onlineRefundsMinor)),
+                                    ReceiptRenderer.EventReceipt.Row("Refund count", report.refundCount.toString()),
+                                    ReceiptRenderer.EventReceipt.Row("Void count", report.voidCount.toString()),
+                                    ReceiptRenderer.EventReceipt.Row("Correction count", report.correctionCount.toString()),
+                                    ReceiptRenderer.EventReceipt.Row("Cash expenses", money(report.cashExpensesMinor)),
+                                    ReceiptRenderer.EventReceipt.Row("Online expenses", money(report.onlineExpensesMinor)),
+                                    ReceiptRenderer.EventReceipt.Row("Expected cash", money(report.expectedCashMinor)),
+                                    ReceiptRenderer.EventReceipt.Row("Counted cash", money(reconciliation.countedCashMinor)),
+                                    ReceiptRenderer.EventReceipt.Row("Cash difference", money(reconciliation.differenceMinor))
+                                )
                             )
+                            ReceiptSharing.shareDaySummary(shareContext, summary)
                         }
-                    } else {
-                        Button(
-                            onClick =
-                                viewModel::reviewDayClosing,
-                            enabled = !state.isExecuting
-                        ) {
-                            Text(stringResource(R.string.dmr20_review))
-                        }
-                    }
-                }
+                    },
+                    onDone = viewModel::closeDayClosing,
+                    onConfirmClose = viewModel::confirmDayClosing,
+                    onReview = viewModel::reviewDayClosing
+                )
             },
             dismissButton = {
-                if (state.dayClosingResult != null) {
-                    // Final result has one explicit Done action.
-                } else if (state.dayClosingReview) {
-                    TextButton(
-                        onClick =
-                            viewModel::backFromDayClosingReview,
-                        enabled = !state.isExecuting
-                    ) {
-                        Text(stringResource(R.string.dmr20_back))
-                    }
-                } else {
-                    TextButton(
-                        onClick =
-                            viewModel::closeDayClosing,
-                        enabled = !state.isExecuting
-                    ) {
-                        Text(stringResource(R.string.cancel))
-                    }
-                }
+                DayClosingDismissAction(
+                    hasResult = state.dayClosingResult != null,
+                    isReview = state.dayClosingReview,
+                    isExecuting = state.isExecuting,
+                    onBack = viewModel::backFromDayClosingReview,
+                    onCancel = viewModel::closeDayClosing
+                )
             }
         )
     }
@@ -732,137 +584,51 @@ internal fun RegisterOverlayHost(
         val needsNewCustomerName =
             lookupCompleted && existingCustomer == null
     
-        AlertDialog(
-            onDismissRequest = {
-                if (!state.isExecuting) {
-                    viewModel.clearSaleCustomer()
-                    viewModel.closeCashCustomer()
-                }
+        CashCustomerDialog(
+            customerName = customerName,
+            customerPhone = customerPhone,
+            normalizedPhone = normalizedPhone,
+            lookupCompleted = lookupCompleted,
+            existingCustomerName = existingCustomer?.name,
+            needsNewCustomerName = needsNewCustomerName,
+            isExecuting = state.isExecuting,
+            isLookupLoading = state.saleCustomerLookupLoading,
+            onPhoneChange = { value ->
+                customerPhone = value
+                customerName = ""
+                viewModel.setSaleCustomerPhone(
+                    runCatching { value.normalizedNumber() }.getOrNull().orEmpty()
+                )
             },
-            title = {
-                Text(stringResource(R.string.audit_customer_optional), fontWeight = FontWeight.Bold)
+            onNameChange = { customerName = it },
+            onFindCustomer = { phone ->
+                viewModel.setSaleCustomerPhone(phone)
+                viewModel.lookupSaleCustomerByPhone(phone)
             },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 560.dp)
-                        .verticalScroll(rememberScrollState())
-                        .imePadding(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(stringResource(R.string.audit_customer_phone_instruction))
-    
-                    PhoneNumberInput(
-                        value = customerPhone,
-                        onValueChange = {
-                            customerPhone = it
-                            customerName = ""
-                            viewModel.setSaleCustomerPhone(
-                                runCatching { it.normalizedNumber() }.getOrNull().orEmpty()
-                            )
-                        },
-                        enabled = !state.isExecuting &&
-                            !state.saleCustomerLookupLoading,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-    
-                    if (normalizedPhone != null && !lookupCompleted) {
-                        Button(
-                            onClick = {
-                                viewModel.setSaleCustomerPhone(normalizedPhone)
-                                viewModel.lookupSaleCustomerByPhone(normalizedPhone)
-                            },
-                            enabled = !state.isExecuting &&
-                                !state.saleCustomerLookupLoading,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                if (state.saleCustomerLookupLoading)
-                                    "Finding Customer..."
-                                else
-                                    "Find Customer"
-                            )
-                        }
-                    }
-    
-                    if (existingCustomer != null) {
-                        Text(
-                            text = stringResource(R.string.audit_existing_customer, existingCustomer.name),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-    
-                    if (needsNewCustomerName) {
-                        Text(stringResource(R.string.audit_no_existing_customer))
-    
-                        OutlinedTextField(
-                            value = customerName,
-                            onValueChange = { customerName = it },
-                            label = { Text(stringResource(R.string.audit_customer_name)) },
-                            singleLine = true,
-                            enabled = !state.isExecuting,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
+            onSkipCustomer = {
+                viewModel.clearSaleCustomer()
+                viewModel.closeCashCustomer()
+                viewModel.executeCashSale()
             },
-            confirmButton = {
-                when {
-                    normalizedPhone == null -> {
-                        Button(
-                            onClick = {
-                                viewModel.clearSaleCustomer()
-                                viewModel.closeCashCustomer()
-                                viewModel.executeCashSale()
-                            },
-                            enabled = !state.isExecuting
-                        ) {
-                            Text(stringResource(R.string.audit_skip_customer))
-                        }
-                    }
-    
-                    existingCustomer != null -> {
-                        Button(
-                            onClick = {
-                                viewModel.setSaleCustomerPhone(normalizedPhone)
-                                viewModel.setSaleCustomerName(existingCustomer.name)
-                                viewModel.closeCashCustomer()
-                                viewModel.executeCashSale()
-                            },
-                            enabled = !state.isExecuting &&
-                                !state.saleCustomerLookupLoading
-                        ) {
-                            Text(stringResource(R.string.audit_save_sale))
-                        }
-                    }
-    
-                    needsNewCustomerName -> {
-                        Button(
-                            onClick = {
-                                viewModel.setSaleCustomerPhone(normalizedPhone)
-                                viewModel.setSaleCustomerName(customerName.trim())
-                                viewModel.closeCashCustomer()
-                                viewModel.executeCashSale()
-                            },
-                            enabled = !state.isExecuting &&
-                                customerName.isNotBlank()
-                        ) {
-                            Text(stringResource(R.string.audit_save_sale))
-                        }
-                    }
-                }
+            onUseExistingCustomer = { name ->
+                viewModel.setSaleCustomerPhone(normalizedPhone.orEmpty())
+                viewModel.setSaleCustomerName(name)
+                viewModel.closeCashCustomer()
+                viewModel.executeCashSale()
             },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.clearSaleCustomer()
-                        viewModel.closeCashCustomer()
-                    },
-                    enabled = !state.isExecuting
-                ) {
-                    Text(stringResource(R.string.audit_cancel))
-                }
+            onSaveNewCustomer = { phone, name ->
+                viewModel.setSaleCustomerPhone(phone)
+                viewModel.setSaleCustomerName(name)
+                viewModel.closeCashCustomer()
+                viewModel.executeCashSale()
+            },
+            onDismiss = {
+                viewModel.clearSaleCustomer()
+                viewModel.closeCashCustomer()
+            },
+            onCancel = {
+                viewModel.clearSaleCustomer()
+                viewModel.closeCashCustomer()
             }
         )
     }
@@ -961,105 +727,16 @@ internal fun RegisterOverlayHost(
                         onlineLookupCompleted &&
                             onlineExistingCustomer == null
     
-                    Text(
-                        stringResource(R.string.audit_customer_optional),
-                        fontWeight = FontWeight.SemiBold
-                    )
-    
-                    Text(
-                        stringResource(R.string.audit_customer_phone_optional_instruction)
-                    )
-    
-                    PhoneNumberInput(
-                        value = onlineCustomerPhone,
-                        onValueChange = {
-                            onlineCustomerPhone = it
-                            onlineCustomerName = ""
-                            viewModel.setSaleCustomerPhone(
-                                runCatching {
-                                    it.normalizedNumber()
-                                }.getOrNull().orEmpty()
-                            )
-                        },
-                        enabled = !state.isExecuting &&
-                            !state.saleCustomerLookupLoading,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-    
-                    if (onlineCustomerPhoneNormalized != null &&
-                        !onlineLookupCompleted
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                viewModel.setSaleCustomerPhone(
-                                    onlineCustomerPhoneNormalized
-                                )
-                                viewModel.lookupSaleCustomerByPhone(
-                                    onlineCustomerPhoneNormalized
-                                )
-                            },
-                            enabled = !state.isExecuting &&
-                                !state.saleCustomerLookupLoading,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                if (state.saleCustomerLookupLoading)
-                                    "Finding Customer..."
-                                else
-                                    "Find Customer"
-                            )
-                        }
-                    }
-    
-                    if (onlineExistingCustomer != null) {
-                        Text(
-                            text = stringResource(R.string.audit_existing_customer, onlineExistingCustomer.name),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-    
-                    if (onlineNeedsNewCustomerName) {
-                        Text(stringResource(R.string.audit_no_existing_customer))
-    
-                        OutlinedTextField(
-                            value = onlineCustomerName,
-                            onValueChange = { onlineCustomerName = it },
-                            label = { Text(stringResource(R.string.audit_customer_name)) },
-                            singleLine = true,
-                            enabled = !state.isExecuting,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-    
-                    Button(
-                        onClick = {
-                            when {
-                                onlineCustomerPhoneNormalized == null -> {
-                                    viewModel.clearSaleCustomer()
-                                }
-    
-                                onlineExistingCustomer != null -> {
-                                    viewModel.setSaleCustomerPhone(
-                                        onlineCustomerPhoneNormalized
-                                    )
-                                    viewModel.setSaleCustomerName(
-                                        onlineExistingCustomer.name
-                                    )
-                                }
-    
-                                onlineNeedsNewCustomerName -> {
-                                    viewModel.setSaleCustomerPhone(
-                                        onlineCustomerPhoneNormalized
-                                    )
-                                    viewModel.setSaleCustomerName(
-                                        onlineCustomerName.trim()
-                                    )
-                                }
-                            }
-    
-                            viewModel.executeOnlineSale()
-                        },
-                        enabled =
+                    OnlinePaymentCustomerSection(
+                        customerName = onlineCustomerName,
+                        customerPhone = onlineCustomerPhone,
+                        normalizedPhone = onlineCustomerPhoneNormalized,
+                        lookupCompleted = onlineLookupCompleted,
+                        existingCustomerName = onlineExistingCustomer?.name,
+                        needsNewCustomerName = onlineNeedsNewCustomerName,
+                        isExecuting = state.isExecuting,
+                        isLookupLoading = state.saleCustomerLookupLoading,
+                        confirmEnabled =
                             !state.isExecuting &&
                                 !state.saleCustomerLookupLoading &&
                                 (
@@ -1070,18 +747,48 @@ internal fun RegisterOverlayHost(
                                                 onlineCustomerName.isNotBlank()
                                         )
                                 ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
-                    ) {
-                        Text(
-                            stringResource(R.string.payment_received),
-                            fontSize = 17.sp
-                        )
-                    }
-                    TextButton(onClick = { viewModel.cancelOnlinePayment() }, enabled = !state.isExecuting) {
-                        Text(stringResource(R.string.cancel))
-                    }
+                        onPhoneChange = { value ->
+                            onlineCustomerPhone = value
+                            onlineCustomerName = ""
+                            viewModel.setSaleCustomerPhone(
+                                runCatching {
+                                    value.normalizedNumber()
+                                }.getOrNull().orEmpty()
+                            )
+                        },
+                        onFindCustomer = { phone ->
+                            viewModel.setSaleCustomerPhone(phone)
+                            viewModel.lookupSaleCustomerByPhone(phone)
+                        },
+                        onNameChange = { onlineCustomerName = it },
+                        onConfirm = {
+                            when {
+                                onlineCustomerPhoneNormalized == null -> {
+                                    viewModel.clearSaleCustomer()
+                                }
+
+                                onlineExistingCustomer != null -> {
+                                    viewModel.setSaleCustomerPhone(
+                                        onlineCustomerPhoneNormalized
+                                    )
+                                    viewModel.setSaleCustomerName(
+                                        onlineExistingCustomer.name
+                                    )
+                                }
+
+                                onlineNeedsNewCustomerName -> {
+                                    viewModel.setSaleCustomerPhone(
+                                        onlineCustomerPhoneNormalized
+                                    )
+                                    viewModel.setSaleCustomerName(
+                                        onlineCustomerName.trim()
+                                    )
+                                }
+                            }
+                            viewModel.executeOnlineSale()
+                        },
+                        onCancel = viewModel::cancelOnlinePayment
+                    )
                 }
             }
         }
