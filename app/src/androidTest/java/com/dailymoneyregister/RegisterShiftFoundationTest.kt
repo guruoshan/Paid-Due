@@ -73,7 +73,11 @@ class RegisterShiftFoundationTest {
 
         assertTrue(first is CommandResult.Success)
         assertTrue(replay is CommandResult.Success && replay.isIdempotentReplay)
-        assertEquals(1, database.cashShiftDao().getEventsForShift(command.shiftId.value).size)
+        val openingEvents = database.cashShiftDao().getEventsForShift(command.shiftId.value)
+        assertEquals(1, openingEvents.size)
+        assertEquals("OPENED", openingEvents.single().type.name)
+        // Opening balance is always zero; opening is lifecycle evidence, never cash movement.
+        assertEquals(0L, openingEvents.single().amountMinor)
         assertEquals(
             OperationStatus.SUCCEEDED,
             database.operationDao().getOperationById(command.operationId.value)?.status
