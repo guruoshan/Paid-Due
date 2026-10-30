@@ -10,7 +10,6 @@
     <string name="profile_timezone">समय क्षेत्र: %1$s</string>
     <string name="profile_user">लॉग इन: %1$s (%2$s)</string>
     <string name="role_admin">व्यवस्थापक</string>
-    <string name="role_cashier">कैशियर</string>
     <string name="register_financial_session_reset">सक्रिय वित्तीय सत्र बदलने के कारण रजिस्टर रीसेट किया गया।</string>
 
     <string name="language_en_native" translatable="false">English</string>

@@ -48,8 +48,6 @@
     <string name="dmr20_cat_fees">رسوم</string>
     <string name="dmr20_cat_food">طعام / مرطبات</string>
     <string name="dmr20_cat_other">أخرى</string>
-    <string name="dmr20_credit_payment">دفعة ائتمان</string>
-    <string name="dmr20_expense">مصروف</string>
     <string name="dmr20_credit_reduced">تم تخفيض الائتمان</string>
     <string name="dmr20_coupon_refunded">تم رد المبلغ إلى القسيمة</string>
     <string name="dmr20_cash_refunded">تم رد المبلغ نقدًا</string>

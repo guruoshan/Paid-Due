@@ -11,10 +11,8 @@
 
     <!-- Language Selection -->
     <string name="choose_language">اپنی زبان منتخب کریں</string>
-    <string name="preferred_language">پسندیدہ زبان</string>
 
     <!-- Setup Flow -->
-    <string name="setup_title">ابتدائی کاروباری سیٹ اپ</string>
     <string name="business_name">کاروبار کا نام</string>
     <string name="branch_name">برانچ کا نام</string>
     <string name="branch_code">برانچ کوڈ (مثال: MAIN)</string>
@@ -24,11 +22,8 @@
 
     <!-- Auth / Login -->
     <string name="login_title">ڈیلی منی رجسٹر</string>
-    <string name="admin_login">ایڈمن لاگ ان</string>
     <string name="email_address">ای میل پتہ</string>
-    <string name="cashier_login">کیشیئر پن لاگ ان</string>
     <string name="password">پاس ورڈ</string>
-    <string name="enter_6_digit_pin">6 ہندسوں کا کیشیئر پن درج کریں</string>
     <string name="login">لاگ ان</string>
     <plurals name="locked_out_msg">
         <item quantity="one">بہت سی ناکام کوششیں۔ %1$d سیکنڈ کے لیے لاک کر دیا گیا ہے۔</item>
@@ -41,18 +36,9 @@
     <string name="main_register_admin_controls">مین رجسٹر اور ایڈمن کنٹرولز</string>
     <string name="open_cash_register">کیش رجسٹر کھولیں</string>
     <string name="open_cash_register_desc">تیز رفتار نقد فروخت، کیلکولیٹر، بل، ٹیکس اور شپنگ</string>
-    <string name="manage_cashiers_desc">پن، زبان اور اجازت کے ساتھ کیشیئر بنائیں</string>
     <string name="settings_languages_desc">ایپ کی زبان تبدیل کریں یا پروفائل دیکھیں</string>
 
     <!-- Cashier Management -->
-    <string name="manage_cashiers">کیشیئرز کا انتظام</string>
-    <string name="cashier_name">کیشیئر کا نام</string>
-    <string name="cashier_pin">6 ہندسوں کا پن</string>
-    <string name="save_cashier">کیشیئر محفوظ کریں</string>
-    <string name="permissions">اجازتیں</string>
-    <string name="permission_credit_sale">ادھار فروخت کر سکتے ہیں</string>
-    <string name="permission_refund">رقم واپس کر سکتے ہیں</string>
-    <string name="permission_void">لین دین منسوخ کر سکتے ہیں</string>
 
     <!-- Settings -->
     <string name="settings">ترتیبات</string>
@@ -75,17 +61,9 @@
 
     <!-- Recent Transactions Panel -->
     <string name="recent_activity_count">آج کی سرگرمی (%1$d)</string>
-    <string name="today_total">کل: %1$s</string>
-    <string name="recent_activity_refund">رقم واپسی</string>
-    <string name="recent_activity_refund_coupon">کوپن میں رقم واپسی</string>
     <string name="no_transactions_today">آج ابھی تک کوئی لین دین درج نہیں ہوا۔</string>
-    <string name="cash_sale_label">نقد فروخت</string>
-    <string name="whatsapp_mobile_number">واٹس ایپ / موبائل نمبر</string>
     <string name="ship_pack_amount">شپنگ/پیکنگ: %1$s</string>
-    <string name="online_sale_label">آن لائن فروخت</string>
     <string name="credit_sale_label">ادھار فروخت</string>
-    <string name="coupon_sale_label">کوپن کے ذریعے فروخت</string>
-    <string name="sale_label">فروخت</string>
     <string name="recent_status_voided">منسوخ</string>
     <string name="recent_status_partially_refunded">جزوی رقم واپسی</string>
     <string name="recent_status_fully_refunded">مکمل رقم واپسی</string>
@@ -116,10 +94,6 @@
     <string name="startup_recovery_required">رجسٹر کھولنے سے پہلے مالی بحالی مکمل ہونی چاہیے</string>
     <string name="startup_recovery_failed">زیر التوا مالی کارروائیوں کو محفوظ طریقے سے بحال نہیں کیا جا سکا</string>
     <string name="retry">دوبارہ کوشش کریں</string>
-    <string name="change_pin_title">نیا پن بنائیں</string>
-    <string name="change_pin_new">نیا 6 ہندسوں کا پن</string>
-    <string name="change_pin_confirm">نئے پن کی تصدیق کریں</string>
-    <string name="change_pin_save">پن محفوظ کریں</string>
 
     <!-- Invoice form (added) -->
     <string name="inv_create">انوائس بنائیں</string>
@@ -248,11 +222,6 @@
     <string name="tx_confirmation_provider">فراہم کنندہ سے منظور شدہ</string>
     <string name="history_back">واپس</string>
     <string name="history_search_hint">تاریخ، فون، نام یا رقم تلاش کریں</string>
-    <string name="history_filter_all">سب</string>
-    <string name="history_filter_date">تاریخ</string>
-    <string name="history_filter_phone">فون</string>
-    <string name="history_filter_name">نام</string>
-    <string name="history_filter_amount">رقم</string>
     <string name="history_loading">ہسٹری لوڈ ہو رہی ہے…</string>
     <string name="history_empty">ابھی کوئی لین دین نہیں ہے۔</string>
     <string name="history_no_match">کوئی مماثل لین دین نہیں ملا۔</string>

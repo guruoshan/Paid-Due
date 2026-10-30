@@ -48,8 +48,6 @@
     <string name="dmr20_cat_fees">शुल्क</string>
     <string name="dmr20_cat_food">भोजन / जलपान</string>
     <string name="dmr20_cat_other">अन्य</string>
-    <string name="dmr20_credit_payment">क्रेडिट भुगतान</string>
-    <string name="dmr20_expense">खर्च</string>
     <string name="dmr20_credit_reduced">क्रेडिट कम हुआ</string>
     <string name="dmr20_coupon_refunded">कूपन में रिफंड</string>
     <string name="dmr20_cash_refunded">नकद रिफंड</string>

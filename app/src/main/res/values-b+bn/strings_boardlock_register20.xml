@@ -48,8 +48,6 @@
     <string name="dmr20_cat_fees">ফি</string>
     <string name="dmr20_cat_food">খাবার / নাশতা</string>
     <string name="dmr20_cat_other">অন্যান্য</string>
-    <string name="dmr20_credit_payment">ক্রেডিট পেমেন্ট</string>
-    <string name="dmr20_expense">খরচ</string>
     <string name="dmr20_credit_reduced">ক্রেডিট কমেছে</string>
     <string name="dmr20_coupon_refunded">কুপনে ফেরত</string>
     <string name="dmr20_cash_refunded">নগদ ফেরত</string>
