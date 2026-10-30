@@ -11,10 +11,8 @@
 
     <!-- Language Selection -->
     <string name="choose_language">اختر لغتك</string>
-    <string name="preferred_language">اللغة المفضلة</string>
 
     <!-- Setup Flow -->
-    <string name="setup_title">الإعداد الأولي للمنشأة</string>
     <string name="business_name">اسم المنشأة</string>
     <string name="branch_name">اسم الفرع</string>
     <string name="branch_code">رمز الفرع (مثال: MAIN)</string>
@@ -24,11 +22,8 @@
 
     <!-- Auth / Login -->
     <string name="login_title">سجل الأموال اليومي</string>
-    <string name="admin_login">دخول المشرف</string>
     <string name="email_address">عنوان البريد الإلكتروني</string>
-    <string name="cashier_login">دخول أمين الصندوق برمز PIN</string>
     <string name="password">كلمة المرور</string>
-    <string name="enter_6_digit_pin">أدخل رمز PIN المكون من 6 أرقام</string>
     <string name="login">تسجيل الدخول</string>
     <plurals name="locked_out_msg">
         <item quantity="zero">محاولات خاطئة كثيرة. تم قفل الحساب لمدة %1$d ثانية.</item>
@@ -45,18 +40,9 @@
     <string name="main_register_admin_controls">سجل المبيعات الرئيسي ولوحة التحكم</string>
     <string name="open_cash_register">فتح سجل الصندوق</string>
     <string name="open_cash_register_desc">مبيعات نقدية سريعة، حاسبة، فواتير مفصلة، وضريبة وشحن</string>
-    <string name="manage_cashiers_desc">إنشاء أمناء الصناديق برمز PIN ولغة وصلاحيات</string>
     <string name="settings_languages_desc">تغيير لغة التطبيق أو استعراض الملف التعريفي</string>
 
     <!-- Cashier Management -->
-    <string name="manage_cashiers">إدارة أمناء الصناديق</string>
-    <string name="cashier_name">اسم أمين الصندوق</string>
-    <string name="cashier_pin">رمز PIN (6 أرقام)</string>
-    <string name="save_cashier">حفظ أمين الصندوق</string>
-    <string name="permissions">الصلاحيات</string>
-    <string name="permission_credit_sale">إمكانية إنشاء مبيعات آجلة</string>
-    <string name="permission_refund">إمكانية إصدار استرجاع</string>
-    <string name="permission_void">إمكانية إلغاء العمليات</string>
 
     <!-- Settings -->
     <string name="settings">الإعدادات</string>
@@ -79,17 +65,9 @@
 
     <!-- Recent Transactions Panel -->
     <string name="recent_activity_count">نشاط اليوم (%1$d)</string>
-    <string name="today_total">الإجمالي: %1$s</string>
-    <string name="recent_activity_refund">استرداد</string>
-    <string name="recent_activity_refund_coupon">استرداد إلى القسيمة</string>
     <string name="no_transactions_today">لم تُسجل مبيعات اليوم بعد.</string>
-    <string name="cash_sale_label">بيع نقدي</string>
-    <string name="whatsapp_mobile_number">واتساب / رقم الهاتف المحمول</string>
     <string name="ship_pack_amount">شحن/تغليف: %1$s</string>
-    <string name="online_sale_label">بيع إلكتروني</string>
     <string name="credit_sale_label">بيع آجل</string>
-    <string name="coupon_sale_label">بيع بالقسيمة</string>
-    <string name="sale_label">بيع</string>
     <string name="recent_status_voided">تم الإلغاء</string>
     <string name="recent_status_partially_refunded">استرداد جزئي</string>
     <string name="recent_status_fully_refunded">استرداد كامل</string>
@@ -124,10 +102,6 @@
     <string name="startup_recovery_required">يجب إكمال استعادة البيانات المالية قبل فتح السجل.</string>
     <string name="startup_recovery_failed">تعذر استعادة العمليات المالية المعلقة بأمان.</string>
     <string name="retry">إعادة المحاولة</string>
-    <string name="change_pin_title">إنشاء رمز PIN جديد</string>
-    <string name="change_pin_new">رمز PIN جديد من 6 أرقام</string>
-    <string name="change_pin_confirm">تأكيد رمز PIN الجديد</string>
-    <string name="change_pin_save">حفظ رمز PIN</string>
 
     <!-- Invoice form (added) -->
     <string name="inv_create">إنشاء فاتورة</string>
@@ -260,11 +234,6 @@
     <string name="tx_confirmation_provider">تمت الموافقة بواسطة المزود</string>
     <string name="history_back">رجوع</string>
     <string name="history_search_hint">ابحث بالتاريخ أو الهاتف أو الاسم أو المبلغ</string>
-    <string name="history_filter_all">الكل</string>
-    <string name="history_filter_date">التاريخ</string>
-    <string name="history_filter_phone">الهاتف</string>
-    <string name="history_filter_name">الاسم</string>
-    <string name="history_filter_amount">المبلغ</string>
     <string name="history_loading">جارٍ تحميل السجل…</string>
     <string name="history_empty">لا توجد معاملات بعد.</string>
     <string name="history_no_match">لا توجد معاملات مطابقة.</string>

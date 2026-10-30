@@ -11,10 +11,8 @@
 
     <!-- Language Selection -->
     <string name="choose_language">Choose Your Language</string>
-    <string name="preferred_language">Preferred Language</string>
 
     <!-- Setup Flow -->
-    <string name="setup_title">Initial Business Setup</string>
     <string name="business_name">Business Name</string>
     <string name="branch_name">Branch Name</string>
     <string name="branch_code">Branch Code (e.g. MAIN)</string>
@@ -24,12 +22,8 @@
 
     <!-- Auth / Login -->
     <string name="login_title">Paid&amp;Due</string>
-    <string name="admin_login">Admin Login</string>
     <string name="email_address">Email Address</string>
-    <string name="cashier_login">Cashier PIN Login</string>
-    <string name="whatsapp_mobile_number">WhatsApp / Mobile Number</string>
     <string name="password">Password</string>
-    <string name="enter_6_digit_pin">Enter 6-Digit Cashier PIN</string>
     <string name="login">Login</string>
     <plurals name="locked_out_msg">
         <item quantity="one">Too many failed attempts. Locked out for %1$d second.</item>
@@ -42,18 +36,9 @@
     <string name="main_register_admin_controls">Main Register &amp; Admin Controls</string>
     <string name="open_cash_register">Open Cash Register</string>
     <string name="open_cash_register_desc">Fast cash sales, calculator, itemized bills, tax &amp; shipping</string>
-    <string name="manage_cashiers_desc">Create cashiers with 6-digit PINs, language, &amp; permissions</string>
     <string name="settings_languages_desc">Switch app language (EN, AR, HI, BN, UR) or view profile</string>
 
     <!-- Cashier Management -->
-    <string name="manage_cashiers">Manage Cashiers</string>
-    <string name="cashier_name">Cashier Name</string>
-    <string name="cashier_pin">6-Digit PIN</string>
-    <string name="save_cashier">Save Cashier</string>
-    <string name="permissions">Permissions</string>
-    <string name="permission_credit_sale">Can create Credit sales</string>
-    <string name="permission_refund">Can issue Refunds</string>
-    <string name="permission_void">Can Void transactions</string>
 
     <!-- Settings -->
     <string name="settings">Settings</string>
@@ -77,12 +62,7 @@
 
     <!-- Recent Transactions Panel -->
     <string name="recent_activity_count">Recent Financial Activity (%1$d)</string>
-    <string name="today_total">Net External Cash &amp; Online Movement: %1$s</string>
-    <string name="recent_activity_refund">Refund</string>
-    <string name="recent_activity_refund_coupon">Refund to Coupon</string>
     <string name="no_transactions_today">No transactions recorded today yet.</string>
-    <string name="cash_sale_label">Cash Sale</string>
-    <string name="online_sale_label">Online Sale</string>
     <string name="online_payment_settings">Online Payment Settings</string>
     <string name="online_payment_settings_desc">Set the merchant QR that customers use to pay this branch.</string>
     <string name="choose_merchant_qr">Choose merchant QR</string>
@@ -97,8 +77,6 @@
     <string name="online_qr_unavailable">QR image unavailable</string>
     <string name="payment_received">Payment Received</string>
     <string name="credit_sale_label">Credit Sale</string>
-    <string name="coupon_sale_label">Coupon Sale</string>
-    <string name="sale_label">Sale</string>
     <string name="recent_status_voided">Voided</string>
     <string name="recent_status_partially_refunded">Partially Refunded</string>
     <string name="recent_status_fully_refunded">Fully Refunded</string>
@@ -131,10 +109,6 @@
     <string name="startup_recovery_required">Financial recovery must finish before the register can open.</string>
     <string name="startup_recovery_failed">Pending financial operations could not be safely recovered.</string>
     <string name="retry">Retry</string>
-    <string name="change_pin_title">Create New PIN</string>
-    <string name="change_pin_new">New 6-digit PIN</string>
-    <string name="change_pin_confirm">Confirm New PIN</string>
-    <string name="change_pin_save">Save PIN</string>
     <string name="coupon_purchase_title">Sell Coupon</string>
     <string name="coupon_use_action">Use Coupon</string>
     <string name="coupon_change_customer">Change customer</string>
@@ -144,7 +118,6 @@
     <string name="coupon_purchase_retry">Retry purchase</string>
     <string name="coupon_purchase_done">Done</string>
     <string name="coupon_top_up_action">Top up wallet</string>
-    <string name="coupon_top_up_label">Coupon top up</string>
     <string name="coupon_share_updated_balance">Share updated balance on WhatsApp</string>
     <string name="coupon_edit_user">Edit</string>
     <string name="coupon_deactivate_user">Deactivate</string>
@@ -152,9 +125,6 @@
     <string name="coupon_authorized_user_name">Authorized user name</string>
     <string name="coupon_add_user">Add authorized user</string>
     <string name="coupon_save_user">Save name</string>
-    <string name="coupon_whatsapp_balance_message">Hello %1$s,\n\nYour current coupon balance at %2$s is %3$s.\n\nThank you!\n\nPowered by Paid&amp;Due</string>
-    <string name="coupon_whatsapp_invalid_phone">A valid international phone number is required.</string>
-    <string name="coupon_whatsapp_open_failed">Could not open WhatsApp.</string>
     <string name="coupon_loading">Loading…</string>
 
     <!-- Invoice form (added) -->
@@ -284,11 +254,6 @@
     <string name="tx_confirmation_provider">Provider approved</string>
     <string name="history_back">Back</string>
     <string name="history_search_hint">Search date, phone, name or amount</string>
-    <string name="history_filter_all">All</string>
-    <string name="history_filter_date">Date</string>
-    <string name="history_filter_phone">Phone</string>
-    <string name="history_filter_name">Name</string>
-    <string name="history_filter_amount">Amount</string>
     <string name="history_loading">Loading history…</string>
     <string name="history_empty">No transactions yet.</string>
     <string name="history_no_match">No matching transactions.</string>
@@ -370,47 +335,6 @@
     <string name="dmr22_closed_at">Closed at: %1$s</string>
 
     <!-- Staff lifecycle: edit / permissions / disable / enable / reset PIN -->
-    <string name="staff_more_actions">More actions</string>
-    <string name="staff_status_disabled">Disabled</string>
-    <string name="staff_edit_details">Edit details</string>
-    <string name="staff_edit_details_title">Edit Cashier</string>
-    <string name="staff_edit_permissions">Edit permissions</string>
-    <string name="staff_edit_permissions_title">Permissions: %1$s</string>
-    <string name="staff_reset_pin">Reset PIN</string>
-    <string name="staff_reset_pin_title">Reset PIN for %1$s</string>
-    <string name="staff_reset_pin_note">The cashier must choose a new PIN the next time they sign in.</string>
-    <string name="staff_new_pin">New 6-digit PIN</string>
-    <string name="staff_disable">Disable cashier</string>
-    <string name="staff_disable_title">Disable %1$s?</string>
-    <string name="staff_disable_message">This cashier will not be able to sign in or record sales until you enable them again. Past records are kept.</string>
-    <string name="staff_enable">Enable cashier</string>
-    <string name="staff_enable_title">Enable %1$s?</string>
-    <string name="staff_enable_message">This cashier will be able to sign in again.</string>
-    <string name="staff_delete">Remove cashier</string>
-    <string name="staff_delete_title">Remove %1$s?</string>
-    <string name="staff_delete_message">This cashier will be removed from the active staff list and will no longer be able to sign in. Past sales, refunds and audit history will be preserved.</string>
-    <string name="staff_cashier_removed">%1$s removed</string>
-    <string name="staff_cashier_updated">%1$s updated</string>
-    <string name="staff_permissions_updated">Permissions updated for %1$s</string>
-    <string name="staff_cashier_disabled">%1$s disabled</string>
-    <string name="staff_cashier_enabled">%1$s enabled</string>
-    <string name="staff_pin_reset_done">PIN reset for %1$s. They must set a new PIN at next sign-in.</string>
-    <string name="staff_cashier_unavailable">This cashier could not be loaded.</string>
-    <string name="staff_perm_create_sale">Create sales</string>
-    <string name="staff_perm_accept_cash">Accept cash</string>
-    <string name="staff_perm_accept_online">Accept online payments</string>
-    <string name="staff_perm_credit_sale">Create credit sales</string>
-    <string name="staff_perm_coupon">Use coupons</string>
-    <string name="staff_perm_invoice">Issue invoices</string>
-    <string name="staff_perm_receipt">Issue receipts</string>
-    <string name="staff_perm_refund">Issue refunds</string>
-    <string name="staff_perm_void">Void transactions</string>
-    <string name="staff_perm_correct_amount">Correct amounts</string>
-    <string name="staff_perm_change_payment">Change payment method</string>
-    <string name="staff_perm_broad_history">View full history</string>
-    <string name="staff_perm_customer_directory">Access customer directory</string>
-    <string name="staff_perm_manage_products">Manage products</string>
-    <string name="staff_perm_view_reports">View reports</string>
     <string name="admin_email">Admin email</string>
 
     <!-- Help & FAQ: financial metric definitions (presentation-only; calculation rules live in reporting code). -->

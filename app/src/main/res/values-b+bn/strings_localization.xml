@@ -10,6 +10,5 @@
     <string name="profile_timezone">টাইমজোন: %1$s</string>
     <string name="profile_user">লগইন করেছেন: %1$s (%2$s)</string>
     <string name="role_admin">অ্যাডমিন</string>
-    <string name="role_cashier">ক্যাশিয়ার</string>
     <string name="register_financial_session_reset">সক্রিয় আর্থিক সেশন পরিবর্তিত হওয়ায় রেজিস্টার রিসেট করা হয়েছে।</string>
 </resources>

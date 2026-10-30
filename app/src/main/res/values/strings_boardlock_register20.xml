@@ -48,8 +48,6 @@
     <string name="dmr20_cat_fees">Fees</string>
     <string name="dmr20_cat_food">Food / Refreshments</string>
     <string name="dmr20_cat_other">Other</string>
-    <string name="dmr20_credit_payment">Credit Payment</string>
-    <string name="dmr20_expense">Expense</string>
     <string name="dmr20_credit_reduced">Credit reduced</string>
     <string name="dmr20_coupon_refunded">Coupon refunded</string>
     <string name="dmr20_cash_refunded">Cash refunded</string>

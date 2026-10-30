@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sign_up">Sign Up</string>
-    <string name="choose_account_type">Choose your account type</string>
     <string name="business_admin">Business Admin</string>
-    <string name="employee">Employee</string>
-    <string name="employee_invite_info">Ask your Admin to send you a WhatsApp invite.</string>
     <string name="confirm_password">Confirm Password</string>
     <string name="show_password">Show password</string>
     <string name="hide_password">Hide password</string>
@@ -20,11 +17,4 @@
     <string name="admin_password_too_short">Password must be at least 8 characters.</string>
     <string name="business_already_exists">A business already exists on this device. Please log in.</string>
     <string name="go_to_login">Go to Login</string>
-    <string name="invite_by_whatsapp">Invite by WhatsApp</string>
-    <string name="invite_sent_title">Invitation link ready</string>
-    <string name="invite_sent_message">Send this invitation to %1$s using WhatsApp.</string>
-    <string name="send_whatsapp_invitation">Open WhatsApp to send</string>
-    <string name="invite_branch">Branch</string>
-    <string name="create_invite">Create invitation link</string>
-    <string name="invite_expiry_note">This secure invitation expires in 48 hours and can be used only once.</string>
 </resources>

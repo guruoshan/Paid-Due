@@ -11,10 +11,8 @@
 
     <!-- Language Selection -->
     <string name="choose_language">আপনার ভাষা নির্বাচন করুন</string>
-    <string name="preferred_language">পছন্দের ভাষা</string>
 
     <!-- Setup Flow -->
-    <string name="setup_title">প্রাথমিক ব্যবসায়িক সেটআপ</string>
     <string name="business_name">ব্যবসার নাম</string>
     <string name="branch_name">শাখার নাম</string>
     <string name="branch_code">শাখা কোড (যেমন MAIN)</string>
@@ -24,11 +22,8 @@
 
     <!-- Auth / Login -->
     <string name="login_title">ডেইলি মানি রেজিস্টার</string>
-    <string name="admin_login">অ্যাডমিন লগইন</string>
     <string name="email_address">ইমেইল ঠিকানা</string>
-    <string name="cashier_login">ক্যাশিয়ার পিন লগইন</string>
     <string name="password">পাসওয়ার্ড</string>
-    <string name="enter_6_digit_pin">৬-সংখ্যার ক্যাশিয়ার পিন লিখুন</string>
     <string name="login">লগইন</string>
     <plurals name="locked_out_msg">
         <item quantity="one">অতিরিক্ত ব্যর্থ প্রচেষ্টা। %1$d সেকেন্ডের জন্য লক করা হয়েছে।</item>
@@ -41,18 +36,9 @@
     <string name="main_register_admin_controls">মূল রেজিস্টার ও অ্যাডমিন নিয়ন্ত্রণ</string>
     <string name="open_cash_register">ক্যাশ রেজিস্টার খুলুন</string>
     <string name="open_cash_register_desc">দ্রুত নগদ বিক্রয়, ক্যালকুলেটর, চালান ও শিপিং</string>
-    <string name="manage_cashiers_desc">পিন, ভাষা ও অনুমতিসহ ক্যাশিয়ার তৈরি করুন</string>
     <string name="settings_languages_desc">অ্যাপের ভাষা পরিবর্তন করুন বা প্রোফাইল দেখুন</string>
 
     <!-- Cashier Management -->
-    <string name="manage_cashiers">ক্যাশিয়ার পরিচালনা</string>
-    <string name="cashier_name">ক্যাশিয়ারের নাম</string>
-    <string name="cashier_pin">৬-সংখ্যার পিন</string>
-    <string name="save_cashier">ক্যাশিয়ার সংরক্ষণ করুন</string>
-    <string name="permissions">অনুমতিসমূহ</string>
-    <string name="permission_credit_sale">বাকিতে বিক্রয় করতে পারবেন</string>
-    <string name="permission_refund">টাকা ফেরত দিতে পারবেন</string>
-    <string name="permission_void">লেনদেন বাতিল করতে পারবেন</string>
 
     <!-- Settings -->
     <string name="settings">সেটিংস</string>
@@ -75,17 +61,9 @@
 
     <!-- Recent Transactions Panel -->
     <string name="recent_activity_count">আজকের কার্যক্রম (%1$d)</string>
-    <string name="today_total">মোট: %1$s</string>
-    <string name="recent_activity_refund">ফেরত</string>
-    <string name="recent_activity_refund_coupon">কুপনে ফেরত</string>
     <string name="no_transactions_today">আজ এখনও কোনো লেনদেন রেকর্ড করা হয়নি।</string>
-    <string name="cash_sale_label">নগদ বিক্রয়</string>
-    <string name="whatsapp_mobile_number">WhatsApp / মোবাইল নম্বর</string>
     <string name="ship_pack_amount">শিপ/প্যাক: %1$s</string>
-    <string name="online_sale_label">অনলাইন বিক্রয়</string>
     <string name="credit_sale_label">বাকিতে বিক্রয়</string>
-    <string name="coupon_sale_label">কুপনের মাধ্যমে বিক্রয়</string>
-    <string name="sale_label">বিক্রয়</string>
     <string name="recent_status_voided">&#x09AC;&#x09BE;&#x09A4;&#x09BF;&#x09B2;</string>
     <string name="recent_status_partially_refunded">&#x0986;&#x0982;&#x09B6;&#x09BF;&#x0995; &#x09AB;&#x09C7;&#x09B0;&#x09A4;</string>
     <string name="recent_status_fully_refunded">&#x09B8;&#x09AE;&#x09CD;&#x09AA;&#x09C2;&#x09B0;&#x09CD;&#x09A3; &#x09AB;&#x09C7;&#x09B0;&#x09A4;</string>
@@ -116,10 +94,6 @@
     <string name="startup_recovery_required">&#x09B0;&#x09C7;&#x099C;&#x09BF;&#x09B8;&#x09CD;&#x099F;&#x09BE;&#x09B0; &#x0996;&#x09CB;&#x09B2;&#x09BE;&#x09B0; &#x0986;&#x0997;&#x09C7; &#x0986;&#x09B0;&#x09CD;&#x09A5;&#x09BF;&#x0995; &#x09AA;&#x09C1;&#x09A8;&#x09B0;&#x09C1;&#x09A6;&#x09CD;&#x09A7;&#x09BE;&#x09B0; &#x09B8;&#x09AE;&#x09CD;&#x09AA;&#x09C2;&#x09B0;&#x09CD;&#x09A3; &#x09B9;&#x09A4;&#x09C7; &#x09B9;&#x09AC;&#x09C7;&#x0964;</string>
     <string name="startup_recovery_failed">&#x0985;&#x09AA;&#x09C7;&#x0995;&#x09CD;&#x09B7;&#x09AE;&#x09BE;&#x09A3; &#x0986;&#x09B0;&#x09CD;&#x09A5;&#x09BF;&#x0995; &#x0995;&#x09BE;&#x09B0;&#x09CD;&#x09AF;&#x0995;&#x09CD;&#x09B0;&#x09AE; &#x09A8;&#x09BF;&#x09B0;&#x09BE;&#x09AA;&#x09A6;&#x09C7; &#x09AA;&#x09C1;&#x09A8;&#x09B0;&#x09C1;&#x09A6;&#x09CD;&#x09A7;&#x09BE;&#x09B0; &#x0995;&#x09B0;&#x09BE; &#x09AF;&#x09BE;&#x09AF;&#x09BC;&#x09A8;&#x09BF;&#x0964;</string>
     <string name="retry">&#x0986;&#x09AC;&#x09BE;&#x09B0; &#x099A;&#x09C7;&#x09B7;&#x09CD;&#x099F;&#x09BE; &#x0995;&#x09B0;&#x09C1;&#x09A8;</string>
-    <string name="change_pin_title">&#x09A8;&#x09A4;&#x09C1;&#x09A8; &#x09AA;&#x09BF;&#x09A8; &#x09A4;&#x09C8;&#x09B0;&#x09BF; &#x0995;&#x09B0;&#x09C1;&#x09A8;</string>
-    <string name="change_pin_new">&#x09A8;&#x09A4;&#x09C1;&#x09A8; &#x09EC;-&#x09B8;&#x0982;&#x0996;&#x09CD;&#x09AF;&#x09BE;&#x09B0; &#x09AA;&#x09BF;&#x09A8;</string>
-    <string name="change_pin_confirm">&#x09A8;&#x09A4;&#x09C1;&#x09A8; &#x09AA;&#x09BF;&#x09A8; &#x09A8;&#x09BF;&#x09B6;&#x09CD;&#x099A;&#x09BF;&#x09A4; &#x0995;&#x09B0;&#x09C1;&#x09A8;</string>
-    <string name="change_pin_save">&#x09AA;&#x09BF;&#x09A8; &#x09B8;&#x0982;&#x09B0;&#x0995;&#x09CD;&#x09B7;&#x09A3; &#x0995;&#x09B0;&#x09C1;&#x09A8;</string>
 
     <!-- Invoice form (added) -->
     <string name="inv_create">ইনভয়েস তৈরি করুন</string>
@@ -248,11 +222,6 @@
     <string name="tx_confirmation_provider">প্রদানকারী দ্বারা অনুমোদিত</string>
     <string name="history_back">ফিরে যান</string>
     <string name="history_search_hint">তারিখ, ফোন, নাম বা পরিমাণ খুঁজুন</string>
-    <string name="history_filter_all">সব</string>
-    <string name="history_filter_date">তারিখ</string>
-    <string name="history_filter_phone">ফোন</string>
-    <string name="history_filter_name">নাম</string>
-    <string name="history_filter_amount">পরিমাণ</string>
     <string name="history_loading">ইতিহাস লোড হচ্ছে…</string>
     <string name="history_empty">এখনও কোনো লেনদেন নেই।</string>
     <string name="history_no_match">মিলযুক্ত কোনো লেনদেন পাওয়া যায়নি।</string>

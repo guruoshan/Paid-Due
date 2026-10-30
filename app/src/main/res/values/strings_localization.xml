@@ -3,11 +3,6 @@
     <!-- English-first preparation intentionally uses fallback until translations are supplied.
          Keep entries translatable; remove this scoped lint suppression when translations land. -->
     <string name="hub_business_branch">%1$s • %2$s (%3$s)</string>
-    <string name="add_cashier">Add Cashier</string>
-    <string name="no_cashiers">No cashiers added yet. Tap \'+\' to create your first cashier.</string>
-    <string name="cashier_pin_hint">6 digits (e.g. 123456)</string>
-    <string name="backspace">Backspace</string>
-    <string name="clear_key">C</string>
     <string name="lockout_countdown">Locked out: %1$ss</string>
     <string name="sale_saved">Sale saved</string>
     <string name="remove_tax">Remove tax</string>
@@ -39,7 +34,6 @@
     <string name="select_country">Select Country</string>
     <string name="confirm_currency">Confirm / Change Currency</string>
     <string name="confirm_timezone">Confirm / Change Timezone</string>
-    <string name="create_admin_account">Create Admin Account</string>
     <string name="country_oman">Oman (OM)</string>
     <string name="country_india">India (IN)</string>
     <string name="country_uae">United Arab Emirates (AE)</string>
@@ -60,16 +54,10 @@
     <string name="timezone_new_york">America/New_York (EST/EDT)</string>
     <string name="timezone_utc">UTC</string>
     <string name="role_admin">ADMIN</string>
-    <string name="role_cashier">CASHIER</string>
-    <string name="cashier_name_required">Name and username are required</string>
-    <string name="cashier_pin_invalid">PIN must be exactly 6 numeric digits</string>
-    <string name="cashier_creation_failed">Failed to create cashier</string>
-    <string name="username_required">Username is required</string>
     <string name="sale_session_missing">Active session missing branch or user</string>
     <string name="sale_total_zero">Cannot complete a sale with grand total of zero</string>
     <string name="cash_sale_failed">Cash sale failed</string>
     <string name="business_name_required">Business name cannot be blank</string>
-    <string name="admin_details_required">Admin name and username are required, password must be &gt;= 6 characters</string>
     <string name="setup_failed">Setup failed</string>
     <string name="language_en_native" translatable="false">English</string>
     <string name="language_ar_native" translatable="false">العربية</string>
@@ -80,7 +68,5 @@
     <string name="language_hi_english" translatable="false">Hindi</string>
     <string name="language_bn_english" translatable="false">Bangla</string>
     <string name="language_ur_english" translatable="false">Urdu</string>
-    <string name="payment_credit_name">CREDIT</string>
-    <string name="payment_online_name">ONLINE</string>
     <string name="register_financial_session_reset">Register reset because the active financial session changed.</string>
 </resources>

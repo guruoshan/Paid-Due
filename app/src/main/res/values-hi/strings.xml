@@ -11,10 +11,8 @@
 
     <!-- Language Selection -->
     <string name="choose_language">अपनी भाषा चुनें</string>
-    <string name="preferred_language">पसंदीदा भाषा</string>
 
     <!-- Setup Flow -->
-    <string name="setup_title">प्रारंभिक व्यवसाय सेटअप</string>
     <string name="business_name">व्यवसाय का नाम</string>
     <string name="branch_name">शाखा का नाम</string>
     <string name="branch_code">शाखा कोड (उदा. MAIN)</string>
@@ -24,11 +22,8 @@
 
     <!-- Auth / Login -->
     <string name="login_title">डेली मनी रजिस्टर</string>
-    <string name="admin_login">व्यवस्थापक लॉगिन</string>
     <string name="email_address">ईमेल पता</string>
-    <string name="cashier_login">कैशियर पिन लॉगिन</string>
     <string name="password">पासवर्ड</string>
-    <string name="enter_6_digit_pin">6-अंकों का कैशियर पिन दर्ज करें</string>
     <string name="login">लॉगिन</string>
     <plurals name="locked_out_msg">
         <item quantity="one">बहुत सारे असफल प्रयास। %1$d सेकंड के लिए लॉक किया गया।</item>
@@ -41,18 +36,9 @@
     <string name="main_register_admin_controls">मुख्य रजिस्टर और व्यवस्थापक नियंत्रण</string>
     <string name="open_cash_register">कैश रजिस्टर खोलें</string>
     <string name="open_cash_register_desc">तेज़ नकद बिक्री, कैलकुलेटर, बिल, कर और शिपिंग</string>
-    <string name="manage_cashiers_desc">पिन, भाषा और अनुमतियों के साथ कैशियर बनाएं</string>
     <string name="settings_languages_desc">ऐप की भाषा बदलें या प्रोफ़ाइल देखें</string>
 
     <!-- Cashier Management -->
-    <string name="manage_cashiers">कैशियर प्रबंधन</string>
-    <string name="cashier_name">कैशियर का नाम</string>
-    <string name="cashier_pin">6-अंकीय पिन</string>
-    <string name="save_cashier">कैशियर सुरक्षित करें</string>
-    <string name="permissions">अनुमतियां</string>
-    <string name="permission_credit_sale">उधार बिक्री बना सकते हैं</string>
-    <string name="permission_refund">रिफंड जारी कर सकते हैं</string>
-    <string name="permission_void">लेनदेन रद्द कर सकते हैं</string>
 
     <!-- Settings -->
     <string name="settings">सेटिंग्स</string>
@@ -75,17 +61,9 @@
 
     <!-- Recent Transactions Panel -->
     <string name="recent_activity_count">आज की गतिविधि (%1$d)</string>
-    <string name="today_total">कुल: %1$s</string>
-    <string name="recent_activity_refund">धनवापसी</string>
-    <string name="recent_activity_refund_coupon">कूपन में धनवापसी</string>
     <string name="no_transactions_today">आज अभी तक कोई लेनदेन दर्ज नहीं किया गया है।</string>
-    <string name="cash_sale_label">नकद बिक्री</string>
-    <string name="whatsapp_mobile_number">WhatsApp / मोबाइल नंबर</string>
     <string name="ship_pack_amount">शिप/पैक: %1$s</string>
-    <string name="online_sale_label">ऑनलाइन बिक्री</string>
     <string name="credit_sale_label">उधार बिक्री</string>
-    <string name="coupon_sale_label">कूपन से बिक्री</string>
-    <string name="sale_label">बिक्री</string>
     <string name="recent_status_voided">&#x0930;&#x0926;&#x094D;&#x0926;</string>
     <string name="recent_status_partially_refunded">&#x0906;&#x0902;&#x0936;&#x093F;&#x0915; &#x0930;&#x093F;&#x092B;&#x0902;&#x0921;</string>
     <string name="recent_status_fully_refunded">&#x092A;&#x0942;&#x0930;&#x093E; &#x0930;&#x093F;&#x092B;&#x0902;&#x0921;</string>
@@ -116,10 +94,6 @@
     <string name="startup_recovery_required">&#x0930;&#x091C;&#x093F;&#x0938;&#x094D;&#x091F;&#x0930; &#x0916;&#x094B;&#x0932;&#x0928;&#x0947; &#x0938;&#x0947; &#x092A;&#x0939;&#x0932;&#x0947; &#x0935;&#x093F;&#x0924;&#x094D;&#x0924;&#x0940;&#x092F; &#x092A;&#x0941;&#x0928;&#x0930;&#x094D;&#x092A;&#x094D;&#x0930;&#x093E;&#x092A;&#x094D;&#x0924;&#x093F; &#x092A;&#x0942;&#x0930;&#x0940; &#x0939;&#x094B;&#x0928;&#x0940; &#x091A;&#x093E;&#x0939;&#x093F;&#x090F;&#x0964;</string>
     <string name="startup_recovery_failed">&#x0932;&#x0902;&#x092C;&#x093F;&#x0924; &#x0935;&#x093F;&#x0924;&#x094D;&#x0924;&#x0940;&#x092F; &#x0932;&#x0947;&#x0928;&#x0926;&#x0947;&#x0928; &#x0938;&#x0941;&#x0930;&#x0915;&#x094D;&#x0937;&#x093F;&#x0924; &#x0930;&#x0942;&#x092A; &#x0938;&#x0947; &#x092A;&#x0941;&#x0928;&#x0930;&#x094D;&#x092A;&#x094D;&#x0930;&#x093E;&#x092A;&#x094D;&#x0924; &#x0928;&#x0939;&#x0940;&#x0902; &#x0915;&#x093F;&#x090F; &#x091C;&#x093E; &#x0938;&#x0915;&#x0947;&#x0964;</string>
     <string name="retry">&#x092A;&#x0941;&#x0928;&#x0903; &#x092A;&#x094D;&#x0930;&#x092F;&#x093E;&#x0938; &#x0915;&#x0930;&#x0947;&#x0902;</string>
-    <string name="change_pin_title">&#x0928;&#x092F;&#x093E; &#x092A;&#x093F;&#x0928; &#x092C;&#x0928;&#x093E;&#x090F;&#x0902;</string>
-    <string name="change_pin_new">&#x0928;&#x092F;&#x093E; 6-&#x0905;&#x0902;&#x0915;&#x0940;&#x092F; &#x092A;&#x093F;&#x0928;</string>
-    <string name="change_pin_confirm">&#x0928;&#x090F; &#x092A;&#x093F;&#x0928; &#x0915;&#x0940; &#x092A;&#x0941;&#x0937;&#x094D;&#x091F;&#x093F; &#x0915;&#x0930;&#x0947;&#x0902;</string>
-    <string name="change_pin_save">&#x092A;&#x093F;&#x0928; &#x0938;&#x0941;&#x0930;&#x0915;&#x094D;&#x0937;&#x093F;&#x0924; &#x0915;&#x0930;&#x0947;&#x0902;</string>
 
     <!-- Invoice form (added) -->
     <string name="inv_create">इनवॉइस बनाएँ</string>
@@ -248,11 +222,6 @@
     <string name="tx_confirmation_provider">प्रदाता द्वारा अनुमोदित</string>
     <string name="history_back">वापस</string>
     <string name="history_search_hint">तारीख, फोन, नाम या राशि खोजें</string>
-    <string name="history_filter_all">सभी</string>
-    <string name="history_filter_date">तारीख</string>
-    <string name="history_filter_phone">फोन</string>
-    <string name="history_filter_name">नाम</string>
-    <string name="history_filter_amount">राशि</string>
     <string name="history_loading">इतिहास लोड हो रहा है…</string>
     <string name="history_empty">अभी कोई लेनदेन नहीं है।</string>
     <string name="history_no_match">कोई मिलता हुआ लेनदेन नहीं मिला।</string>
