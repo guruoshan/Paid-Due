@@ -24,6 +24,7 @@ import com.dailymoneyregister.core.model.currency.CurrencyConfig
 import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.feature.register.data.TransactionDetailsReadModel
+import com.dailymoneyregister.feature.register.ui.sortTransactionDetailsTimeline
 
 import com.dailymoneyregister.feature.register.ui.transactiondetails.paymentMethodLabel
 import com.dailymoneyregister.feature.register.ui.transactiondetails.settlementPurposeLabel
@@ -433,3 +434,130 @@ internal fun simplePaymentLabel(
         null ->
             "Payment"
     }
+
+
+@Composable
+internal fun TransactionDetailsTimeline(
+    details: TransactionDetailsReadModel,
+    currency: CurrencyConfig,
+    timezoneId: String
+) {
+    val transaction = details.financial
+
+    Text(
+        text = stringResource(R.string.activity_title),
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold
+    )
+
+    Text(
+        text = stringResource(R.string.audit_what_happened_transaction),
+        color =
+            MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    val repaymentById =
+        details.creditRepayments.associateBy { it.id }
+
+    val timeline =
+        mutableListOf<TransactionTimelineItem>()
+
+    timeline +=
+        TransactionTimelineItem.Original(
+            occurredAt = transaction.transaction.createdAt,
+            stableId = "original:${transaction.transaction.id}"
+        )
+
+    for (allocation in details.creditRepaymentAllocations) {
+        val repayment =
+            repaymentById.getValue(
+                allocation.repaymentId
+            )
+
+        timeline +=
+            TransactionTimelineItem.CreditRepayment(
+                allocation = allocation,
+                repayment = repayment
+            )
+    }
+
+    for (event in details.amountCorrections) {
+        timeline +=
+            TransactionTimelineItem.AmountCorrection(event)
+    }
+
+    for (event in details.paymentMethodChanges) {
+        timeline +=
+            TransactionTimelineItem.PaymentMethodChange(event)
+    }
+
+    for (event in details.refundEvents) {
+        timeline +=
+            TransactionTimelineItem.Refund(event)
+    }
+
+    for (event in details.voidEvents) {
+        timeline +=
+            TransactionTimelineItem.Void(event)
+    }
+
+
+    val orderedTimeline =
+        sortTransactionDetailsTimeline(
+            items = timeline,
+            occurredAt = { it.occurredAt },
+            stableId = { it.stableId }
+        )
+
+    for (item in orderedTimeline) {
+        when (item) {
+            is TransactionTimelineItem.Original ->
+                OriginalTransactionTimelineCard(
+                    details = details,
+                    currency = currency,
+                    timezoneId = timezoneId
+                )
+
+            is TransactionTimelineItem.CreditRepayment ->
+                CreditRepaymentTimelineCard(
+                    allocation = item.allocation,
+                    repayment = item.repayment,
+                    currency = currency,
+                    timezoneId = timezoneId
+                )
+
+            is TransactionTimelineItem.AmountCorrection ->
+                AmountCorrectionTimelineCard(
+                    event = item.event,
+                    currency = currency,
+                    timezoneId = timezoneId
+                )
+
+            is TransactionTimelineItem.PaymentMethodChange ->
+                PaymentMethodChangeTimelineCard(
+                    event = item.event,
+                    timezoneId = timezoneId
+                )
+
+            is TransactionTimelineItem.Refund ->
+                RefundTimelineCard(
+                    event = item.event,
+                    currency = currency,
+                    timezoneId = timezoneId
+                )
+
+            is TransactionTimelineItem.Void ->
+                VoidTimelineCard(
+                    event = item.event,
+                    timezoneId = timezoneId
+                )
+
+            is TransactionTimelineItem.Settlement ->
+                SettlementTimelineCard(
+                    settlement = item.event,
+                    currency = currency,
+                    timezoneId = timezoneId
+                )
+        }
+    }
+}
