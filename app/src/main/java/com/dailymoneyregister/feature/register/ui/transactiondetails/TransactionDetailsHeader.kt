@@ -36,207 +36,207 @@ internal fun TransactionDetailsHeader(
 ) {
     val transaction = details.financial
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Button(onClick = onBack) {
+            Text(stringResource(R.string.back))
+        }
+
+        Text(
+            text =
+                stringResource(
+                    R.string.tx_details_title
+                ),
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .padding(end = 72.dp),
+            style =
+                MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            textAlign =
+                androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Button(onClick = onBack) {
-                Text(stringResource(R.string.back))
-            }
+            Text(
+                text =
+                    when {
+                        transaction.isVoided ->
+                            stringResource(R.string.audit_transaction_voided)
+
+                        transaction.lifecycleStates.contains(
+                            FinancialLifecycleState.FULLY_REFUNDED
+                        ) ->
+                            "Fully Refunded"
+
+                        transaction.lifecycleStates.contains(
+                            FinancialLifecycleState.PARTIALLY_REFUNDED
+                        ) ->
+                            "Partially Refunded"
+
+                        transaction.currentPaymentCategory ==
+                            PaymentCategory.CREDIT ->
+                            "Credit Sale"
+
+                        else ->
+                            "Sale"
+                    },
+                style =
+                    MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color =
+                    MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             Text(
                 text =
-                    stringResource(
-                        R.string.tx_details_title
-                    ),
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .padding(end = 72.dp),
+                    transaction.currentAmount
+                        .formatDisplay(currency),
                 style =
-                    MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                textAlign =
-                    androidx.compose.ui.text.style.TextAlign.Center
+                    MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
             )
-        }
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
+            Text(
+                text =
+                    simplePaymentLabel(
+                        transaction.currentPaymentCategory
+                    ),
+                style =
+                    MaterialTheme.typography.titleMedium
             )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+
+            Text(
+                text =
+                    formatTransactionTimestamp(
+                        transaction.transaction.createdAt,
+                        timezoneId
+                    ),
+                color =
+                    MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            if (
+                transaction.refundedAmount.amount > 0L
             ) {
-                Text(
-                    text =
-                        when {
-                            transaction.isVoided ->
-                                stringResource(R.string.audit_transaction_voided)
-
-                            transaction.lifecycleStates.contains(
-                                FinancialLifecycleState.FULLY_REFUNDED
-                            ) ->
-                                "Fully Refunded"
-
-                            transaction.lifecycleStates.contains(
-                                FinancialLifecycleState.PARTIALLY_REFUNDED
-                            ) ->
-                                "Partially Refunded"
-
-                            transaction.currentPaymentCategory ==
-                                PaymentCategory.CREDIT ->
-                                "Credit Sale"
-
-                            else ->
-                                "Sale"
-                        },
-                    style =
-                        MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color =
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Text(
-                    text =
-                        transaction.currentAmount
-                            .formatDisplay(currency),
-                    style =
-                        MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Text(
-                    text =
-                        simplePaymentLabel(
-                            transaction.currentPaymentCategory
-                        ),
-                    style =
-                        MaterialTheme.typography.titleMedium
-                )
-
-                Text(
-                    text =
-                        formatTransactionTimestamp(
-                            transaction.transaction.createdAt,
-                            timezoneId
-                        ),
-                    color =
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                if (
-                    transaction.refundedAmount.amount > 0L
-                ) {
-                    TransactionDetailRow(
-                        "Returned",
-                        transaction.refundedAmount
-                            .formatDisplay(currency)
-                    )
-                }
-
                 TransactionDetailRow(
-                    "Net amount",
-                    transaction.netAmount
+                    "Returned",
+                    transaction.refundedAmount
                         .formatDisplay(currency)
                 )
-
-                androidx.compose.material3.TextButton(
-                    onClick = {
-                        showAuditDetails.value =
-                            !showAuditDetails.value
-                    }
-                ) {
-                    Text(
-                        if (showAuditDetails.value) {
-                            "Hide audit details"
-                        } else {
-                            "View audit details"
-                        }
-                    )
-                }
-
-                if (showAuditDetails.value) {
-                    Card(
-                        modifier =
-                            Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                            verticalArrangement =
-                                Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                stringResource(R.string.audit_audit_information),
-                                fontWeight =
-                                    FontWeight.SemiBold
-                            )
-
-                            TransactionDetailRow(
-                                "Transaction ID",
-                                transaction.transaction.id
-                            )
-
-                            TransactionDetailRow(
-                                "Original amount",
-                                transaction.originalAmount
-                                    .formatDisplay(currency)
-                            )
-
-                            TransactionDetailRow(
-                                "Current amount",
-                                transaction.currentAmount
-                                    .formatDisplay(currency)
-                            )
-
-                            TransactionDetailRow(
-                                "Returned",
-                                transaction.refundedAmount
-                                    .formatDisplay(currency)
-                            )
-
-                            TransactionDetailRow(
-                                "Net amount",
-                                transaction.netAmount
-                                    .formatDisplay(currency)
-                            )
-
-                            TransactionDetailRow(
-                                "Status",
-                                lifecycleLabel(
-                                    transaction.lifecycleStates
-                                )
-                            )
-
-                            TransactionDetailRow(
-                                "Original payment",
-                                paymentMethodLabel(
-                                    transaction.originalPaymentCategory,
-                                    transaction.originalPaymentChannel
-                                )
-                            )
-
-                            TransactionDetailRow(
-                                "Current payment",
-                                paymentMethodLabel(
-                                    transaction.currentPaymentCategory,
-                                    transaction.currentPaymentChannel
-                                )
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-            actionsContent()
             }
+
+            TransactionDetailRow(
+                "Net amount",
+                transaction.netAmount
+                    .formatDisplay(currency)
+            )
+
+            androidx.compose.material3.TextButton(
+                onClick = {
+                    showAuditDetails.value =
+                        !showAuditDetails.value
+                }
+            ) {
+                Text(
+                    if (showAuditDetails.value) {
+                        "Hide audit details"
+                    } else {
+                        "View audit details"
+                    }
+                )
+            }
+
+            if (showAuditDetails.value) {
+                Card(
+                    modifier =
+                        Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                        verticalArrangement =
+                            Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            stringResource(R.string.audit_audit_information),
+                            fontWeight =
+                                FontWeight.SemiBold
+                        )
+
+                        TransactionDetailRow(
+                            "Transaction ID",
+                            transaction.transaction.id
+                        )
+
+                        TransactionDetailRow(
+                            "Original amount",
+                            transaction.originalAmount
+                                .formatDisplay(currency)
+                        )
+
+                        TransactionDetailRow(
+                            "Current amount",
+                            transaction.currentAmount
+                                .formatDisplay(currency)
+                        )
+
+                        TransactionDetailRow(
+                            "Returned",
+                            transaction.refundedAmount
+                                .formatDisplay(currency)
+                        )
+
+                        TransactionDetailRow(
+                            "Net amount",
+                            transaction.netAmount
+                                .formatDisplay(currency)
+                        )
+
+                        TransactionDetailRow(
+                            "Status",
+                            lifecycleLabel(
+                                transaction.lifecycleStates
+                            )
+                        )
+
+                        TransactionDetailRow(
+                            "Original payment",
+                            paymentMethodLabel(
+                                transaction.originalPaymentCategory,
+                                transaction.originalPaymentChannel
+                            )
+                        )
+
+                        TransactionDetailRow(
+                            "Current payment",
+                            paymentMethodLabel(
+                                transaction.currentPaymentCategory,
+                                transaction.currentPaymentChannel
+                            )
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        actionsContent()
+        }
         }
 }
