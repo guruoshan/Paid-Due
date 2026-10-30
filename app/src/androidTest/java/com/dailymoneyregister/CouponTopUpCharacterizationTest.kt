@@ -148,6 +148,27 @@ class CouponTopUpCharacterizationTest {
         val walletId = createInitiallyFundedWallet()
         val command = topUpCommand(walletId)
 
+        // The ledger event's operation_id foreign key requires its parent operation.
+        val preexistingCommand = topUpCommand(walletId, operationId = "preexisting-operation")
+        database.operationDao().insertOperation(
+            OperationEntity(
+                id = preexistingCommand.operationId.value,
+                businessId = preexistingCommand.businessId,
+                branchId = preexistingCommand.branchId,
+                operationType = preexistingCommand.operationType,
+                subjectType = preexistingCommand.subjectType,
+                subjectId = preexistingCommand.subjectId,
+                transactionId = preexistingCommand.transactionId,
+                actorUserId = preexistingCommand.actorUserId,
+                deviceId = preexistingCommand.deviceId,
+                occurredAt = preexistingCommand.occurredAt,
+                requestFingerprint = preexistingCommand.requestFingerprint,
+                commandSchemaVersion = preexistingCommand.commandSchemaVersion,
+                intentPayload = preexistingCommand.intentPayload,
+                status = OperationStatus.SUCCEEDED
+            )
+        )
+
         // Force the ledger insert to fail after the transaction writer has run.
         database.ledgerDao().insertCouponEvent(
             CouponLedgerEventEntity(
