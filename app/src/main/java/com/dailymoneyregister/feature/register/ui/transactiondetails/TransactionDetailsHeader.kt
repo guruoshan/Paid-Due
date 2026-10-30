@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.dailymoneyregister.R
 import com.dailymoneyregister.core.model.currency.CurrencyConfig
 import com.dailymoneyregister.core.model.financial.FinancialLifecycleState
+import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.feature.register.data.TransactionDetailsReadModel
 
 @Composable
