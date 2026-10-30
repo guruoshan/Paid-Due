@@ -515,7 +515,7 @@ internal fun TransactionDetailsTimeline(
                     OriginalTransactionTimelineCard(
                         details = details,
                         currency = currency,
-                        timezoneId = validatedTimezoneId
+                        timezoneId = timezoneId
                     )
 
                 is TransactionTimelineItem.CreditRepayment ->
@@ -523,40 +523,40 @@ internal fun TransactionDetailsTimeline(
                         allocation = item.allocation,
                         repayment = item.repayment,
                         currency = currency,
-                        timezoneId = validatedTimezoneId
+                        timezoneId = timezoneId
                     )
 
                 is TransactionTimelineItem.AmountCorrection ->
                     AmountCorrectionTimelineCard(
                         event = item.event,
                         currency = currency,
-                        timezoneId = validatedTimezoneId
+                        timezoneId = timezoneId
                     )
 
                 is TransactionTimelineItem.PaymentMethodChange ->
                     PaymentMethodChangeTimelineCard(
                         event = item.event,
-                        timezoneId = validatedTimezoneId
+                        timezoneId = timezoneId
                     )
 
                 is TransactionTimelineItem.Refund ->
                     RefundTimelineCard(
                         event = item.event,
                         currency = currency,
-                        timezoneId = validatedTimezoneId
+                        timezoneId = timezoneId
                     )
 
                 is TransactionTimelineItem.Void ->
                     VoidTimelineCard(
                         event = item.event,
-                        timezoneId = validatedTimezoneId
+                        timezoneId = timezoneId
                     )
 
                 is TransactionTimelineItem.Settlement ->
                     SettlementTimelineCard(
                         settlement = item.event,
                         currency = currency,
-                        timezoneId = validatedTimezoneId
+                        timezoneId = timezoneId
                     )
             }
         }

@@ -194,6 +194,7 @@ fun TransactionDetailsScreen(
             details = details,
             currency = currency,
             timezoneId = validatedTimezoneId,
+            onBack = onBack,
             showAuditDetails = showAuditDetails
         ) {
             TransactionDetailsActions(

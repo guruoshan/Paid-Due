@@ -29,6 +29,7 @@ internal fun TransactionDetailsHeader(
     details: TransactionDetailsReadModel,
     currency: CurrencyConfig,
     timezoneId: String,
+    onBack: () -> Unit,
     showAuditDetails: MutableState<Boolean>,
     actionsContent: @Composable () -> Unit
 ) {
@@ -123,7 +124,7 @@ internal fun TransactionDetailsHeader(
                     text =
                         formatTransactionTimestamp(
                             transaction.transaction.createdAt,
-                            validatedTimezoneId
+                            timezoneId
                         ),
                     color =
                         MaterialTheme.colorScheme.onSurfaceVariant
