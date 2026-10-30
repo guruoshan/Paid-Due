@@ -16,6 +16,7 @@ import com.dailymoneyregister.R
 import com.dailymoneyregister.core.database.entity.TransactionItemEntity
 import com.dailymoneyregister.core.model.currency.CurrencyConfig
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
+import com.dailymoneyregister.feature.register.data.TransactionDetailsReadModel
 
 
 @Composable
@@ -97,4 +98,31 @@ internal fun TransactionItemCard(
             }
         }
     }
+}
+
+
+@Composable
+internal fun TransactionDetailsItems(
+    details: TransactionDetailsReadModel,
+    currency: CurrencyConfig
+) {
+        Text(
+            text = stringResource(R.string.tx_details_items),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+
+        if (details.items.isEmpty()) {
+            Text(
+                text = stringResource(R.string.tx_details_no_items),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            for (item in details.items) {
+                TransactionItemCard(
+                    item = item,
+                    currency = currency
+                )
+            }
+        }
 }
