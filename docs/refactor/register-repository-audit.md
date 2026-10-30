@@ -5,7 +5,7 @@
 - Audited base: `main` at `837d1bd5762d1b1d7ca0371fea76fad1db628026`
 - Target source blob: `3df48aa404e0acfb8ebaeb04a2709df7a32a5ab8`
 - Target: `app/src/main/java/com/dailymoneyregister/feature/register/data/RegisterRepository.kt`
-- Target size: **8,756 lines**; **112 function declarations** found.
+- Target size: **8,756 lines**; **112 function declarations** found (including two local recovery helpers).
 - Scope: read-only audit and proposal. No production code, tests, resources, Gradle files, schemas, or device state changed. No tests were run.
 
 ## Executive findings
