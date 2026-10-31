@@ -23,11 +23,19 @@ jobs:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES: "true"
     steps:
-      - name: Checkout PR 37 branch
+      - name: Checkout exact triggering commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: fix/production-readiness-financial-sync
+          ref: ${{ github.sha }}
           persist-credentials: false
+
+      - name: Verify checked-out commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Expected triggering commit: $GITHUB_SHA"
+          echo "Checked out commit: $(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - name: Set up JDK 17
         uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v4.7.1
@@ -73,7 +81,7 @@ jobs:
           fi
           booted=""
           for attempt in $(seq 1 90); do
-            booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r')"
+            booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
             [[ "$booted" == "1" ]] && break
             sleep 5
           done
@@ -144,8 +152,8 @@ jobs:
             --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEY_PASSWORD \
             --out signed/paid-due-pr37-sync-test.apk "$apk_path"
           signer_output="$("$apksigner" verify --verbose --print-certs signed/paid-due-pr37-sync-test.apk)"
-          printf '%s\n' "$signer_output"
-          actual="$(printf '%s\n' "$signer_output" | awk -F': ' '/certificate SHA-256 digest:/ {print $NF; exit}' | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          printf '%s\\n' "$signer_output"
+          actual="$(printf '%s\\n' "$signer_output" | awk -F': ' '/certificate SHA-256 digest:/ {print $NF; exit}' | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
           [[ "$actual" =~ ^[0-9A-F]{64}$ && "$actual" == "$normalized" ]] || {
             echo "::error::Signed APK certificate does not match EXPECTED_SHA256."
             exit 1
