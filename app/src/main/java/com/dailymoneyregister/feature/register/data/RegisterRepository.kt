@@ -567,7 +567,7 @@ class RegisterRepository @Inject constructor(
     }
 
     private val couponWalletReadRepository = CouponWalletReadRepository(database)
-    private val registerShiftReportReadRepository = RegisterShiftReportReadRepository(database, ::readRegisterShift)
+    private val registerShiftReportReadRepository = RegisterShiftReportReadRepository(database)
     private val recentFinancialActivityReadRepository =
         RecentFinancialActivityReadRepository(
             database = database,
