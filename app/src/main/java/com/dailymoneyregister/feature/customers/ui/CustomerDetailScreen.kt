@@ -19,21 +19,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.runtime.mutableIntStateOf
@@ -57,6 +51,8 @@ import com.dailymoneyregister.core.ui.asString
 import com.dailymoneyregister.feature.customers.data.CustomerCreditHistoryKind
 import com.dailymoneyregister.feature.customers.data.CustomerInvoiceRow
 import com.dailymoneyregister.feature.register.data.RegisterRepository
+import com.dailymoneyregister.feature.customers.ui.customerdetail.components.CustomerHeader
+import com.dailymoneyregister.feature.customers.ui.customerdetail.components.CustomerInvoiceHistory
 
 private data class CustomerPaymentDisplayRow(
     val occurredAt: Long,
@@ -133,37 +129,10 @@ fun CustomerDetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            customer?.name ?: stringResource(R.string.customers_title),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        customer?.canonicalPhone
-                            ?.takeIf { it.isNotBlank() }
-                            ?.let { phone ->
-                                Text(
-                                    phone,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Normal,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = actions.onNavigateBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
+            CustomerHeader(
+                title = customer?.name ?: stringResource(R.string.customers_title),
+                phone = customer?.canonicalPhone?.takeIf { it.isNotBlank() },
+                onNavigateBack = actions.onNavigateBack
             )
         }
     ) { padding ->
@@ -870,75 +839,10 @@ fun CustomerDetailScreen(
                          * PDF / WhatsApp share path are reused unchanged.
                          */
                         3 -> {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement =
-                                    Arrangement.SpaceBetween,
-                                verticalAlignment =
-                                    Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    stringResource(R.string.audit_customer_documents),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
-                                )
-
-                                Text(
-                                    "${state.invoices.size} invoice" +
-                                        if (state.invoices.size == 1) {
-                                            ""
-                                        } else {
-                                            "s"
-                                        },
-                                    fontSize = 13.sp,
-                                    color =
-                                        MaterialTheme
-                                            .colorScheme
-                                            .onSurfaceVariant
-                                )
-                            }
-
-                            if (state.invoices.isEmpty()) {
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text(
-                                        stringResource(R.string.audit_customer_no_documents),
-                                        modifier =
-                                            Modifier.padding(20.dp),
-                                        color =
-                                            MaterialTheme
-                                                .colorScheme
-                                                .onSurfaceVariant
-                                    )
-                                }
-                            } else {
-                                LazyColumn(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .weight(1f),
-                                    verticalArrangement =
-                                        Arrangement.spacedBy(8.dp)
-                                ) {
-                                    items(
-                                        state.invoices,
-                                        key = {
-                                            it.documentId
-                                        }
-                                    ) { row ->
-                                        InvoiceHistoryRow(
-                                            row = row,
-                                            onClick = {
-                                                actions.onOpenInvoice(
-                                                    row
-                                                )
-                                            }
-                                        )
-                                    }
-                                }
-                            }
+                            CustomerInvoiceHistory(
+                                invoices = state.invoices,
+                                onOpenInvoice = actions.onOpenInvoice
+                            )
                         }
                         4 -> {
                             /*
@@ -1421,45 +1325,6 @@ fun CustomerDetailScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun InvoiceHistoryRow(row: CustomerInvoiceRow, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(row.displayNumber, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                Text(
-                    formatCustomerDateTime(row.createdAt),
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                val total = row.totalMinor
-                val code = row.currencyCode
-                val places = row.decimalPlaces
-                Text(
-                    text = if (total != null && code != null && places != null) {
-                        formatCustomerMoney(total, places, code)
-                    } else {
-                        stringResource(R.string.customers_amount_unavailable)
-                    },
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp
-                )
-
-            }
-        }
-    }
-}
 
 /**
  * CREDIT_1D_B1_RECEIVE_PAYMENT
