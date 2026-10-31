@@ -229,3 +229,8 @@ Implemented on `refactor/register-expense-presentation-decomposition`:
 ### Validation status
 
 Static source parity checks passed. Build, lint, unit tests and instrumentation tests have not yet been run for this branch; CI validation is pending.
+
+
+### CI failure diagnosis and correction
+
+The first CI attempt identified a compile-time extraction omission: the new file lacked the Compose `Composable` import, and the moved `ExpenseDetailLine` declaration had lost its `@Composable` annotation. No runtime behavior or business logic was implicated. Both omissions were corrected in commit `2291865ebf465f0751e8339dd12296f912d49896`. CI must pass on this corrected head before Pass 1 is considered validated.
