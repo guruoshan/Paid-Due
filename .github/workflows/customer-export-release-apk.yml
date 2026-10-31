@@ -78,10 +78,10 @@ jobs:
           aab_path="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -print -quit)"
           test -n "$apk_path" && test -s "$apk_path"
           test -n "$aab_path" && test -s "$aab_path"
-          printf 'APK_PATH=%s\\n' "$apk_path" | tee -a "$GITHUB_STEP_SUMMARY"
-          printf 'AAB_PATH=%s\\n' "$aab_path" | tee -a "$GITHUB_STEP_SUMMARY"
-          printf 'APK_SIZE_BYTES=%s\\n' "$(stat -c '%s' "$apk_path")" | tee -a "$GITHUB_STEP_SUMMARY"
-          printf 'AAB_SIZE_BYTES=%s\\n' "$(stat -c '%s' "$aab_path")" | tee -a "$GITHUB_STEP_SUMMARY"
+          printf 'APK_PATH=%s\n' "$apk_path" | tee -a "$GITHUB_STEP_SUMMARY"
+          printf 'AAB_PATH=%s\n' "$aab_path" | tee -a "$GITHUB_STEP_SUMMARY"
+          printf 'APK_SIZE_BYTES=%s\n' "$(stat -c '%s' "$apk_path")" | tee -a "$GITHUB_STEP_SUMMARY"
+          printf 'AAB_SIZE_BYTES=%s\n' "$(stat -c '%s' "$aab_path")" | tee -a "$GITHUB_STEP_SUMMARY"
           sha256sum "$apk_path" "$aab_path" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Upload APK and AAB
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
