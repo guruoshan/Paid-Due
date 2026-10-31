@@ -25,6 +25,8 @@ import com.dailymoneyregister.core.ui.PhoneNumberInput
 import com.dailymoneyregister.core.ui.PhoneNumberInputValue
 import com.dailymoneyregister.core.ui.asString
 import com.dailymoneyregister.feature.settings.ui.MerchantQrImage
+import com.dailymoneyregister.feature.register.ui.coupon.components.CouponHeader
+import com.dailymoneyregister.feature.register.ui.coupon.components.CouponSelectedCustomerDetails
 import com.dailymoneyregister.feature.customers.ui.PreparedWhatsAppMessage
 import com.dailymoneyregister.feature.customers.ui.UniversalWhatsAppMessageComposer
 import com.dailymoneyregister.feature.customers.ui.WhatsAppTransport
@@ -315,58 +317,25 @@ internal fun CouponCompactDialogR7A(
                     Arrangement.spacedBy(10.dp)
             ) {
 
-                // ====================================================
-                // HEADER
-                // ====================================================
-
-                Row(
-                    modifier =
-                        Modifier.fillMaxWidth(),
-                    horizontalArrangement =
-                        Arrangement.SpaceBetween,
-                    verticalAlignment =
-                        Alignment.CenterVertically
-                ) {
-
-                    Text(
-                        text =
-                            if (refundMode) {
-                                "Refund to Coupon"
-                            } else {
-                                stringResource(
-                                    when {
-
-                                        actionIsRedemption ->
-                                            R.string.coupon_use_action
-
-                                        existingWallet ->
-                                            R.string.coupon_top_up_action
-
-                                        else ->
-                                            R.string.coupon_purchase_title
-                                    }
-                                )
-                            },
-                        style =
-                            MaterialTheme.typography.titleLarge,
-                        fontWeight =
-                            FontWeight.Bold
-                    )
-
-                    TextButton(
-                        onClick =
-                            actions.onDismiss,
-                        enabled =
-                            !locked
-                    ) {
-
-                        Text(
+                CouponHeader(
+                    title =
+                        if (refundMode) {
+                            "Refund to Coupon"
+                        } else {
                             stringResource(
-                                R.string.cancel
+                                when {
+                                    actionIsRedemption ->
+                                        R.string.coupon_use_action
+                                    existingWallet ->
+                                        R.string.coupon_top_up_action
+                                    else ->
+                                        R.string.coupon_purchase_title
+                                }
                             )
-                        )
-                    }
-                }
+                        },
+                    dismissEnabled = !locked,
+                    onDismiss = actions.onDismiss
+                )
 
                 state.errorMessage?.let {
 
@@ -1152,28 +1121,12 @@ internal fun CouponCompactDialogR7A(
                                         Alignment.CenterVertically
                                 ) {
 
-                                    Column(
-                                        modifier =
-                                            Modifier.weight(1f)
-                                    ) {
-
-                                        Text(
-                                            selected.name,
-                                            fontWeight =
-                                                FontWeight.Bold
-                                        )
-
-                                        Text(
-                                            selected.canonicalPhone,
-                                            style =
-                                                MaterialTheme
-                                                    .typography
-                                                    .bodySmall
-                                        )
-
-                                        if (existingWallet) {
-
-                                            Text(
+                                    CouponSelectedCustomerDetails(
+                                        modifier = Modifier.weight(1f),
+                                        name = selected.name,
+                                        phone = selected.canonicalPhone,
+                                        walletBalanceText =
+                                            if (existingWallet) {
                                                 stringResource(
                                                     R.string
                                                         .coupon_wallet_balance,
@@ -1183,12 +1136,11 @@ internal fun CouponCompactDialogR7A(
                                                         decimalPlaces,
                                                         currencySymbol
                                                     )
-                                                ),
-                                                fontWeight =
-                                                    FontWeight.SemiBold
-                                            )
-                                        }
-                                    }
+                                                )
+                                            } else {
+                                                null
+                                            }
+                                    )
 
                                     TextButton(
                                         onClick = {
