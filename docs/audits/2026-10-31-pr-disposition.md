@@ -40,7 +40,11 @@ In `main`, not applied live:
 
 PR #64 is not to be merged as it stands: it is stale (262 commits behind `main`) and its Android CI failed on `FinancialSyncEngineTest.syncOutboundUploadsQueuedItemAndDeletesOnAck`, which is caused by a new `Log.d()` call that the test does not stub.
 
-The underlying defect is still present on `main`: `FinancialSyncEngine.syncOutbound` calls `uploadEnvelope()` before it constructs `FinancialSyncIdentity`, so an identity validation failure after a server commit leaves the local outbox unacknowledged. The fix should be carried into a new PR on current `main`: move identity validation ahead of the upload, keep the operation-ID and digest acknowledgement checks, add a regression test that invalid identity never uploads, and run CI against current `main`.
+The underlying defect was confirmed on `main`: `FinancialSyncEngine.syncOutbound` called `uploadEnvelope()` before constructing `FinancialSyncIdentity`, so identity validation could fail after a server commit and leave the local outbox unacknowledged.
+
+Replacement PR **#116** ([fix(sync): validate acknowledgement identity before remote upload](https://github.com/guruoshan/Paid-Due/pull/116)) was created as a draft from `main` at `be93f9bc3df39e22203cccf160d2a8c360c83766`. Commit: `1733f86f90b7120bda97d616644a4bc1a422de0e`. It changes only `FinancialSyncEngine.kt` (identity validation moved before upload) and `FinancialSyncEngineTest.kt` (invalid identity prevents upload and follows the retry path). The existing valid-identity acknowledgement test continues to cover upload and outbox deletion for a matching digest.
+
+CI status at the time of this update: **in progress** (all seven PR workflow runs were still running). Tests were not run locally because this environment has no repository checkout or Gradle wrapper; the PR description records that CI is the verification path. No changes were made to the acknowledgement guard, receipt policy, digest checks, server SQL, or UUIDv7 rules.
 
 Legacy UUID compatibility: verified not needed for uploaded data. A read-only query on `private.financial_operation_envelopes` returned 69 envelopes, all with UUIDv7 operation IDs. The residual risk is operations that were never uploaded from older devices; those cannot be checked from the cloud database.
 
@@ -48,6 +52,7 @@ Legacy UUID compatibility: verified not needed for uploaded data. A read-only qu
 
 | PR | Title | Draft | Disposition | Notes |
 |---|---|---|---|---|
+| #116 | Validate acknowledgement identity before remote upload | Yes | Keep draft; verify CI | Replaces stale, unmerged #64; CI in progress. |
 | #114 | Cash-sale atomic rollback test | No | Merged | Merged into `main`. |
 | #115 | This document | Yes | Keep draft; merge after review | Documentation only. |
 | #107 | Coupon dialog decomposition | Yes | Keep draft; merge after CI | Presentation-only. |
@@ -75,7 +80,7 @@ Legacy UUID compatibility: verified not needed for uploaded data. A read-only qu
 ## 5. Release blockers (current view)
 
 1. Reconcile migration versions between `main` and live (section 2), and apply or retire the four `main` migrations not yet applied live.
-2. Replace PR #64 with a corrected sync acknowledgement PR on current `main` and verify CI (section 3).
+2. Verify CI for replacement PR #116; keep it draft until reviewed (section 3).
 3. Confirm a working API 37 Android build (#23).
 4. Make the signed release workflow build the triggering commit (#58).
 5. Confirm the reporting inventory RPC present live (`20261018140123`) is represented in `main` before any further reporting change.
@@ -84,4 +89,4 @@ Legacy UUID compatibility: verified not needed for uploaded data. A read-only qu
 
 - CI results for PRs other than #114.
 - Local device outboxes that were never uploaded.
-- The `boardlock-engineer` skill required by AGENTS.md. It is not among the skills available to this session.
+- Final CI outcome for replacement PR #116 (still running when this document was updated). The `boardlock-engineer` skill was read from `.agents/skills/boardlock-engineer/SKILL.md` on `main`.
