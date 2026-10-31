@@ -75,7 +75,7 @@ The main residual risk is ordinary Compose/Kotlin compilation or import/visibili
 - Navigation effect parity: PASS.
 - LazyColumn stable-key parity: PASS.
 - PDF/export and filter host ownership: PASS.
-- `:app:assembleDebug`: PENDING CI on the pull-request head; update this section with the actual result before treating the pass as complete.
+- `:app:assembleDebug`: first CI attempt reached Kotlin compilation and failed because import cleanup removed the implicit delegated-state operators `getValue` and `setValue` required by the existing `branchExpanded by remember { mutableStateOf(false) }`. Restored both imports only; no state or behavior changed. Re-run on corrected head `4b06dc453306a14f952919277569ceed7e3a6a68` is pending.
 
 ## Merge recommendation
 
