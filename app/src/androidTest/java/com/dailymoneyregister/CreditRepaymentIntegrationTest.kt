@@ -3466,12 +3466,16 @@ class CreditRepaymentIntegrationTest {
     @Test
     fun malformedObligationAndNegativeLedgerBalanceAreRejectedBeforeRepaymentWrites() =
         runBlocking {
-            val malformedCustomer =
-                createCreditSale(
-                    suffix = "malformed-obligation",
-                    amountMinor = 5_000L,
-                    occurredAt = 1_700_004_000_000L
-                )
+            val malformedCustomer = "credit-malformed-obligation-customer"
+            executeCreditSaleForRepaymentTest(
+                operationId = "credit-sale-op-malformed-obligation",
+                transactionId = "credit-sale-tx-malformed-obligation",
+                customerId = malformedCustomer,
+                customerPhone = "+96890005001",
+                customerName = "Malformed Obligation Customer",
+                amountMinor = 5_000L,
+                occurredAt = 1_700_004_000_000L
+            )
             database.openHelper.writableDatabase.execSQL(
                 """
                 INSERT INTO credit_ledger_events (
@@ -3510,12 +3514,16 @@ class CreditRepaymentIntegrationTest {
                     .isEmpty()
             )
 
-            val negativeCustomer =
-                createCreditSale(
-                    suffix = "negative-ledger",
-                    amountMinor = 5_000L,
-                    occurredAt = 1_700_005_000_000L
-                )
+            val negativeCustomer = "credit-negative-ledger-customer"
+            executeCreditSaleForRepaymentTest(
+                operationId = "credit-sale-op-negative-ledger",
+                transactionId = "credit-sale-tx-negative-ledger",
+                customerId = negativeCustomer,
+                customerPhone = "+96890005002",
+                customerName = "Negative Ledger Customer",
+                amountMinor = 5_000L,
+                occurredAt = 1_700_005_000_000L
+            )
             database.openHelper.writableDatabase.execSQL(
                 """
                 INSERT INTO credit_ledger_events (
@@ -3637,13 +3645,17 @@ class CreditRepaymentIntegrationTest {
                 "allocation-sum-mismatch"
             )
 
-            for (scenario in scenarios) {
-                val customerId =
-                    createCreditSale(
-                        suffix = "evidence-$scenario",
-                        amountMinor = 5_000L,
-                        occurredAt = 1_700_007_000_000L + scenarios.indexOf(scenario) * 10_000L
-                    )
+            for ((index, scenario) in scenarios.withIndex()) {
+                val customerId = "credit-evidence-customer-$scenario"
+                executeCreditSaleForRepaymentTest(
+                    operationId = "credit-sale-op-evidence-$scenario",
+                    transactionId = "credit-sale-tx-evidence-$scenario",
+                    customerId = customerId,
+                    customerPhone = "+96890003\${(index + 1).toString().padStart(3, '0')}",
+                    customerName = "Evidence Customer $index",
+                    amountMinor = 5_000L,
+                    occurredAt = 1_700_007_000_000L + index * 10_000L
+                )
                 val command =
                     repayment(
                         suffix = "evidence-$scenario",
@@ -3750,13 +3762,17 @@ class CreditRepaymentIntegrationTest {
                 "extra-allocation"
             )
 
-            for (scenario in scenarios) {
-                val customerId =
-                    createCreditSale(
-                        suffix = scenario,
-                        amountMinor = 5_000L,
-                        occurredAt = 1_700_009_000_000L + scenarios.indexOf(scenario) * 10_000L
-                    )
+            for ((index, scenario) in scenarios.withIndex()) {
+                val customerId = "credit-extra-evidence-customer-$scenario"
+                executeCreditSaleForRepaymentTest(
+                    operationId = "credit-sale-op-extra-$scenario",
+                    transactionId = "credit-sale-tx-extra-$scenario",
+                    customerId = customerId,
+                    customerPhone = "+96890004\${(index + 1).toString().padStart(3, '0')}",
+                    customerName = "Extra Evidence Customer $index",
+                    amountMinor = 5_000L,
+                    occurredAt = 1_700_009_000_000L + index * 10_000L
+                )
                 val command =
                     repayment(
                         suffix = scenario,
