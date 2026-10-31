@@ -167,6 +167,9 @@ class RegisterRepository @Inject constructor(
             database
         )
 
+    private val registerShiftStateReadRepository =
+        RegisterShiftStateReadRepository(database)
+
     /*
      * Serializes automatic shift admission inside this process.
      *
@@ -691,7 +694,7 @@ class RegisterRepository @Inject constructor(
         return commandExecutor.execute(
             command = command,
             replayResolver = { operation ->
-                readRegisterShift(
+                registerShiftStateReadRepository.readRegisterShift(
                     shiftId = operation.subjectId,
                     expectedBranchId = command.branchId,
                     expectedBusinessId = command.businessId
@@ -763,7 +766,7 @@ class RegisterRepository @Inject constructor(
         return commandExecutor.execute(
             command = command,
             replayResolver = { operation ->
-                readRegisterShift(
+                registerShiftStateReadRepository.readRegisterShift(
                     shiftId = operation.subjectId,
                     expectedBranchId = command.branchId,
                     expectedBusinessId = command.businessId
@@ -828,7 +831,7 @@ class RegisterRepository @Inject constructor(
         return commandExecutor.execute(
             command = command,
             replayResolver = { operation ->
-                readRegisterShift(
+                registerShiftStateReadRepository.readRegisterShift(
                     shiftId = operation.subjectId,
                     expectedBranchId = command.branchId,
                     expectedBusinessId = command.businessId
@@ -995,7 +998,7 @@ class RegisterRepository @Inject constructor(
             }
         }
 
-        return readRegisterShift(
+        return registerShiftStateReadRepository.readRegisterShift(
             shiftId = shift.id,
             expectedBranchId = command.branchId,
             expectedBusinessId = command.businessId
@@ -1059,7 +1062,7 @@ class RegisterRepository @Inject constructor(
             }
         }
 
-        return readRegisterShift(
+        return registerShiftStateReadRepository.readRegisterShift(
             shiftId = shift.id,
             expectedBranchId = command.branchId,
             expectedBusinessId = command.businessId
@@ -1186,47 +1189,24 @@ class RegisterRepository @Inject constructor(
             ) { "Register Shift OPENED event conflicts with durable intent" }
         }
 
-        return readRegisterShift(
+        return registerShiftStateReadRepository.readRegisterShift(
             shiftId = command.shiftId.value,
             expectedBranchId = command.branchId,
             expectedBusinessId = command.businessId
         )
     }
 
+    // Retained as a private characterization-test seam; production callers use the collaborator directly.
     private suspend fun readRegisterShift(
         shiftId: String,
         expectedBranchId: String,
         expectedBusinessId: String
-    ): RegisterShiftResult {
-        val shift = cashShiftDao.getShiftById(shiftId)
-            ?: error("Register Shift '$shiftId' does not exist")
-        check(shift.branchId == expectedBranchId) {
-            "Register Shift branch identity mismatch"
-        }
-        check(businessBranchDao.getBranchById(shift.branchId)?.businessId == expectedBusinessId) {
-            "Register Shift business identity mismatch"
-        }
-        val events = cashShiftDao.getEventsForShift(shift.id)
-        val opened = events.firstOrNull { it.type == CashShiftEventType.OPENED }
-            ?: error("Register Shift '$shiftId' has no OPENED event")
-        val counted = events
-            .filter { it.type == CashShiftEventType.COUNTED }
-            .maxByOrNull { it.occurredAt }
-
-        val closed = events
-            .firstOrNull { it.type == CashShiftEventType.CLOSED }
-
-        return RegisterShiftResult(
-            shiftId = CashShiftId(shift.id),
-            branchId = shift.branchId,
-            actorUserId = shift.userId,
-            openedAt = opened.occurredAt,
-            isOpen = closed == null,
-            countedCashMinor = counted?.amountMinor,
-            countedAt = counted?.occurredAt,
-            closedAt = closed?.occurredAt
+    ): RegisterShiftResult =
+        registerShiftStateReadRepository.readRegisterShift(
+            shiftId = shiftId,
+            expectedBranchId = expectedBranchId,
+            expectedBusinessId = expectedBusinessId
         )
-    }
 
     /**
      * Authorization gate for a NEW financial lifecycle mutation.
