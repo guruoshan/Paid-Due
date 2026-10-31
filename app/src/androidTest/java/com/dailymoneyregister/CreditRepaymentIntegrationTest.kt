@@ -1013,6 +1013,10 @@ class CreditRepaymentIntegrationTest {
                 (second as CommandResult.Success)
                     .isIdempotentReplay
             )
+            assertEquals(
+                (first as CommandResult.Success).data,
+                (second as CommandResult.Success).data
+            )
 
             assertEquals(
                 1,
@@ -3261,9 +3265,15 @@ class CreditRepaymentIntegrationTest {
                 database.ledgerDao().getCreditBalance(customerId, branch.currencyCode)
             )
             assertEquals(
-                2,
+                1,
                 database.ledgerDao()
                     .getCreditRepaymentsForOperation(first.operationId.value)
+                    .size
+            )
+            assertEquals(
+                1,
+                database.ledgerDao()
+                    .getCreditRepaymentsForOperation(second.operationId.value)
                     .size
             )
             assertEquals(
@@ -3618,9 +3628,12 @@ class CreditRepaymentIntegrationTest {
                 "missing-repayment",
                 "altered-repayment",
                 "missing-settlement",
+                "altered-settlement",
                 "missing-ledger",
+                "altered-ledger",
                 "missing-allocation",
                 "invalid-allocation",
+                "allocation-timestamp-mismatch",
                 "allocation-sum-mismatch"
             )
 
@@ -3659,9 +3672,19 @@ class CreditRepaymentIntegrationTest {
                             "DELETE FROM settlement_entries WHERE operation_id = ?",
                             arrayOf(command.operationId.value)
                         )
+                    "altered-settlement" ->
+                        writable.execSQL(
+                            "UPDATE settlement_entries SET amount_signed_minor = 1001 WHERE operation_id = ?",
+                            arrayOf(command.operationId.value)
+                        )
                     "missing-ledger" ->
                         writable.execSQL(
                             "DELETE FROM credit_ledger_events WHERE operation_id = ?",
+                            arrayOf(command.operationId.value)
+                        )
+                    "altered-ledger" ->
+                        writable.execSQL(
+                            "UPDATE credit_ledger_events SET amount_signed_minor = -1001 WHERE operation_id = ?",
                             arrayOf(command.operationId.value)
                         )
                     "missing-allocation" ->
@@ -3672,6 +3695,11 @@ class CreditRepaymentIntegrationTest {
                     "invalid-allocation" ->
                         writable.execSQL(
                             "UPDATE credit_repayment_allocations SET allocated_amount_minor = 0 WHERE repayment_id = ?",
+                            arrayOf(command.repaymentId)
+                        )
+                    "allocation-timestamp-mismatch" ->
+                        writable.execSQL(
+                            "UPDATE credit_repayment_allocations SET occurred_at = occurred_at + 1 WHERE repayment_id = ?",
                             arrayOf(command.repaymentId)
                         )
                     "allocation-sum-mismatch" ->
