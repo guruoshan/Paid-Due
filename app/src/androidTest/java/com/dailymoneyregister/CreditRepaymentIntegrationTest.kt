@@ -3651,7 +3651,7 @@ class CreditRepaymentIntegrationTest {
                     operationId = "credit-sale-op-evidence-$scenario",
                     transactionId = "credit-sale-tx-evidence-$scenario",
                     customerId = customerId,
-                    customerPhone = "+96890003\${(index + 1).toString().padStart(3, '0')}",
+                    customerPhone = "+96890003" + (index + 1).toString().padStart(3, '0'),
                     customerName = "Evidence Customer $index",
                     amountMinor = 5_000L,
                     occurredAt = 1_700_007_000_000L + index * 10_000L
@@ -3768,7 +3768,7 @@ class CreditRepaymentIntegrationTest {
                     operationId = "credit-sale-op-extra-$scenario",
                     transactionId = "credit-sale-tx-extra-$scenario",
                     customerId = customerId,
-                    customerPhone = "+96890004\${(index + 1).toString().padStart(3, '0')}",
+                    customerPhone = "+96890004" + (index + 1).toString().padStart(3, '0'),
                     customerName = "Extra Evidence Customer $index",
                     amountMinor = 5_000L,
                     occurredAt = 1_700_009_000_000L + index * 10_000L
