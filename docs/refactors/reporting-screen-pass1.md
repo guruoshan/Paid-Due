@@ -21,8 +21,8 @@
 
 | File / measure | Before | After |
 |---|---:|---:|
-| `ReportingScreen.kt` | 892 physical lines | 563 physical lines |
-| Host reduction | — | 329 lines |
+| `ReportingScreen.kt` | 892 physical lines | 565 physical lines |
+| Host reduction | — | 327 lines |
 | Extracted composable bodies | — | 314 lines |
 | New summary component file | — | 127 lines |
 | New row-card component file | — | 184 lines |
