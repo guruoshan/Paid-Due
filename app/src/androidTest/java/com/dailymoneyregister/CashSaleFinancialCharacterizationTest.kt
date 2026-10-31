@@ -34,6 +34,7 @@ import com.dailymoneyregister.feature.register.data.CashSalePayloadCodec
 import com.dailymoneyregister.feature.register.data.RegisterRepository
 import com.dailymoneyregister.feature.register.domain.DraftItem
 import com.dailymoneyregister.feature.register.domain.DraftState
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -106,6 +107,26 @@ class CashSaleFinancialCharacterizationTest {
                 "CHARACTERIZATION_NORMAL_V3\n${snapshot(operationId, transactionId)}"
             )
         }
+    }
+
+    @Test
+    fun recentTransactionQueryReturnsPersistedBranchRows() = runBlocking {
+        val command = v3Command(
+            operationId = "op-recent-query",
+            transactionId = "tx-recent-query"
+        )
+        val result = repository.executeCashSale(
+            command,
+            fixtureUser,
+            fixtureMembership
+        )
+        assertTrue("Cash sale fixture failed: $result", result is CommandResult.Success)
+
+        val observed = repository
+            .observeRecentTransactions("branch-characterization", limit = 20)
+            .first()
+
+        assertEquals(listOf("tx-recent-query"), observed.map { it.id })
     }
 
     @Test
