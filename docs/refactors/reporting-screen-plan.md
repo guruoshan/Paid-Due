@@ -181,3 +181,43 @@ No callback signature, callback order, argument, or host wiring is to change.
 ## 11. Pass 1 implementation record
 
 Pending. No Kotlin files were modified during Phase 1 analysis.
+
+
+## 11. Pass 1 implementation record
+
+Implemented on `refactor/reporting-screen-pass1`:
+
+- Added `feature/reporting/ui/components/ReportingSummarySection.kt`.
+  - Moved `ReportingSummarySection` and its existing private `summaryMetricLabel` helper.
+- Added `feature/reporting/ui/components/ReportingRowCard.kt`.
+  - Moved `ReportingRowCard` with its row type/color mapping, labels, display fields and conditional customer click behavior.
+- Added `feature/reporting/ui/components/ReportingErrorState.kt`.
+  - Moved `ReportingErrorState` with its error mapping, optional detail and retry button.
+- Updated `ReportingScreen.kt` only to import and call the extracted components and remove imports that became unused.
+- No new functionality was introduced. Extracted composable bodies compare identical to the original bodies after the required top-level visibility change from file-private to module-internal.
+
+### Static parity checks
+
+- `ReportingScreen` parameter signature: unchanged.
+- ViewModel method references: all 10 preserved exactly once (`applyNavigationActivity`, `selectPreset`, both custom date updates, `applyCustomPeriod`, `updateQuery`, `selectBranch`, `selectActivity`, `selectPayment`, `retry`).
+- `LaunchedEffect(initialActivityName)`: one before and after.
+- Local Compose state: the existing `remember` / `mutableStateOf` declarations remain in the host selector (2 declarations before and after); no state was added to the extracted components.
+- Summary, row-card and error-state composable bodies: exact parity confirmed, excluding visibility required for cross-package use.
+- Customer callback: screen parameter and LazyColumn forwarding unchanged; the row's conditional invocation and customer ID argument are unchanged in the extracted file.
+- Retry callback: host still passes `viewModel::retry` unchanged.
+- LazyColumn and `stableId` key: unchanged.
+- `ReportingPdfActions`, customer export action, loading/empty branches, filters and navigation effect remain in the host.
+- No ViewModel, repository, navigation, export/share, sync, database, domain, or business-rule files changed.
+
+### Size
+
+- Host before: 892 physical lines.
+- Host after: 563 physical lines.
+- Host reduction: 329 lines.
+- Extracted composable bodies: 314 lines total (summary 105, row card 154, error state 55).
+- New component files including package/import declarations: summary 127 lines, row card 184 lines, error state 71 lines.
+- The remaining net host reduction is import cleanup minus the three new component imports.
+
+### Validation
+
+Static parity checks passed. The required `:app:assembleDebug` build is pending CI on the PR head and will be recorded in `reporting-screen-pass1.md`.
