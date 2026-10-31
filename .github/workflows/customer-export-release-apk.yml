@@ -1,6 +1,8 @@
 name: PR #69 reporting fix release validation
 
 on:
+  push:
+    branches: [main, feature/customer-excel-export]
   pull_request:
     branches: [main]
   workflow_dispatch:
