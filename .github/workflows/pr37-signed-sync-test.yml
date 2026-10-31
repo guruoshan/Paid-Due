@@ -152,8 +152,8 @@ jobs:
             --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEY_PASSWORD \
             --out signed/paid-due-pr37-sync-test.apk "$apk_path"
           signer_output="$("$apksigner" verify --verbose --print-certs signed/paid-due-pr37-sync-test.apk)"
-          printf '%s\\n' "$signer_output"
-          actual="$(printf '%s\\n' "$signer_output" | awk -F': ' '/certificate SHA-256 digest:/ {print $NF; exit}' | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          printf '%s\n' "$signer_output"
+          actual="$(printf '%s\n' "$signer_output" | awk -F': ' '/certificate SHA-256 digest:/ {print $NF; exit}' | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
           [[ "$actual" =~ ^[0-9A-F]{64}$ && "$actual" == "$normalized" ]] || {
             echo "::error::Signed APK certificate does not match EXPECTED_SHA256."
             exit 1
