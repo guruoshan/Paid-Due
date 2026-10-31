@@ -118,11 +118,13 @@ class CashSaleFinancialCharacterizationTest {
 
         val replay = repository.executeCashSale(command, fixtureUser, fixtureMembership)
         assertTrue("Identical replay failed: $replay", replay is CommandResult.Success)
+        val firstSuccess = first as CommandResult.Success
+        val replaySuccess = replay as CommandResult.Success
         assertTrue(
             "Identical replay must be reported as idempotent",
-            (replay as CommandResult.Success).isIdempotentReplay
+            replaySuccess.isIdempotentReplay
         )
-        assertEquals((first as CommandResult.Success).data, replay.data)
+        assertEquals(firstSuccess.data, replaySuccess.data)
 
         val changedIntent = command.copy(occurredAt = command.occurredAt + 1L)
         val conflict = repository.executeCashSale(
