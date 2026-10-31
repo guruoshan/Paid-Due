@@ -148,6 +148,7 @@ class RegisterRepository @Inject constructor(
     private val deviceIdentityProvider: DeviceIdentityProvider? = null
 ) {
     private val transactionDao = database.transactionDao()
+    private val registerQueryRepository = RegisterQueryRepository(database)
     private val ledgerDao = database.ledgerDao()
     private val businessBranchDao = database.businessBranchDao()
     private val userDao = database.userDao()
@@ -2810,41 +2811,11 @@ class RegisterRepository @Inject constructor(
     suspend fun getCustomerCreditOutstanding(
         customerId: String,
         currencyCode: String
-    ): Long {
-        val session =
-            checkNotNull(
-                SessionManager.currentSession.value
-            ) {
-                "No active session."
-            }
-
-        val customer =
-            checkNotNull(
-                database.customerDao()
-                    .getCustomerById(customerId)
-            ) {
-                "Customer does not exist."
-            }
-
-        require(
-            customer.businessId ==
-                session.business.id
-        ) {
-            "Customer does not belong to the active business."
-        }
-
-        require(
-            currencyCode ==
-                session.branch.currencyCode
-        ) {
-            "Credit currency does not match the active branch."
-        }
-
-        return ledgerDao.getCreditBalance(
-            customerId,
-            currencyCode
+    ): Long =
+        registerQueryRepository.getCustomerCreditOutstanding(
+            customerId = customerId,
+            currencyCode = currencyCode
         )
-    }
 
     suspend fun executeCreditRepayment(
         command:
@@ -8690,9 +8661,14 @@ class RegisterRepository @Inject constructor(
         else -> null
     }
 
-    fun observeRecentTransactions(branchId: String, limit: Int = 20): Flow<List<TransactionEntity>> {
-        return transactionDao.observeRecentTransactions(branchId, limit)
-    }
+    fun observeRecentTransactions(
+        branchId: String,
+        limit: Int = 20
+    ): Flow<List<TransactionEntity>> =
+        registerQueryRepository.observeRecentTransactions(
+            branchId = branchId,
+            limit = limit
+        )
 
     fun observeTodayTransactions(
         branchId: String,
