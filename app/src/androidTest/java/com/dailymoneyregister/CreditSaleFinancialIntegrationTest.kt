@@ -178,6 +178,34 @@ class CreditSaleFinancialIntegrationTest {
         )
 
     @Test
+    fun customerCreditOutstandingQueryMatchesLedgerAndKeepsCurrencyGuard() =
+        runBlocking {
+            val result = repository.executeCreditSale(command())
+            assertTrue(result.toString(), result is CommandResult.Success)
+
+            val transaction = (result as CommandResult.Success).data
+            val customerId = checkNotNull(transaction.customerId)
+            val persistedBalance = database.ledgerDao()
+                .getCreditBalance(customerId, branch.currencyCode)
+
+            assertEquals(
+                persistedBalance,
+                repository.getCustomerCreditOutstanding(
+                    customerId,
+                    branch.currencyCode
+                )
+            )
+
+            val wrongCurrencyError = runCatching {
+                repository.getCustomerCreditOutstanding(customerId, "USD")
+            }.exceptionOrNull()
+            assertTrue(
+                "A currency outside the active branch must remain rejected",
+                wrongCurrencyError is IllegalArgumentException
+            )
+        }
+
+    @Test
     fun newCustomerCreditSaleCreatesOneAuthoritativeSaleAndObligation() =
         runBlocking {
 
