@@ -13,6 +13,7 @@ import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
 import com.dailymoneyregister.core.model.enums.AuthType
+import com.dailymoneyregister.core.model.currency.CurrencyMismatchException
 import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.OperationStatus
@@ -153,6 +154,16 @@ class CashSaleFinancialCharacterizationTest {
         val result = repository.executeCashSale(command, fixtureUser, fixtureMembership)
 
         assertTrue("Currency mismatch must be rejected: $result", result is CommandResult.Error)
+        val currencyError = (result as CommandResult.Error).exception
+        assertTrue(
+            "Currency mismatch must produce CurrencyMismatchException, not an unrelated error: $currencyError",
+            currencyError is CurrencyMismatchException
+        )
+        assertEquals(
+            "Currency violation during Cash sale: cannot combine 'USD' and 'OMR'. " +
+                "Financial ledgers must never mix unlike currencies.",
+            currencyError.message
+        )
         assertEquals(0, countRows("transactions"))
         assertEquals(0, countRows("transaction_items"))
         assertEquals(0, countRows("settlement_entries"))
