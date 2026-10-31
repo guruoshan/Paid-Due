@@ -3294,25 +3294,50 @@ class CreditRepaymentIntegrationTest {
                     occurredAt = 1_700_002_000_000L
                 )
             val transactionId = "credit-sale-tx-adjusted-obligation"
-            val saleOperationId = "credit-sale-op-adjusted-obligation"
+            val returnOperationId = "credit-return-adjusted-obligation"
+            val negativeCorrectionOperationId = "credit-negative-correction-adjusted-obligation"
             val correctionOperationId = "credit-correction-adjusted-obligation"
 
+            fun historicalOperation(
+                id: String,
+                operationType: com.dailymoneyregister.core.model.enums.OperationType,
+                occurredAt: Long
+            ) = OperationEntity(
+                id = id,
+                businessId = business.id,
+                branchId = branch.id,
+                operationType = operationType,
+                subjectType = SubjectType.TRANSACTION,
+                subjectId = transactionId,
+                transactionId = transactionId,
+                actorUserId = user.id,
+                deviceId = "credit-test-device",
+                occurredAt = occurredAt,
+                requestFingerprint = id,
+                commandSchemaVersion = 1,
+                intentPayload = id,
+                status = OperationStatus.SUCCEEDED
+            )
+
             database.operationDao().insertOperation(
-                OperationEntity(
-                    id = correctionOperationId,
-                    businessId = business.id,
-                    branchId = branch.id,
-                    operationType = com.dailymoneyregister.core.model.enums.OperationType.RECORD_AMOUNT_CORRECTION,
-                    subjectType = SubjectType.TRANSACTION,
-                    subjectId = transactionId,
-                    transactionId = transactionId,
-                    actorUserId = user.id,
-                    deviceId = "credit-test-device",
-                    occurredAt = 1_700_002_003_000L,
-                    requestFingerprint = "credit-correction-adjusted-obligation",
-                    commandSchemaVersion = 1,
-                    intentPayload = "credit-correction-adjusted-obligation",
-                    status = OperationStatus.SUCCEEDED
+                historicalOperation(
+                    returnOperationId,
+                    com.dailymoneyregister.core.model.enums.OperationType.RECORD_REFUND,
+                    1_700_002_001_000L
+                )
+            )
+            database.operationDao().insertOperation(
+                historicalOperation(
+                    negativeCorrectionOperationId,
+                    com.dailymoneyregister.core.model.enums.OperationType.RECORD_AMOUNT_CORRECTION,
+                    1_700_002_002_000L
+                )
+            )
+            database.operationDao().insertOperation(
+                historicalOperation(
+                    correctionOperationId,
+                    com.dailymoneyregister.core.model.enums.OperationType.RECORD_AMOUNT_CORRECTION,
+                    1_700_002_003_000L
                 )
             )
 
@@ -3326,7 +3351,7 @@ class CreditRepaymentIntegrationTest {
                 """.trimIndent(),
                 arrayOf<Any?>(
                     "credit-return-adjustment-adjusted-obligation",
-                    saleOperationId,
+                    returnOperationId,
                     customerId,
                     -1_000L,
                     branch.currencyCode,
@@ -3343,7 +3368,7 @@ class CreditRepaymentIntegrationTest {
                 """.trimIndent(),
                 arrayOf<Any?>(
                     "credit-negative-correction-adjusted-obligation",
-                    saleOperationId,
+                    negativeCorrectionOperationId,
                     customerId,
                     -500L,
                     branch.currencyCode,
