@@ -3660,10 +3660,9 @@ class CreditRepaymentIntegrationTest {
             val scenarios = listOf(
                 "missing-repayment",
                 "altered-repayment",
-                "missing-settlement",
-                "altered-settlement",
-                "missing-ledger",
-                "altered-ledger",
+                // settlement_entries and credit_ledger_events are append-only.
+                // Their replay-integrity checks use additional-row fixtures in
+                // repaymentReplayRejectsUnexpectedAdditionalEvidenceRows().
                 "missing-allocation",
                 "invalid-allocation",
                 "allocation-timestamp-mismatch",
@@ -3704,26 +3703,6 @@ class CreditRepaymentIntegrationTest {
                         writable.execSQL(
                             "UPDATE credit_repayments SET amount_minor = ? WHERE id = ?",
                             arrayOf<Any?>(1_001L, command.repaymentId)
-                        )
-                    "missing-settlement" ->
-                        writable.execSQL(
-                            "DELETE FROM settlement_entries WHERE operation_id = ?",
-                            arrayOf(command.operationId.value)
-                        )
-                    "altered-settlement" ->
-                        writable.execSQL(
-                            "UPDATE settlement_entries SET amount_signed_minor = 1001 WHERE operation_id = ?",
-                            arrayOf(command.operationId.value)
-                        )
-                    "missing-ledger" ->
-                        writable.execSQL(
-                            "DELETE FROM credit_ledger_events WHERE operation_id = ?",
-                            arrayOf(command.operationId.value)
-                        )
-                    "altered-ledger" ->
-                        writable.execSQL(
-                            "UPDATE credit_ledger_events SET amount_signed_minor = -1001 WHERE operation_id = ?",
-                            arrayOf(command.operationId.value)
                         )
                     "missing-allocation" ->
                         writable.execSQL(
@@ -3781,13 +3760,13 @@ class CreditRepaymentIntegrationTest {
                     repaymentRows.size
                 )
                 assertEquals(
-                    if (scenario == "missing-settlement") 0 else 1,
+                    1,
                     database.transactionDao()
                         .getSettlementsForOperation(command.operationId.value)
                         .size
                 )
                 assertEquals(
-                    if (scenario == "missing-ledger") 0 else 1,
+                    1,
                     database.ledgerDao()
                         .getCreditLedgerForCustomer(customerId)
                         .count { it.operationId == command.operationId.value }
