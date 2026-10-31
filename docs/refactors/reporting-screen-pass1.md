@@ -75,8 +75,8 @@ The main residual risk is ordinary Compose/Kotlin compilation or import/visibili
 - Navigation effect parity: PASS.
 - LazyColumn stable-key parity: PASS.
 - PDF/export and filter host ownership: PASS.
-- `:app:assembleDebug`: first CI attempt reached Kotlin compilation and failed because import cleanup removed the implicit delegated-state operators `getValue` and `setValue` required by the existing `branchExpanded by remember { mutableStateOf(false) }`. Restored both imports only; no state or behavior changed. Re-run on corrected head `4b06dc453306a14f952919277569ceed7e3a6a68` is pending.
+- `:app:assembleDebug`: PASS on corrected branch head `639b251d33d34a1ca1cc5332a713f4e8610ef655` via Android PR validation run `41162716431` (`debug-build-and-tests`, success). The release-validation run `41162716401` also passed, including unit tests, lint, release APK assembly and AAB build. The repair-branch validation run `41162716432` passed its Android build/unit-test job; its conditional Room schema commit job was skipped.
 
 ## Merge recommendation
 
-Do not merge until the PR's Android build validation completes successfully and the final head is reviewed. No merge has been performed.
+Build validation is green on the corrected head. Recommendation: the code is ready for review and merge after the PR is marked ready for review and normal repository review requirements are satisfied. No merge has been performed.
