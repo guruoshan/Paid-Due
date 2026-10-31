@@ -257,6 +257,85 @@ class FinancialSyncEngineTest {
     }
 
     @Test
+    fun syncOutboundRejectsInvalidIdentityBeforeRemoteUploadAndRetriesOutboxItem() = runTest {
+        val invalidOperationId = "not-a-uuid"
+        val invalidOutboxItem = outboxItem.copy(operationId = invalidOperationId)
+        val invalidOperation = operation.copy(id = invalidOperationId)
+
+        coEvery { db.financialSyncOutboxDao() } returns outboxDao
+        coEvery { db.operationDao() } returns operationDao
+        coEvery { db.transactionDao() } returns transactionDao
+        coEvery { db.expenseDao() } returns expenseDao
+        coEvery { db.businessBranchDao() } returns businessBranchDao
+        coEvery { outboxDao.classifyExistingRows() } returns 0
+        coEvery { outboxDao.resetStaleInFlight() } returns 0
+        coEvery {
+            outboxDao.countAuthRequiredForActor("biz-1", "branch-1", "user-1")
+        } returns 0
+        coEvery {
+            outboxDao.getPendingUploadForActor(any(), any(), any(), any())
+        } returns listOf(invalidOutboxItem)
+        coEvery { outboxDao.getStatusCounts() } returns emptyList()
+        coEvery { outboxDao.updateStatus(any(), any(), any()) } returns 1
+        coEvery { operationDao.getOperationById(invalidOperationId) } returns invalidOperation
+        coEvery { transactionDao.getTransactionById(txId) } returns transaction
+        coEvery { transactionDao.getItemsForTransaction(txId) } returns emptyList()
+        coEvery { transactionDao.getSettlementsForOperation(invalidOperationId) } returns emptyList()
+        coEvery { expenseDao.getExpenseByOperationId(invalidOperationId) } returns null
+
+        val branch = BranchEntity(
+            id = "branch-1",
+            businessId = "biz-1",
+            name = "Main",
+            code = "MAIN",
+            countryCode = "AE",
+            currencyCode = "AED",
+            currencyDecimalPlaces = 2,
+            currencySymbol = "AED",
+            timezoneId = "Asia/Dubai",
+            taxRoundingMode = com.dailymoneyregister.core.model.tax.TaxRoundingMode.HALF_UP,
+            defaultTaxRateBps = 0,
+            createdAt = 1L,
+            updatedAt = 1L
+        )
+        coEvery { businessBranchDao.getBranchById("branch-1") } returns branch
+
+        SessionManager.setSession(
+            ActiveSession(
+                business = BusinessEntity("biz-1", "Shop", 1L, 1L),
+                branch = branch,
+                user = UserAccountEntity(
+                    id = "user-1",
+                    businessId = "biz-1",
+                    displayName = "Admin",
+                    username = "admin",
+                    role = UserRole.ADMIN,
+                    authType = AuthType.PIN,
+                    credentialHash = "test-hash",
+                    credentialSalt = null,
+                    createdAt = 1L,
+                    updatedAt = 1L
+                ),
+                membership = UserBranchMembershipEntity(
+                    id = "membership-1",
+                    userId = "user-1",
+                    branchId = "branch-1",
+                    role = UserRole.ADMIN,
+                    createdAt = 1L
+                )
+            )
+        )
+
+        assertEquals(0, engine.syncOutbound("membership-1"))
+
+        coVerify(exactly = 0) {
+            remoteRepo.uploadEnvelope(any(), any(), any(), any())
+        }
+        coVerify { outboxDao.updateStatus(invalidOperationId, "IN_FLIGHT") }
+        coVerify { outboxDao.updateStatus(invalidOperationId, "WAITING_RETRY", true) }
+    }
+
+    @Test
     fun syncInboundRejectsCallerSuppliedTenantOrAccountOutsideActiveSession() = runTest {
         setAdminSessionForInboundTests(userId = "test-admin")
 
