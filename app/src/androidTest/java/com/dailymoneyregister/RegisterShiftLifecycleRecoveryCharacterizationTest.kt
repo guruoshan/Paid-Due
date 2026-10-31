@@ -127,6 +127,13 @@ class RegisterShiftLifecycleRecoveryCharacterizationTest {
         // then invoke recovery without running the original count command.
         val recoveredCount = repository.recoverPendingRegisterShifts()
         assertEquals(1, recoveredCount.size)
+        assertEquals(open.shiftId, recoveredCount.single().shiftId)
+        assertEquals(setup.branchId.value, recoveredCount.single().branchId)
+        assertEquals(setup.adminUserId.value, recoveredCount.single().actorUserId)
+        assertEquals(true, recoveredCount.single().isOpen)
+        assertEquals(8_750L, recoveredCount.single().countedCashMinor)
+        assertEquals(2_000L, recoveredCount.single().countedAt)
+        assertEquals(null, recoveredCount.single().closedAt)
         assertEquals(
             OperationStatus.SUCCEEDED,
             database.operationDao().getOperationById(count.operationId.value)?.status
@@ -148,6 +155,13 @@ class RegisterShiftLifecycleRecoveryCharacterizationTest {
         // The close write is likewise not executed before recoverPendingRegisterShifts().
         val recoveredClose = repository.recoverPendingRegisterShifts()
         assertEquals(1, recoveredClose.size)
+        assertEquals(open.shiftId, recoveredClose.single().shiftId)
+        assertEquals(setup.branchId.value, recoveredClose.single().branchId)
+        assertEquals(setup.adminUserId.value, recoveredClose.single().actorUserId)
+        assertEquals(false, recoveredClose.single().isOpen)
+        assertEquals(8_750L, recoveredClose.single().countedCashMinor)
+        assertEquals(2_000L, recoveredClose.single().countedAt)
+        assertEquals(3_000L, recoveredClose.single().closedAt)
         assertEquals(
             OperationStatus.SUCCEEDED,
             database.operationDao().getOperationById(close.operationId.value)?.status
