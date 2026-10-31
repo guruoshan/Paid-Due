@@ -74,9 +74,7 @@ internal fun registerShiftExpectedCashMinor(
  * No financial state is written here.
  */
 internal class RegisterShiftReportReadRepository(
-    private val database: DmrDatabase,
-    private val readRegisterShiftResolver:
-        suspend (String, String, String) -> RegisterShiftResult
+    private val database: DmrDatabase
 ) {
     private val transactionDao =
         database.transactionDao()
@@ -93,16 +91,8 @@ internal class RegisterShiftReportReadRepository(
     private val cashShiftDao =
         database.cashShiftDao()
 
-    private suspend fun readRegisterShift(
-        shiftId: String,
-        expectedBranchId: String,
-        expectedBusinessId: String
-    ): RegisterShiftResult =
-        readRegisterShiftResolver(
-            shiftId,
-            expectedBranchId,
-            expectedBusinessId
-        )
+    private val registerShiftStateReadRepository =
+        RegisterShiftStateReadRepository(database)
 
     suspend fun getCurrentRegisterShiftReport(): RegisterShiftReport? {
         val session =
@@ -116,7 +106,7 @@ internal class RegisterShiftReportReadRepository(
             ) ?: return null
 
         val shift =
-            readRegisterShift(
+            registerShiftStateReadRepository.readRegisterShift(
                 shiftId = latest.id,
                 expectedBranchId = session.branch.id,
                 expectedBusinessId = session.business.id
