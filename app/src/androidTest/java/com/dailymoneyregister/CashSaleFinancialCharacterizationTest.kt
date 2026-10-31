@@ -13,6 +13,7 @@ import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
 import com.dailymoneyregister.core.model.enums.AuthType
+import com.dailymoneyregister.core.model.currency.CurrencyMismatchException
 import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.OperationStatus
@@ -105,6 +106,83 @@ class CashSaleFinancialCharacterizationTest {
                 "CHARACTERIZATION_NORMAL_V3\n${snapshot(operationId, transactionId)}"
             )
         }
+    }
+
+    @Test
+    fun identicalCashSaleReplayIsIdempotentAndChangedIntentConflicts() = runBlocking {
+        val operationId = "op-cash-sale-replay"
+        val transactionId = "tx-cash-sale-replay"
+        val command = v3Command(operationId, transactionId)
+
+        val first = repository.executeCashSale(command, fixtureUser, fixtureMembership)
+        assertTrue("Initial cash sale failed: $first", first is CommandResult.Success)
+
+        val replay = repository.executeCashSale(command, fixtureUser, fixtureMembership)
+        assertTrue("Identical replay failed: $replay", replay is CommandResult.Success)
+        val firstSuccess = first as CommandResult.Success
+        val replaySuccess = replay as CommandResult.Success
+        assertTrue(
+            "Identical replay must be reported as idempotent",
+            replaySuccess.isIdempotentReplay
+        )
+        assertEquals(firstSuccess.data, replaySuccess.data)
+
+        val changedIntent = command.copy(occurredAt = command.occurredAt + 1L)
+        val conflict = repository.executeCashSale(
+            changedIntent,
+            fixtureUser,
+            fixtureMembership
+        )
+        assertTrue("Changed intent under the same operation ID must conflict: $conflict",
+            conflict is CommandResult.Conflict)
+
+        assertEquals(1, countRows("transactions"))
+        assertEquals(1, countRows("transaction_items"))
+        assertEquals(1, database.transactionDao().getSettlementsForTransaction(transactionId).size)
+        assertEquals(1, database.operationDao().getOperationsForTransaction(transactionId).size)
+        assertEquals(
+            OperationStatus.SUCCEEDED,
+            database.operationDao().getOperationById(operationId)?.status
+        )
+    }
+
+    @Test
+    fun invalidCashSaleCurrencyFailsBeforeAnyFinancialWrite() = runBlocking {
+        val command = v3Command("op-cash-sale-invalid-currency", "tx-cash-sale-invalid-currency")
+            .copy(currencyCode = "USD")
+
+        val result = repository.executeCashSale(command, fixtureUser, fixtureMembership)
+
+        assertTrue("Currency mismatch must be rejected: $result", result is CommandResult.Error)
+        val currencyError = (result as CommandResult.Error).exception
+        assertTrue(
+            "Currency mismatch must produce CurrencyMismatchException, not an unrelated error: $currencyError",
+            currencyError is CurrencyMismatchException
+        )
+        assertEquals(
+            "Currency violation during Cash sale: cannot combine 'USD' and 'OMR'. " +
+                "Financial ledgers must never mix unlike currencies.",
+            currencyError.message
+        )
+        assertEquals(0, countRows("transactions"))
+        assertEquals(0, countRows("transaction_items"))
+        assertEquals(0, countRows("settlement_entries"))
+        assertEquals(0, countRows("operations"))
+    }
+
+    @Test
+    fun cashSaleWithoutAuthenticatedSessionPersistsNothing() = runBlocking {
+        SessionManager.clearSession()
+        val command = v3Command("op-cash-sale-no-session", "tx-cash-sale-no-session")
+
+        val result = repository.executeCashSale(command, fixtureUser, fixtureMembership)
+
+        assertTrue("Unauthenticated cash sale must be denied: $result",
+            result is CommandResult.PermissionDenied)
+        assertEquals(0, countRows("transactions"))
+        assertEquals(0, countRows("transaction_items"))
+        assertEquals(0, countRows("settlement_entries"))
+        assertEquals(0, countRows("operations"))
     }
 
     @Test
