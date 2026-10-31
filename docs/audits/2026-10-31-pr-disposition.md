@@ -44,7 +44,7 @@ The underlying defect was confirmed on `main`: `FinancialSyncEngine.syncOutbound
 
 Replacement PR **#116** ([fix(sync): validate acknowledgement identity before remote upload](https://github.com/guruoshan/Paid-Due/pull/116)) was created as a draft from `main` at `be93f9bc3df39e22203cccf160d2a8c360c83766`. Commit: `1733f86f90b7120bda97d616644a4bc1a422de0e`. It changes only `FinancialSyncEngine.kt` (identity validation moved before upload) and `FinancialSyncEngineTest.kt` (invalid identity prevents upload and follows the retry path). The existing valid-identity acknowledgement test continues to cover upload and outbox deletion for a matching digest.
 
-CI status at the time of this update: **in progress** (all seven PR workflow runs were still running). Tests were not run locally because this environment has no repository checkout or Gradle wrapper; the PR description records that CI is the verification path. No changes were made to the acknowledgement guard, receipt policy, digest checks, server SQL, or UUIDv7 rules.
+CI status at the latest check: **2 of 7 workflow runs passed** (SQL Behavioral Gate and API 36 migration validation); **5 remain in progress**, with no failures reported. The Supabase Edge Function test check also passed; Supabase Preview and the best-effort API 36 compile check were skipped by their configured conditions. Tests were not run locally because this environment has no repository checkout or Gradle wrapper; the PR description records that CI is the verification path. No changes were made to the acknowledgement guard, receipt policy, digest checks, server SQL, or UUIDv7 rules.
 
 Legacy UUID compatibility: verified not needed for uploaded data. A read-only query on `private.financial_operation_envelopes` returned 69 envelopes, all with UUIDv7 operation IDs. The residual risk is operations that were never uploaded from older devices; those cannot be checked from the cloud database.
 
@@ -89,4 +89,4 @@ Legacy UUID compatibility: verified not needed for uploaded data. A read-only qu
 
 - CI results for PRs other than #114.
 - Local device outboxes that were never uploaded.
-- Final CI outcome for replacement PR #116 (still running when this document was updated). The `boardlock-engineer` skill was read from `.agents/skills/boardlock-engineer/SKILL.md` on `main`.
+- Final CI outcome for replacement PR #116 (five of seven workflow runs remained in progress at the latest check). The `boardlock-engineer` skill was read from `.agents/skills/boardlock-engineer/SKILL.md` on `main`.
