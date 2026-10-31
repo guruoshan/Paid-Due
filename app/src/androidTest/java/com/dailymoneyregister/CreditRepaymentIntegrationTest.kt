@@ -3667,7 +3667,8 @@ class CreditRepaymentIntegrationTest {
                 "missing-allocation",
                 "invalid-allocation",
                 "allocation-timestamp-mismatch",
-                "allocation-sum-mismatch"
+                "allocation-sum-mismatch",
+                "negative-outstanding"
             )
 
             for ((index, scenario) in scenarios.withIndex()) {
@@ -3744,10 +3745,33 @@ class CreditRepaymentIntegrationTest {
                             "UPDATE credit_repayment_allocations SET allocated_amount_minor = 1001 WHERE repayment_id = ?",
                             arrayOf(command.repaymentId)
                         )
+                    "negative-outstanding" ->
+                        writable.execSQL(
+                            """
+                            INSERT INTO credit_ledger_events (
+                                id, operation_id, customer_id, type, amount_signed_minor,
+                                currency_code, transaction_id, repayment_id, occurred_at
+                            ) VALUES (?, ?, ?, 'ADJUSTMENT', ?, ?, NULL, NULL, ?)
+                            """.trimIndent(),
+                            arrayOf<Any?>(
+                                "credit-negative-outstanding-$scenario",
+                                "credit-sale-op-evidence-$scenario",
+                                customerId,
+                                -5_000L,
+                                branch.currencyCode,
+                                command.occurredAt + 1L
+                            )
+                        )
                 }
 
                 val replay = repository.executeCreditRepayment(command)
                 assertTrue("$scenario replay must fail closed: $replay", replay is CommandResult.Error)
+                if (scenario == "negative-outstanding") {
+                    assertTrue(
+                        database.ledgerDao()
+                            .getCreditBalance(customerId, branch.currencyCode) < 0L
+                    )
+                }
 
                 val repaymentRows =
                     database.ledgerDao()
