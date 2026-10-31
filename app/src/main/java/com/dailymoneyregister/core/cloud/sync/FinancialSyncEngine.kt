@@ -241,11 +241,6 @@ class FinancialSyncEngine @Inject constructor(
                     expense = expense,
                     financialEvidence = financialEvidence
                 )
-                val receipt = remoteSyncRepository.uploadEnvelope(
-                    envelope = envelope,
-                    actorMembershipId = actorMembershipId,
-                    branchTimezoneId = branch.timezoneId
-                )
                 val identity = FinancialSyncIdentity(
                     envelope.operationId,
                     envelope.businessId,
@@ -254,6 +249,11 @@ class FinancialSyncEngine @Inject constructor(
                     envelope.deviceId,
                     envelope.commandSchemaVersion,
                     envelope.canonicalSha256
+                )
+                val receipt = remoteSyncRepository.uploadEnvelope(
+                    envelope = envelope,
+                    actorMembershipId = actorMembershipId,
+                    branchTimezoneId = branch.timezoneId
                 )
                 val nextState = FinancialSyncOutboxPolicy.applyReceipt(identity, inFlightState, receipt)
                 withContext(NonCancellable) {
