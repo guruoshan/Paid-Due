@@ -42,9 +42,9 @@ PR #64 is not to be merged as it stands: it is stale (262 commits behind `main`)
 
 The underlying defect was confirmed on `main`: `FinancialSyncEngine.syncOutbound` called `uploadEnvelope()` before constructing `FinancialSyncIdentity`, so identity validation could fail after a server commit and leave the local outbox unacknowledged.
 
-Replacement PR **#116** ([fix(sync): validate acknowledgement identity before remote upload](https://github.com/guruoshan/Paid-Due/pull/116)) was created as a draft from `main` at `be93f9bc3df39e22203cccf160d2a8c360c83766`. Commit: `1733f86f90b7120bda97d616644a4bc1a422de0e`. It changes only `FinancialSyncEngine.kt` (identity validation moved before upload) and `FinancialSyncEngineTest.kt` (invalid identity prevents upload and follows the retry path). The existing valid-identity acknowledgement test continues to cover upload and outbox deletion for a matching digest.
+Replacement PR **#116** ([fix(sync): validate acknowledgement identity before remote upload](https://github.com/guruoshan/Paid-Due/pull/116)) was created as a draft from `main` at `be93f9bc3df39e22203cccf160d2a8c360c83766`. Initial implementation commit: `1733f86f90b7120bda97d616644a4bc1a422de0e`; CI-only test correction commit: `ff5993d4a6bc63fa03f0a2a2378fac964c027ec3`. It changes only `FinancialSyncEngine.kt` (identity validation moved before upload) and `FinancialSyncEngineTest.kt` (invalid identity prevents upload and follows the retry path). The existing valid-identity acknowledgement test continues to cover upload and outbox deletion for a matching digest.
 
-CI status at the latest check: **2 of 7 workflow runs passed** (SQL Behavioral Gate and API 36 migration validation); **5 remain in progress**, with no failures reported. The Supabase Edge Function test check also passed; Supabase Preview and the best-effort API 36 compile check were skipped by their configured conditions. Tests were not run locally because this environment has no repository checkout or Gradle wrapper; the PR description records that CI is the verification path. No changes were made to the acknowledgement guard, receipt policy, digest checks, server SQL, or UUIDv7 rules.
+The first CI attempt failed in all three Android jobs at `FinancialSyncEngineTest.kt:335:80`: the new test passed `true` where `FinancialSyncOutboxDao.updateStatus` requires `incrementAttempt: Int`. The only follow-up code change replaced that Boolean with `1`; no production code changed. On commit `ff5993d4a6bc63fa03f0a2a2378fac964c027ec3`, all seven workflow runs completed successfully. Specifically, `android-build-and-unit-tests`, `debug-build-and-tests`, and `validate-release` each completed with `success`; the debug workflow completed unit tests, instrumentation tests and debug APK assembly, while release validation completed unit tests, lint, release APK and AAB assembly. SQL Behavioral Gate, Customer Directory Contract Gate, Notification Migration Compatibility Gate and API 36 migration validation also completed with `success`. Local Gradle tests were not run because this environment has no repository checkout or Gradle wrapper; GitHub CI is the verification path. No changes were made to the acknowledgement guard, receipt policy, digest checks, server SQL, or UUIDv7 rules.
 
 Legacy UUID compatibility: verified not needed for uploaded data. A read-only query on `private.financial_operation_envelopes` returned 69 envelopes, all with UUIDv7 operation IDs. The residual risk is operations that were never uploaded from older devices; those cannot be checked from the cloud database.
 
@@ -52,7 +52,7 @@ Legacy UUID compatibility: verified not needed for uploaded data. A read-only qu
 
 | PR | Title | Draft | Disposition | Notes |
 |---|---|---|---|---|
-| #116 | Validate acknowledgement identity before remote upload | Yes | Keep draft; verify CI | Replaces stale, unmerged #64; CI in progress. |
+| #116 | Validate acknowledgement identity before remote upload | Yes | Keep draft; CI green, review before readiness | Replaces stale, unmerged #64; all seven workflow runs passed on `ff5993d4`. |
 | #114 | Cash-sale atomic rollback test | No | Merged | Merged into `main`. |
 | #115 | This document | Yes | Keep draft; merge after review | Documentation only. |
 | #107 | Coupon dialog decomposition | Yes | Keep draft; merge after CI | Presentation-only. |
@@ -80,7 +80,7 @@ Legacy UUID compatibility: verified not needed for uploaded data. A read-only qu
 ## 5. Release blockers (current view)
 
 1. Reconcile migration versions between `main` and live (section 2), and apply or retire the four `main` migrations not yet applied live.
-2. Verify CI for replacement PR #116; keep it draft until reviewed (section 3).
+2. Review replacement PR #116 before marking it ready; all CI checks passed (section 3).
 3. Confirm a working API 37 Android build (#23).
 4. Make the signed release workflow build the triggering commit (#58).
 5. Confirm the reporting inventory RPC present live (`20261018140123`) is represented in `main` before any further reporting change.
@@ -89,4 +89,4 @@ Legacy UUID compatibility: verified not needed for uploaded data. A read-only qu
 
 - CI results for PRs other than #114.
 - Local device outboxes that were never uploaded.
-- Final CI outcome for replacement PR #116 (five of seven workflow runs remained in progress at the latest check). The `boardlock-engineer` skill was read from `.agents/skills/boardlock-engineer/SKILL.md` on `main`.
+- Local Gradle execution (GitHub CI is green). The `boardlock-engineer` skill was read from `.agents/skills/boardlock-engineer/SKILL.md` on `main`.
