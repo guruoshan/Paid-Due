@@ -207,6 +207,50 @@ class CashSaleFinancialCharacterizationTest {
     }
 
     @Test
+    fun cashSaleSettlementFailureRollsBackTransactionAndItems() = runBlocking {
+        val operationId = "op-cash-sale-atomic-rollback"
+        val transactionId = "tx-cash-sale-atomic-rollback"
+        val command = v3Command(operationId, transactionId)
+
+        database.openHelper.writableDatabase.execSQL(
+            """
+            CREATE TRIGGER test_abort_cash_sale_funding
+            BEFORE INSERT ON settlement_entries
+            WHEN NEW.entry_purpose = 'SALE_FUNDING'
+            BEGIN
+                SELECT RAISE(ABORT, 'forced Cash sale funding failure');
+            END
+            """.trimIndent()
+        )
+
+        val result = try {
+            repository.executeCashSale(
+                command,
+                fixtureUser,
+                fixtureMembership
+            )
+        } finally {
+            database.openHelper.writableDatabase.execSQL(
+                "DROP TRIGGER IF EXISTS test_abort_cash_sale_funding"
+            )
+        }
+
+        assertTrue(
+            "Injected settlement failure must fail the Cash sale: $result",
+            result is CommandResult.Error
+        )
+        assertEquals(0, countRows("transactions"))
+        assertEquals(0, countRows("transaction_items"))
+        assertEquals(0, countRows("settlement_entries"))
+        assertEquals(
+            OperationStatus.FAILED,
+            database.operationDao()
+                .getOperationById(operationId)
+                ?.status
+        )
+    }
+
+    @Test
     fun captureV1Recovery() {
         runBlocking {
             val operationId = "op-v1"
