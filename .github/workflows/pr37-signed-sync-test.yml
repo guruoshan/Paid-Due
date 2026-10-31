@@ -23,11 +23,19 @@ jobs:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       PAID_DUE_APPLY_INBOUND_FINANCIAL_ENVELOPES: "true"
     steps:
-      - name: Checkout PR 37 branch
+      - name: Checkout exact triggering commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: fix/production-readiness-financial-sync
+          ref: ${{ github.sha }}
           persist-credentials: false
+
+      - name: Verify checked-out commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Expected triggering commit: $GITHUB_SHA"
+          echo "Checked out commit: $(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - name: Set up JDK 17
         uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v4.7.1
