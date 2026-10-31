@@ -1013,6 +1013,10 @@ class CreditRepaymentIntegrationTest {
                 (second as CommandResult.Success)
                     .isIdempotentReplay
             )
+            assertEquals(
+                (first as CommandResult.Success).data,
+                (second as CommandResult.Success).data
+            )
 
             assertEquals(
                 1,
@@ -3202,8 +3206,696 @@ class CreditRepaymentIntegrationTest {
             )
         }
 
+
+
+    @Test
+    fun partialRepaymentsPreserveFifoAcrossMultipleAllocations() =
+        runBlocking {
+            val customerId =
+                createCreditSale(
+                    suffix = "multi-partial-old",
+                    amountMinor = 3_000L,
+                    occurredAt = 1_700_001_000_000L
+                )
+
+            createCreditSale(
+                suffix = "multi-partial-new",
+                amountMinor = 4_000L,
+                occurredAt = 1_700_001_001_000L
+            )
+
+            val first =
+                repayment(
+                    suffix = "multi-partial-first",
+                    customerId = customerId,
+                    amountMinor = 1_500L,
+                    occurredAt = 1_700_001_100_000L
+                )
+            val firstResult = repository.executeCreditRepayment(first)
+            assertTrue(firstResult.toString(), firstResult is CommandResult.Success)
+
+            val second =
+                repayment(
+                    suffix = "multi-partial-second",
+                    customerId = customerId,
+                    amountMinor = 3_000L,
+                    occurredAt = 1_700_001_200_000L
+                )
+            val secondResult = repository.executeCreditRepayment(second)
+            assertTrue(secondResult.toString(), secondResult is CommandResult.Success)
+
+            val firstAllocations =
+                database.ledgerDao()
+                    .getCreditRepaymentAllocations(first.repaymentId)
+            assertEquals(1, firstAllocations.size)
+            assertEquals("credit-sale-tx-multi-partial-old", firstAllocations.single().originalTransactionId)
+            assertEquals(1_500L, firstAllocations.single().allocatedAmountMinor)
+
+            val secondAllocations =
+                database.ledgerDao()
+                    .getCreditRepaymentAllocations(second.repaymentId)
+            assertEquals(2, secondAllocations.size)
+            assertEquals("credit-sale-tx-multi-partial-old", secondAllocations[0].originalTransactionId)
+            assertEquals(1_500L, secondAllocations[0].allocatedAmountMinor)
+            assertEquals("credit-sale-tx-multi-partial-new", secondAllocations[1].originalTransactionId)
+            assertEquals(1_500L, secondAllocations[1].allocatedAmountMinor)
+
+            assertEquals(
+                2_500L,
+                database.ledgerDao().getCreditBalance(customerId, branch.currencyCode)
+            )
+            assertEquals(
+                1,
+                database.ledgerDao()
+                    .getCreditRepaymentsForOperation(first.operationId.value)
+                    .size
+            )
+            assertEquals(
+                1,
+                database.ledgerDao()
+                    .getCreditRepaymentsForOperation(second.operationId.value)
+                    .size
+            )
+            assertEquals(
+                1,
+                database.transactionDao()
+                    .getSettlementsForOperation(first.operationId.value)
+                    .size
+            )
+        }
+
+    @Test
+    fun creditReturnsAndAmountCorrectionsReconstructOutstandingBeforeRepayment() =
+        runBlocking {
+            val customerId =
+                createCreditSale(
+                    suffix = "adjusted-obligation",
+                    amountMinor = 5_000L,
+                    occurredAt = 1_700_002_000_000L
+                )
+            val transactionId = "credit-sale-tx-adjusted-obligation"
+            val returnOperationId = "credit-return-adjusted-obligation"
+            val negativeCorrectionOperationId = "credit-negative-correction-adjusted-obligation"
+            val correctionOperationId = "credit-correction-adjusted-obligation"
+
+            fun historicalOperation(
+                id: String,
+                operationType: com.dailymoneyregister.core.model.enums.OperationType,
+                occurredAt: Long
+            ) = OperationEntity(
+                id = id,
+                businessId = business.id,
+                branchId = branch.id,
+                operationType = operationType,
+                subjectType = SubjectType.TRANSACTION,
+                subjectId = transactionId,
+                transactionId = transactionId,
+                actorUserId = user.id,
+                deviceId = "credit-test-device",
+                occurredAt = occurredAt,
+                requestFingerprint = id,
+                commandSchemaVersion = 1,
+                intentPayload = id,
+                status = OperationStatus.SUCCEEDED
+            )
+
+            database.operationDao().insertOperation(
+                historicalOperation(
+                    returnOperationId,
+                    com.dailymoneyregister.core.model.enums.OperationType.RECORD_REFUND,
+                    1_700_002_001_000L
+                )
+            )
+            database.operationDao().insertOperation(
+                historicalOperation(
+                    negativeCorrectionOperationId,
+                    com.dailymoneyregister.core.model.enums.OperationType.RECORD_AMOUNT_CORRECTION,
+                    1_700_002_002_000L
+                )
+            )
+            database.operationDao().insertOperation(
+                historicalOperation(
+                    correctionOperationId,
+                    com.dailymoneyregister.core.model.enums.OperationType.RECORD_AMOUNT_CORRECTION,
+                    1_700_002_003_000L
+                )
+            )
+
+            val writable = database.openHelper.writableDatabase
+            writable.execSQL(
+                """
+                INSERT INTO credit_ledger_events (
+                    id, operation_id, customer_id, type, amount_signed_minor,
+                    currency_code, transaction_id, repayment_id, occurred_at
+                ) VALUES (?, ?, ?, 'ADJUSTMENT', ?, ?, ?, NULL, ?)
+                """.trimIndent(),
+                arrayOf<Any?>(
+                    "credit-return-adjustment-adjusted-obligation",
+                    returnOperationId,
+                    customerId,
+                    -1_000L,
+                    branch.currencyCode,
+                    transactionId,
+                    1_700_002_001_000L
+                )
+            )
+            writable.execSQL(
+                """
+                INSERT INTO credit_ledger_events (
+                    id, operation_id, customer_id, type, amount_signed_minor,
+                    currency_code, transaction_id, repayment_id, occurred_at
+                ) VALUES (?, ?, ?, 'ADJUSTMENT', ?, ?, ?, NULL, ?)
+                """.trimIndent(),
+                arrayOf<Any?>(
+                    "credit-negative-correction-adjusted-obligation",
+                    negativeCorrectionOperationId,
+                    customerId,
+                    -500L,
+                    branch.currencyCode,
+                    transactionId,
+                    1_700_002_002_000L
+                )
+            )
+            writable.execSQL(
+                """
+                INSERT INTO credit_ledger_events (
+                    id, operation_id, customer_id, type, amount_signed_minor,
+                    currency_code, transaction_id, repayment_id, occurred_at
+                ) VALUES (?, ?, ?, 'ADJUSTMENT', ?, ?, ?, NULL, ?)
+                """.trimIndent(),
+                arrayOf<Any?>(
+                    "credit-positive-correction-adjusted-obligation",
+                    correctionOperationId,
+                    customerId,
+                    700L,
+                    branch.currencyCode,
+                    transactionId,
+                    1_700_002_003_000L
+                )
+            )
+
+            assertEquals(
+                4_200L,
+                database.ledgerDao().getCreditBalance(customerId, branch.currencyCode)
+            )
+
+            val command =
+                repayment(
+                    suffix = "adjusted-obligation",
+                    customerId = customerId,
+                    amountMinor = 4_200L,
+                    occurredAt = 1_700_002_100_000L
+                )
+            val result = repository.executeCreditRepayment(command)
+            assertTrue(result.toString(), result is CommandResult.Success)
+
+            val allocations =
+                database.ledgerDao().getCreditRepaymentAllocations(command.repaymentId)
+            assertEquals(1, allocations.size)
+            assertEquals(transactionId, allocations.single().originalTransactionId)
+            assertEquals(4_200L, allocations.single().allocatedAmountMinor)
+            assertEquals(
+                0L,
+                database.ledgerDao().getCreditBalance(customerId, branch.currencyCode)
+            )
+        }
+
+    @Test
+    fun repaymentReconstructionIsolatedByCustomerAndCurrency() =
+        runBlocking {
+            val customerA = "credit-repay-isolation-customer-a"
+            val customerB = "credit-repay-isolation-customer-b"
+
+            executeCreditSaleForRepaymentTest(
+                operationId = "credit-sale-op-isolation-a",
+                transactionId = "credit-sale-tx-isolation-a",
+                customerId = customerA,
+                customerPhone = "+96890002001",
+                customerName = "Isolation Customer A",
+                amountMinor = 5_000L,
+                occurredAt = 1_700_003_000_000L
+            )
+            executeCreditSaleForRepaymentTest(
+                operationId = "credit-sale-op-isolation-b",
+                transactionId = "credit-sale-tx-isolation-b",
+                customerId = customerB,
+                customerPhone = "+96890002002",
+                customerName = "Isolation Customer B",
+                amountMinor = 6_000L,
+                occurredAt = 1_700_003_001_000L
+            )
+
+            database.openHelper.writableDatabase.execSQL(
+                """
+                INSERT INTO credit_ledger_events (
+                    id, operation_id, customer_id, type, amount_signed_minor,
+                    currency_code, transaction_id, repayment_id, occurred_at
+                ) VALUES (?, ?, ?, 'OBLIGATION', ?, ?, NULL, NULL, ?)
+                """.trimIndent(),
+                arrayOf<Any?>(
+                    "credit-foreign-currency-obligation",
+                    "credit-sale-op-isolation-a",
+                    customerA,
+                    9_000L,
+                    "USD",
+                    1_700_003_002_000L
+                )
+            )
+
+            val command =
+                repayment(
+                    suffix = "isolation-a",
+                    customerId = customerA,
+                    amountMinor = 2_000L,
+                    occurredAt = 1_700_003_100_000L
+                )
+            val result = repository.executeCreditRepayment(command)
+            assertTrue(result.toString(), result is CommandResult.Success)
+
+            assertEquals(
+                3_000L,
+                database.ledgerDao().getCreditBalance(customerA, branch.currencyCode)
+            )
+            assertEquals(
+                6_000L,
+                database.ledgerDao().getCreditBalance(customerB, branch.currencyCode)
+            )
+            assertEquals(
+                listOf("credit-sale-tx-isolation-a"),
+                database.ledgerDao()
+                    .getCreditRepaymentAllocations(command.repaymentId)
+                    .map { it.originalTransactionId }
+            )
+        }
+
+    @Test
+    fun malformedObligationAndNegativeLedgerBalanceAreRejectedBeforeRepaymentWrites() =
+        runBlocking {
+            val malformedCustomer = "credit-malformed-obligation-customer"
+            executeCreditSaleForRepaymentTest(
+                operationId = "credit-sale-op-malformed-obligation",
+                transactionId = "credit-sale-tx-malformed-obligation",
+                customerId = malformedCustomer,
+                customerPhone = "+96890005001",
+                customerName = "Malformed Obligation Customer",
+                amountMinor = 5_000L,
+                occurredAt = 1_700_004_000_000L
+            )
+            database.openHelper.writableDatabase.execSQL(
+                """
+                INSERT INTO credit_ledger_events (
+                    id, operation_id, customer_id, type, amount_signed_minor,
+                    currency_code, transaction_id, repayment_id, occurred_at
+                ) VALUES (?, ?, ?, 'OBLIGATION', ?, ?, NULL, NULL, ?)
+                """.trimIndent(),
+                arrayOf<Any?>(
+                    "credit-malformed-obligation",
+                    "credit-sale-op-malformed-obligation",
+                    malformedCustomer,
+                    1_000L,
+                    branch.currencyCode,
+                    1_700_004_001_000L
+                )
+            )
+
+            val malformedCommand =
+                repayment(
+                    suffix = "malformed-obligation",
+                    customerId = malformedCustomer,
+                    amountMinor = 1_000L,
+                    occurredAt = 1_700_004_100_000L
+                )
+            val malformedResult =
+                repository.executeCreditRepayment(malformedCommand)
+            assertTrue(malformedResult.toString(), malformedResult is CommandResult.Error)
+            assertTrue(
+                database.ledgerDao()
+                    .getCreditRepaymentsForOperation(malformedCommand.operationId.value)
+                    .isEmpty()
+            )
+            assertTrue(
+                database.transactionDao()
+                    .getSettlementsForOperation(malformedCommand.operationId.value)
+                    .isEmpty()
+            )
+
+            val negativeCustomer = "credit-negative-ledger-customer"
+            executeCreditSaleForRepaymentTest(
+                operationId = "credit-sale-op-negative-ledger",
+                transactionId = "credit-sale-tx-negative-ledger",
+                customerId = negativeCustomer,
+                customerPhone = "+96890005002",
+                customerName = "Negative Ledger Customer",
+                amountMinor = 5_000L,
+                occurredAt = 1_700_005_000_000L
+            )
+            database.openHelper.writableDatabase.execSQL(
+                """
+                INSERT INTO credit_ledger_events (
+                    id, operation_id, customer_id, type, amount_signed_minor,
+                    currency_code, transaction_id, repayment_id, occurred_at
+                ) VALUES (?, ?, ?, 'ADJUSTMENT', ?, ?, NULL, NULL, ?)
+                """.trimIndent(),
+                arrayOf<Any?>(
+                    "credit-negative-ledger-adjustment",
+                    "credit-sale-op-negative-ledger",
+                    negativeCustomer,
+                    -6_000L,
+                    branch.currencyCode,
+                    1_700_005_001_000L
+                )
+            )
+
+            val negativeCommand =
+                repayment(
+                    suffix = "negative-ledger",
+                    customerId = negativeCustomer,
+                    amountMinor = 1_000L,
+                    occurredAt = 1_700_005_100_000L
+                )
+            val negativeResult =
+                repository.executeCreditRepayment(negativeCommand)
+            assertTrue(negativeResult.toString(), negativeResult is CommandResult.Error)
+            assertTrue(
+                database.ledgerDao()
+                    .getCreditRepaymentsForOperation(negativeCommand.operationId.value)
+                    .isEmpty()
+            )
+            assertTrue(
+                database.ledgerDao()
+                    .getCreditRepaymentAllocations(negativeCommand.repaymentId)
+                    .isEmpty()
+            )
+        }
+
+    @Test
+    fun repaymentAllocationOverflowIsRejectedBeforeNewRepaymentWrites() =
+        runBlocking {
+            val customerId =
+                createCreditSale(
+                    suffix = "allocation-overflow",
+                    amountMinor = 5_000L,
+                    occurredAt = 1_700_006_000_000L
+                )
+
+            val first =
+                repayment(
+                    suffix = "allocation-overflow-first",
+                    customerId = customerId,
+                    amountMinor = 1L,
+                    occurredAt = 1_700_006_100_000L
+                )
+            val second =
+                repayment(
+                    suffix = "allocation-overflow-second",
+                    customerId = customerId,
+                    amountMinor = 1L,
+                    occurredAt = 1_700_006_200_000L
+                )
+            assertTrue(repository.executeCreditRepayment(first) is CommandResult.Success)
+            assertTrue(repository.executeCreditRepayment(second) is CommandResult.Success)
+
+            database.openHelper.writableDatabase.execSQL(
+                """
+                UPDATE credit_repayment_allocations
+                SET allocated_amount_minor = ?
+                WHERE original_transaction_id = ?
+                """.trimIndent(),
+                arrayOf<Any?>(
+                    Long.MAX_VALUE,
+                    "credit-sale-tx-allocation-overflow"
+                )
+            )
+
+            val third =
+                repayment(
+                    suffix = "allocation-overflow-third",
+                    customerId = customerId,
+                    amountMinor = 1L,
+                    occurredAt = 1_700_006_300_000L
+                )
+            val result = repository.executeCreditRepayment(third)
+            assertTrue(result.toString(), result is CommandResult.Error)
+
+            assertTrue(
+                database.ledgerDao()
+                    .getCreditRepaymentsForOperation(third.operationId.value)
+                    .isEmpty()
+            )
+            assertTrue(
+                database.transactionDao()
+                    .getSettlementsForOperation(third.operationId.value)
+                    .isEmpty()
+            )
+            assertTrue(
+                database.ledgerDao()
+                    .getCreditRepaymentAllocations(third.repaymentId)
+                    .isEmpty()
+            )
+        }
+
+    @Test
+    fun repaymentReplayRejectsMissingAndAlteredPersistedEvidence() =
+        runBlocking {
+            val scenarios = listOf(
+                "missing-repayment",
+                "altered-repayment",
+                // settlement_entries and credit_ledger_events are append-only.
+                // Their replay-integrity checks use additional-row fixtures in
+                // repaymentReplayRejectsUnexpectedAdditionalEvidenceRows().
+                "missing-allocation",
+                "invalid-allocation",
+                "allocation-timestamp-mismatch",
+                "allocation-sum-mismatch",
+                "negative-outstanding"
+            )
+
+            for ((index, scenario) in scenarios.withIndex()) {
+                val customerId = "credit-evidence-customer-$scenario"
+                executeCreditSaleForRepaymentTest(
+                    operationId = "credit-sale-op-evidence-$scenario",
+                    transactionId = "credit-sale-tx-evidence-$scenario",
+                    customerId = customerId,
+                    customerPhone = "+96890003" + (index + 1).toString().padStart(3, '0'),
+                    customerName = "Evidence Customer $index",
+                    amountMinor = 5_000L,
+                    occurredAt = 1_700_007_000_000L + index * 10_000L
+                )
+                val command =
+                    repayment(
+                        suffix = "evidence-$scenario",
+                        customerId = customerId,
+                        amountMinor = 1_000L,
+                        occurredAt = 1_700_008_000_000L + scenarios.indexOf(scenario) * 10_000L
+                    )
+
+                val initial = repository.executeCreditRepayment(command)
+                assertTrue("$scenario initial execution: $initial", initial is CommandResult.Success)
+
+                val writable = database.openHelper.writableDatabase
+                when (scenario) {
+                    "missing-repayment" ->
+                        writable.execSQL(
+                            "DELETE FROM credit_repayments WHERE id = ?",
+                            arrayOf(command.repaymentId)
+                        )
+                    "altered-repayment" ->
+                        writable.execSQL(
+                            "UPDATE credit_repayments SET amount_minor = ? WHERE id = ?",
+                            arrayOf<Any?>(1_001L, command.repaymentId)
+                        )
+                    "missing-allocation" ->
+                        writable.execSQL(
+                            "DELETE FROM credit_repayment_allocations WHERE repayment_id = ?",
+                            arrayOf(command.repaymentId)
+                        )
+                    "invalid-allocation" ->
+                        writable.execSQL(
+                            "UPDATE credit_repayment_allocations SET allocated_amount_minor = 0 WHERE repayment_id = ?",
+                            arrayOf(command.repaymentId)
+                        )
+                    "allocation-timestamp-mismatch" ->
+                        writable.execSQL(
+                            "UPDATE credit_repayment_allocations SET occurred_at = occurred_at + 1 WHERE repayment_id = ?",
+                            arrayOf(command.repaymentId)
+                        )
+                    "allocation-sum-mismatch" ->
+                        writable.execSQL(
+                            "UPDATE credit_repayment_allocations SET allocated_amount_minor = 1001 WHERE repayment_id = ?",
+                            arrayOf(command.repaymentId)
+                        )
+                    "negative-outstanding" ->
+                        writable.execSQL(
+                            """
+                            INSERT INTO credit_ledger_events (
+                                id, operation_id, customer_id, type, amount_signed_minor,
+                                currency_code, transaction_id, repayment_id, occurred_at
+                            ) VALUES (?, ?, ?, 'ADJUSTMENT', ?, ?, NULL, NULL, ?)
+                            """.trimIndent(),
+                            arrayOf<Any?>(
+                                "credit-negative-outstanding-$scenario",
+                                "credit-sale-op-evidence-$scenario",
+                                customerId,
+                                -5_000L,
+                                branch.currencyCode,
+                                command.occurredAt + 1L
+                            )
+                        )
+                }
+
+                val replay = repository.executeCreditRepayment(command)
+                assertTrue("$scenario replay must fail closed: $replay", replay is CommandResult.Error)
+                if (scenario == "negative-outstanding") {
+                    assertTrue(
+                        database.ledgerDao()
+                            .getCreditBalance(customerId, branch.currencyCode) < 0L
+                    )
+                }
+
+                val repaymentRows =
+                    database.ledgerDao()
+                        .getCreditRepaymentsForOperation(command.operationId.value)
+                assertEquals(
+                    if (scenario == "missing-repayment") 0 else 1,
+                    repaymentRows.size
+                )
+                assertEquals(
+                    1,
+                    database.transactionDao()
+                        .getSettlementsForOperation(command.operationId.value)
+                        .size
+                )
+                assertEquals(
+                    1,
+                    database.ledgerDao()
+                        .getCreditLedgerForCustomer(customerId)
+                        .count { it.operationId == command.operationId.value }
+                )
+                assertEquals(
+                    if (scenario == "missing-repayment" || scenario == "missing-allocation") 0 else 1,
+                    database.ledgerDao()
+                        .getCreditRepaymentAllocations(command.repaymentId)
+                        .size
+                )
+            }
+        }
+
+    @Test
+    fun repaymentReplayRejectsUnexpectedAdditionalEvidenceRows() =
+        runBlocking {
+            val scenarios = listOf(
+                "extra-repayment",
+                "extra-settlement",
+                "extra-ledger-event",
+                "extra-allocation"
+            )
+
+            for ((index, scenario) in scenarios.withIndex()) {
+                val customerId = "credit-extra-evidence-customer-$scenario"
+                executeCreditSaleForRepaymentTest(
+                    operationId = "credit-sale-op-extra-$scenario",
+                    transactionId = "credit-sale-tx-extra-$scenario",
+                    customerId = customerId,
+                    customerPhone = "+96890004" + (index + 1).toString().padStart(3, '0'),
+                    customerName = "Extra Evidence Customer $index",
+                    amountMinor = 5_000L,
+                    occurredAt = 1_700_009_000_000L + index * 10_000L
+                )
+                val command =
+                    repayment(
+                        suffix = scenario,
+                        customerId = customerId,
+                        amountMinor = 1_000L,
+                        occurredAt = 1_700_010_000_000L + scenarios.indexOf(scenario) * 10_000L
+                    )
+                val initial = repository.executeCreditRepayment(command)
+                assertTrue("$scenario initial execution: $initial", initial is CommandResult.Success)
+
+                val writable = database.openHelper.writableDatabase
+                when (scenario) {
+                    "extra-repayment" ->
+                        writable.execSQL(
+                            """
+                            INSERT INTO credit_repayments (
+                                id, operation_id, customer_id, amount_minor,
+                                currency_code, payment_category, occurred_at, actor_user_id
+                            )
+                            SELECT 'extra-' || id, operation_id, customer_id, amount_minor,
+                                   currency_code, payment_category, occurred_at, actor_user_id
+                            FROM credit_repayments WHERE id = ?
+                            """.trimIndent(),
+                            arrayOf(command.repaymentId)
+                        )
+                    "extra-settlement" ->
+                        writable.execSQL(
+                            """
+                            INSERT INTO settlement_entries (
+                                id, operation_id, subject_type, subject_id, transaction_id,
+                                entry_purpose, category, channel, amount_signed_minor,
+                                currency_code, confirmation_type, occurred_at, actor_user_id
+                            )
+                            SELECT 'extra-' || id, operation_id, subject_type, subject_id, transaction_id,
+                                   entry_purpose, category, channel, amount_signed_minor,
+                                   currency_code, confirmation_type, occurred_at, actor_user_id
+                            FROM settlement_entries WHERE operation_id = ?
+                            """.trimIndent(),
+                            arrayOf(command.operationId.value)
+                        )
+                    "extra-ledger-event" ->
+                        writable.execSQL(
+                            """
+                            INSERT INTO credit_ledger_events (
+                                id, operation_id, customer_id, type, amount_signed_minor,
+                                currency_code, transaction_id, repayment_id, occurred_at
+                            )
+                            SELECT 'extra-' || id, operation_id, customer_id, type, amount_signed_minor,
+                                   currency_code, transaction_id, repayment_id, occurred_at
+                            FROM credit_ledger_events WHERE operation_id = ?
+                            """.trimIndent(),
+                            arrayOf(command.operationId.value)
+                        )
+                    "extra-allocation" ->
+                        writable.execSQL(
+                            """
+                            INSERT INTO credit_repayment_allocations (
+                                id, repayment_id, original_transaction_id,
+                                allocated_amount_minor, occurred_at
+                            )
+                            SELECT 'extra-' || id, repayment_id, original_transaction_id,
+                                   allocated_amount_minor, occurred_at
+                            FROM credit_repayment_allocations WHERE repayment_id = ?
+                            """.trimIndent(),
+                            arrayOf(command.repaymentId)
+                        )
+                }
+
+                val replay = repository.executeCreditRepayment(command)
+                assertTrue("$scenario replay must fail closed: $replay", replay is CommandResult.Error)
+                assertEquals(
+                    if (scenario == "extra-repayment") 2 else 1,
+                    database.ledgerDao()
+                        .getCreditRepaymentsForOperation(command.operationId.value)
+                        .size
+                )
+                assertEquals(
+                    if (scenario == "extra-settlement") 2 else 1,
+                    database.transactionDao()
+                        .getSettlementsForOperation(command.operationId.value)
+                        .size
+                )
+                assertEquals(
+                    if (scenario == "extra-ledger-event") 2 else 1,
+                    database.ledgerDao()
+                        .getCreditLedgerForCustomer(customerId)
+                        .count { it.operationId == command.operationId.value }
+                )
+                assertEquals(
+                    if (scenario == "extra-allocation") 2 else 1,
+                    database.ledgerDao()
+                        .getCreditRepaymentAllocations(command.repaymentId)
+                        .size
+                )
+            }
+        }
+
 }
-
-
-
-
