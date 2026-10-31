@@ -212,8 +212,8 @@ Implemented on `refactor/reporting-screen-pass1`:
 ### Size
 
 - Host before: 892 physical lines.
-- Host after: 563 physical lines.
-- Host reduction: 329 lines.
+- Host after: 565 physical lines.
+- Host reduction: 327 lines.
 - Extracted composable bodies: 314 lines total (summary 105, row card 154, error state 55).
 - New component files including package/import declarations: summary 127 lines, row card 184 lines, error state 71 lines.
 - The remaining net host reduction is import cleanup minus the three new component imports.
