@@ -144,7 +144,8 @@ class RegisterShiftStateReadCharacterizationTest {
     }
 
     @Test
-    fun readProjectionRejectsMissingShiftIdentityMismatchAndMissingOpenedEvent() = runBlocking {
+    fun readProjectionRejectsMissingShiftIdentityMismatchAndMissingOpenedEvent() {
+        runBlocking {
         val setup = createSetup()
         setAdminSession(setup)
         val open = openCommand(setup, operationId = "projection-open-validation", shiftId = "projection-shift-validation")
@@ -195,6 +196,7 @@ class RegisterShiftStateReadCharacterizationTest {
                     setup.businessId.value
                 )
             }
+        }
         }
     }
 
