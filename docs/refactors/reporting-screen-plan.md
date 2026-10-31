@@ -221,3 +221,8 @@ Implemented on `refactor/reporting-screen-pass1`:
 ### Validation
 
 Static parity checks passed. The required `:app:assembleDebug` build is pending CI on the PR head and will be recorded in `reporting-screen-pass1.md`.
+
+
+### Build diagnosis and minimal correction
+
+The first PR release-validation build reached `:app:compileDebugKotlin` and failed at the existing `branchExpanded by remember { mutableStateOf(false) }` declaration because import cleanup had removed the implicitly used Compose `getValue` and `setValue` operators. Restored those two imports only in commit `4b06dc453306a14f952919277569ceed7e3a6a68`. No state declaration, state owner, UI logic, or behavior was changed. Revalidation is pending on the corrected head.
