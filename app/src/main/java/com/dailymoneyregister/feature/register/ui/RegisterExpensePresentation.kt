@@ -154,131 +154,19 @@ internal fun ExpenseDetailsScreen(
             Arrangement.spacedBy(12.dp)
     ) {
 
-        Row(
-            modifier =
-                Modifier.fillMaxWidth(),
-            verticalAlignment =
-                Alignment.CenterVertically
-        ) {
+        ExpenseDetailsHeader(onBack = onBack)
 
-            Button(
-                onClick = onBack
-            ) {
-                Text(stringResource(R.string.audit_back))
-            }
-
-            Text(
-                text = stringResource(R.string.audit_expense_details),
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .padding(end = 72.dp),
-                textAlign =
-                    TextAlign.Center,
-                fontWeight =
-                    FontWeight.Bold,
-                fontSize =
-                    22.sp
-            )
-        }
-
-        Surface(
-            modifier =
-                Modifier.fillMaxWidth(),
-            shape =
-                RoundedCornerShape(16.dp),
-            color =
-                MaterialTheme
-                    .colorScheme
-                    .surfaceVariant
-                    .copy(alpha = 0.45f)
-        ) {
-
-            Column(
-                modifier =
-                    Modifier.padding(16.dp),
-                verticalArrangement =
-                    Arrangement.spacedBy(10.dp)
-            ) {
-
-                Text(
-                    text = amount,
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                HorizontalDivider()
-
-                ExpenseDetailLine(
-                    label = stringResource(R.string.audit_category),
-                    value =
-                        expenseDetailsLabel(
-                            details.category
-                        )
-                )
-
-                ExpenseDetailLine(
-                    label = stringResource(R.string.audit_payment_method),
-                    value =
-                        expenseDetailsLabel(
-                            details.paymentCategory.name
-                        )
-                )
-
-                ExpenseDetailLine(
-                    label = stringResource(R.string.audit_payment_channel),
-                    value =
-                        expenseDetailsLabel(
-                            details.paymentChannel.name
-                        )
-                )
-
-                ExpenseDetailLine(
-                    label = stringResource(R.string.audit_name),
-                    value =
-                        details.payeeName
-                            ?.takeIf {
-                                it.isNotBlank()
-                            }
-                            ?: "-"
-                )
-
-                ExpenseDetailLine(
-                    label = stringResource(R.string.audit_phone),
-                    value =
-                        details.payeePhone
-                            ?.takeIf {
-                                it.isNotBlank()
-                            }
-                            ?: "-"
-                )
-
-                ExpenseDetailLine(
-                    label = stringResource(R.string.audit_reference),
-                    value =
-                        details.displayReference
-                )
-
-                ExpenseDetailLine(
-                    label = stringResource(R.string.audit_note),
-                    value =
-                        details.note
-                            ?.takeIf {
-                                it.isNotBlank()
-                            }
-                            ?: "-"
-                )
-
-                ExpenseDetailLine(
-                    label = stringResource(R.string.audit_date_time),
-                    value =
-                        expenseDetailsDateTime(
-                            details.occurredAt,
-                            timezoneId
-                        )
-                )
-            }
-        }
+        ExpenseDetailsSummaryCard(
+            amount = amount,
+            category = expenseDetailsLabel(details.category),
+            paymentMethod = expenseDetailsLabel(details.paymentCategory.name),
+            paymentChannel = expenseDetailsLabel(details.paymentChannel.name),
+            payeeName = details.payeeName?.takeIf { it.isNotBlank() } ?: "-",
+            payeePhone = details.payeePhone?.takeIf { it.isNotBlank() } ?: "-",
+            reference = details.displayReference,
+            note = details.note?.takeIf { it.isNotBlank() } ?: "-",
+            dateTime = expenseDetailsDateTime(details.occurredAt, timezoneId)
+        )
 
         if (canManageFinancialLifecycle) {
             Row(
@@ -570,35 +458,6 @@ private fun expenseEvidenceMimeType(file: File): String =
         "pdf" -> "application/pdf"
         else -> "application/octet-stream"
     }
-
-@Composable
-private fun ExpenseDetailLine(
-    label: String,
-    value: String
-) {
-
-    Column(
-        verticalArrangement =
-            Arrangement.spacedBy(2.dp)
-    ) {
-
-        Text(
-            text = label,
-            style =
-                MaterialTheme.typography.labelMedium,
-            color =
-                MaterialTheme
-                    .colorScheme
-                    .onSurfaceVariant
-        )
-
-        Text(
-            text = value,
-            style =
-                MaterialTheme.typography.bodyLarge
-        )
-    }
-}
 
 internal data class ExpenseDialogActions(
     val onStageSupportingDocument: (String) -> Unit,
