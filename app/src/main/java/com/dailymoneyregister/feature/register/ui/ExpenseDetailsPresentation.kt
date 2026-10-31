@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.runtime.Composable
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -109,6 +110,7 @@ internal fun ExpenseDetailsSummaryCard(
     }
 }
 
+@Composable
 @Composable
 private fun ExpenseDetailLine(
     label: String,
