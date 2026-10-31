@@ -2,7 +2,7 @@
 
 Status: review document only. No PR was closed, merged, or deployed by this document. No migration or production code was changed by it.
 
-Base: `main` at `be93f9bc3df39e22203cccf160d2a8c360c83766` (includes the merge of PR #114).
+Base: `main` at `e8fa171abc9ba8f527cd677e3383f0f4e4c419fc` (includes the merges of PRs #114 and #116).
 
 ## 1. PR #14 (notification migration): closed
 
@@ -42,7 +42,7 @@ PR #64 is not to be merged as it stands: it is stale (262 commits behind `main`)
 
 The underlying defect was confirmed on `main`: `FinancialSyncEngine.syncOutbound` called `uploadEnvelope()` before constructing `FinancialSyncIdentity`, so identity validation could fail after a server commit and leave the local outbox unacknowledged.
 
-Replacement PR **#116** ([fix(sync): validate acknowledgement identity before remote upload](https://github.com/guruoshan/Paid-Due/pull/116)) was created as a draft from `main` at `be93f9bc3df39e22203cccf160d2a8c360c83766`. Initial implementation commit: `1733f86f90b7120bda97d616644a4bc1a422de0e`; CI-only test correction commit: `ff5993d4a6bc63fa03f0a2a2378fac964c027ec3`. It changes only `FinancialSyncEngine.kt` (identity validation moved before upload) and `FinancialSyncEngineTest.kt` (invalid identity prevents upload and follows the retry path). The existing valid-identity acknowledgement test continues to cover upload and outbox deletion for a matching digest.
+Replacement PR **#116** ([fix(sync): validate acknowledgement identity before remote upload](https://github.com/guruoshan/Paid-Due/pull/116)) was created as a draft from `main` at `be93f9bc3df39e22203cccf160d2a8c360c83766` and merged on 2026-10-31 at `e8fa171abc9ba8f527cd677e3383f0f4e4c419fc`. Initial implementation commit: `1733f86f90b7120bda97d616644a4bc1a422de0e`; CI-only test correction commit: `ff5993d4a6bc63fa03f0a2a2378fac964c027ec3`. It changes only `FinancialSyncEngine.kt` (identity validation moved before upload) and `FinancialSyncEngineTest.kt` (invalid identity prevents upload and follows the retry path). The existing valid-identity acknowledgement test continues to cover upload and outbox deletion for a matching digest.
 
 The first CI attempt failed in all three Android jobs at `FinancialSyncEngineTest.kt:335:80`: the new test passed `true` where `FinancialSyncOutboxDao.updateStatus` requires `incrementAttempt: Int`. The only follow-up code change replaced that Boolean with `1`; no production code changed. On commit `ff5993d4a6bc63fa03f0a2a2378fac964c027ec3`, all seven workflow runs completed successfully. Specifically, `android-build-and-unit-tests`, `debug-build-and-tests`, and `validate-release` each completed with `success`; the debug workflow completed unit tests, instrumentation tests and debug APK assembly, while release validation completed unit tests, lint, release APK and AAB assembly. SQL Behavioral Gate, Customer Directory Contract Gate, Notification Migration Compatibility Gate and API 36 migration validation also completed with `success`. Local Gradle tests were not run because this environment has no repository checkout or Gradle wrapper; GitHub CI is the verification path. No changes were made to the acknowledgement guard, receipt policy, digest checks, server SQL, or UUIDv7 rules.
 
@@ -52,41 +52,41 @@ Legacy UUID compatibility: verified not needed for uploaded data. A read-only qu
 
 | PR | Title | Draft | Disposition | Notes |
 |---|---|---|---|---|
-| #116 | Validate acknowledgement identity before remote upload | Yes | Keep draft; CI green, review before readiness | Replaces stale, unmerged #64; all seven workflow runs passed on `ff5993d4`. |
+| #116 | Validate acknowledgement identity before remote upload | No | Merged | Replaces stale #64; all seven workflow runs passed on `ff5993d4`; merged as `e8fa171`. |
 | #114 | Cash-sale atomic rollback test | No | Merged | Merged into `main`. |
 | #115 | This document | Yes | Keep draft; merge after review | Documentation only. |
 | #107 | Coupon dialog decomposition | Yes | Keep draft; merge after CI | Presentation-only. |
-| #77 | Localization integrity workflow | No | Decide | Workflow only. |
-| #72 | Envelope collision audit | No | Reconcile with live, then decide | Live has `capture_financial_operation_collisions`; not in `main`. |
+| #77 | Localization integrity workflow | No | Keep open pending workflow decision | Adds a localization check workflow; the workflow file is not on `main`, so there is no passing run on `main`. |
+| #72 | Envelope collision audit | No | Keep open; reconcile migration version/content | Live has the collision migration under version `20261024174802`; PR uses `20261024180000`; neither file is on `main`. |
 | #68 | Reports projection: expense corrections/voids | No | Close | `main` already projects expense lifecycle events; #68 removes a rejection that is not present on `main`. |
-| #64 | Sync ack for legacy UUID operations | No | Close after replacement PR | Replace with a new PR on current `main` (section 3). |
+| #64 | Sync ack for legacy UUID operations | No | Closed without merging | Replaced by merged PR #116; #64 remains unmerged. |
 | #63 | Sync start/end diagnostics | Yes | Close | Diagnostic only; superseded by the replacement sync PR. |
 | #60 | 13-operation certification contract | No | Decide with release plan | Foundation only; nothing certified. |
-| #58 | Release APK builds triggering commit | No | Merge (release blocker) | Needed for trustworthy release builds. |
+| #58 | Release APK builds triggering commit | No | Merge after branch synchronization | CI is green, but the branch is 274 commits behind current `main`; update/rebase before merge. |
 | #49 | Signed-release trigger documentation | No | Closed | Request record only. |
 | #43 | Sprint 1–5 sync and reconciliation | Yes | Split, then close | Admin-side reconciliation, digest checks and void evidence are not on `main`; cashier-side changes are obsolete. |
 | #36 | Production-readiness umbrella | Yes | Close after #43 is split | Overlaps closed #18, #20 and superseded #25. |
 | #25 | Permission refresh and customer sync | Yes | Close | Cashier parts obsolete; customer sync and Room v14 already superseded by `main` (Room v19). |
-| #23 | API 37 package fix | No | Verify, then merge | Conflicts with #18's report that API 37 still fails. |
+| #23 | API 37 package fix | No | Do not merge as-is | CI is green on its old head; current `main` already requests `platforms;android-37.0` and the branch is 616 commits behind. |
 | #20 | Selective Supabase auth integration | Yes | Closed | Duplicate of #18. |
 | #18 | Supabase-authoritative sessions (rebased) | Yes | Closed | Cashier parts obsolete. |
 | #14 | Notification migration ordering | Yes | Closed | See section 1. |
 | #13 | Session and login hardening proposals | Yes | Closed | Targets retired cashier flows. |
 | #12 | Staged session and audit hardening | Yes | Closed | Duplicate of #13. |
-| #10 | Record cashier session hardening migrations | Yes | Keep open until versions reconciled | Section 2. |
+| #10 | Record cashier session hardening migrations | Yes | Safe to close; migration SQL already exists on `main` | Both migration paths exist on `main`; the audit confirmed equivalent SQL (first file differs only in whitespace/line wrapping; second is identical). |
 | #8 | Migration source and production drift | No | Keep; top data-risk item | Drift confirmed in section 2. |
 | #1 | Cross-device sync foundation | No | Closed | Superseded by the sync implementation on `main`. |
 
 ## 5. Release blockers (current view)
 
 1. Reconcile migration versions between `main` and live (section 2), and apply or retire the four `main` migrations not yet applied live.
-2. Review replacement PR #116 before marking it ready; all CI checks passed (section 3).
+2. PR #116 is merged; identity validation now precedes remote upload (section 3).
 3. Confirm a working API 37 Android build (#23).
 4. Make the signed release workflow build the triggering commit (#58).
 5. Confirm the reporting inventory RPC present live (`20261018140123`) is represented in `main` before any further reporting change.
 
 ## 6. Not verified in this document
 
-- CI results for PRs other than #114.
+- CI results for PRs not specifically listed in this updated review.
 - Local device outboxes that were never uploaded.
 - Local Gradle execution (GitHub CI is green). The `boardlock-engineer` skill was read from `.agents/skills/boardlock-engineer/SKILL.md` on `main`.
