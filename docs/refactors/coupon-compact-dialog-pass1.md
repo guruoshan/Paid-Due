@@ -62,11 +62,16 @@ No changes to coupon or top-up calculations, payment processing, validation, rep
 - All 13 callback invocation occurrences remain in the host in the same order.
 - No calculation, validation, payment, top-up, refund, sale, redemption, receipt, WhatsApp or ViewModel orchestration was moved.
 
-### Build and automated tests — pending at report creation
+### CI build and automated tests — passed
 
-- Android PR Validation run #870: [workflow](https://github.com/guruoshan/Paid-Due/actions/runs/41152478110) — `Run unit tests, instrumentation tests, and assemble debug APK` was still in progress.
-- Paid-Due repair branch validation run #1446: [workflow](https://github.com/guruoshan/Paid-Due/actions/runs/41152478129) — debug build and unit tests were still in progress.
-- Release validation run #588: [workflow](https://github.com/guruoshan/Paid-Due/actions/runs/41152478023) — unit tests passed; lint and release build steps were still running.
-- No local Gradle build was run in this session.
+All workflows below ran against current PR head `02cb9475d9c8cbe2e53d49983280ff8f8eb9a3fc`.
 
-Update this section with final conclusions before treating the PR as merge-ready.
+- Android PR Validation [run #872](https://github.com/guruoshan/Paid-Due/actions/runs/41152807956): passed. The combined unit-test, instrumentation-test and debug APK assembly step succeeded.
+- Paid-Due repair branch validation [run #1448](https://github.com/guruoshan/Paid-Due/actions/runs/41152807830): passed. Debug APK/unit tests, instrumentation-test compilation, unit tests with inbound apply enabled, and API 35 emulator instrumentation tests all succeeded. Diagnostics were uploaded successfully.
+- Release validation [run #590](https://github.com/guruoshan/Paid-Due/actions/runs/41152807928): passed. Unit tests, lint and release APK assembly succeeded.
+- Additional migration, SQL behavioral, notification migration compatibility and customer directory contract gates on this head also completed successfully.
+- No local Gradle build was run in this session; CI provides the build/test evidence.
+
+### Merge readiness
+
+The requested Pass 1 success criteria are met. The PR remains open and draft; no merge was performed.
