@@ -332,7 +332,7 @@ class FinancialSyncEngineTest {
             remoteRepo.uploadEnvelope(any(), any(), any(), any())
         }
         coVerify { outboxDao.updateStatus(invalidOperationId, "IN_FLIGHT") }
-        coVerify { outboxDao.updateStatus(invalidOperationId, "WAITING_RETRY", true) }
+        coVerify { outboxDao.updateStatus(invalidOperationId, "WAITING_RETRY", 1) }
     }
 
     @Test
