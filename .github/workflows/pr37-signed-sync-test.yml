@@ -81,7 +81,7 @@ jobs:
           fi
           booted=""
           for attempt in $(seq 1 90); do
-            booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
+            booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r')"
             [[ "$booted" == "1" ]] && break
             sleep 5
           done
