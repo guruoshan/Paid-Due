@@ -197,3 +197,35 @@ Derived values retained in the host: `payeePhone`, `retryPending`, `locked`, cat
 - Do not touch expense calculations, payment processing, repository/ViewModel calls, navigation, sync, database, business rules, receipt generation, expense lifecycle or validation.
 - Compare source before/after for parameter signatures, callback occurrences/order, state declarations, effect keys, and key workflow expressions.
 - Run the repository's prescribed relevant lint/build/unit-test checks after implementation; report any skipped gates explicitly.
+
+
+## 11. Pass 1 implementation record
+
+Implemented on `refactor/register-expense-presentation-decomposition`:
+
+- Added `ExpenseDetailsPresentation.kt`.
+- Extracted `ExpenseDetailsHeader` (back/title row) without changing the `onBack` callback.
+- Extracted `ExpenseDetailsSummaryCard` (amount and detail rows). All display values are still calculated/formatted by `ExpenseDetailsScreen` and passed as strings; no calculations moved.
+- Moved the existing `ExpenseDetailLine` composable unchanged into the new presentation file.
+- Replaced the original header and summary markup with calls to the extracted composables.
+- Removed only the now-unused `TextAlign` and `sp` imports from the host.
+
+### Pass 1 scope measurements
+
+- Host source: 1,338 lines at base; 1,197 lines after extraction (141-line reduction).
+- New presentation component: 131 lines.
+- Files changed so far: this plan, the host Kotlin file, and the new presentation Kotlin file.
+- No form state, validation, calculations, effects, callback contracts, launcher ownership, receipt/WhatsApp behavior, supporting-document behavior, or lifecycle behavior was moved.
+
+### Parity checks performed against base
+
+- `ExpenseDetailsScreen` signature unchanged.
+- `ExpenseDialog` signature unchanged.
+- `ExpenseDialogActions` declaration unchanged.
+- All nine `actions.*` call-site occurrences remain in the same order.
+- All 15 `remember` / `rememberSaveable` state declarations remain in the host.
+- No changes to ViewModel, repository, navigation, sync, database, or business-rule files.
+
+### Validation status
+
+Static source parity checks passed. Build, lint, unit tests and instrumentation tests have not yet been run for this branch; CI validation is pending.
