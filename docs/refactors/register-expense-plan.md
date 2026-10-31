@@ -234,3 +234,8 @@ Static source parity checks passed. Build, lint, unit tests and instrumentation 
 ### CI failure diagnosis and correction
 
 The first CI attempt identified a compile-time extraction omission: the new file lacked the Compose `Composable` import, and the moved `ExpenseDetailLine` declaration had lost its `@Composable` annotation. No runtime behavior or business logic was implicated. Both omissions were corrected in commit `2291865ebf465f0751e8339dd12296f912d49896`. CI must pass on this corrected head before Pass 1 is considered validated.
+
+
+### Second CI failure diagnosis and correction
+
+The next CI attempt found that the moved `ExpenseDetailLine` declaration had two consecutive `@Composable` annotations. Removed the duplicate annotation only in commit `31b80c69a48f413dca2a7a2f0c47ff1b65a53e08`. No other source behavior or declarations were changed. Await a fresh CI run on this head before considering Pass 1 validated.
