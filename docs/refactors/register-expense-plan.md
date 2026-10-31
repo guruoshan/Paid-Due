@@ -212,7 +212,7 @@ Implemented on `refactor/register-expense-presentation-decomposition`:
 
 ### Pass 1 scope measurements
 
-- Host source: 1,338 lines at base; 1,197 lines after extraction (141-line reduction).
+- Host source: 1,338 lines at base; 1,195 lines after extraction (143-line reduction).
 - New presentation component: 131 lines.
 - Files changed so far: this plan, the host Kotlin file, and the new presentation Kotlin file.
 - No form state, validation, calculations, effects, callback contracts, launcher ownership, receipt/WhatsApp behavior, supporting-document behavior, or lifecycle behavior was moved.
