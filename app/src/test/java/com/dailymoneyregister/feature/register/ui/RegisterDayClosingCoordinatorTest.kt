@@ -30,7 +30,7 @@ class RegisterDayClosingCoordinatorTest {
     fun `open loads the current shift report`() = runTest {
         val report = report()
         val state = MutableStateFlow(RegisterUiState())
-        val coordinator = coordinator(state, backgroundScope, report = { report })
+        val coordinator = coordinator(state, backgroundScope, loadReport = { report })
 
         coordinator.openDayClosing()
         runCurrent()
