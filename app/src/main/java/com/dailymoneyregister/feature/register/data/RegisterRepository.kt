@@ -275,11 +275,7 @@ class RegisterRepository @Inject constructor(
             }
         ,
             resolveFinancialCashShiftId = { command ->
-                requireNotNull(
-                    resolveFinancialCashShiftId(command)
-                ) {
-                    "Current financial operation requires cashier shift attribution"
-                }
+                resolveFinancialCashShiftId(command)
             },
             saleFinancialWriter = saleFinancialWriter
         )
