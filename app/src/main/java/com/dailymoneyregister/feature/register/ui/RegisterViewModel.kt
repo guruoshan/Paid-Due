@@ -320,6 +320,14 @@ class RegisterViewModel internal constructor(
     )
     val uiState: StateFlow<RegisterUiState> = _uiState.asStateFlow()
 
+    private val expenseSupportingDocumentCoordinator =
+        RegisterExpenseSupportingDocumentCoordinator(
+            uiState = _uiState,
+            scope = viewModelScope,
+            loadSupportingDocuments = loadExpenseSupportingDocuments,
+            attachSupportingDocument = attachExpenseSupportingDocument
+        )
+
     val recentTransactions: StateFlow<List<RecentFinancialActivity>> =
         observeRecentForSession(SessionManager.currentSession) { branchId, timezoneId ->
             observeToday(
@@ -538,42 +546,12 @@ class RegisterViewModel internal constructor(
      * Closes only the read-only Expense Details projection.
      * Financial state is untouched.
      */
-    fun refreshExpenseSupportingDocuments(expenseId: String) {
-        if (expenseId.isBlank() || _uiState.value.expenseDetails?.expenseId != expenseId) return
-        _uiState.value = _uiState.value.copy(expenseSupportingDocumentsLoading = true)
-        viewModelScope.launch {
-            try {
-                val documents = loadExpenseSupportingDocuments(expenseId)
-                if (_uiState.value.expenseDetails?.expenseId == expenseId) {
-                    _uiState.value = _uiState.value.copy(expenseSupportingDocuments = documents, expenseSupportingDocumentsLoading = false)
-                }
-            } catch (error: Exception) {
-                if (error is kotlinx.coroutines.CancellationException) throw error
-                if (_uiState.value.expenseDetails?.expenseId == expenseId) {
-                    _uiState.value = _uiState.value.copy(expenseSupportingDocumentsLoading = false, errorMessage = UiText.Dynamic(error.message ?: "Unable to load supporting documents."))
-                }
-            }
-        }
-    }
+    fun refreshExpenseSupportingDocuments(expenseId: String) =
+        expenseSupportingDocumentCoordinator.refreshExpenseSupportingDocuments(expenseId)
 
-    fun attachSupportingDocumentToExpense(expenseId: String, sourceUri: String) {
-        if (expenseId.isBlank() || sourceUri.isBlank() || _uiState.value.expenseDetails?.expenseId != expenseId) return
-        _uiState.value = _uiState.value.copy(expenseSupportingDocumentAttaching = true, errorMessage = null)
-        viewModelScope.launch {
-            try {
-                attachExpenseSupportingDocument(expenseId, sourceUri)
-                val documents = loadExpenseSupportingDocuments(expenseId)
-                if (_uiState.value.expenseDetails?.expenseId == expenseId) {
-                    _uiState.value = _uiState.value.copy(expenseSupportingDocuments = documents, expenseSupportingDocumentAttaching = false, infoMessage = UiText.Dynamic("Supporting document attached."))
-                }
-            } catch (error: Exception) {
-                if (error is kotlinx.coroutines.CancellationException) throw error
-                if (_uiState.value.expenseDetails?.expenseId == expenseId) {
-                    _uiState.value = _uiState.value.copy(expenseSupportingDocumentAttaching = false, errorMessage = UiText.Dynamic("Expense remains saved. Supporting document could not be attached. " + (error.message ?: "")))
-                }
-            }
-        }
-    }
+    fun attachSupportingDocumentToExpense(expenseId: String, sourceUri: String) =
+        expenseSupportingDocumentCoordinator.attachSupportingDocumentToExpense(expenseId, sourceUri)
+
     fun correctExpenseFromDetails(correctedAmountInput: String, reason: String) {
         submitExpenseLifecycleFromDetails(
             action = ExpenseLifecycleCommand.Action.CORRECT,
@@ -2766,24 +2744,12 @@ if (
         }
     }
 
-    fun stageExpenseSupportingDocument(sourceUri: String) {
-        if (sourceUri.isBlank() || _uiState.value.isExecuting) return
-        val current = _uiState.value.stagedExpenseSupportingDocumentUris
-        if (sourceUri in current) return
-        _uiState.value = _uiState.value.copy(
-            stagedExpenseSupportingDocumentUris = current + sourceUri
-        )
-    }
+    fun stageExpenseSupportingDocument(sourceUri: String) =
+        expenseSupportingDocumentCoordinator.stageExpenseSupportingDocument(sourceUri)
 
-    fun removeStagedExpenseSupportingDocument(sourceUri: String) {
-        if (_uiState.value.isExecuting) return
-        _uiState.value = _uiState.value.copy(
-            stagedExpenseSupportingDocumentUris =
-                _uiState.value.stagedExpenseSupportingDocumentUris.filterNot {
-                    it == sourceUri
-                }
-        )
-    }
+    fun removeStagedExpenseSupportingDocument(sourceUri: String) =
+        expenseSupportingDocumentCoordinator.removeStagedExpenseSupportingDocument(sourceUri)
+
     fun lookupExpensePayeeByPhone(canonicalPhone: String?) {
         val session = SessionManager.currentSession.value ?: return
         val phone = canonicalPhone?.trim().orEmpty()
