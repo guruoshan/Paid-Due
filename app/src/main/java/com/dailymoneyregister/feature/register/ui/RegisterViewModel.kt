@@ -325,6 +325,22 @@ class RegisterViewModel internal constructor(
         loadCreditInvoice = loadCreditInvoice
     )
 
+    private val saleExecutionCoordinator = RegisterSaleExecutionCoordinator(
+        uiState = _uiState,
+        scope = viewModelScope,
+        currentSession = { SessionManager.currentSession.value },
+        synchronizeFinancialSession = ::synchronizeFinancialSession,
+        financialContext = { financialContext },
+        financialSessionGeneration = { financialSessionGeneration },
+        isFinancialSessionCurrent = { context, session, generation, currentGeneration ->
+            shouldApplyFinancialResultToRegister(context, session, generation, currentGeneration)
+        },
+        deviceId = deviceId,
+        submitCashSale = executeSale,
+        loadOnlineQr = loadOnlineQr,
+        submitOnlineSale = executeOnlineSale
+    )
+
     private val expenseSupportingDocumentCoordinator =
         RegisterExpenseSupportingDocumentCoordinator(
             uiState = _uiState,
@@ -679,175 +695,14 @@ class RegisterViewModel internal constructor(
 
     fun clearSaleCustomer() = customerSelectionCoordinator.clearSaleCustomer()
 
-    // Payment Trigger: CASH
-    fun executeCashSale() {
-        if (_uiState.value.overlay is RegisterOverlay.Coupon || _uiState.value.isExecuting) return
-        val sessionSnapshot = SessionManager.currentSession.value
-        val sessionChanged = synchronizeFinancialSession(sessionSnapshot)
-        val s = _uiState.value
+    // Sale execution lifecycle is owned by RegisterSaleExecutionCoordinator.
+    fun executeCashSale() = saleExecutionCoordinator.executeCashSale()
 
-        if (sessionSnapshot == null) {
-            _uiState.value = s.copy(errorMessage = UiText.Resource(R.string.sale_session_missing))
-            return
-        }
-        // This Cash press must never execute money entered under the old context.
-        if (sessionChanged) return
-        val branch = sessionSnapshot.branch
-        val user = sessionSnapshot.user
-        val membership = sessionSnapshot.membership
-        val executionContext = financialContext
-        val executionGeneration = financialSessionGeneration
+    fun openOnlinePayment() = saleExecutionCoordinator.openOnlinePayment()
 
-        if (!s.draftState.grandTotal.isPositive) {
-            _uiState.value = s.copy(errorMessage = UiText.Resource(R.string.sale_total_zero))
-            return
-        }
+    fun cancelOnlinePayment() = saleExecutionCoordinator.cancelOnlinePayment()
 
-        // Reuse existing inFlightSaleCommand if retrying, or freeze new intent on confirmation
-        val command = s.inFlightSaleCommand ?: run {
-            val now = System.currentTimeMillis()
-            CashSaleCommand(
-                operationId = OperationId.generate(),
-                businessId = sessionSnapshot.business.id,
-                branchId = branch.id,
-                actorUserId = user.id,
-                transactionIdVal = TransactionId.generate(),
-                draftState = s.draftState,
-                currencyCode = branch.currencyCode,
-                currencyDecimalPlaces = branch.currencyDecimalPlaces,
-                deviceId = deviceId(),
-                occurredAt = now,
-                customerName = s.saleCustomerName.trim().ifBlank { null },
-                customerPhone = s.saleCustomerPhone.trim().ifBlank { null }
-            )
-        }
-
-        _uiState.value = s.copy(isExecuting = true, inFlightSaleCommand = command, errorMessage = null)
-
-        viewModelScope.launch {
-            val result = executeSale(command, user, membership)
-            if (!shouldApplyFinancialResultToRegister(
-                    executionContext,
-                    SessionManager.currentSession.value,
-                    executionGeneration,
-                    financialSessionGeneration
-                )) return@launch
-            when (result) {
-                is CommandResult.Success -> {
-                    _uiState.value = _uiState.value.copy(
-                        isExecuting = false,
-                        inFlightSaleCommand = null,
-                        lastCompletedTransaction = result.data
-                    )
-                }
-                is CommandResult.Conflict -> {
-                    _uiState.value = _uiState.value.copy(isExecuting = false, errorMessage = UiText.Dynamic(result.message))
-                }
-                is CommandResult.PermissionDenied -> {
-                    _uiState.value = _uiState.value.copy(isExecuting = false, errorMessage = UiText.Dynamic(result.message))
-                }
-                is CommandResult.Error -> {
-                    _uiState.value = _uiState.value.copy(
-                        isExecuting = false,
-                        errorMessage = result.exception.message?.let { UiText.Dynamic(it) } ?: UiText.Resource(R.string.cash_sale_failed)
-                    )
-                }
-            }
-        }
-    }
-
-    fun openOnlinePayment() {
-        if (_uiState.value.overlay is RegisterOverlay.Coupon || _uiState.value.isExecuting) return
-        val session = SessionManager.currentSession.value
-        val s = _uiState.value
-        if (session == null) {
-            _uiState.value = s.copy(errorMessage = UiText.Resource(R.string.sale_session_missing))
-            return
-        }
-        if (!s.draftState.grandTotal.isPositive) {
-            _uiState.value = s.copy(errorMessage = UiText.Resource(R.string.sale_total_zero))
-            return
-        }
-        _uiState.value = s.copy(
-            overlay = RegisterOverlay.OnlinePayment,
-            onlineQr = null,
-            errorMessage = null
-        )
-        viewModelScope.launch {
-            val qr = loadOnlineQr(session.branch.id)
-            if (_uiState.value.overlay != RegisterOverlay.OnlinePayment) return@launch
-            _uiState.value = _uiState.value.copy(
-                onlineQr = qr,
-                errorMessage = null
-            )
-        }
-    }
-
-    fun cancelOnlinePayment() {
-        if (_uiState.value.isExecuting) return
-        if (_uiState.value.overlay != RegisterOverlay.OnlinePayment) return
-        _uiState.value = _uiState.value.copy(overlay = null, onlineQr = null)
-    }
-
-    fun executeOnlineSale() {
-        val sessionSnapshot = SessionManager.currentSession.value
-        val sessionChanged = synchronizeFinancialSession(sessionSnapshot)
-        val s = _uiState.value
-        if (sessionSnapshot == null || sessionChanged || s.isExecuting) return
-        if (!s.draftState.grandTotal.isPositive) return
-
-        val executionContext = financialContext
-        val executionGeneration = financialSessionGeneration
-        val command = s.inFlightOnlineSaleCommand ?: OnlineSaleCommand(
-            operationId = OperationId.generate(),
-            businessId = sessionSnapshot.business.id,
-            branchId = sessionSnapshot.branch.id,
-            actorUserId = sessionSnapshot.user.id,
-            transactionIdVal = TransactionId.generate(),
-            draftState = s.draftState,
-            currencyCode = sessionSnapshot.branch.currencyCode,
-            currencyDecimalPlaces = sessionSnapshot.branch.currencyDecimalPlaces,
-            deviceId = deviceId(),
-            occurredAt = System.currentTimeMillis(),
-            customerName = s.saleCustomerName.trim().ifBlank { null },
-            customerPhone = s.saleCustomerPhone.trim().ifBlank { null }
-        )
-        _uiState.value = s.copy(
-            isExecuting = true,
-            inFlightOnlineSaleCommand = command,
-            errorMessage = null
-        )
-        viewModelScope.launch {
-            val result = executeOnlineSale(command)
-            if (!shouldApplyFinancialResultToRegister(
-                    executionContext,
-                    SessionManager.currentSession.value,
-                    executionGeneration,
-                    financialSessionGeneration
-                )) return@launch
-            when (result) {
-                is CommandResult.Success -> _uiState.value = _uiState.value.copy(
-                    isExecuting = false,
-                    overlay = null,
-                    onlineQr = null,
-                    inFlightOnlineSaleCommand = null,
-                    lastCompletedTransaction = result.data
-                )
-                is CommandResult.Conflict -> _uiState.value = _uiState.value.copy(
-                    isExecuting = false,
-                    errorMessage = UiText.Dynamic(result.message)
-                )
-                is CommandResult.PermissionDenied -> _uiState.value = _uiState.value.copy(
-                    isExecuting = false,
-                    errorMessage = UiText.Dynamic(result.message)
-                )
-                is CommandResult.Error -> _uiState.value = _uiState.value.copy(
-                    isExecuting = false,
-                    errorMessage = UiText.Dynamic(result.exception.message ?: "Online sale failed.")
-                )
-            }
-        }
-    }
+    fun executeOnlineSale() = saleExecutionCoordinator.executeOnlineSale()
 
     fun openCouponSale() = openCoupon(CouponDialogStartMode.ENTRY)
 
