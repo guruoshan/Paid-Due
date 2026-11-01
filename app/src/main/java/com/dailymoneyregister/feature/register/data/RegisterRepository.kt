@@ -745,6 +745,12 @@ class RegisterRepository @Inject constructor(
     ): CommandResult<RegisterShiftResult> =
         registerShiftRepository.openRegisterShift(command)
 
+    /**
+     * Read-only Day Closing projection for the authenticated cashier.
+     *
+     * Shift membership comes only from OperationEntity.cashShiftId.
+     * Historical NULL attribution is never guessed.
+     */
     suspend fun getCurrentRegisterShiftReport(): RegisterShiftReport? = registerShiftReportReadRepository.getCurrentRegisterShiftReport()
 
     suspend fun countRegisterShift(
