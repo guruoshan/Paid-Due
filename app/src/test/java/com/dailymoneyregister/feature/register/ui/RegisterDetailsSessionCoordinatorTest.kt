@@ -13,60 +13,6 @@ import org.junit.Test
 class RegisterDetailsSessionCoordinatorTest {
 
     @Test
-    fun `closing expense details invalidates an outstanding read`() = runTest {
-        val result = CompletableDeferred<com.dailymoneyregister.feature.register.data.ExpenseReadProjection?>()
-        val state = kotlinx.coroutines.flow.MutableStateFlow(
-            RegisterUiState(destination = RegisterDestination.History)
-        )
-        val coordinator = RegisterDetailsSessionCoordinator(
-            uiState = state,
-            scope = backgroundScope,
-            loadExpenseDetails = { result.await() },
-            loadTransactionDetails = { null },
-            isFinancialSessionCurrent = { _, _ -> true }
-        )
-
-        coordinator.openExpenseDetails("expense-1", null, 0L)
-        runCurrent()
-        assertTrue(state.value.expenseDetailsLoading)
-
-        coordinator.closeExpenseDetails()
-        result.complete(null)
-        runCurrent()
-
-        assertEquals(RegisterDestination.History, state.value.destination)
-        assertFalse(state.value.expenseDetailsLoading)
-        assertEquals(null, state.value.expenseDetails)
-    }
-
-    @Test
-    fun `financial session invalidation prevents stale expense result from applying`() = runTest {
-        val result = CompletableDeferred<com.dailymoneyregister.feature.register.data.ExpenseReadProjection?>()
-        val state = kotlinx.coroutines.flow.MutableStateFlow(
-            RegisterUiState(destination = RegisterDestination.History)
-        )
-        val coordinator = RegisterDetailsSessionCoordinator(
-            uiState = state,
-            scope = backgroundScope,
-            loadExpenseDetails = { result.await() },
-            loadTransactionDetails = { null },
-            isFinancialSessionCurrent = { _, _ -> true }
-        )
-
-        coordinator.openExpenseDetails("expense-1", null, 0L)
-        runCurrent()
-        coordinator.invalidateForFinancialSessionChange()
-        result.complete(null)
-        runCurrent()
-
-        assertEquals(
-            RegisterDestination.ExpenseDetails("expense-1", DetailsOrigin.HISTORY),
-            state.value.destination
-        )
-        assertTrue(state.value.expenseDetailsLoading)
-    }
-
-    @Test
     fun `closing transaction details invalidates an outstanding read`() = runTest {
         val result = CompletableDeferred<com.dailymoneyregister.feature.register.data.TransactionDetailsReadModel?>()
         val state = kotlinx.coroutines.flow.MutableStateFlow(
@@ -75,7 +21,6 @@ class RegisterDetailsSessionCoordinatorTest {
         val coordinator = RegisterDetailsSessionCoordinator(
             uiState = state,
             scope = backgroundScope,
-            loadExpenseDetails = { null },
             loadTransactionDetails = { result.await() },
             isFinancialSessionCurrent = { _, _ -> true }
         )
@@ -101,7 +46,6 @@ class RegisterDetailsSessionCoordinatorTest {
         val coordinator = RegisterDetailsSessionCoordinator(
             uiState = state,
             scope = backgroundScope,
-            loadExpenseDetails = { null },
             loadTransactionDetails = { null },
             isFinancialSessionCurrent = { _, _ -> false }
         )

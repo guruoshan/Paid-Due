@@ -28,7 +28,6 @@ import com.dailymoneyregister.feature.register.data.ExpenseCategory
 import com.dailymoneyregister.feature.register.data.ExpenseCommand
 import com.dailymoneyregister.feature.register.data.ExpenseCommandFactory
 import com.dailymoneyregister.feature.register.data.ExpenseCommandResult
-import com.dailymoneyregister.feature.register.data.ExpenseLifecycleCommand
 import com.dailymoneyregister.feature.register.data.CouponSaleResult
 import com.dailymoneyregister.feature.register.data.CouponSaleCustomerWallet
 import com.dailymoneyregister.feature.register.data.CouponTopUpCommand
@@ -315,8 +314,25 @@ class RegisterViewModel internal constructor(
     private val detailsSessionCoordinator = RegisterDetailsSessionCoordinator(
         uiState = _uiState,
         scope = viewModelScope,
-        loadExpenseDetails = loadExpenseDetails,
         loadTransactionDetails = loadTransactionDetails,
+        isFinancialSessionCurrent = { context, generation ->
+            shouldApplyFinancialResultToRegister(
+                context,
+                SessionManager.currentSession.value,
+                generation,
+                financialSessionGeneration
+            )
+        }
+    )
+
+    private val expenseDetailsCoordinator = RegisterExpenseDetailsCoordinator(
+        uiState = _uiState,
+        scope = viewModelScope,
+        loadExpenseDetails = loadExpenseDetails,
+        currentSession = { SessionManager.currentSession.value },
+        decimalPlaces = { decimalPlaces },
+        deviceId = deviceId,
+        submitExpenseLifecycle = expenseDependencies.submitExpenseLifecycle,
         isFinancialSessionCurrent = { context, generation ->
             shouldApplyFinancialResultToRegister(
                 context,
@@ -355,6 +371,7 @@ class RegisterViewModel internal constructor(
         financialContext = nextContext
         financialSessionGeneration++
         detailsSessionCoordinator.invalidateForFinancialSessionChange()
+        expenseDetailsCoordinator.invalidateForFinancialSessionChange()
         calculatorEngine = CalculatorEngine(decimalPlaces)
         _uiState.value = resetRegisterUiStateForSession(_uiState.value, sessionSnapshot).copy(
             transactionDetailsLoading = false,
@@ -455,7 +472,7 @@ class RegisterViewModel internal constructor(
             session == null ||
             _uiState.value.expenseDetailsLoading
         ) return
-        detailsSessionCoordinator.openExpenseDetails(
+        expenseDetailsCoordinator.openExpenseDetails(
             expenseId = expenseId,
             financialContext = financialContext,
             financialGeneration = financialSessionGeneration
@@ -473,86 +490,21 @@ class RegisterViewModel internal constructor(
         expenseSupportingDocumentCoordinator.attachSupportingDocumentToExpense(expenseId, sourceUri)
 
     fun correctExpenseFromDetails(correctedAmountInput: String, reason: String) {
-        submitExpenseLifecycleFromDetails(
-            action = ExpenseLifecycleCommand.Action.CORRECT,
-            correctedAmountInput = correctedAmountInput,
-            reason = reason
-        )
+        val session = SessionManager.currentSession.value
+        if (synchronizeFinancialSession(session) || session == null) return
+        expenseDetailsCoordinator.correctExpense(correctedAmountInput, reason)
     }
 
     fun voidExpenseFromDetails(reason: String) {
-        submitExpenseLifecycleFromDetails(
-            action = ExpenseLifecycleCommand.Action.VOID,
-            correctedAmountInput = null,
-            reason = reason
-        )
-    }
-
-    private fun submitExpenseLifecycleFromDetails(
-        action: ExpenseLifecycleCommand.Action,
-        correctedAmountInput: String?,
-        reason: String
-    ) {
         val session = SessionManager.currentSession.value
         if (synchronizeFinancialSession(session) || session == null) return
-        if (session.user.role != UserRole.ADMIN) {
-            _uiState.value = _uiState.value.copy(errorMessage = UiText.Dynamic("Only Admin accounts can correct or void expenses."))
-            return
-        }
-        val details = _uiState.value.expenseDetails ?: return
-        if (_uiState.value.isExecuting) return
-        val normalizedReason = reason.trim()
-        if (normalizedReason.isBlank()) {
-            _uiState.value = _uiState.value.copy(errorMessage = UiText.Dynamic("Enter a reason for this expense change."))
-            return
-        }
-        val correctedAmount = if (action == ExpenseLifecycleCommand.Action.CORRECT) {
-            correctedAmountInput?.let { MoneyMinorUnits.parse(it, decimalPlaces).getOrNull()?.amount }
-        } else null
-        if (action == ExpenseLifecycleCommand.Action.CORRECT &&
-            (correctedAmount == null || correctedAmount <= 0L || correctedAmount == details.amount.amount)) {
-            _uiState.value = _uiState.value.copy(errorMessage = UiText.Dynamic("Enter a positive amount different from the current expense amount."))
-            return
-        }
-        val command = ExpenseLifecycleCommand(
-            operationId = OperationId.generate(),
-            businessId = session.business.id,
-            branchId = session.branch.id,
-            actorUserId = session.user.id,
-            deviceId = deviceId(),
-            occurredAt = maxOf(System.currentTimeMillis(), details.occurredAt + 1L),
-            expenseId = details.expenseId,
-            action = action,
-            correctedAmountMinor = correctedAmount,
-            reason = normalizedReason
-        )
-        _uiState.value = _uiState.value.copy(isExecuting = true, errorMessage = null, infoMessage = null)
-        viewModelScope.launch {
-            when (val result = expenseDependencies.submitExpenseLifecycle(command)) {
-                is CommandResult.Success -> {
-                    val refreshed = runCatching {
-                        expenseDependencies.loadExpenseDetails(details.expenseId)
-                    }.getOrNull()
-                    _uiState.value = _uiState.value.copy(
-                        isExecuting = false,
-                        expenseDetails = refreshed ?: _uiState.value.expenseDetails,
-                        infoMessage = UiText.Dynamic(
-                            if (action == ExpenseLifecycleCommand.Action.CORRECT) "Expense correction saved and queued for sync."
-                            else "Expense void saved and queued for sync."
-                        ),
-                        errorMessage = null
-                    )
-                }
-                is CommandResult.PermissionDenied -> _uiState.value = _uiState.value.copy(isExecuting = false, errorMessage = UiText.Dynamic(result.message))
-                is CommandResult.Conflict -> _uiState.value = _uiState.value.copy(isExecuting = false, errorMessage = UiText.Dynamic(result.message))
-                is CommandResult.Error -> _uiState.value = _uiState.value.copy(isExecuting = false, errorMessage = UiText.Dynamic(result.exception.message ?: "Expense lifecycle operation failed."))
-            }
-        }
+        expenseDetailsCoordinator.voidExpense(reason)
     }
 
     fun closeExpenseDetails() {
-        detailsSessionCoordinator.closeExpenseDetails()
+        expenseDetailsCoordinator.closeExpenseDetails()
     }
+
     /** Loads the saved transaction, items, and funding evidence for sharing. */
     fun loadSaleDetailsForWhatsApp(
         transactionId: String,
