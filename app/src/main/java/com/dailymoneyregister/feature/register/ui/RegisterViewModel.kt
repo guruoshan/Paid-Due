@@ -262,18 +262,6 @@ class RegisterViewModel internal constructor(
     internal var financialSessionGeneration: Long = 0
         private set
 
-    /*
-     * UI-only request generation.
-     *
-     * This is not durable financial state. It prevents an older asynchronous
-     * Transaction Details read from reopening or overwriting a newer/closed view.
-     */
-    /*
-     * UI-only generation for the read-only Expense Details projection.
-     *
-     * It prevents a stale asynchronous Expense read from reopening after
-     * the user closes the screen or changes financial session.
-     */
     val activeBusiness: BusinessEntity? get() = SessionManager.activeBusiness
     val activeBranch: BranchEntity? get() = SessionManager.activeBranch
     val activeUser: UserAccountEntity? get() = SessionManager.activeUser
@@ -570,7 +558,6 @@ class RegisterViewModel internal constructor(
         transactionId: String,
         onLoaded: (TransactionDetailsReadModel?) -> Unit
     ) = detailsSessionCoordinator.loadSaleDetailsForWhatsApp(transactionId, onLoaded)
-
 
     fun openTransactionDetails(transactionId: String) {
         if (transactionId.isBlank()) return
