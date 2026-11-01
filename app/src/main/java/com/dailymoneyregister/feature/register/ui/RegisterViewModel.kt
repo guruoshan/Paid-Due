@@ -368,7 +368,6 @@ class RegisterViewModel internal constructor(
         financialSessionGeneration++
         detailsSessionCoordinator.invalidateForFinancialSessionChange()
         calculatorEngine = CalculatorEngine(decimalPlaces)
-        detailsSessionCoordinator.invalidateForFinancialSessionChange()
         _uiState.value = resetRegisterUiStateForSession(_uiState.value, sessionSnapshot).copy(
             transactionDetailsLoading = false,
             transactionDetails = null,
@@ -570,22 +569,8 @@ class RegisterViewModel internal constructor(
     fun loadSaleDetailsForWhatsApp(
         transactionId: String,
         onLoaded: (TransactionDetailsReadModel?) -> Unit
-    ) {
-        if (transactionId.isBlank()) {
-            onLoaded(null)
-            return
-        }
+    ) = detailsSessionCoordinator.loadSaleDetailsForWhatsApp(transactionId, onLoaded)
 
-        viewModelScope.launch {
-            val details = try {
-                loadTransactionDetails(transactionId)
-            } catch (error: Exception) {
-                if (error is kotlinx.coroutines.CancellationException) throw error
-                null
-            }
-            onLoaded(details)
-        }
-    }
 
     fun openTransactionDetails(transactionId: String) {
         if (transactionId.isBlank()) return
