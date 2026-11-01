@@ -198,16 +198,11 @@ internal class CreditRepaymentFinancialRepository(
              * It does NOT require ACCEPT_CASH or ACCEPT_ONLINE.
              */
             authorizeNewFinancialMutation(
-                actorUserId =
-                    command.actorUserId,
-                businessId =
-                    command.businessId,
-                branchId =
-                    command.branchId,
-                action =
-                    PermissionAction.USE_COUPON,
-                actionLabel =
-                    "Coupon Credit repayment"
+                command.actorUserId,
+                command.businessId,
+                command.branchId,
+                PermissionAction.USE_COUPON,
+                "Coupon Credit repayment"
             )?.let {
                 return it
             }
@@ -1086,11 +1081,11 @@ internal class CreditRepaymentFinancialRepository(
                 }
 
             authorizeNewFinancialMutation(
-                actorUserId = command.actorUserId,
-                businessId = command.businessId,
-                branchId = command.branchId,
-                action = permission,
-                actionLabel = "Credit repayment"
+                command.actorUserId,
+                command.businessId,
+                command.branchId,
+                permission,
+                "Credit repayment"
             )?.let {
                 return it
             }
