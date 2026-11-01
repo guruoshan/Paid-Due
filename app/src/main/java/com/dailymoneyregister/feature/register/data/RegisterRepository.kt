@@ -275,12 +275,10 @@ class RegisterRepository @Inject constructor(
             }
         ,
             resolveFinancialCashShiftId = { command ->
-                requireNotNull(
-                    resolveFinancialCashShiftId(command)
-                ) {
-                    "Current financial operation requires cashier shift attribution"
-                }
-            })
+                resolveFinancialCashShiftId(command)
+            },
+            saleFinancialWriter = saleFinancialWriter
+        )
 
     /**
      * Resolves immutable cashier-shift attribution for a financial operation
@@ -374,242 +372,16 @@ class RegisterRepository @Inject constructor(
     ): List<CouponSaleCustomerWallet> =
         couponFinancialRepository.searchCouponSaleCustomers(query)
 
-    suspend fun executeCouponRedemption(c: CouponRedemptionCommand): CommandResult<CouponRedemptionResult> = try {
-        c.validate()
-        val existing = operationDao.getOperationById(c.operationId.value)
-        if (existing != null) {
-            if (existing.requestFingerprint != c.requestFingerprint) CommandResult.Conflict("Coupon redemption request changed")
-            else executeAdmittedCouponRedemption(CouponRedemptionCommand.decode(existing))
-        } else {
-            val actions = listOfNotNull(PermissionAction.CREATE_SALE, PermissionAction.USE_COUPON,
-                when (c.remainderCategory) {
-                    PaymentCategory.CASH -> PermissionAction.ACCEPT_CASH
-                    PaymentCategory.ONLINE -> PermissionAction.ACCEPT_ONLINE
-                    PaymentCategory.CREDIT -> PermissionAction.CREATE_CREDIT_SALE
-                    else -> null
-                })
-            var denied: CommandResult<Nothing>? = null
-            for (action in actions) {
-                val result = authorizeNewFinancialMutation(c.actorUserId, c.businessId, c.branchId, action, "Use Coupon")
-                if (result != null) { denied = result; break }
-            }
-            denied ?: executeAdmittedCouponRedemption(c)
-        }
-    } catch (e: Exception) {
-        if (e is kotlinx.coroutines.CancellationException) throw e
-        CommandResult.Error(e)
-    }
+    suspend fun executeCouponRedemption(c: CouponRedemptionCommand): CommandResult<CouponRedemptionResult> =
+        couponFinancialRepository.executeCouponRedemption(c)
 
-    private fun redemptionEvent(c: CouponRedemptionCommand) =
-        com.dailymoneyregister.core.database.entity.CouponLedgerEventEntity(
-            "${c.operationId.value}:redemption", c.operationId.value, c.walletId,
-            com.dailymoneyregister.core.model.enums.CouponLedgerType.REDEMPTION, Math.negateExact(c.amountMinor),
-            c.sale.currencyCode, c.subjectId, c.authorizedUserId, c.authorizedUserName, c.occurredAt)
-
-    private fun couponCreditRemainder(c: CouponRedemptionCommand) =
-        com.dailymoneyregister.core.database.entity.CreditLedgerEventEntity(
-            "${c.operationId.value}:credit", c.operationId.value, c.customerId,
-            com.dailymoneyregister.core.model.enums.CreditLedgerType.OBLIGATION,
-            Math.subtractExact(c.sale.draftState.grandTotal.amount, c.amountMinor), c.sale.currencyCode,
-            c.subjectId, occurredAt = c.occurredAt)
-
-    private suspend fun redemptionEvidence(c: CouponRedemptionCommand): CouponRedemptionResult {
-        val transaction = saleFinancialWriter.loadVerified(c.writerIntent())
-        val wallet = checkNotNull(ledgerDao.getCouponWallet(c.customerId, c.sale.currencyCode))
-        check(wallet.id == c.walletId)
-        check(ledgerDao.getCouponEventsForOperation(c.operationId.value) == listOf(redemptionEvent(c)))
-        val credits = ledgerDao.getCreditLedgerForCustomer(c.customerId).filter { it.operationId == c.operationId.value }
-        check(credits == if (c.remainderCategory == PaymentCategory.CREDIT) listOf(couponCreditRemainder(c)) else emptyList())
-        val balance = ledgerDao.getCouponBalanceAfterEvent(wallet.id, redemptionEvent(c).id)
-        check(balance >= 0)
-        return CouponRedemptionResult(transaction, wallet.id, c.amountMinor, c.authorizedUserName, balance)
-    }
-
-    private suspend fun executeAdmittedCouponRedemption(c: CouponRedemptionCommand): CommandResult<CouponRedemptionResult> =
-        commandExecutor.execute(
-            command = c,
-            cashShiftId = resolveFinancialCashShiftId(c),
-            replayResolver = { redemptionEvidence(c) }
-        ) {
-            val branch = checkNotNull(businessBranchDao.getBranchById(c.branchId))
-            require(branch.businessId == c.businessId && branch.currencyCode == c.sale.currencyCode &&
-                branch.currencyDecimalPlaces == c.sale.currencyDecimalPlaces)
-            val customer = checkNotNull(database.customerDao().getCustomerById(c.customerId))
-            require(customer.businessId == c.businessId)
-            val wallet = checkNotNull(ledgerDao.getCouponWallet(c.customerId, c.sale.currencyCode))
-            require(wallet.id == c.walletId && wallet.isActive)
-            val user = ledgerDao.getActiveAuthorizedUsers(wallet.id).singleOrNull { it.id == c.authorizedUserId }
-            requireNotNull(user) { "Select an authorized user" }
-            val details = CouponAuthorizedUserDetails(user, ledgerDao.getAuthorizedUserEvents(user.id))
-            require(details.isActive && details.name == c.authorizedUserName) { "Authorized user changed; select again" }
-            require(ledgerDao.getCouponBalance(wallet.id) >= c.amountMinor) { "Insufficient coupon balance" }
-            if (transactionDao.getTransactionById(c.subjectId) != null ||
-                transactionDao.getSettlementsForCashSaleRecovery(c.operationId.value, c.subjectId).isNotEmpty() ||
-                ledgerDao.getCouponEventsForOperation(c.operationId.value).isNotEmpty()) {
-                throw CommandRequiresReconciliationException("Unexpected Coupon redemption evidence")
-            }
-            if (c.remainderCategory == PaymentCategory.CREDIT) {
-                Math.addExact(ledgerDao.getCreditBalance(c.customerId, c.sale.currencyCode), couponCreditRemainder(c).amountSignedMinor)
-                ledgerDao.insertCreditEvent(couponCreditRemainder(c))
-            }
-            saleFinancialWriter.materialize(c.writerIntent())
-            ledgerDao.insertCouponEvent(redemptionEvent(c))
-            redemptionEvidence(c) to ("TRANSACTION" to c.subjectId)
-        }
-
-    suspend fun executeCouponSale(command: CouponSaleCommand): CommandResult<CouponSaleResult> {
-        val result = executeCouponSaleRequest(command)
-        if (result is CommandResult.Error || result is CommandResult.Conflict) {
-            val op = operationDao.getOperationById(command.operationId.value)
-            if (op == null || (op.status == OperationStatus.FAILED && op.requestFingerprint == command.requestFingerprint)) {
-                val message = when (result) {
-                    is CommandResult.Error -> result.exception.message
-                    is CommandResult.Conflict -> result.message
-                    else -> null
-                }
-                return CommandResult.Error(CouponSaleRejectedException(message ?: "Coupon Sale rejected"))
-            }
-        }
-        return result
-    }
+    suspend fun executeCouponSale(command: CouponSaleCommand): CommandResult<CouponSaleResult> =
+        couponFinancialRepository.executeCouponSale(command)
 
     suspend fun executeCouponTopUp(
         command: CouponTopUpCommand
     ): CommandResult<CouponTopUpResult> =
         couponFinancialRepository.executeCouponTopUp(command)
-
-    /*
-     * Recovery compatibility facade.
-     *
-     * recoverPendingCouponSales remains in RegisterRepository during
-     * this extraction phase and delegates admitted Top Up replay to
-     * the extracted Coupon financial repository.
-     */
-    private suspend fun executeAdmittedCouponTopUp(
-        command: CouponTopUpCommand,
-        recovering: Boolean = false
-    ): CommandResult<CouponTopUpResult> =
-        couponFinancialRepository.executeAdmittedCouponTopUp(
-            command = command,
-            recovering = recovering
-        )
-    private suspend fun executeCouponSaleRequest(command: CouponSaleCommand): CommandResult<CouponSaleResult> {
-        try { command.validate() } catch (e: IllegalArgumentException) { return CommandResult.Error(e) }
-        val existing = operationDao.getOperationById(command.operationId.value)
-        if (existing != null) {
-            if (existing.requestFingerprint != command.requestFingerprint || existing.intentPayload != command.intentPayload)
-                return CommandResult.Conflict("Coupon Sale operation already belongs to a different request")
-            return try { executeAdmittedCouponSale(CouponSalePayloadCodec.decode(existing)) }
-            catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                CommandResult.Error(e)
-            }
-        }
-        for (action in listOf(PermissionAction.CREATE_SALE, PermissionAction.USE_COUPON,
-                if (command.fundingCategory == PaymentCategory.CASH) PermissionAction.ACCEPT_CASH else PermissionAction.ACCEPT_ONLINE)) {
-            authorizeNewFinancialMutation(command.actorUserId, command.businessId, command.branchId,
-                action, "Coupon Sale")?.let { return it }
-        }
-        return executeAdmittedCouponSale(command)
-    }
-
-    private suspend fun executeAdmittedCouponSale(c: CouponSaleCommand, recovering: Boolean = false): CommandResult<CouponSaleResult> =
-        commandExecutor.execute(
-            command = c,
-            cashShiftId = resolveFinancialCashShiftId(c),
-            replayResolver = { loadCouponSaleEvidence(c) }
-        ) {
-            try {
-            // All customer/wallet/authorized-user/ledger/funding writes share the existing command transaction.
-            val branch = checkNotNull(businessBranchDao.getBranchById(c.branchId))
-            require(branch.businessId == c.businessId && branch.currencyCode == c.currencyCode &&
-                branch.currencyDecimalPlaces == c.currencyDecimalPlaces) { "Coupon Sale branch/currency mismatch" }
-            val customerDao = database.customerDao()
-            var customer = customerDao.getCustomerById(c.customerId)
-            if (customer == null) {
-                require(c.createCustomer) { "Select an existing customer" }
-                require(customerDao.getCustomerByPhone(c.businessId, c.canonicalPhone) == null) {
-                    "This phone already belongs to a customer. Search and select that customer."
-                }
-                val phoneUtil = com.google.i18n.phonenumbers.PhoneNumberUtil.getInstance()
-                val phone = phoneUtil.parse(c.canonicalPhone, "ZZ")
-                require(phoneUtil.isValidNumber(phone) &&
-                    phoneUtil.format(phone, com.google.i18n.phonenumbers.PhoneNumberUtil.PhoneNumberFormat.E164) == c.canonicalPhone) {
-                    "Enter a valid international phone number"
-                }
-                customer = com.dailymoneyregister.core.database.entity.CustomerEntity(
-                    c.customerId, c.businessId, c.canonicalPhone, c.customerName, c.occurredAt, c.occurredAt)
-                customerDao.insertCustomer(customer)
-            }
-            require(customer.businessId == c.businessId && customer.canonicalPhone == c.canonicalPhone && customer.name == c.customerName) {
-                "Customer identity changed. Select the customer again."
-            }
-            val oldWallet = ledgerDao.getCouponWallet(c.customerId, c.currencyCode)
-            require(oldWallet == null || oldWallet.isActive) { "Coupon wallet is inactive" }
-            if (transactionDao.getTransactionById(c.subjectId) != null) {
-                // A complete existing materialization may be replayed; partial evidence is never repaired by guessing.
-                val result = try { loadCouponSaleEvidence(c) } catch (e: Exception) {
-                    throw CommandRequiresReconciliationException("Coupon purchase evidence mismatch: ${e.message}")
-                }
-                return@execute result to ("TRANSACTION" to c.subjectId)
-            }
-            if (transactionDao.getSettlementsForCashSaleRecovery(c.operationId.value, c.subjectId).isNotEmpty() ||
-                transactionDao.getItemsForTransaction(c.subjectId).isNotEmpty()) {
-                throw CommandRequiresReconciliationException("Partial Coupon Sale financial evidence")
-            }
-            // Selling the initial value is this feature. Top-up remains a separate workflow.
-            require(oldWallet == null || ledgerDao.getCouponLedgerForWallet(oldWallet.id).isEmpty()) {
-                "Customer already has a funded coupon wallet. Use Coupon Top-up when available."
-            }
-            val wallet = oldWallet ?: com.dailymoneyregister.core.database.entity.CouponWalletEntity(
-                couponEvidenceId(c, "wallet"), c.customerId, c.currencyCode, true, c.occurredAt).also {
-                ledgerDao.insertCouponWallet(it)
-            }
-            require(ledgerDao.getActiveAuthorizedUsers(wallet.id).isEmpty()) { "Coupon wallet already has authorized users" }
-            (listOf(c.customerName) + c.additionalUserNames).forEachIndexed { index, name ->
-                val userId = couponEvidenceId(c, "user:$index")
-                ledgerDao.insertAuthorizedUser(com.dailymoneyregister.core.database.entity.CouponAuthorizedUserEntity(
-                    userId, wallet.id, index == 0, true, c.occurredAt))
-                ledgerDao.insertAuthorizedUserEvent(com.dailymoneyregister.core.database.entity.CouponAuthorizedUserEventEntity(
-                    couponEvidenceId(c, "user-event:$index"), userId, c.operationId.value,
-                    com.dailymoneyregister.core.model.enums.AuthorizedUserEventType.ADDED, name, c.occurredAt, c.actorUserId))
-            }
-            saleFinancialWriter.materialize(c.writerIntent())
-            ledgerDao.insertCouponEvent(com.dailymoneyregister.core.database.entity.CouponLedgerEventEntity(
-                id = couponEvidenceId(c, "purchase"), operationId = c.operationId.value, walletId = wallet.id,
-                type = com.dailymoneyregister.core.model.enums.CouponLedgerType.PURCHASE, amountSignedMinor = c.amountMinor,
-                currencyCode = c.currencyCode, transactionId = c.subjectId, occurredAt = c.occurredAt))
-            loadCouponSaleEvidence(c) to ("TRANSACTION" to c.subjectId)
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                if (recovering) throw CommandRequiresReconciliationException("Coupon Sale recovery evidence mismatch: ${e.message}")
-                throw e
-            }
-        }
-
-    private fun couponEvidenceId(c: CouponSaleCommand, suffix: String): String =
-        java.util.UUID.nameUUIDFromBytes("coupon:${c.operationId.value}:$suffix".toByteArray(Charsets.UTF_8)).toString()
-
-    private suspend fun loadCouponSaleEvidence(c: CouponSaleCommand): CouponSaleResult {
-        val transaction = saleFinancialWriter.loadVerified(c.writerIntent())
-        val wallet = checkNotNull(ledgerDao.getCouponWallet(c.customerId, c.currencyCode))
-        val expected = com.dailymoneyregister.core.database.entity.CouponLedgerEventEntity(
-            id = couponEvidenceId(c, "purchase"), operationId = c.operationId.value, walletId = wallet.id,
-            type = com.dailymoneyregister.core.model.enums.CouponLedgerType.PURCHASE, amountSignedMinor = c.amountMinor,
-            currencyCode = c.currencyCode, transactionId = c.subjectId, occurredAt = c.occurredAt)
-        check(ledgerDao.getCouponLedgerForWallet(wallet.id).filter { it.operationId == c.operationId.value } == listOf(expected)) {
-            "Coupon purchase ledger evidence mismatch"
-        }
-        (listOf(c.customerName) + c.additionalUserNames).forEachIndexed { index, name ->
-            val expectedEvent = com.dailymoneyregister.core.database.entity.CouponAuthorizedUserEventEntity(
-                couponEvidenceId(c, "user-event:$index"), couponEvidenceId(c, "user:$index"), c.operationId.value,
-                com.dailymoneyregister.core.model.enums.AuthorizedUserEventType.ADDED, name, c.occurredAt, c.actorUserId)
-            check(ledgerDao.getAuthorizedUserEvents(expectedEvent.authorizedUserId).filter { it.operationId == c.operationId.value } == listOf(expectedEvent)) {
-                "Coupon purchaser/authorized-user audit mismatch"
-            }
-        }
-        return CouponSaleResult(transaction, wallet.id, c.amountMinor)
-        }
 
     data class CouponAuthorizedUserDetails(
         val user: com.dailymoneyregister.core.database.entity.CouponAuthorizedUserEntity,
@@ -643,96 +415,13 @@ class RegisterRepository @Inject constructor(
 
     suspend fun getCouponWalletDetails(customerId: String, currencyCode: String): CouponWalletDetails? = couponWalletReadRepository.getCouponWalletDetails(customerId, currencyCode)
 
-    suspend fun executeCouponAuthorizedUser(command: CouponAuthorizedUserCommand): CommandResult<CouponAuthorizedUserDetails> {
-        return try {
-            command.validate()
-            val existing = operationDao.getOperationById(command.operationId.value)
-            if (existing != null) {
-                if (existing.requestFingerprint != command.requestFingerprint) return CommandResult.Conflict("Authorization request changed")
-                executeAdmittedCouponAuthorizedUser(CouponAuthorizedUserCommand.decode(existing))
-            } else {
-                authorizeNewFinancialMutation(command.actorUserId, command.businessId, command.branchId,
-                    PermissionAction.USE_COUPON, "Coupon authorized users")?.let { return it }
-                executeAdmittedCouponAuthorizedUser(command)
-            }
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            CommandResult.Error(e)
-        }
-    }
+    suspend fun executeCouponAuthorizedUser(
+        command: CouponAuthorizedUserCommand
+    ): CommandResult<CouponAuthorizedUserDetails> =
+        couponFinancialRepository.executeCouponAuthorizedUser(command)
 
-    private fun authorizationEvent(c: CouponAuthorizedUserCommand) =
-        com.dailymoneyregister.core.database.entity.CouponAuthorizedUserEventEntity(
-            "${c.operationId.value}:authorization", c.userId, c.operationId.value, c.eventType,
-            c.name, c.occurredAt, c.actorUserId)
-
-    private suspend fun authorizationEvidence(c: CouponAuthorizedUserCommand): CouponAuthorizedUserDetails {
-        val wallet = checkNotNull(ledgerDao.getCouponWallet(c.customerId, c.currencyCode))
-        check(wallet.id == c.walletId)
-        val user = ledgerDao.getActiveAuthorizedUsers(wallet.id).single { it.id == c.userId }
-        val events = ledgerDao.getAuthorizedUserEvents(user.id)
-        check(events.filter { it.operationId == c.operationId.value } == listOf(authorizationEvent(c)))
-        return CouponAuthorizedUserDetails(user, events)
-    }
-
-    private suspend fun executeAdmittedCouponAuthorizedUser(c: CouponAuthorizedUserCommand): CommandResult<CouponAuthorizedUserDetails> =
-        commandExecutor.execute(c, replayResolver = { authorizationEvidence(c) }) {
-            val customer = checkNotNull(database.customerDao().getCustomerById(c.customerId))
-            require(customer.businessId == c.businessId)
-            val branch = checkNotNull(businessBranchDao.getBranchById(c.branchId))
-            require(branch.businessId == c.businessId && branch.currencyCode == c.currencyCode)
-            val wallet = checkNotNull(ledgerDao.getCouponWallet(c.customerId, c.currencyCode))
-            require(wallet.id == c.walletId && wallet.isActive)
-            val users = ledgerDao.getActiveAuthorizedUsers(wallet.id)
-            val existing = users.singleOrNull { it.id == c.userId }
-            if (c.eventType == com.dailymoneyregister.core.model.enums.AuthorizedUserEventType.ADDED) {
-                require(existing == null && users.size < 21)
-                ledgerDao.insertAuthorizedUser(com.dailymoneyregister.core.database.entity.CouponAuthorizedUserEntity(
-                    c.userId, wallet.id, false, true, c.occurredAt))
-            } else {
-                requireNotNull(existing)
-                val events = ledgerDao.getAuthorizedUserEvents(existing.id)
-                require(CouponAuthorizedUserDetails(existing, events).isActive) { "Authorized user is inactive" }
-                require(c.occurredAt >= (events.lastOrNull()?.occurredAt ?: existing.createdAt))
-                require(!existing.isPurchaser || c.eventType != com.dailymoneyregister.core.model.enums.AuthorizedUserEventType.DEACTIVATED) {
-                    "Purchaser must remain authorized"
-                }
-            }
-            ledgerDao.insertAuthorizedUserEvent(authorizationEvent(c))
-            authorizationEvidence(c) to ("COUPON_AUTHORIZED_USER" to c.userId)
-        }
-
-    suspend fun recoverPendingCouponSales() {
-        val ops = operationDao
-        check(ops.getSaleOperationsRequiringReconciliation().none { it.intentPayload.startsWith("REDEEM|") })
-        for (op in commandExecutor.getPendingOperations().filter { it.intentPayload.startsWith("REDEEM|") }) {
-            try {
-                check(executeAdmittedCouponRedemption(CouponRedemptionCommand.decode(op)) is CommandResult.Success)
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                ops.markRequiresReconciliationIfPending(op.id, op.requestFingerprint, "Coupon redemption recovery mismatch")
-                throw IllegalStateException("Coupon redemption requires reconciliation", e)
-            }
-        }
-        check(ops.getCouponOperationsRequiringReconciliation().isEmpty()) { "Coupon Sale requires reconciliation" }
-        for (op in commandExecutor.getPendingOperations().filter { it.operationType == OperationType.RECORD_COUPON_PURCHASE }) {
-            try {
-                if (op.intentPayload.startsWith("USERS|")) {
-                    check(executeAdmittedCouponAuthorizedUser(CouponAuthorizedUserCommand.decode(op)) is CommandResult.Success)
-                } else if (op.intentPayload.startsWith("TOPUP|")) {
-                    val c = CouponTopUpPayloadCodec.decode(op)
-                    check(executeAdmittedCouponTopUp(c, recovering = true) is CommandResult.Success) { "Coupon Top Up recovery failed" }
-                } else {
-                    val c = CouponSalePayloadCodec.decode(op)
-                    check(executeAdmittedCouponSale(c, recovering = true) is CommandResult.Success) { "Coupon Sale recovery failed" }
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                ops.markRequiresReconciliationIfPending(op.id, op.requestFingerprint, "Coupon Sale recovery: ${e.message}")
-                throw IllegalStateException("Coupon Sale requires reconciliation", e)
-            }
-        }
-    }
+    suspend fun recoverPendingCouponSales() =
+        couponFinancialRepository.recoverPendingCouponSales()
 
     /**
      * Creates the durable cashier Register Shift identity and OPENED event.
