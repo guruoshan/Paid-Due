@@ -46,7 +46,6 @@ class RegisterDetailsSessionCoordinatorTest {
         val coordinator = RegisterDetailsSessionCoordinator(
             uiState = state,
             scope = backgroundScope,
-            loadExpenseDetails = { null },
             loadTransactionDetails = { null },
             isFinancialSessionCurrent = { _, _ -> false }
         )
