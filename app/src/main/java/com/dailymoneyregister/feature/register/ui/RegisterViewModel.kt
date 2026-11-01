@@ -320,6 +320,23 @@ class RegisterViewModel internal constructor(
             attachSupportingDocument = attachExpenseSupportingDocument
         )
 
+    private val expenseExecutionCoordinator = RegisterExpenseExecutionCoordinator(
+        uiState = _uiState,
+        scope = viewModelScope,
+        currentSession = { SessionManager.currentSession.value },
+        financialContext = { financialContext },
+        financialSessionGeneration = { financialSessionGeneration },
+        isFinancialSessionCurrent = { context, session, generation, currentGeneration ->
+            shouldApplyFinancialResultToRegister(context, session, generation, currentGeneration)
+        },
+        decimalPlaces = { decimalPlaces },
+        deviceId = deviceId,
+        submitExpense = submitExpense,
+        loadExpensesForPeriod = loadExpensesForPeriod,
+        attachExpenseSupportingDocument = attachExpenseSupportingDocument,
+        openExpenseDetails = ::openExpenseDetails
+    )
+
     private val detailsSessionCoordinator = RegisterDetailsSessionCoordinator(
         uiState = _uiState,
         scope = viewModelScope,
@@ -1428,128 +1445,21 @@ class RegisterViewModel internal constructor(
 
     fun openExpenses() {
         val session = SessionManager.currentSession.value
-
         if (session == null) {
-            _uiState.value =
-                _uiState.value.copy(
-                    errorMessage = UiText.Dynamic(
-                        "An authenticated register session is required."
-                    )
-                )
+            _uiState.value = _uiState.value.copy(
+                errorMessage = UiText.Dynamic("An authenticated register session is required.")
+            )
             return
         }
-
         if (synchronizeFinancialSession(session)) return
-        if (_uiState.value.isExecuting) return
-
-        _uiState.value =
-            _uiState.value.copy(
-                overlay = RegisterOverlay.Expense,
-                expenseLoading = true,
-                todayExpenses = emptyList(),
-                errorMessage = null
-            )
-
-        refreshTodayExpenses(session)
+        expenseExecutionCoordinator.openExpenses(session)
     }
 
-    fun closeExpenses() {
-        if (_uiState.value.overlay != RegisterOverlay.Expense || _uiState.value.isExecuting) return
-
-        _uiState.value =
-            _uiState.value.copy(
-                overlay = null,
-                expenseLoading = false,
-                todayExpenses = emptyList(),
-                inFlightExpenseCommand = null,
-                errorMessage = null
-            )
-    }
+    fun closeExpenses() = expenseExecutionCoordinator.closeExpenses()
 
     private fun refreshTodayExpenses(
-        session: ActiveSession? =
-            SessionManager.currentSession.value
-    ) {
-        if (session == null) {
-            _uiState.value =
-                _uiState.value.copy(
-                    expenseLoading = false
-                )
-            return
-        }
-
-        val generation = financialSessionGeneration
-        val context = financialContext
-
-        viewModelScope.launch {
-            try {
-                val zone =
-                    java.time.ZoneId.of(
-                        session.branch.timezoneId
-                    )
-
-                val today =
-                    java.time.Instant
-                        .ofEpochMilli(System.currentTimeMillis())
-                        .atZone(zone)
-                        .toLocalDate()
-
-                val fromInclusive =
-                    today
-                        .atStartOfDay(zone)
-                        .toInstant()
-                        .toEpochMilli()
-
-                val toExclusive =
-                    today
-                        .plusDays(1)
-                        .atStartOfDay(zone)
-                        .toInstant()
-                        .toEpochMilli()
-
-                val expenses =
-                    loadExpensesForPeriod(
-                        session.business.id,
-                        session.branch.id,
-                        fromInclusive,
-                        toExclusive
-                    )
-
-                if (
-                    !shouldApplyFinancialResultToRegister(
-                        context,
-                        SessionManager.currentSession.value,
-                        generation,
-                        financialSessionGeneration
-                    )
-                ) {
-                    return@launch
-                }
-
-                _uiState.value =
-                    _uiState.value.copy(
-                        expenseLoading = false,
-                        todayExpenses = expenses
-                    )
-            } catch (error: Exception) {
-                if (
-                    error is kotlinx.coroutines.CancellationException
-                ) {
-                    throw error
-                }
-
-                _uiState.value =
-                    _uiState.value.copy(
-                        expenseLoading = false,
-                        errorMessage =
-                            UiText.Dynamic(
-                                error.message
-                                    ?: "Unable to load Expenses."
-                            )
-                    )
-            }
-        }
-    }
+        session: ActiveSession? = SessionManager.currentSession.value
+    ) = expenseExecutionCoordinator.refreshTodayExpenses(session)
 
     fun stageExpenseSupportingDocument(sourceUri: String) =
         expenseSupportingDocumentCoordinator.stageExpenseSupportingDocument(sourceUri)
@@ -1568,189 +1478,26 @@ class RegisterViewModel internal constructor(
         note: String,
         reference: String
     ) {
-        val session =
-            SessionManager.currentSession.value
-
+        val session = SessionManager.currentSession.value
         if (session == null) {
-            _uiState.value =
-                _uiState.value.copy(
-                    errorMessage =
-                        UiText.Dynamic(
-                            "An authenticated register session is required."
-                        )
-                )
-            return
-        }
-
-        if (synchronizeFinancialSession(session)) return
-
-        val state = _uiState.value
-
-        if (state.overlay != RegisterOverlay.Expense || state.isExecuting) return
-
-        val parsedAmount =
-            MoneyMinorUnits.parse(
-                amountText.trim(),
-                session.branch.currencyDecimalPlaces
-            ).getOrNull()
-
-        if (parsedAmount == null) {
-            _uiState.value =
-                state.copy(
-                    errorMessage =
-                        UiText.Dynamic(
-                            "Enter a valid amount using no more than " +
-                                "${session.branch.currencyDecimalPlaces} decimal places."
-                        )
-                )
-            return
-        }
-
-        if (!parsedAmount.isPositive) {
-            _uiState.value =
-                state.copy(
-                    errorMessage =
-                        UiText.Dynamic(
-                            "Enter an Expense amount greater than zero."
-                        )
-                )
-            return
-        }
-
-        val command =
-            state.inFlightExpenseCommand
-                ?: try {
-                    ExpenseCommandFactory.createNew(
-                        businessId = session.business.id,
-                        branchId = session.branch.id,
-                        actorUserId = session.user.id,
-                        amountMinor = parsedAmount.amount,
-                        currencyCode = session.branch.currencyCode,
-                        category = category,
-                        paymentCategory = paymentCategory,
-                        payeeName = payeeName,
-                        payeePhone = payeePhone,
-                        reference = reference,
-                        note = note,
-                        deviceId = deviceId(),
-                        occurredAt = System.currentTimeMillis()
-                    )
-                } catch (_: IllegalStateException) {
-                    _uiState.value =
-                        state.copy(
-                            errorMessage =
-                                UiText.Dynamic(
-                                    "Expense payment must be Cash or Online."
-                                )
-                        )
-                    return
-                }
-
-        val executionContext = financialContext
-        val executionGeneration = financialSessionGeneration
-
-        _uiState.value =
-            state.copy(
-                isExecuting = true,
-                inFlightExpenseCommand = command,
-                errorMessage = null
+            _uiState.value = _uiState.value.copy(
+                errorMessage = UiText.Dynamic("An authenticated register session is required.")
             )
-
-        viewModelScope.launch {
-            val result =
-                submitExpense(command)
-
-            if (
-                !shouldApplyFinancialResultToRegister(
-                    executionContext,
-                    SessionManager.currentSession.value,
-                    executionGeneration,
-                    financialSessionGeneration
-                )
-            ) {
-                return@launch
-            }
-
-            when (result) {
-                is CommandResult.Success -> {
-                    val stagedDocuments =
-                        _uiState.value.stagedExpenseSupportingDocumentUris
-
-                    var attachmentFailureCount = 0
-
-                    for (sourceUri in stagedDocuments) {
-                        try {
-                            attachExpenseSupportingDocument(
-                                command.expenseId,
-                                sourceUri
-                            )
-                        } catch (error: Exception) {
-                            if (
-                                error is
-                                    kotlinx.coroutines.CancellationException
-                            ) {
-                                throw error
-                            }
-                            attachmentFailureCount++
-                        }
-                    }
-
-                    _uiState.value =
-                        _uiState.value.copy(
-                            isExecuting = false,
-                            inFlightExpenseCommand = null,
-                            stagedExpenseSupportingDocumentUris =
-                                emptyList(),
-                            infoMessage =
-                                UiText.Dynamic(
-                                    when {
-                                        attachmentFailureCount > 0 ->
-                                            "Expense saved. $attachmentFailureCount supporting document(s) could not be attached."
-                                        result.isIdempotentReplay ->
-                                            "Expense already saved."
-                                        else ->
-                                            "Expense saved."
-                                    }
-                                ),
-                            errorMessage = null
-                        )
-
-                    refreshTodayExpenses()
-                    openExpenseDetails(command.expenseId)
-                }
-
-                is CommandResult.Conflict ->
-                    _uiState.value =
-                        _uiState.value.copy(
-                            isExecuting = false,
-                            inFlightExpenseCommand = null,
-                            errorMessage =
-                                UiText.Dynamic(result.message)
-                        )
-
-                is CommandResult.PermissionDenied ->
-                    _uiState.value =
-                        _uiState.value.copy(
-                            isExecuting = false,
-                            inFlightExpenseCommand = null,
-                            errorMessage =
-                                UiText.Dynamic(result.message)
-                        )
-
-                is CommandResult.Error ->
-                    _uiState.value =
-                        _uiState.value.copy(
-                            isExecuting = false,
-                            inFlightExpenseCommand = command,
-                            errorMessage =
-                                UiText.Dynamic(
-                                    result.exception.message
-                                        ?: "Expense could not be saved. Retry the same Expense."
-                                )
-                        )
-            }
+            return
         }
+        if (synchronizeFinancialSession(session)) return
+        expenseExecutionCoordinator.saveExpense(
+            session = session,
+            amountText = amountText,
+            category = category,
+            paymentCategory = paymentCategory,
+            payeeName = payeeName,
+            payeePhone = payeePhone,
+            note = note,
+            reference = reference
+        )
     }
+
     fun openDayClosing() {
         val session = SessionManager.currentSession.value ?: return
 
