@@ -68,12 +68,6 @@ internal class RegisterShiftRepository(
      * The counted value is reconciliation evidence. It is not sales revenue
      * and does not mutate authoritative settlements.
      */
-    /**
-     * Read-only Day Closing projection for the authenticated cashier.
-     *
-     * Shift membership comes only from OperationEntity.cashShiftId.
-     * Historical NULL attribution is never guessed.
-     */
     suspend fun countRegisterShift(
         command: CountRegisterShiftCommand
     ): CommandResult<RegisterShiftResult> {
