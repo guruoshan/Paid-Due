@@ -153,13 +153,6 @@ data class RegisterUiState(
     val infoMessage: UiText? = null
 )
 
-internal fun clearedRegisterDraft(branch: BranchEntity?): DraftState = DraftState(
-    taxRateBps = 0,
-    isTaxEnabled = false,
-    taxRoundingMode = branch?.taxRoundingMode
-        ?: com.dailymoneyregister.core.model.tax.TaxRoundingMode.HALF_UP
-)
-
 @HiltViewModel
 class RegisterViewModel internal constructor(
     private val saleDependencies: RegisterSaleDependencies,
