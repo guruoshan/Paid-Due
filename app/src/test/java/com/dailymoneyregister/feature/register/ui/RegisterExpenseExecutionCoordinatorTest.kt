@@ -170,9 +170,13 @@ class RegisterExpenseExecutionCoordinatorTest {
     fun `successful save opens expense details`() = runTest {
         val state = expenseState()
         var openedId: String? = null
+        var submittedId: String? = null
         val coordinator = coordinator(
             state, backgroundScope,
-            submit = { CommandResult.Success(result(it)) },
+            submit = {
+                submittedId = it.expenseId
+                CommandResult.Success(result(it))
+            },
             openDetails = { openedId = it }
         )
 
@@ -180,7 +184,7 @@ class RegisterExpenseExecutionCoordinatorTest {
             PaymentCategory.CASH, "", null, "", "")
         runCurrent()
 
-        assertEquals("expense-1", openedId)
+        assertEquals(submittedId, openedId)
     }
 
     @Test
