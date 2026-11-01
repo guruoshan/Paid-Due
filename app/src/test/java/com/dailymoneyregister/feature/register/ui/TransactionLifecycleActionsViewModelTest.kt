@@ -139,7 +139,7 @@ class TransactionLifecycleActionsViewModelTest {
         assertEquals(2_500L, viewModel.uiState.value.refundToCouponDraft?.amountMinor)
         assertEquals(RegisterOverlay.Coupon(CouponDialogStartMode.ENTRY), viewModel.uiState.value.overlay)
 
-        viewModel.confirmRefundToCoupon(null, "New customer", "96800000", listOf("Additional user"))
+        viewModel.confirmRefundToCoupon(null, "New customer", "+96891234567", listOf("Additional user"))
         runCurrent()
 
         assertEquals(1, submitted.size)
