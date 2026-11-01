@@ -31,6 +31,26 @@ internal class RegisterDetailsSessionCoordinator(
         transactionRequestGeneration++
     }
 
+    fun loadSaleDetailsForWhatsApp(
+        transactionId: String,
+        onLoaded: (TransactionDetailsReadModel?) -> Unit
+    ) {
+        if (transactionId.isBlank()) {
+            onLoaded(null)
+            return
+        }
+
+        scope.launch {
+            val details = try {
+                loadTransactionDetails(transactionId)
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                null
+            }
+            onLoaded(details)
+        }
+    }
+
     fun openHistory() {
         uiState.value = uiState.value.copy(
             destination = RegisterDestination.History,
