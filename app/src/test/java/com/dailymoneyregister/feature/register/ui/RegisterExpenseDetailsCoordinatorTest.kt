@@ -76,6 +76,39 @@ class RegisterExpenseDetailsCoordinatorTest {
     }
 
     @Test
+    fun `refreshing an open expense session applies the latest read projection`() = runTest {
+        val projection = ExpenseReadProjection(
+            expenseId = "expense-1",
+            operationId = "operation-1",
+            businessId = "business-1",
+            branchId = "branch-1",
+            cashShiftId = null,
+            actorUserId = "admin-1",
+            amount = com.dailymoneyregister.core.model.money.MoneyMinorUnits(750L),
+            currencyCode = "OMR",
+            category = "OTHER",
+            paymentCategory = com.dailymoneyregister.core.model.enums.PaymentCategory.CASH,
+            paymentChannel = com.dailymoneyregister.core.model.enums.PaymentChannel.CASH_TENDER,
+            payeeName = null,
+            payeePhone = null,
+            reference = null,
+            note = null,
+            occurredAt = 10L,
+            createdAt = 10L
+        )
+        val state = MutableStateFlow(
+            RegisterUiState(destination = RegisterDestination.ExpenseDetails("expense-1", DetailsOrigin.HISTORY))
+        )
+        val coordinator = coordinator(state, backgroundScope) { projection }
+
+        coordinator.openExpenseDetails("expense-1", null, 0L)
+        runCurrent()
+
+        assertEquals(projection, state.value.expenseDetails)
+        assertFalse(state.value.expenseDetailsLoading)
+    }
+
+    @Test
     fun `blank expense id cannot create a detail session`() = runTest {
         val state = MutableStateFlow(RegisterUiState(destination = RegisterDestination.History))
         val coordinator = coordinator(state, backgroundScope) { null }
