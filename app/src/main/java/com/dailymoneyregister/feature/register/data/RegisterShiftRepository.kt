@@ -550,7 +550,7 @@ internal class RegisterShiftRepository(
     }
 
     // Retained as a private characterization-test seam; production callers use the collaborator directly.
-    private suspend fun readRegisterShift(
+    internal suspend fun readRegisterShift(
         shiftId: String,
         expectedBranchId: String,
         expectedBusinessId: String
