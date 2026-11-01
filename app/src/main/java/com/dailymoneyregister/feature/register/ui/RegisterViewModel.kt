@@ -341,6 +341,28 @@ class RegisterViewModel internal constructor(
         submitOnlineSale = executeOnlineSale
     )
 
+
+    private val couponCoordinator = RegisterCouponCoordinator(
+        uiState = _uiState,
+        scope = viewModelScope,
+        currentSession = { SessionManager.currentSession.value },
+        synchronizeFinancialSession = ::synchronizeFinancialSession,
+        financialContext = { financialContext },
+        financialSessionGeneration = { financialSessionGeneration },
+        isFinancialSessionCurrent = { context, session, generation, currentGeneration ->
+            shouldApplyFinancialResultToRegister(context, session, generation, currentGeneration)
+        },
+        decimalPlaces = { decimalPlaces },
+        currencyCode = { currencyCode },
+        deviceId = deviceId,
+        loadOnlineQr = loadOnlineQr,
+        submitCouponSale = submitCouponSale,
+        loadCouponWalletDetails = loadCouponWalletDetails,
+        submitCouponTopUp = submitCouponTopUp,
+        submitCouponUser = submitCouponUser,
+        submitCouponRedemption = submitCouponRedemption
+    )
+
     private val dayClosingCoordinator = RegisterDayClosingCoordinator(
         uiState = _uiState,
         scope = viewModelScope,
@@ -716,134 +738,19 @@ class RegisterViewModel internal constructor(
 
     fun executeOnlineSale() = saleExecutionCoordinator.executeOnlineSale()
 
-    fun openCouponSale() = openCoupon(CouponDialogStartMode.ENTRY)
+    fun openCouponSale() = couponCoordinator.openCouponSale()
 
-    fun openCouponRedemption() = openCoupon(CouponDialogStartMode.REDEMPTION)
+    fun openCouponRedemption() = couponCoordinator.openCouponRedemption()
 
-    private fun openCoupon(startMode: CouponDialogStartMode) {
-        val session = SessionManager.currentSession.value
-        if (synchronizeFinancialSession(session) || session == null || _uiState.value.isExecuting) return
-        if (_uiState.value.lastCompletedTransaction != null) return
-        _uiState.value = _uiState.value.copy(
-            overlay = RegisterOverlay.Coupon(startMode),
-            errorMessage = null,
-            onlineQr = null
-        )
-        val generation = financialSessionGeneration
-        viewModelScope.launch {
-            try {
-                val qr = loadOnlineQr(session.branch.id)
-                if (generation == financialSessionGeneration && _uiState.value.overlay is RegisterOverlay.Coupon &&
-                    session.toRegisterFinancialSessionContext() == SessionManager.currentSession.value.toRegisterFinancialSessionContext()) {
-                    _uiState.value = _uiState.value.copy(onlineQr = qr)
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                // Cash remains available; an online purchase requires the configured QR.
-            }
-        }
-    }
+    
 
-    fun closeCouponSale() {
-        val s = _uiState.value
+    fun closeCouponSale() = couponCoordinator.closeCouponSale()
 
-        if (
-            s.overlay !is RegisterOverlay.Coupon ||
-            s.isExecuting ||
-            s.inFlightCouponSaleCommand != null ||
-            s.inFlightCouponTopUpCommand != null ||
-            s.inFlightCouponRedemptionCommand != null
-        ) return
+    fun openCouponWallet(customerId: String, showDialog: Boolean = true) = couponCoordinator.openCouponWallet(customerId, showDialog)
 
-        _uiState.value =
-            s.copy(
-                overlay = null,
-                couponCustomers = emptyList(),
-                couponSaleResult = null,
-                couponTopUpResult = null,
-                couponRedemptionResult = null,
-                refundToCouponDraft = null,
-                refundToCouponResult = null,
-                inFlightRefundToCouponCommand = null,
-                couponWalletDetails = null,
-                couponWalletLoading = false,
-                onlineQr = null,
-                errorMessage = null
-            )
-    }
+    fun closeCouponWallet() = couponCoordinator.closeCouponWallet()
 
-    fun openCouponWallet(customerId: String, showDialog: Boolean = true) {
-        val session = SessionManager.currentSession.value
-        if (synchronizeFinancialSession(session) || session == null || _uiState.value.couponWalletLoading) return
-        _uiState.value = _uiState.value.copy(
-            overlay = if (showDialog) RegisterOverlay.CouponWallet else _uiState.value.overlay,
-            couponWalletDetails = null,
-            couponWalletLoading = true
-        )
-        val context = financialContext
-        val generation = financialSessionGeneration
-        viewModelScope.launch {
-            try {
-                val details = loadCouponWalletDetails(customerId, session.branch.currencyCode)
-                if (shouldApplyFinancialResultToRegister(context, SessionManager.currentSession.value,
-                        generation, financialSessionGeneration)) {
-                    _uiState.value = _uiState.value.copy(couponWalletDetails = details, couponWalletLoading = false)
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                if (generation == financialSessionGeneration) _uiState.value = _uiState.value.copy(
-                    couponWalletLoading = false, errorMessage = UiText.Dynamic(e.message ?: "Could not load coupon wallet"))
-            }
-        }
-    }
-
-    fun closeCouponWallet() {
-        if (_uiState.value.isExecuting || _uiState.value.inFlightCouponUserCommand != null) return
-        _uiState.value = _uiState.value.copy(
-            overlay = if (_uiState.value.overlay == RegisterOverlay.CouponWallet) null else _uiState.value.overlay,
-            couponWalletDetails = null,
-            couponWalletLoading = false
-        )
-    }
-
-    fun saveCouponUser(userId: String?, name: String, deactivate: Boolean = false) {
-        val session = SessionManager.currentSession.value
-        if (synchronizeFinancialSession(session) || session == null || _uiState.value.isExecuting) return
-        val s = _uiState.value
-        val details = s.couponWalletDetails ?: return
-        val command = s.inFlightCouponUserCommand ?: CouponAuthorizedUserCommand(
-            OperationId.generate(), session.business.id, session.branch.id, session.user.id,
-            details.wallet.customerId, details.wallet.id, userId ?: IdGenerator.newId(), name.trim(),
-            when {
-                userId == null -> com.dailymoneyregister.core.model.enums.AuthorizedUserEventType.ADDED
-                deactivate -> com.dailymoneyregister.core.model.enums.AuthorizedUserEventType.DEACTIVATED
-                else -> com.dailymoneyregister.core.model.enums.AuthorizedUserEventType.NAME_CORRECTED
-            }, currencyCode, deviceId(), System.currentTimeMillis())
-        val context = financialContext
-        val generation = financialSessionGeneration
-        _uiState.value = s.copy(isExecuting = true, inFlightCouponUserCommand = command, errorMessage = null)
-        viewModelScope.launch {
-            val result = try { submitCouponUser(command) } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                CommandResult.Error(e)
-            }
-            if (!shouldApplyFinancialResultToRegister(context, SessionManager.currentSession.value,
-                    generation, financialSessionGeneration)) return@launch
-            when (result) {
-                is CommandResult.Success -> {
-                    _uiState.value = _uiState.value.copy(isExecuting = false, inFlightCouponUserCommand = null)
-                    openCouponWallet(details.wallet.customerId, s.overlay == RegisterOverlay.CouponWallet)
-                }
-                is CommandResult.PermissionDenied -> _uiState.value = _uiState.value.copy(isExecuting = false,
-                    inFlightCouponUserCommand = null, errorMessage = UiText.Dynamic(result.message))
-                is CommandResult.Conflict -> _uiState.value = _uiState.value.copy(isExecuting = false,
-                    errorMessage = UiText.Dynamic(result.message))
-                is CommandResult.Error -> _uiState.value = _uiState.value.copy(isExecuting = false,
-                    inFlightCouponUserCommand = if (result.exception is IllegalArgumentException) null else command,
-                    errorMessage = UiText.Dynamic(result.exception.message ?: "Authorization failed"))
-            }
-        }
-    }
+    fun saveCouponUser(userId: String?, name: String, deactivate: Boolean = false) = couponCoordinator.saveCouponUser(userId, name, deactivate)
 
     fun openCreditSale() = creditSaleCoordinator.openCreditSale()
 
@@ -852,52 +759,7 @@ class RegisterViewModel internal constructor(
     fun searchCouponCustomers(query: String) =
         customerSelectionCoordinator.searchCouponCustomers(query)
 
-    fun confirmCouponRedemption(customer: CustomerEntity?, userId: String?, amount: String, remainder: PaymentCategory?) {
-        val session = SessionManager.currentSession.value
-        if (synchronizeFinancialSession(session) || session == null) return
-        val s = _uiState.value
-        if (s.isExecuting || s.overlay !is RegisterOverlay.Coupon || s.couponRedemptionResult != null) return
-        val command = try {
-            s.inFlightCouponRedemptionCommand ?: run {
-                val details = requireNotNull(s.couponWalletDetails)
-                require(customer?.id == details.wallet.customerId)
-                val user = details.authorizedUsers.single { it.user.id == userId && it.isActive }
-                val value = MoneyMinorUnits.parse(amount, decimalPlaces).getOrThrow().amount
-                val funding = if (value == s.draftState.grandTotal.amount) null else remainder
-                require(funding != PaymentCategory.ONLINE || s.onlineQr != null) { "Configure the merchant QR first" }
-                CouponRedemptionCommand(OnlineSaleCommand(OperationId.generate(), session.business.id,
-                    session.branch.id, session.user.id, TransactionId.generate(), s.draftState, currencyCode,
-                    decimalPlaces, deviceId(), System.currentTimeMillis()), details.wallet.customerId,
-                    details.wallet.id, user.user.id, user.name, value, funding).also { it.validate() }
-            }
-        } catch (e: Exception) {
-            _uiState.value = s.copy(errorMessage = UiText.Dynamic(e.message ?: "Check coupon redemption details"))
-            return
-        }
-        val context = financialContext
-        val generation = financialSessionGeneration
-        _uiState.value = s.copy(isExecuting = true, inFlightCouponRedemptionCommand = command, errorMessage = null)
-        viewModelScope.launch {
-            val result = try { submitCouponRedemption(command) } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                CommandResult.Error(e)
-            }
-            if (!shouldApplyFinancialResultToRegister(context, SessionManager.currentSession.value,
-                    generation, financialSessionGeneration)) return@launch
-            when (result) {
-                is CommandResult.Success -> _uiState.value = _uiState.value.copy(isExecuting = false,
-                    inFlightCouponRedemptionCommand = null, couponRedemptionResult = result.data,
-                    lastCompletedTransaction = result.data.transaction)
-                is CommandResult.PermissionDenied -> _uiState.value = _uiState.value.copy(isExecuting = false,
-                    inFlightCouponRedemptionCommand = null, errorMessage = UiText.Dynamic(result.message))
-                is CommandResult.Conflict -> _uiState.value = _uiState.value.copy(isExecuting = false,
-                    errorMessage = UiText.Dynamic(result.message))
-                is CommandResult.Error -> _uiState.value = _uiState.value.copy(isExecuting = false,
-                    inFlightCouponRedemptionCommand = if (result.exception is IllegalArgumentException) null else command,
-                    errorMessage = UiText.Dynamic(result.exception.message ?: "Coupon redemption failed; retry the same request"))
-            }
-        }
-    }
+    fun confirmCouponRedemption(customer: CustomerEntity?, userId: String?, amount: String, remainder: PaymentCategory?) = couponCoordinator.confirmCouponRedemption(customer, userId, amount, remainder)
 
     fun confirmCreditSale(
         customer: CustomerEntity?,
@@ -905,168 +767,9 @@ class RegisterViewModel internal constructor(
         phone: String
     ) = creditSaleCoordinator.confirmCreditSale(customer, name, phone)
 
-    fun confirmCouponSale(customer: CustomerEntity?, name: String, phone: String, amount: String,
-                          funding: PaymentCategory, additionalUsers: List<String>) {
-        val session = SessionManager.currentSession.value
-        if (synchronizeFinancialSession(session) || session == null) return
-        val s = _uiState.value
-        if (s.overlay !is RegisterOverlay.Coupon || s.isExecuting || s.couponSaleResult != null) return
-        if (funding == PaymentCategory.ONLINE && s.onlineQr == null) return
-        val command = try {
-            s.inFlightCouponSaleCommand ?: CouponSaleCommand(
-                OperationId.generate(), session.business.id, session.branch.id, session.user.id,
-                TransactionId.generate(), customer?.id ?: IdGenerator.newId(), customer?.name ?: name.trim(),
-                customer?.canonicalPhone ?: phone.trim(), customer == null,
-                MoneyMinorUnits.parse(amount, decimalPlaces).getOrThrow().amount,
-                currencyCode, decimalPlaces, funding, additionalUsers.map { it.trim() }.toList(),
-                deviceId(), System.currentTimeMillis()).also { it.validate() }
-        } catch (e: Exception) {
-            _uiState.value = s.copy(errorMessage = UiText.Dynamic(e.message ?: "Check Coupon Sale details"))
-            return
-        }
-        val context = financialContext
-        val generation = financialSessionGeneration
-        _uiState.value = s.copy(isExecuting = true, inFlightCouponSaleCommand = command, errorMessage = null)
-        viewModelScope.launch {
-            val result = try { submitCouponSale(command) } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                CommandResult.Error(e)
-            }
-            if (!shouldApplyFinancialResultToRegister(context, SessionManager.currentSession.value,
-                    generation, financialSessionGeneration)) return@launch
-            when (result) {
-                is CommandResult.Success -> {
-                    // BOARDLOCK_COUPON_SALE_WALLET_REFRESH
-                    val walletDetails =
-                        try {
-                            loadCouponWalletDetails(
-                                command.customerId,
-                                command.currencyCode
-                            )
-                        } catch (
-                            error: Exception
-                        ) {
-                            if (
-                                error is
-                                    kotlinx.coroutines.CancellationException
-                            ) {
-                                throw error
-                            }
+    fun confirmCouponSale(customer: CustomerEntity?, name: String, phone: String, amount: String, funding: PaymentCategory, additionalUsers: List<String>) = couponCoordinator.confirmCouponSale(customer, name, phone, amount, funding, additionalUsers)
 
-                            null
-                        }
-
-                    if (
-                        !shouldApplyFinancialResultToRegister(
-                            context,
-                            SessionManager.currentSession.value,
-                            generation,
-                            financialSessionGeneration
-                        )
-                    ) {
-                        return@launch
-                    }
-
-                    _uiState.value =
-                        _uiState.value.copy(
-                            isExecuting = false,
-                            inFlightCouponSaleCommand = null,
-                            couponSaleResult = result.data,
-                            couponWalletDetails = walletDetails,
-                            couponWalletLoading = false
-                        )
-                }
-                is CommandResult.PermissionDenied -> _uiState.value = _uiState.value.copy(isExecuting = false,
-                    inFlightCouponSaleCommand = null, errorMessage = UiText.Dynamic(result.message))
-                is CommandResult.Conflict -> _uiState.value = _uiState.value.copy(isExecuting = false,
-                    errorMessage = UiText.Dynamic(result.message))
-                is CommandResult.Error -> _uiState.value = _uiState.value.copy(isExecuting = false,
-                    inFlightCouponSaleCommand = if (result.exception is com.dailymoneyregister.feature.register.data.CouponSaleRejectedException) null else command,
-                    errorMessage = UiText.Dynamic(result.exception.message ?: "Coupon Sale failed. Retry the same purchase."))
-            }
-        }
-    }
-
-    fun confirmCouponTopUp(customer: CustomerEntity, walletId: String, amount: String, funding: PaymentCategory) {
-        val session = SessionManager.currentSession.value
-        if (synchronizeFinancialSession(session) || session == null) return
-        val s = _uiState.value
-        if (s.overlay !is RegisterOverlay.Coupon || s.isExecuting || s.couponSaleResult != null || s.couponTopUpResult != null) return
-        if (funding == PaymentCategory.ONLINE && s.onlineQr == null) return
-        val command = try {
-            s.inFlightCouponTopUpCommand ?: CouponTopUpCommand(
-                OperationId.generate(), session.business.id, session.branch.id, session.user.id,
-                TransactionId.generate(), walletId, customer.id, customer.name, customer.canonicalPhone,
-                MoneyMinorUnits.parse(amount, decimalPlaces).getOrThrow().amount,
-                currencyCode, decimalPlaces, funding, deviceId(), System.currentTimeMillis()
-            ).also { it.validate() }
-        } catch (e: Exception) {
-            _uiState.value = s.copy(errorMessage = UiText.Dynamic(e.message ?: "Check Coupon Top Up details"))
-            return
-        }
-        val context = financialContext
-        val generation = financialSessionGeneration
-        _uiState.value = s.copy(isExecuting = true, inFlightCouponTopUpCommand = command, errorMessage = null)
-        viewModelScope.launch {
-            val result = try { submitCouponTopUp(command) } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                CommandResult.Error(e)
-            }
-            if (!shouldApplyFinancialResultToRegister(context, SessionManager.currentSession.value,
-                    generation, financialSessionGeneration)) return@launch
-            when (result) {
-                is CommandResult.Success -> {
-                    // BOARDLOCK_COUPON_TOPUP_WALLET_REFRESH
-                    val walletDetails =
-                        try {
-                            loadCouponWalletDetails(
-                                command.customerId,
-                                command.currencyCode
-                            )
-                        } catch (
-                            error: Exception
-                        ) {
-                            if (
-                                error is
-                                    kotlinx.coroutines.CancellationException
-                            ) {
-                                throw error
-                            }
-
-                            null
-                        }
-
-                    if (
-                        !shouldApplyFinancialResultToRegister(
-                            context,
-                            SessionManager.currentSession.value,
-                            generation,
-                            financialSessionGeneration
-                        )
-                    ) {
-                        return@launch
-                    }
-
-                    _uiState.value =
-                        _uiState.value.copy(
-                            isExecuting = false,
-                            inFlightCouponTopUpCommand = null,
-                            couponTopUpResult = result.data,
-                            couponWalletDetails = walletDetails,
-                            couponWalletLoading = false
-                        )
-                }
-                is CommandResult.PermissionDenied -> _uiState.value = _uiState.value.copy(
-                    isExecuting = false, inFlightCouponTopUpCommand = null, errorMessage = UiText.Dynamic(result.message))
-                is CommandResult.Conflict -> _uiState.value = _uiState.value.copy(
-                    isExecuting = false, errorMessage = UiText.Dynamic(result.message))
-                is CommandResult.Error -> _uiState.value = _uiState.value.copy(
-                    isExecuting = false,
-                    inFlightCouponTopUpCommand = command,
-                    errorMessage = UiText.Dynamic(result.exception.message ?: "Coupon Top Up failed. Retry the same top up."))
-            }
-        }
-    }
+    fun confirmCouponTopUp(customer: CustomerEntity, walletId: String, amount: String, funding: PaymentCategory) = couponCoordinator.confirmCouponTopUp(customer, walletId, amount, funding)
 
     fun openExpenses() {
         val session = SessionManager.currentSession.value
