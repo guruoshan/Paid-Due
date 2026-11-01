@@ -30,7 +30,6 @@ internal class RegisterExpenseExecutionCoordinator(
     private val currentSession: () -> ActiveSession?,
     private val financialContext: () -> RegisterFinancialSessionContext?,
     private val financialSessionGeneration: () -> Long,
-    private val synchronizeFinancialSession: (ActiveSession?) -> Boolean,
     private val isFinancialSessionCurrent: (
         RegisterFinancialSessionContext?,
         ActiveSession?,
