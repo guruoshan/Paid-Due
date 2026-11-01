@@ -61,7 +61,6 @@ import com.dailymoneyregister.core.database.entity.ProductEntity
 import com.dailymoneyregister.feature.settings.data.MerchantQrSelection
 import com.dailymoneyregister.feature.register.domain.CalculatorEngine
 import com.dailymoneyregister.feature.register.domain.CalculatorState
-import com.dailymoneyregister.feature.register.domain.DraftItem
 import com.dailymoneyregister.feature.register.domain.DraftState
 import com.dailymoneyregister.feature.register.domain.KeypadKey
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -632,6 +631,10 @@ class RegisterViewModel internal constructor(
 
     fun updateItemQuantity(itemId: String, newQty: Int) {
         synchronizeFinancialSession(SessionManager.currentSession.value)
+        if (newQty <= 0) {
+            removeItem(itemId)
+            return
+        }
         draftCompositionCoordinator.updateItemQuantity(itemId, newQty)
     }
 
