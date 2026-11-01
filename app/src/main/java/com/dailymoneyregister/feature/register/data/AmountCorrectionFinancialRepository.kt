@@ -157,16 +157,11 @@ internal class AmountCorrectionFinancialRepository(
         }
 
         authorizeNewFinancialMutation(
-            actorUserId =
-                command.actorUserId,
-            businessId =
-                command.businessId,
-            branchId =
-                command.branchId,
-            action =
-                PermissionAction.CORRECT_AMOUNT,
-            actionLabel =
-                "Amount Correction"
+            command.actorUserId,
+            command.businessId,
+            command.branchId,
+            PermissionAction.CORRECT_AMOUNT,
+            "Amount Correction"
         )?.let {
             return it
         }
