@@ -303,6 +303,20 @@ class RegisterViewModel internal constructor(
     )
     val uiState: StateFlow<RegisterUiState> = _uiState.asStateFlow()
 
+    private val customerSelectionCoordinator = RegisterCustomerSelectionCoordinator(
+        uiState = _uiState,
+        scope = viewModelScope,
+        currentSession = { SessionManager.currentSession.value },
+        findSaleCustomerByPhone = findSaleCustomerByPhone,
+        findCouponCustomers = findCouponCustomers,
+        synchronizeFinancialSession = ::synchronizeFinancialSession,
+        financialContext = { financialContext },
+        financialSessionGeneration = { financialSessionGeneration },
+        isFinancialSessionCurrent = { context, session, generation, currentGeneration ->
+            shouldApplyFinancialResultToRegister(context, session, generation, currentGeneration)
+        }
+    )
+
     private val expenseSupportingDocumentCoordinator =
         RegisterExpenseSupportingDocumentCoordinator(
             uiState = _uiState,
@@ -732,86 +746,16 @@ class RegisterViewModel internal constructor(
         _uiState.value = _uiState.value.copy(draftState = updatedDraft)
     }
 
-    fun setSaleCustomerName(value: String) {
-        val s = _uiState.value
-        if (s.isExecuting || s.inFlightSaleCommand != null || s.inFlightOnlineSaleCommand != null) return
-        _uiState.value = s.copy(saleCustomerName = value)
-    }
+    fun setSaleCustomerName(value: String) =
+        customerSelectionCoordinator.setSaleCustomerName(value)
 
-    fun setSaleCustomerPhone(value: String) {
-        val s = _uiState.value
-        if (s.isExecuting || s.inFlightSaleCommand != null || s.inFlightOnlineSaleCommand != null) return
-        _uiState.value = s.copy(
-            saleCustomerPhone = value,
-            saleCustomerLookupLoading = false,
-            saleCustomerLookupResult = null,
-            saleCustomerLookupCompletedPhone = null
-        )
-    }
+    fun setSaleCustomerPhone(value: String) =
+        customerSelectionCoordinator.setSaleCustomerPhone(value)
 
-    fun lookupSaleCustomerByPhone(canonicalPhone: String) {
-        val session = SessionManager.currentSession.value ?: return
-        val phone = canonicalPhone.trim()
-        val s = _uiState.value
+    fun lookupSaleCustomerByPhone(canonicalPhone: String) =
+        customerSelectionCoordinator.lookupSaleCustomerByPhone(canonicalPhone)
 
-        if (s.isExecuting || s.inFlightSaleCommand != null || s.inFlightOnlineSaleCommand != null) return
-
-        if (phone.isBlank()) {
-            _uiState.value = s.copy(
-                saleCustomerLookupLoading = false,
-                saleCustomerLookupResult = null,
-                saleCustomerLookupCompletedPhone = null
-            )
-            return
-        }
-
-        _uiState.value = s.copy(
-            saleCustomerPhone = phone,
-            saleCustomerLookupLoading = true,
-            saleCustomerLookupResult = null,
-            saleCustomerLookupCompletedPhone = null
-        )
-
-        viewModelScope.launch {
-            try {
-                val customer = findSaleCustomerByPhone(session.business.id, phone)
-                val current = _uiState.value
-
-                if (current.saleCustomerPhone.trim() != phone) return@launch
-
-                _uiState.value = current.copy(
-                    saleCustomerLookupLoading = false,
-                    saleCustomerLookupResult = customer,
-                    saleCustomerLookupCompletedPhone = phone,
-                    saleCustomerName = customer?.name ?: current.saleCustomerName
-                )
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-
-                val current = _uiState.value
-                if (current.saleCustomerPhone.trim() != phone) return@launch
-
-                _uiState.value = current.copy(
-                    saleCustomerLookupLoading = false,
-                    saleCustomerLookupResult = null,
-                    saleCustomerLookupCompletedPhone = null,
-                    errorMessage = UiText.Dynamic(e.message ?: "Customer lookup failed")
-                )
-            }
-        }
-    }
-
-    fun clearSaleCustomer() {
-        val s = _uiState.value
-        if (s.isExecuting || s.inFlightSaleCommand != null || s.inFlightOnlineSaleCommand != null) return
-        _uiState.value = s.copy(
-            saleCustomerName = "",
-            saleCustomerPhone = "",
-            saleCustomerLookupLoading = false,
-            saleCustomerLookupResult = null,
-            saleCustomerLookupCompletedPhone = null
-        )
-    }
+    fun clearSaleCustomer() = customerSelectionCoordinator.clearSaleCustomer()
 
     // Payment Trigger: CASH
     fun executeCashSale() {
@@ -1174,28 +1118,8 @@ class RegisterViewModel internal constructor(
 
     }
 
-    fun searchCouponCustomers(query: String) {
-        if (_uiState.value.couponSearching || _uiState.value.isExecuting) return
-        val session = SessionManager.currentSession.value
-        if (synchronizeFinancialSession(session) || session == null) return
-        val generation = financialSessionGeneration
-        _uiState.value = _uiState.value.copy(couponSearching = true)
-        viewModelScope.launch {
-            try {
-                val customers = findCouponCustomers(query)
-                if (shouldApplyFinancialResultToRegister(financialContext, SessionManager.currentSession.value,
-                        generation, financialSessionGeneration) &&
-                        (_uiState.value.overlay is RegisterOverlay.Coupon ||
-                            _uiState.value.overlay == RegisterOverlay.CreditSale)) {
-                    _uiState.value = _uiState.value.copy(couponCustomers = customers, couponSearching = false)
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                if (generation == financialSessionGeneration) _uiState.value = _uiState.value.copy(
-                    couponSearching = false, errorMessage = UiText.Dynamic(e.message ?: "Customer search failed"))
-            }
-        }
-    }
+    fun searchCouponCustomers(query: String) =
+        customerSelectionCoordinator.searchCouponCustomers(query)
 
     fun confirmCouponRedemption(customer: CustomerEntity?, userId: String?, amount: String, remainder: PaymentCategory?) {
         val session = SessionManager.currentSession.value
@@ -1741,93 +1665,8 @@ class RegisterViewModel internal constructor(
     fun removeStagedExpenseSupportingDocument(sourceUri: String) =
         expenseSupportingDocumentCoordinator.removeStagedExpenseSupportingDocument(sourceUri)
 
-    fun lookupExpensePayeeByPhone(canonicalPhone: String?) {
-        val session = SessionManager.currentSession.value ?: return
-        val phone = canonicalPhone?.trim().orEmpty()
-        val state = _uiState.value
-
-        if (
-            state.overlay != RegisterOverlay.Expense ||
-            state.isExecuting ||
-            state.inFlightExpenseCommand != null
-        ) {
-            return
-        }
-
-        if (phone.isBlank()) {
-            _uiState.value =
-                state.copy(
-                    expensePayeeLookupLoading = false,
-                    expensePayeeLookupPhone = null,
-                    expensePayeeLookupResult = null
-                )
-            return
-        }
-
-        if (
-            state.expensePayeeLookupPhone == phone &&
-            !state.expensePayeeLookupLoading
-        ) {
-            return
-        }
-
-        _uiState.value =
-            state.copy(
-                expensePayeeLookupLoading = true,
-                expensePayeeLookupPhone = phone,
-                expensePayeeLookupResult = null
-            )
-
-        viewModelScope.launch {
-            try {
-                val customer =
-                    findSaleCustomerByPhone(
-                        session.business.id,
-                        phone
-                    )
-
-                val current = _uiState.value
-
-                if (
-                    current.overlay != RegisterOverlay.Expense ||
-                    current.expensePayeeLookupPhone != phone
-                ) {
-                    return@launch
-                }
-
-                _uiState.value =
-                    current.copy(
-                        expensePayeeLookupLoading = false,
-                        expensePayeeLookupResult = customer
-                    )
-            } catch (error: Exception) {
-                if (
-                    error is kotlinx.coroutines.CancellationException
-                ) {
-                    throw error
-                }
-
-                val current = _uiState.value
-
-                if (
-                    current.expensePayeeLookupPhone != phone
-                ) {
-                    return@launch
-                }
-
-                _uiState.value =
-                    current.copy(
-                        expensePayeeLookupLoading = false,
-                        expensePayeeLookupResult = null,
-                        errorMessage =
-                            UiText.Dynamic(
-                                error.message
-                                    ?: "Customer lookup failed."
-                            )
-                    )
-            }
-        }
-    }
+    fun lookupExpensePayeeByPhone(canonicalPhone: String?) =
+        customerSelectionCoordinator.lookupExpensePayeeByPhone(canonicalPhone)
     fun saveExpense(
         amountText: String,
         category: ExpenseCategory,
