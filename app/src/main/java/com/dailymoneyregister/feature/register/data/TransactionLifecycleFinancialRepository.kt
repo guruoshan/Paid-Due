@@ -21,6 +21,9 @@ import com.dailymoneyregister.core.command.CommandRequiresReconciliationExceptio
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.command.OperationCommand
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.dao.LedgerDao
+import com.dailymoneyregister.core.database.dao.OperationDao
+import com.dailymoneyregister.core.database.dao.TransactionDao
 import com.dailymoneyregister.core.device.DeviceIdentityProvider
 import com.dailymoneyregister.core.database.entity.CashShiftEntity
 import com.dailymoneyregister.core.database.entity.CashShiftEventEntity
@@ -78,6 +81,9 @@ import javax.inject.Inject
 internal class TransactionLifecycleFinancialRepository(
     private val database: DmrDatabase,
     private val commandExecutor: CommandExecutor,
+    private val operationDao: OperationDao,
+    private val transactionDao: TransactionDao,
+    private val ledgerDao: LedgerDao,
     private val authorizeFinancialMutation:
         suspend (
             actorUserId: String,
@@ -89,9 +95,6 @@ internal class TransactionLifecycleFinancialRepository(
     private val resolveFinancialCashShiftId:
         suspend (OperationCommand) -> String?
 ) {
-    private val operationDao = database.operationDao()
-    private val transactionDao = database.transactionDao()
-    private val ledgerDao = database.ledgerDao()
 
     suspend fun executePaymentMethodChange(
         command: PaymentMethodChangeCommand
