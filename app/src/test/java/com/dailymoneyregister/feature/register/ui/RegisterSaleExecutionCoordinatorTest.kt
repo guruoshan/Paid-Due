@@ -2,10 +2,13 @@ package com.dailymoneyregister.feature.register.ui
 
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.database.entity.BranchEntity
+import com.dailymoneyregister.core.database.entity.MediaAssetEntity
+import com.dailymoneyregister.core.database.entity.MerchantQrConfigEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.model.enums.AuthType
+import com.dailymoneyregister.core.model.enums.MediaType
 import com.dailymoneyregister.core.model.enums.TransactionType
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
@@ -236,13 +239,28 @@ class RegisterSaleExecutionCoordinatorTest {
         RegisterUiState(draftState = DraftState(manualAmount = MoneyMinorUnits(1_000)))
     )
 
-    private fun qr() = MerchantQrSelection(
-        id = "qr-1",
-        branchId = "branch-1",
-        label = "Merchant",
-        qrImageUrl = "https://example.com/qr.png",
-        isActive = true
-    )
+    private fun qr(): MerchantQrSelection {
+        val media = MediaAssetEntity(
+            id = "qr-media-1",
+            businessId = "business-1",
+            branchId = "branch-1",
+            mediaType = MediaType.MERCHANT_QR,
+            localReference = "/tmp/qr.png",
+            createdAt = 1L
+        )
+        val config = MerchantQrConfigEntity(
+            id = "qr-config-1",
+            businessId = "business-1",
+            branchId = "branch-1",
+            displayLabel = "Merchant",
+            bankAppName = "Bank",
+            mediaId = media.id,
+            isDefault = true,
+            isActive = true,
+            createdAt = 1L
+        )
+        return MerchantQrSelection(config, media)
+    }
 
     private fun transaction() = TransactionEntity(
         id = "sale-transaction-1",
