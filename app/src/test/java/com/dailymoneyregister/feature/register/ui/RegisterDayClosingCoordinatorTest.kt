@@ -105,13 +105,13 @@ class RegisterDayClosingCoordinatorTest {
             dayClosingActualCash = "12.345",
             dayClosingReview = true
         ))
-        var session = session()
+        var current = session()
         var closeCalls = 0
         val coordinator = coordinator(
             state, backgroundScope,
-            currentSession = { session },
+            currentSession = { current },
             count = {
-                session = session("branch-2")
+                current = session("branch-2")
                 CommandResult.Success(RegisterShiftResult(it.shiftId, it.branchId, it.actorUserId, 1L, true, it.countedCashMinor, 2L))
             },
             close = {
@@ -134,7 +134,7 @@ class RegisterDayClosingCoordinatorTest {
     private fun coordinator(
         state: MutableStateFlow<RegisterUiState>,
         scope: kotlinx.coroutines.CoroutineScope,
-        report: suspend () -> RegisterShiftReport? = { report() },
+        loadReport: suspend () -> RegisterShiftReport? = { report() },
         currentSession: () -> ActiveSession? = { session() },
         count: suspend (CountRegisterShiftCommand) -> CommandResult<RegisterShiftResult> = {
             CommandResult.Success(RegisterShiftResult(it.shiftId, it.branchId, it.actorUserId, 1L, true, it.countedCashMinor, 2L))
@@ -149,7 +149,7 @@ class RegisterDayClosingCoordinatorTest {
         synchronizeFinancialSession = { false },
         decimalPlaces = { 3 },
         deviceId = { "test-device" },
-        loadCurrentRegisterShiftReport = report,
+        loadCurrentRegisterShiftReport = loadReport,
         submitRegisterShiftCount = count,
         submitRegisterShiftClose = close
     )
