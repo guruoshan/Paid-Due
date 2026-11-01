@@ -129,11 +129,11 @@ internal class RefundFinancialRepository(
          * Only a NEW Refund operation consults current authorization.
          */
         authorizeFinancialMutation(
-            actorUserId = command.actorUserId,
-            businessId = command.businessId,
-            branchId = command.branchId,
-            action = PermissionAction.REFUND,
-            actionLabel = "Refund"
+            command.actorUserId,
+            command.businessId,
+            command.branchId,
+            PermissionAction.REFUND,
+            "Refund"
         )?.let { return it }
 
         /*
