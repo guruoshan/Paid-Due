@@ -25,7 +25,6 @@ import com.dailymoneyregister.core.device.DeviceIdentityProvider
 import com.dailymoneyregister.core.database.entity.CashShiftEntity
 import com.dailymoneyregister.core.database.entity.CashShiftEventEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
-import com.dailymoneyregister.core.database.entity.RefundEventEntity
 import com.dailymoneyregister.core.database.entity.PaymentMethodChangeEventEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
 import com.dailymoneyregister.core.database.entity.TransactionItemEntity
