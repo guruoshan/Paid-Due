@@ -135,7 +135,7 @@ internal class TransactionLifecycleFinancialRepository(
             return executeAdmittedPaymentMethodChange(durableCommand)
         }
 
-        authorizeNewFinancialMutation(
+        authorizeFinancialMutation(
             actorUserId = command.actorUserId,
             businessId = command.businessId,
             branchId = command.branchId,
@@ -644,7 +644,7 @@ internal class TransactionLifecycleFinancialRepository(
         /*
          * Only a NEW Void operation consults current authorization.
          */
-        authorizeNewFinancialMutation(
+        authorizeFinancialMutation(
             actorUserId = command.actorUserId,
             businessId = command.businessId,
             branchId = command.branchId,
