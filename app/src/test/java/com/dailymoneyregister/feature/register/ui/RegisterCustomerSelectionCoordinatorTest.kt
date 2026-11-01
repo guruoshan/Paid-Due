@@ -10,6 +10,7 @@ import com.dailymoneyregister.core.model.tax.TaxRoundingMode
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.feature.register.data.CouponSaleCustomerWallet
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -46,6 +47,7 @@ class RegisterCustomerSelectionCoordinatorTest {
         val older = CompletableDeferred<CustomerEntity?>()
         val newer = CompletableDeferred<CustomerEntity?>()
         val coordinator = coordinator(
+            scope = backgroundScope,
             findSaleCustomer = { _, phone ->
                 if (phone == "+96890000001") older.await() else newer.await()
             }
@@ -72,7 +74,7 @@ class RegisterCustomerSelectionCoordinatorTest {
     @Test
     fun clearSaleCustomerResetsAllCustomerLookupState() = runTest(dispatcher) {
         val pending = CompletableDeferred<CustomerEntity?>()
-        val coordinator = coordinator(findSaleCustomer = { _, _ -> pending.await() })
+        val coordinator = coordinator(scope = backgroundScope, findSaleCustomer = { _, _ -> pending.await() })
 
         coordinator.setSaleCustomerName("Existing name")
         coordinator.setSaleCustomerPhone("+96890000003")
@@ -115,6 +117,7 @@ class RegisterCustomerSelectionCoordinatorTest {
         var activeSession = sessionA
         var generation = 0L
         val coordinator = coordinator(
+            scope = backgroundScope,
             findCouponCustomers = { pending.await() },
             currentSession = { activeSession },
             financialSessionGeneration = { generation },
@@ -138,6 +141,7 @@ class RegisterCustomerSelectionCoordinatorTest {
     }
 
     private fun coordinator(
+        scope: CoroutineScope,
         findSaleCustomer: suspend (String, String) -> CustomerEntity? = { _, _ -> null },
         findCouponCustomers: suspend (String) -> List<CouponSaleCustomerWallet> = { emptyList() },
         currentSession: () -> ActiveSession? = { sessionA },
@@ -150,7 +154,7 @@ class RegisterCustomerSelectionCoordinatorTest {
         ) -> Boolean = { _, current, captured, latest -> current != null && captured == latest }
     ) = RegisterCustomerSelectionCoordinator(
         uiState = uiState,
-        scope = backgroundScope,
+        scope = scope,
         currentSession = currentSession,
         findSaleCustomerByPhone = findSaleCustomer,
         findCouponCustomers = findCouponCustomers,
