@@ -253,6 +253,9 @@ class RegisterRepository @Inject constructor(
         TransactionLifecycleFinancialRepository(
             database = database,
             commandExecutor = commandExecutor,
+            operationDao = operationDao,
+            transactionDao = transactionDao,
+            ledgerDao = ledgerDao,
             authorizeFinancialMutation = { actorUserId, businessId, branchId, action, actionLabel ->
                 authorizeNewFinancialMutation(
                     actorUserId = actorUserId,
