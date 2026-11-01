@@ -35,7 +35,7 @@ internal class CouponFinancialRepository(
             actionLabel: String
         ) -> CommandResult<Nothing>?,
     private val resolveFinancialCashShiftId:
-        suspend (OperationCommand) -> String,
+        suspend (OperationCommand) -> String?,
     private val saleFinancialWriter: SaleFinancialWriter
 ) {
     private val transactionDao = database.transactionDao()
