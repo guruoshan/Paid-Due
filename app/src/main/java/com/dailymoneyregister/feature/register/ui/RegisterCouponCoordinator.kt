@@ -2,7 +2,6 @@ package com.dailymoneyregister.feature.register.ui
 
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.database.entity.CustomerEntity
-import com.dailymoneyregister.core.model.enums.AuthorizedUserEventType
 import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.ids.IdGenerator
 import com.dailymoneyregister.core.model.ids.OperationId
@@ -63,7 +62,7 @@ internal class RegisterCouponCoordinator(
 
     fun openCouponRedemption() = openCoupon(CouponDialogStartMode.REDEMPTION)
 
-private fun openCoupon(startMode: CouponDialogStartMode) {
+    private fun openCoupon(startMode: CouponDialogStartMode) {
         val session = currentSession()
         if (synchronizeFinancialSession(session) || session == null || uiState.value.isExecuting) return
         if (uiState.value.lastCompletedTransaction != null) return
@@ -85,9 +84,9 @@ private fun openCoupon(startMode: CouponDialogStartMode) {
                 // Cash remains available; an online purchase requires the configured QR.
             }
         }
-    }
+        }
 
-fun closeCouponSale() {
+    fun closeCouponSale() {
         val s = uiState.value
 
         if (
@@ -113,9 +112,9 @@ fun closeCouponSale() {
                 onlineQr = null,
                 errorMessage = null
             )
-    }
+        }
 
-fun openCouponWallet(customerId: String, showDialog: Boolean = true) {
+    fun openCouponWallet(customerId: String, showDialog: Boolean = true) {
         val session = currentSession()
         if (synchronizeFinancialSession(session) || session == null || uiState.value.couponWalletLoading) return
         uiState.value = uiState.value.copy(
@@ -138,18 +137,18 @@ fun openCouponWallet(customerId: String, showDialog: Boolean = true) {
                     couponWalletLoading = false, errorMessage = UiText.Dynamic(e.message ?: "Could not load coupon wallet"))
             }
         }
-    }
+        }
 
-fun closeCouponWallet() {
+    fun closeCouponWallet() {
         if (uiState.value.isExecuting || uiState.value.inFlightCouponUserCommand != null) return
         uiState.value = uiState.value.copy(
             overlay = if (uiState.value.overlay == RegisterOverlay.CouponWallet) null else uiState.value.overlay,
             couponWalletDetails = null,
             couponWalletLoading = false
         )
-    }
+        }
 
-fun saveCouponUser(userId: String?, name: String, deactivate: Boolean = false) {
+    fun saveCouponUser(userId: String?, name: String, deactivate: Boolean = false) {
         val session = currentSession()
         if (synchronizeFinancialSession(session) || session == null || uiState.value.isExecuting) return
         val s = uiState.value
@@ -186,9 +185,9 @@ fun saveCouponUser(userId: String?, name: String, deactivate: Boolean = false) {
                     errorMessage = UiText.Dynamic(result.exception.message ?: "Authorization failed"))
             }
         }
-    }
+        }
 
-fun confirmCouponRedemption(customer: CustomerEntity?, userId: String?, amount: String, remainder: PaymentCategory?) {
+    fun confirmCouponRedemption(customer: CustomerEntity?, userId: String?, amount: String, remainder: PaymentCategory?) {
         val session = currentSession()
         if (synchronizeFinancialSession(session) || session == null) return
         val s = uiState.value
@@ -233,9 +232,9 @@ fun confirmCouponRedemption(customer: CustomerEntity?, userId: String?, amount: 
                     errorMessage = UiText.Dynamic(result.exception.message ?: "Coupon redemption failed; retry the same request"))
             }
         }
-    }
+        }
 
-fun confirmCouponSale(customer: CustomerEntity?, name: String, phone: String, amount: String,
+    fun confirmCouponSale(customer: CustomerEntity?, name: String, phone: String, amount: String,
                           funding: PaymentCategory, additionalUsers: List<String>) {
         val session = currentSession()
         if (synchronizeFinancialSession(session) || session == null) return
@@ -315,9 +314,9 @@ fun confirmCouponSale(customer: CustomerEntity?, name: String, phone: String, am
                     errorMessage = UiText.Dynamic(result.exception.message ?: "Coupon Sale failed. Retry the same purchase."))
             }
         }
-    }
+        }
 
-fun confirmCouponTopUp(customer: CustomerEntity, walletId: String, amount: String, funding: PaymentCategory) {
+    fun confirmCouponTopUp(customer: CustomerEntity, walletId: String, amount: String, funding: PaymentCategory) {
         val session = currentSession()
         if (synchronizeFinancialSession(session) || session == null) return
         val s = uiState.value
@@ -396,5 +395,5 @@ fun confirmCouponTopUp(customer: CustomerEntity, walletId: String, amount: Strin
                     errorMessage = UiText.Dynamic(result.exception.message ?: "Coupon Top Up failed. Retry the same top up."))
             }
         }
-    }
+        }
 }

@@ -41,7 +41,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class RegisterCouponCoordinatorTest {
     @Test
-    fun \`open and close preserve the selected coupon entry mode\`() = runTest {
+    fun `open and close preserve the selected coupon entry mode`() = runTest {
         val qr = qrSelection()
         val state = MutableStateFlow(RegisterUiState())
         val coordinator = coordinator(state, backgroundScope, loadQr = { qr })
@@ -58,7 +58,7 @@ class RegisterCouponCoordinatorTest {
     }
 
     @Test
-    fun \`uncertain coupon sale retry reuses the exact command and blocks dismissal\`() = runTest {
+    fun `uncertain coupon sale retry reuses the exact command and blocks dismissal`() = runTest {
         val state = MutableStateFlow(RegisterUiState(overlay = RegisterOverlay.Coupon(CouponDialogStartMode.ENTRY)))
         val firstAttempt = CompletableDeferred<CommandResult<CouponSaleResult>>()
         val submitted = mutableListOf<CouponSaleCommand>()
@@ -95,7 +95,39 @@ class RegisterCouponCoordinatorTest {
     }
 
     @Test
-    fun \`redemption freezes selected authorised user and partial remainder funding\`() = runTest {
+    fun `successful coupon sale refreshes the wallet projection after authoritative submission`() = runTest {
+        val customer = customer()
+        val refreshed = walletDetails(customer)
+        val state = MutableStateFlow(RegisterUiState(overlay = RegisterOverlay.Coupon(CouponDialogStartMode.ENTRY)))
+        var submitted: CouponSaleCommand? = null
+        val coordinator = coordinator(
+            state,
+            backgroundScope,
+            loadWallet = { customerId, currency ->
+                assertEquals(customer.id, customerId)
+                assertEquals("OMR", currency)
+                refreshed
+            },
+            submitSale = { command ->
+                submitted = command
+                CommandResult.Success(CouponSaleResult(transaction(command), "wallet-1", command.amountMinor))
+            }
+        )
+
+        coordinator.confirmCouponSale(customer, "", "", "5.000", PaymentCategory.CASH, listOf("Family"))
+        runCurrent()
+
+        assertNotNull(submitted)
+        assertEquals(customer.id, submitted!!.customerId)
+        assertEquals(listOf("Family"), submitted!!.additionalUserNames)
+        assertEquals(5_000L, state.value.couponSaleResult?.purchasedAmountMinor)
+        assertEquals(refreshed, state.value.couponWalletDetails)
+        assertNull(state.value.inFlightCouponSaleCommand)
+        assertFalse(state.value.isExecuting)
+    }
+
+    @Test
+    fun `redemption freezes selected authorised user and partial remainder funding`() = runTest {
         val customer = customer()
         val details = walletDetails(customer)
         val state = MutableStateFlow(
@@ -129,7 +161,7 @@ class RegisterCouponCoordinatorTest {
     }
 
     @Test
-    fun \`wallet authorisation retains the existing event semantics\`() = runTest {
+    fun `wallet authorisation retains the existing event semantics`() = runTest {
         val customer = customer()
         val details = walletDetails(customer)
         val state = MutableStateFlow(RegisterUiState(couponWalletDetails = details))
@@ -155,7 +187,7 @@ class RegisterCouponCoordinatorTest {
     }
 
     @Test
-    fun \`top up applies the authoritative result and refreshes wallet projection\`() = runTest {
+    fun `top up applies the authoritative result and refreshes wallet projection`() = runTest {
         val customer = customer()
         val refreshed = walletDetails(customer)
         val state = MutableStateFlow(RegisterUiState(overlay = RegisterOverlay.Coupon(CouponDialogStartMode.ENTRY)))
@@ -184,7 +216,7 @@ class RegisterCouponCoordinatorTest {
     }
 
     @Test
-    fun \`wallet load uses the current branch and clears loading after success\`() = runTest {
+    fun `wallet load uses the current branch and clears loading after success`() = runTest {
         val customer = customer()
         val details = walletDetails(customer)
         var requestedCurrency: String? = null
@@ -317,6 +349,27 @@ class RegisterCouponCoordinatorTest {
             localReference = "qr.png",
             createdAt = 1L
         )
+    )
+
+    private fun transaction(command: CouponSaleCommand) = TransactionEntity(
+        id = command.transactionIdVal.value,
+        branchId = command.branchId,
+        type = TransactionType.COUPON_PURCHASE,
+        customerId = command.customerId,
+        subtotalMinor = command.amountMinor,
+        taxRateBps = 0,
+        taxableBaseMinor = command.amountMinor,
+        taxAmountMinor = 0,
+        txShippingMinor = 0,
+        txPackingMinor = 0,
+        grandTotalMinor = command.amountMinor,
+        currencyCode = command.currencyCode,
+        currencyDecimalPlaces = command.currencyDecimalPlaces,
+        createdByUserId = command.actorUserId,
+        deviceId = command.deviceId,
+        createdAt = command.occurredAt,
+        description = "Coupon Sale",
+        displayRef = "CPN-sale-test"
     )
 
     private fun transaction(command: CouponTopUpCommand) = TransactionEntity(
