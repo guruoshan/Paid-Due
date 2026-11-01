@@ -136,11 +136,11 @@ internal class TransactionLifecycleFinancialRepository(
         }
 
         authorizeFinancialMutation(
-            actorUserId = command.actorUserId,
-            businessId = command.businessId,
-            branchId = command.branchId,
-            action = PermissionAction.CHANGE_PAYMENT_METHOD,
-            actionLabel = "Payment Method Change"
+            command.actorUserId,
+            command.businessId,
+            command.branchId,
+            PermissionAction.CHANGE_PAYMENT_METHOD,
+            "Payment Method Change"
         )?.let { return it }
 
         val admittedCommand = try {
@@ -645,11 +645,11 @@ internal class TransactionLifecycleFinancialRepository(
          * Only a NEW Void operation consults current authorization.
          */
         authorizeFinancialMutation(
-            actorUserId = command.actorUserId,
-            businessId = command.businessId,
-            branchId = command.branchId,
-            action = PermissionAction.VOID,
-            actionLabel = "Void"
+            command.actorUserId,
+            command.businessId,
+            command.branchId,
+            PermissionAction.VOID,
+            "Void"
         )?.let { return it }
 
         /*
