@@ -61,7 +61,6 @@ import com.dailymoneyregister.core.database.entity.ProductEntity
 import com.dailymoneyregister.feature.settings.data.MerchantQrSelection
 import com.dailymoneyregister.feature.register.domain.CalculatorEngine
 import com.dailymoneyregister.feature.register.domain.CalculatorState
-import com.dailymoneyregister.feature.register.domain.DraftItem
 import com.dailymoneyregister.feature.register.domain.DraftState
 import com.dailymoneyregister.feature.register.domain.KeypadKey
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -74,7 +73,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-import com.dailymoneyregister.core.model.tax.TaxRateParser
 import com.dailymoneyregister.feature.register.data.RegisterShiftReport
 import com.dailymoneyregister.feature.register.data.RegisterShiftCloseReportSnapshot
 import com.dailymoneyregister.feature.register.data.RegisterShiftResult
@@ -152,13 +150,6 @@ data class RegisterUiState(
     val inFlightShiftCloseCommand: CloseRegisterShiftCommand? = null,
     val errorMessage: UiText? = null,
     val infoMessage: UiText? = null
-)
-
-internal fun clearedRegisterDraft(branch: BranchEntity?): DraftState = DraftState(
-    taxRateBps = 0,
-    isTaxEnabled = false,
-    taxRoundingMode = branch?.taxRoundingMode
-        ?: com.dailymoneyregister.core.model.tax.TaxRoundingMode.HALF_UP
 )
 
 @HiltViewModel
@@ -303,6 +294,10 @@ class RegisterViewModel internal constructor(
     )
     val uiState: StateFlow<RegisterUiState> = _uiState.asStateFlow()
 
+    private val draftCompositionCoordinator = RegisterDraftCompositionCoordinator(
+        uiState = _uiState
+    )
+
     private val customerSelectionCoordinator = RegisterCustomerSelectionCoordinator(
         uiState = _uiState,
         scope = viewModelScope,
@@ -421,24 +416,12 @@ class RegisterViewModel internal constructor(
     // Keypad Handler
     fun onKeypadPress(key: KeypadKey) {
         val sessionChanged = synchronizeFinancialSession(SessionManager.currentSession.value)
-        val nextCalcState = calculatorEngine.processKey(_uiState.value.calculatorState, key)
-        val nextDraftState = _uiState.value.draftState.copy(
-            manualAmount = nextCalcState.evaluatedAmount
-        )
-        _uiState.value = _uiState.value.copy(
-            calculatorState = nextCalcState,
-            draftState = nextDraftState,
-            errorMessage = null,
-            infoMessage = if (sessionChanged) _uiState.value.infoMessage else null
-        )
+        draftCompositionCoordinator.onKeypadPress(key, calculatorEngine::processKey, sessionChanged)
     }
 
     fun onManualDescriptionChanged(desc: String) {
         synchronizeFinancialSession(SessionManager.currentSession.value)
-        _uiState.value = _uiState.value.copy(
-            manualDescription = desc,
-            draftState = _uiState.value.draftState.copy(manualDescription = desc.ifBlank { null })
-        )
+        draftCompositionCoordinator.onManualDescriptionChanged(desc)
     }
 
     fun openHistory() {
@@ -472,10 +455,7 @@ class RegisterViewModel internal constructor(
         if (isOpen) {
             setOverlay(RegisterOverlay.AddItem(current == RegisterOverlay.ItemizedBill))
         } else if (current is RegisterOverlay.AddItem) {
-            _uiState.value = _uiState.value.copy(
-                overlay = current.afterChildClosed(),
-                editingItemId = null
-            )
+            draftCompositionCoordinator.closeAddItemDialog(current)
         }
     }
 
@@ -579,46 +559,23 @@ class RegisterViewModel internal constructor(
     fun clearDraft() {
         val sessionSnapshot = SessionManager.currentSession.value
         if (synchronizeFinancialSession(sessionSnapshot)) return
-        val branch = sessionSnapshot?.branch
-        _uiState.value = RegisterUiState(
-            calculatorState = CalculatorState(),
-            draftState = clearedRegisterDraft(branch),
-            isRecentTransactionsExpanded = _uiState.value.isRecentTransactionsExpanded
-        )
+        draftCompositionCoordinator.clearDraft(sessionSnapshot?.branch)
     }
 
-    // Tax Configuration
+    // Tax and shipping configuration remain guarded by RegisterViewModel's session owner.
     fun setTaxEnabled(enabled: Boolean) {
         synchronizeFinancialSession(SessionManager.currentSession.value)
-        val updatedDraft = _uiState.value.draftState.copy(isTaxEnabled = enabled)
-        _uiState.value = _uiState.value.copy(draftState = updatedDraft)
+        draftCompositionCoordinator.setTaxEnabled(enabled)
     }
 
     fun updateTaxRatePercent(percentStr: String) {
         synchronizeFinancialSession(SessionManager.currentSession.value)
-        val bps = TaxRateParser.parseToBpsOrNull(percentStr) ?: return
-        val updatedDraft = _uiState.value.draftState.copy(
-            taxRateBps = bps,
-            isTaxEnabled = bps > 0
-        )
-        _uiState.value = _uiState.value.copy(draftState = updatedDraft)
+        draftCompositionCoordinator.updateTaxRatePercent(percentStr)
     }
 
-    // Shipping & Packing Configuration
     fun updateTxShippingPacking(shippingText: String, packingText: String) {
         synchronizeFinancialSession(SessionManager.currentSession.value)
-        val shipping = MoneyMinorUnits.parse(shippingText, decimalPlaces).getOrElse { return }
-        val packing = MoneyMinorUnits.parse(packingText, decimalPlaces).getOrElse { return }
-        if (shipping.isNegative || packing.isNegative) return
-
-        val updatedDraft = _uiState.value.draftState.copy(
-            txShipping = shipping,
-            txPacking = packing
-        )
-        _uiState.value = _uiState.value.copy(
-            draftState = updatedDraft,
-            overlay = _uiState.value.overlay.afterChildClosed()
-        )
+        draftCompositionCoordinator.updateTxShippingPacking(shippingText, packingText, decimalPlaces)
     }
 
     // Itemized Bill Operations
@@ -631,40 +588,12 @@ class RegisterViewModel internal constructor(
         shippingText: String = "0"
     ) {
         synchronizeFinancialSession(SessionManager.currentSession.value)
-        if (name.isBlank() || quantity <= 0) return
-        val unitPrice = MoneyMinorUnits.parse(priceText, decimalPlaces).getOrElse { return }
-        val packing = MoneyMinorUnits.parse(packingText, decimalPlaces).getOrElse { return }
-        val shipping = MoneyMinorUnits.parse(shippingText, decimalPlaces).getOrElse { return }
-        if (unitPrice.isNegative || packing.isNegative || shipping.isNegative) return
-
-        val newItem = DraftItem(
-            id = IdGenerator.newId(),
-            name = name.trim(),
-            description = description?.trim()?.ifBlank { null },
-            unitPrice = unitPrice,
-            quantity = quantity,
-            itemPackingCharge = packing,
-            itemShippingCharge = shipping
+        draftCompositionCoordinator.addItem(
+            name, priceText, quantity, description, packingText, shippingText,
+            decimalPlaces, ::rememberProduct
         )
-
-        val currentItems = _uiState.value.draftState.items.toMutableList()
-        currentItems.add(newItem)
-
-        val updatedDraft = _uiState.value.draftState.copy(items = currentItems)
-        _uiState.value = _uiState.value.copy(
-            draftState = updatedDraft,
-            overlay = _uiState.value.overlay.afterChildClosed(),
-            editingItemId = null
-        )
-
-        rememberProduct(newItem.name, newItem.description, unitPrice.amount)
     }
 
-    /**
-     * Replaces an existing draft item in place (name/price/qty/description),
-     * as opposed to addItem() which always appends a new one. Used when the
-     * cashier reopens an already-added item to correct it.
-     */
     fun editItem(
         itemId: String,
         name: String,
@@ -673,45 +602,14 @@ class RegisterViewModel internal constructor(
         description: String? = null
     ) {
         synchronizeFinancialSession(SessionManager.currentSession.value)
-        if (name.isBlank() || quantity <= 0) return
-        val unitPrice = MoneyMinorUnits.parse(priceText, decimalPlaces).getOrElse { return }
-        if (unitPrice.isNegative) return
-
-        val currentItems = _uiState.value.draftState.items.map { item ->
-            if (item.id == itemId) {
-                item.copy(
-                    name = name.trim(),
-                    description = description?.trim()?.ifBlank { null },
-                    unitPrice = unitPrice,
-                    quantity = quantity
-                )
-            } else {
-                item
-            }
-        }
-
-        val updatedDraft = _uiState.value.draftState.copy(items = currentItems)
-        _uiState.value = _uiState.value.copy(
-            draftState = updatedDraft,
-            overlay = _uiState.value.overlay.afterChildClosed(),
-            editingItemId = null
-        )
-
-        rememberProduct(name.trim(), description?.trim()?.ifBlank { null }, unitPrice.amount)
-    }
-
-    /** Opens Add Item pre-filled with an existing item's values for editing. */
-    fun startEditingItem(itemId: String) {
-        val returnToItemized = _uiState.value.overlay == RegisterOverlay.ItemizedBill
-        _uiState.value = _uiState.value.copy(
-            editingItemId = itemId,
-            overlay = RegisterOverlay.AddItem(returnToItemized)
+        draftCompositionCoordinator.editItem(
+            itemId, name, priceText, quantity, description, decimalPlaces, ::rememberProduct
         )
     }
 
-    fun cancelEditingItem() {
-        _uiState.value = _uiState.value.copy(editingItemId = null)
-    }
+    fun startEditingItem(itemId: String) = draftCompositionCoordinator.startEditingItem(itemId)
+
+    fun cancelEditingItem() = draftCompositionCoordinator.cancelEditingItem()
 
     private fun rememberProduct(name: String, description: String?, unitPriceMinor: Long) {
         val branchId = SessionManager.activeBranch?.id ?: return
@@ -728,9 +626,7 @@ class RegisterViewModel internal constructor(
 
     fun removeItem(itemId: String) {
         synchronizeFinancialSession(SessionManager.currentSession.value)
-        val currentItems = _uiState.value.draftState.items.filterNot { it.id == itemId }
-        val updatedDraft = _uiState.value.draftState.copy(items = currentItems)
-        _uiState.value = _uiState.value.copy(draftState = updatedDraft)
+        draftCompositionCoordinator.removeItem(itemId)
     }
 
     fun updateItemQuantity(itemId: String, newQty: Int) {
@@ -739,11 +635,7 @@ class RegisterViewModel internal constructor(
             removeItem(itemId)
             return
         }
-        val currentItems = _uiState.value.draftState.items.map { item ->
-            if (item.id == itemId) item.copy(quantity = newQty) else item
-        }
-        val updatedDraft = _uiState.value.draftState.copy(items = currentItems)
-        _uiState.value = _uiState.value.copy(draftState = updatedDraft)
+        draftCompositionCoordinator.updateItemQuantity(itemId, newQty)
     }
 
     fun setSaleCustomerName(value: String) =
