@@ -3,7 +3,6 @@ package com.dailymoneyregister.feature.register.ui
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
 import com.dailymoneyregister.core.security.ActiveSession
-import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.ui.UiText
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.feature.register.data.ExpenseCategory
