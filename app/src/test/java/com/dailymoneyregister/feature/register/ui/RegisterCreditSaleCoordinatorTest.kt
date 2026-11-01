@@ -8,7 +8,6 @@ import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.TransactionType
 import com.dailymoneyregister.core.model.enums.UserRole
-import com.dailymoneyregister.core.model.ids.OperationId
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.ui.UiText
