@@ -310,6 +310,21 @@ class RegisterViewModel internal constructor(
         }
     )
 
+    private val creditSaleCoordinator = RegisterCreditSaleCoordinator(
+        uiState = _uiState,
+        scope = viewModelScope,
+        currentSession = { SessionManager.currentSession.value },
+        synchronizeFinancialSession = ::synchronizeFinancialSession,
+        financialContext = { financialContext },
+        financialSessionGeneration = { financialSessionGeneration },
+        isFinancialSessionCurrent = { context, session, generation, currentGeneration ->
+            shouldApplyFinancialResultToRegister(context, session, generation, currentGeneration)
+        },
+        deviceId = deviceId,
+        submitCreditSale = submitCreditSale,
+        loadCreditInvoice = loadCreditInvoice
+    )
+
     private val expenseSupportingDocumentCoordinator =
         RegisterExpenseSupportingDocumentCoordinator(
             uiState = _uiState,
@@ -963,67 +978,9 @@ class RegisterViewModel internal constructor(
         }
     }
 
-    fun openCreditSale() {
+    fun openCreditSale() = creditSaleCoordinator.openCreditSale()
 
-        val state = _uiState.value
-
-
-        if (state.isExecuting) {
-
-            return
-
-        }
-
-
-        if (state.draftState.grandTotal.amount <= 0L) {
-
-            _uiState.value = state.copy(
-
-                errorMessage = UiText.Dynamic(
-
-                    "Enter a sale amount before selecting Credit."
-
-                )
-
-            )
-
-            return
-
-        }
-
-
-        _uiState.value = state.copy(
-
-            overlay = RegisterOverlay.CreditSale,
-
-            errorMessage = null
-
-        )
-
-    }
-
-
-    fun closeCreditSale() {
-
-        val state = _uiState.value
-
-
-        if (state.overlay != RegisterOverlay.CreditSale || state.isExecuting) {
-
-            return
-
-        }
-
-
-        _uiState.value = state.copy(
-
-            overlay = null,
-
-            errorMessage = null
-
-        )
-
-    }
+    fun closeCreditSale() = creditSaleCoordinator.closeCreditSale()
 
     fun searchCouponCustomers(query: String) =
         customerSelectionCoordinator.searchCouponCustomers(query)
@@ -1076,209 +1033,12 @@ class RegisterViewModel internal constructor(
     }
 
     fun confirmCreditSale(
-        customer: com.dailymoneyregister.core.database.entity.CustomerEntity?,
+        customer: CustomerEntity?,
         name: String,
         phone: String
-    ) {
-        val sessionSnapshot = SessionManager.currentSession.value
-        val sessionChanged =
-            synchronizeFinancialSession(sessionSnapshot)
-    
-        val s = _uiState.value
-    
-        if (
-            sessionSnapshot == null ||
-            sessionChanged ||
-            s.overlay != RegisterOverlay.CreditSale ||
-            s.isExecuting ||
-            s.lastCompletedTransaction != null
-        ) return
-    
-        if (!s.draftState.grandTotal.isPositive) {
-            _uiState.value =
-                s.copy(
-                    errorMessage =
-                        UiText.Dynamic(
-                            "Enter a sale amount before confirming Credit."
-                        )
-                )
-            return
-        }
-    
-        val resolvedName =
-            customer?.name
-                ?.trim()
-                ?.takeIf { it.isNotEmpty() }
-                ?: name.trim()
-    
-        val resolvedPhone =
-            customer?.canonicalPhone
-                ?.trim()
-                ?.takeIf { it.isNotEmpty() }
-                ?: phone.trim()
-    
-        if (
-            resolvedName.isBlank() ||
-            resolvedPhone.isBlank()
-        ) {
-            _uiState.value =
-                s.copy(
-                    errorMessage =
-                        UiText.Dynamic(
-                            "Customer name and phone number are required."
-                        )
-                )
-            return
-        }
-    
-        val command =
-            s.inFlightCreditSaleCommand
-                ?: CreditSaleCommand(
-                    operationId = OperationId.generate(),
-                    businessId = sessionSnapshot.business.id,
-                    branchId = sessionSnapshot.branch.id,
-                    actorUserId = sessionSnapshot.user.id,
-                    transactionIdVal = TransactionId.generate(),
-                    customerPhone = resolvedPhone,
-                    customerName = resolvedName,
-                    draftState = s.draftState,
-                    currencyCode =
-                        sessionSnapshot.branch.currencyCode,
-                    currencyDecimalPlaces =
-                        sessionSnapshot.branch.currencyDecimalPlaces,
-                    deviceId = deviceId(),
-                    occurredAt = System.currentTimeMillis()
-                )
-    
-        val executionContext =
-            financialContext
-    
-        val executionGeneration =
-            financialSessionGeneration
-    
-        _uiState.value =
-            s.copy(
-                isExecuting = true,
-                inFlightCreditSaleCommand = command,
-                errorMessage = null,
-                infoMessage = null
-            )
-    
-        viewModelScope.launch {
-            val result =
-                try {
-                    submitCreditSale(command)
-                } catch (error: Exception) {
-                    if (
-                        error is kotlinx.coroutines.CancellationException
-                    ) throw error
-    
-                    CommandResult.Error(error)
-                }
-    
-            if (
-                !shouldApplyFinancialResultToRegister(
-                    executionContext,
-                    SessionManager.currentSession.value,
-                    executionGeneration,
-                    financialSessionGeneration
-                )
-            ) return@launch
-    
-            when (result) {
-                is CommandResult.Success -> {
-                    val invoice =
-                        try {
-                            loadCreditInvoice(command)
-                        } catch (error: Exception) {
-                            if (
-                                error is kotlinx.coroutines.CancellationException
-                            ) {
-                                throw error
-                            }
+    ) = creditSaleCoordinator.confirmCreditSale(customer, name, phone)
 
-                            // Sale is already authoritative and saved.
-                            // Sharing failure must never alter it.
-                            null
-                        }
-                    _uiState.value =
-                        _uiState.value.copy(
-                            isExecuting = false,
-                            overlay = null,
-                            inFlightCreditSaleCommand = null,
-                            couponCustomers = emptyList(),
-                            couponSearching = false,
-
-                            // Communication-only metadata.
-                            // Populated only after authoritative Credit success.
-                            creditSaleShareName =
-                                command.customerName,
-                            creditSaleSharePhone =
-                                command.customerPhone,
-                            creditInvoicePurchaseOccurredAt =
-                                invoice?.purchaseOccurredAt,
-                            creditInvoiceGivenMinor =
-                                invoice?.creditGivenMinor,
-                            creditInvoicePurchaseOutstandingMinor =
-                                invoice?.purchaseOutstandingMinor,
-                            creditInvoiceTotalOutstandingMinor =
-                                invoice?.totalOutstandingMinor,
-                            creditInvoiceCurrencyCode =
-                                invoice?.currencyCode,
-                            creditInvoiceDecimalPlaces =
-                                invoice?.currencyDecimalPlaces,
-
-                            lastCompletedTransaction =
-                                result.data,
-                            errorMessage = null
-                        )
-                }
-    
-                is CommandResult.PermissionDenied -> {
-                    _uiState.value =
-                        _uiState.value.copy(
-                            isExecuting = false,
-                            inFlightCreditSaleCommand = null,
-                            errorMessage =
-                                UiText.Dynamic(
-                                    result.message
-                                )
-                        )
-                }
-    
-                is CommandResult.Conflict -> {
-                    _uiState.value =
-                        _uiState.value.copy(
-                            isExecuting = false,
-                            errorMessage =
-                                UiText.Dynamic(
-                                    result.message
-                                )
-                        )
-                }
-    
-                is CommandResult.Error -> {
-                    _uiState.value =
-                        _uiState.value.copy(
-                            isExecuting = false,
-    
-                            // Preserve the same durable command on
-                            // uncertain failure so retry remains
-                            // idempotent.
-                            inFlightCreditSaleCommand =
-                                command,
-    
-                            errorMessage =
-                                UiText.Dynamic(
-                                    result.exception.message
-                                        ?: "Credit sale failed. Retry the same sale."
-                                )
-                        )
-                }
-            }
-        }
-    }
-        fun confirmCouponSale(customer: CustomerEntity?, name: String, phone: String, amount: String,
+    fun confirmCouponSale(customer: CustomerEntity?, name: String, phone: String, amount: String,
                           funding: PaymentCategory, additionalUsers: List<String>) {
         val session = SessionManager.currentSession.value
         if (synchronizeFinancialSession(session) || session == null) return
