@@ -28,7 +28,6 @@ import com.dailymoneyregister.feature.register.data.ExpenseCategory
 import com.dailymoneyregister.feature.register.data.ExpenseCommand
 import com.dailymoneyregister.feature.register.data.ExpenseCommandFactory
 import com.dailymoneyregister.feature.register.data.ExpenseCommandResult
-import com.dailymoneyregister.feature.register.data.ExpenseLifecycleCommand
 import com.dailymoneyregister.feature.register.data.CouponSaleResult
 import com.dailymoneyregister.feature.register.data.CouponSaleCustomerWallet
 import com.dailymoneyregister.feature.register.data.CouponTopUpCommand
