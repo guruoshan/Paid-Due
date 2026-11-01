@@ -98,7 +98,7 @@ class RegisterCustomerSelectionCoordinatorTest {
     @Test
     fun expensePayeeResultIsIgnoredAfterOverlayClosure() = runTest(dispatcher) {
         val pending = CompletableDeferred<CustomerEntity?>()
-        val coordinator = coordinator(findSaleCustomer = { _, _ -> pending.await() })
+        val coordinator = coordinator(scope = backgroundScope, findSaleCustomer = { _, _ -> pending.await() })
         uiState.value = uiState.value.copy(overlay = RegisterOverlay.Expense)
 
         coordinator.lookupExpensePayeeByPhone("+96890000004")
