@@ -262,22 +262,6 @@ class RegisterViewModel internal constructor(
     internal var financialSessionGeneration: Long = 0
         private set
 
-    /*
-     * UI-only request generation.
-     *
-     * This is not durable financial state. It prevents an older asynchronous
-     * Transaction Details read from reopening or overwriting a newer/closed view.
-     */
-    private var transactionDetailsRequestGeneration: Long = 0
-
-    /*
-     * UI-only generation for the read-only Expense Details projection.
-     *
-     * It prevents a stale asynchronous Expense read from reopening after
-     * the user closes the screen or changes financial session.
-     */
-    private var expenseDetailsRequestGeneration: Long = 0
-
     val activeBusiness: BusinessEntity? get() = SessionManager.activeBusiness
     val activeBranch: BranchEntity? get() = SessionManager.activeBranch
     val activeUser: UserAccountEntity? get() = SessionManager.activeUser
@@ -328,6 +312,21 @@ class RegisterViewModel internal constructor(
             attachSupportingDocument = attachExpenseSupportingDocument
         )
 
+    private val detailsSessionCoordinator = RegisterDetailsSessionCoordinator(
+        uiState = _uiState,
+        scope = viewModelScope,
+        loadExpenseDetails = loadExpenseDetails,
+        loadTransactionDetails = loadTransactionDetails,
+        isFinancialSessionCurrent = { context, generation ->
+            shouldApplyFinancialResultToRegister(
+                context,
+                SessionManager.currentSession.value,
+                generation,
+                financialSessionGeneration
+            )
+        }
+    )
+
     val recentTransactions: StateFlow<List<RecentFinancialActivity>> =
         observeRecentForSession(SessionManager.currentSession) { branchId, timezoneId ->
             observeToday(
@@ -355,8 +354,7 @@ class RegisterViewModel internal constructor(
         if (nextContext == financialContext) return false
         financialContext = nextContext
         financialSessionGeneration++
-        transactionDetailsRequestGeneration++
-        expenseDetailsRequestGeneration++
+        detailsSessionCoordinator.invalidateForFinancialSessionChange()
         calculatorEngine = CalculatorEngine(decimalPlaces)
         _uiState.value = resetRegisterUiStateForSession(_uiState.value, sessionSnapshot).copy(
             transactionDetailsLoading = false,
@@ -393,14 +391,7 @@ class RegisterViewModel internal constructor(
     }
 
     fun openHistory() {
-        _uiState.value = _uiState.value.copy(
-            destination = RegisterDestination.History,
-            overlay = null,
-            transactionDetailsLoading = false,
-            transactionDetails = null,
-            expenseDetailsLoading = false,
-            expenseDetails = null
-        )
+        detailsSessionCoordinator.openHistory()
     }
 
     fun closeHistory() {
@@ -458,88 +449,17 @@ class RegisterViewModel internal constructor(
      */
     fun openExpenseDetails(expenseId: String) {
         if (expenseId.isBlank()) return
-
-        val session =
-            SessionManager.currentSession.value
-
+        val session = SessionManager.currentSession.value
         if (
             synchronizeFinancialSession(session) ||
             session == null ||
             _uiState.value.expenseDetailsLoading
-        ) {
-            return
-        }
-
-        val context =
-            financialContext
-
-        val financialGeneration =
-            financialSessionGeneration
-
-        expenseDetailsRequestGeneration++
-
-        val requestGeneration =
-            expenseDetailsRequestGeneration
-
-        val origin = _uiState.value.destination.detailsOrigin()
-        _uiState.value =
-            _uiState.value.copy(
-                destination = RegisterDestination.ExpenseDetails(expenseId, origin),
-                overlay = null,
-                expenseDetailsLoading = true,
-                expenseDetails = null,
-                transactionDetailsLoading = false,
-                transactionDetails = null
-            )
-
-        viewModelScope.launch {
-
-            val details =
-                try {
-                    loadExpenseDetails(expenseId)
-                } catch (
-                    error: Exception
-                ) {
-                    if (
-                        error is
-                            kotlinx.coroutines.CancellationException
-                    ) {
-                        throw error
-                    }
-
-                    null
-                }
-
-            if (
-                requestGeneration !=
-                    expenseDetailsRequestGeneration ||
-                (_uiState.value.destination as? RegisterDestination.ExpenseDetails)
-                    ?.expenseId != expenseId ||
-                !shouldApplyFinancialResultToRegister(
-                    context,
-                    SessionManager.currentSession.value,
-                    financialGeneration,
-                    financialSessionGeneration
-                )
-            ) {
-                return@launch
-            }
-
-            val destination = _uiState.value.destination as RegisterDestination.ExpenseDetails
-            _uiState.value =
-                if (details == null) {
-                    _uiState.value.copy(
-                        destination = destination.backDestination(),
-                        expenseDetailsLoading = false,
-                        expenseDetails = null
-                    )
-                } else {
-                    _uiState.value.copy(
-                        expenseDetailsLoading = false,
-                        expenseDetails = details
-                    )
-                }
-        }
+        ) return
+        detailsSessionCoordinator.openExpenseDetails(
+            expenseId = expenseId,
+            financialContext = financialContext,
+            financialGeneration = financialSessionGeneration
+        )
     }
 
     /**
@@ -631,109 +551,27 @@ class RegisterViewModel internal constructor(
     }
 
     fun closeExpenseDetails() {
-        expenseDetailsRequestGeneration++
-
-        val destination = _uiState.value.destination
-        if (destination !is RegisterDestination.ExpenseDetails) return
-
-        _uiState.value =
-            _uiState.value.copy(
-                destination = destination.backDestination(),
-                expenseDetailsLoading = false,
-                expenseDetails = null,
-                expenseSupportingDocuments = emptyList(),
-                expenseSupportingDocumentsLoading = false,
-                expenseSupportingDocumentAttaching = false
-            )
+        detailsSessionCoordinator.closeExpenseDetails()
     }
     /** Loads the saved transaction, items, and funding evidence for sharing. */
     fun loadSaleDetailsForWhatsApp(
         transactionId: String,
         onLoaded: (TransactionDetailsReadModel?) -> Unit
-    ) {
-        if (transactionId.isBlank()) {
-            onLoaded(null)
-            return
-        }
-
-        viewModelScope.launch {
-            val details = try {
-                loadTransactionDetails(transactionId)
-            } catch (error: Exception) {
-                if (error is kotlinx.coroutines.CancellationException) throw error
-                null
-            }
-            onLoaded(details)
-        }
-    }
+    ) = detailsSessionCoordinator.loadSaleDetailsForWhatsApp(transactionId, onLoaded)
 
     fun openTransactionDetails(transactionId: String) {
         if (transactionId.isBlank()) return
-
         val session = SessionManager.currentSession.value
-
         if (
             synchronizeFinancialSession(session) ||
             session == null ||
             _uiState.value.transactionDetailsLoading
-        ) {
-            return
-        }
-
-        val context = financialContext
-        val financialGeneration = financialSessionGeneration
-
-        transactionDetailsRequestGeneration++
-        val requestGeneration = transactionDetailsRequestGeneration
-
-        val origin = _uiState.value.destination.detailsOrigin()
-        _uiState.value = _uiState.value.copy(
-            destination = RegisterDestination.TransactionDetails(transactionId, origin),
-            overlay = null,
-            transactionDetailsLoading = true,
-            transactionDetails = null,
-            expenseDetailsLoading = false,
-            expenseDetails = null
+        ) return
+        detailsSessionCoordinator.openTransactionDetails(
+            transactionId = transactionId,
+            financialContext = financialContext,
+            financialGeneration = financialSessionGeneration
         )
-
-        viewModelScope.launch {
-            val details =
-                try {
-                    loadTransactionDetails(transactionId)
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    null
-                }
-
-            if (
-                requestGeneration != transactionDetailsRequestGeneration ||
-                (_uiState.value.destination as? RegisterDestination.TransactionDetails)
-                    ?.transactionId != transactionId ||
-                !shouldApplyFinancialResultToRegister(
-                    context,
-                    SessionManager.currentSession.value,
-                    financialGeneration,
-                    financialSessionGeneration
-                )
-            ) {
-                return@launch
-            }
-
-            val destination = _uiState.value.destination as RegisterDestination.TransactionDetails
-            _uiState.value =
-                if (details == null) {
-                    _uiState.value.copy(
-                        destination = destination.backDestination(),
-                        transactionDetailsLoading = false,
-                        transactionDetails = null
-                    )
-                } else {
-                    _uiState.value.copy(
-                        transactionDetailsLoading = false,
-                        transactionDetails = details
-                    )
-                }
-        }
     }
 
     /**
@@ -1558,16 +1396,7 @@ if (
     }
 
     fun closeTransactionDetails() {
-        transactionDetailsRequestGeneration++
-
-        val destination = _uiState.value.destination
-        if (destination !is RegisterDestination.TransactionDetails) return
-
-        _uiState.value = _uiState.value.copy(
-            destination = destination.backDestination(),
-            transactionDetailsLoading = false,
-            transactionDetails = null
-        )
+        detailsSessionCoordinator.closeTransactionDetails()
     }
 
     /** Resets only the unsaved register draft; no repository or DAO is touched. */
