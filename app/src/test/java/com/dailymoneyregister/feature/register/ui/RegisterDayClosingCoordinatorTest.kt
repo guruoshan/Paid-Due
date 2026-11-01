@@ -78,7 +78,7 @@ class RegisterDayClosingCoordinatorTest {
             },
             close = {
                 closed = it
-                CommandResult.Success(RegisterShiftResult(it.shiftId, it.branchId, it.actorUserId, 1L, false, requireNotNull(it.reportSnapshot).countedCashMinor, 3L))
+                CommandResult.Success(RegisterShiftResult(it.shiftId, it.branchId, it.actorUserId, 1L, false, requireNotNull(it.reportSnapshot).countedCashMinor, countedAt = 2L, closedAt = 3L))
             }
         )
 
@@ -117,7 +117,7 @@ class RegisterDayClosingCoordinatorTest {
             },
             close = {
                 closeCalls++
-                CommandResult.Success(RegisterShiftResult(it.shiftId, it.branchId, it.actorUserId, 1L, false, requireNotNull(it.reportSnapshot).countedCashMinor, 3L))
+                CommandResult.Success(RegisterShiftResult(it.shiftId, it.branchId, it.actorUserId, 1L, false, requireNotNull(it.reportSnapshot).countedCashMinor, countedAt = 2L, closedAt = 3L))
             }
         )
 
@@ -141,7 +141,7 @@ class RegisterDayClosingCoordinatorTest {
             CommandResult.Success(RegisterShiftResult(it.shiftId, it.branchId, it.actorUserId, 1L, true, it.countedCashMinor, 2L))
         },
         close: suspend (CloseRegisterShiftCommand) -> CommandResult<RegisterShiftResult> = {
-            CommandResult.Success(RegisterShiftResult(it.shiftId, it.branchId, it.actorUserId, 1L, false, requireNotNull(it.reportSnapshot).countedCashMinor, 3L))
+            CommandResult.Success(RegisterShiftResult(it.shiftId, it.branchId, it.actorUserId, 1L, false, requireNotNull(it.reportSnapshot).countedCashMinor, countedAt = 2L, closedAt = 3L))
         }
     ) = RegisterDayClosingCoordinator(
         uiState = state,
