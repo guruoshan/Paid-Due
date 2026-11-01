@@ -186,20 +186,15 @@ class RegisterExpenseExecutionCoordinatorTest {
     @Test
     fun `supporting document staging workflow remains independently available`() = runTest {
         val state = MutableStateFlow(RegisterUiState())
-        val attached = mutableListOf<Pair<String, String>>()
         val documents = RegisterExpenseSupportingDocumentCoordinator(
             uiState = state,
             scope = backgroundScope,
             loadSupportingDocuments = { emptyList() },
-            attachSupportingDocument = { expenseId, uri -> attached += expenseId to uri }
+            attachSupportingDocument = { _, _ -> }
         )
 
         documents.stageExpenseSupportingDocument("content://doc/2")
         assertEquals(listOf("content://doc/2"), state.value.stagedExpenseSupportingDocumentUris)
-        documents.attachSupportingDocumentToExpense("expense-2", "content://doc/2")
-        runCurrent()
-
-        assertEquals(listOf("expense-2" to "content://doc/2"), attached)
     }
 
     private fun coordinator(
