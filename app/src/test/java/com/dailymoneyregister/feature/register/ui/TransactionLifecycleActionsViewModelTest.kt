@@ -15,6 +15,8 @@ import com.dailymoneyregister.core.model.financial.FinancialTransactionView
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
+import com.dailymoneyregister.feature.register.data.AmountCorrectionCommand
+import com.dailymoneyregister.feature.register.data.AmountCorrectionExecutionResult
 import com.dailymoneyregister.feature.register.data.PaymentMethodChangeCommand
 import com.dailymoneyregister.feature.register.data.PaymentMethodChangeExecutionResult
 import com.dailymoneyregister.feature.register.data.RefundCommand
@@ -96,6 +98,58 @@ class TransactionLifecycleActionsViewModelTest {
     }
 
     @Test
+    fun amountCorrectionDelegatesWithTheSameTransactionAndCorrectedAmount() = runTest(dispatcher) {
+        val submitted = mutableListOf<AmountCorrectionCommand>()
+        viewModel = model(
+            submitAmountCorrection = { command ->
+                submitted += command
+                CommandResult.Success(
+                    AmountCorrectionExecutionResult(
+                        command.subjectId, "correction", 10_000L,
+                        command.correctedAmountMinor, command.correctedAmountMinor - 10_000L
+                    )
+                )
+            }
+        )
+
+        openDetails()
+        viewModel.executeAmountCorrectionFromDetails("8.000", "Correction")
+        runCurrent()
+
+        assertEquals(1, submitted.size)
+        assertEquals("transaction", submitted.single().subjectId)
+        assertEquals(8_000L, submitted.single().correctedAmountMinor)
+        assertEquals(false, viewModel.uiState.value.isExecuting)
+    }
+
+    @Test
+    fun refundToCouponPreparationAndExecutionRemainDelegated() = runTest(dispatcher) {
+        val submitted = mutableListOf<RefundCommand>()
+        viewModel = model(
+            submitRefund = { command ->
+                submitted += command
+                CommandResult.Success(
+                    RefundExecutionResult(command.subjectId, "refund", command.refundAmountMinor)
+                )
+            }
+        )
+
+        openDetails()
+        viewModel.beginRefundToCouponFromDetails("2.500", "Coupon return")
+        assertEquals(2_500L, viewModel.uiState.value.refundToCouponDraft?.amountMinor)
+        assertEquals(RegisterOverlay.Coupon(CouponDialogStartMode.ENTRY), viewModel.uiState.value.overlay)
+
+        viewModel.confirmRefundToCoupon(null, "New customer", "+96891234567", listOf("Additional user"))
+        runCurrent()
+
+        assertEquals(1, submitted.size)
+        assertEquals("transaction", submitted.single().subjectId)
+        assertEquals(PaymentCategory.COUPON, submitted.single().destinationCategory)
+        assertEquals(PaymentChannel.COUPON_WALLET, submitted.single().destinationChannel)
+        assertTrue(submitted.single().couponDestination?.createCustomer == true)
+    }
+
+    @Test
     fun voidDoubleSubmitRunsOneCommandWhileExecuting() = runTest(dispatcher) {
         val submitted = mutableListOf<VoidCommand>()
         val result = CompletableDeferred<CommandResult<VoidExecutionResult>>()
@@ -152,6 +206,7 @@ class TransactionLifecycleActionsViewModelTest {
 
     private fun model(
         loadDetails: suspend (String) -> TransactionDetailsReadModel? = { details() },
+        submitAmountCorrection: suspend (AmountCorrectionCommand) -> CommandResult<AmountCorrectionExecutionResult> = { error("Unexpected amount correction") },
         submitRefund: suspend (RefundCommand) -> CommandResult<RefundExecutionResult> = { error("Unexpected refund") },
         submitVoid: suspend (VoidCommand) -> CommandResult<VoidExecutionResult> = { error("Unexpected void") },
         submitPaymentChange: suspend (PaymentMethodChangeCommand) -> CommandResult<PaymentMethodChangeExecutionResult> = { error("Unexpected payment change") }
@@ -160,6 +215,7 @@ class TransactionLifecycleActionsViewModelTest {
         executeSale = { _, _, _ -> error("Unexpected sale") },
         deviceId = { "device" },
         loadTransactionDetails = loadDetails,
+        submitAmountCorrection = submitAmountCorrection,
         submitRefund = submitRefund,
         submitVoid = submitVoid,
         submitPaymentMethodChange = submitPaymentChange
