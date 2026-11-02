@@ -215,7 +215,8 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
             userId = actorUserId,
             createdAt = Instant.parse("2026-10-09T10:00:00Z").toEpochMilli()
         )
-        coEvery { cashShiftDao.getShiftById(shift.id) } returns null
+        coEvery { cashShiftDao.getShiftById(shift.id) } returnsMany listOf(null, null, null, shift)
+        coEvery { cashShiftDao.insertShift(shift) } returns Unit
 
         val first = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
             database, envelope, businessId, branchId
