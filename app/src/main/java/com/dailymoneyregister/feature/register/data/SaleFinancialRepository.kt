@@ -1,3 +1,28 @@
+package com.dailymoneyregister.feature.register.data
+
+import androidx.room.withTransaction
+import com.dailymoneyregister.core.command.CommandExecutor
+import com.dailymoneyregister.core.command.CommandRequiresReconciliationException
+import com.dailymoneyregister.core.command.CommandResult
+import com.dailymoneyregister.core.command.OperationCommand
+import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
+import com.dailymoneyregister.core.database.entity.TransactionEntity
+import com.dailymoneyregister.core.database.entity.TransactionItemEntity
+import com.dailymoneyregister.core.database.entity.UserAccountEntity
+import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
+import com.dailymoneyregister.core.model.currency.CurrencyInvariant
+import com.dailymoneyregister.core.model.enums.ConfirmationType
+import com.dailymoneyregister.core.model.enums.OperationStatus
+import com.dailymoneyregister.core.model.enums.OperationType
+import com.dailymoneyregister.core.model.enums.PaymentCategory
+import com.dailymoneyregister.core.model.enums.PaymentChannel
+import com.dailymoneyregister.core.model.enums.SubjectType
+import com.dailymoneyregister.core.security.PermissionAction
+import com.dailymoneyregister.core.security.PermissionChecker
+import com.dailymoneyregister.core.security.PermissionDeniedException
+import com.dailymoneyregister.core.security.SessionManager
+
 /**
  * Owns the authoritative cash, credit, and online sale execution and recovery
  * lifecycles. RegisterRepository remains the public compatibility facade.

@@ -513,7 +513,7 @@ class RegisterRepository @Inject constructor(
      * BOARDLOCK GOD-file decomposition.
      *
      * Sale-customer reads are delegated here.
-     * Customer creation remains in resolveOptionalSaleCustomerId().
+     * Customer identity creation remains in SaleFinancialRepository.
      */
     private val registerCustomerReadRepository =
         RegisterCustomerReadRepository(
@@ -535,8 +535,6 @@ class RegisterRepository @Inject constructor(
             operationDao = operationDao
         )
 
-
-
     suspend fun findSaleCustomerByPhone(
         businessId: String,
         canonicalPhone: String
@@ -547,9 +545,6 @@ class RegisterRepository @Inject constructor(
                 canonicalPhone = canonicalPhone
             )
 
-
-
-
     suspend fun executeCashSale(
         command: CashSaleCommand,
         actorUser: UserAccountEntity,
@@ -557,14 +552,12 @@ class RegisterRepository @Inject constructor(
     ): CommandResult<TransactionEntity> =
         saleFinancialRepository.executeCashSale(command, actorUser, actorMembership)
 
-
-
     /*
      * BOARDLOCK GOD-file decomposition.
      *
      * Credit Invoice is a post-save read-only projection.
-     * Credit Sale execution and evidence verification remain in the
-     * existing authoritative financial path.
+     * Credit Sale execution and evidence verification are delegated to
+     * SaleFinancialRepository.
      */
     private val creditInvoiceReadRepository =
         CreditInvoiceReadRepository(
@@ -606,13 +599,10 @@ class RegisterRepository @Inject constructor(
                 command
             )
 
-
     suspend fun executeCreditSale(
         command: CreditSaleCommand
     ): CommandResult<TransactionEntity> =
         saleFinancialRepository.executeCreditSale(command)
-
-
 
     data class CreditRepaymentExecutionResult(
         val repayment:
@@ -621,7 +611,6 @@ class RegisterRepository @Inject constructor(
             List<com.dailymoneyregister.core.database.entity.CreditRepaymentAllocationEntity>,
         val outstandingAfterMinor: Long
     )
-
 
     suspend fun executeCouponCreditRepayment(
         command:
@@ -648,7 +637,6 @@ class RegisterRepository @Inject constructor(
             customerId = customerId,
             currencyCode = currencyCode
         )
-
 
     suspend fun executeCreditRepayment(
         command:
@@ -693,18 +681,7 @@ class RegisterRepository @Inject constructor(
 
     suspend fun recoverPendingVoids(): List<VoidExecutionResult> =
         transactionLifecycleFinancialRepository.recoverPendingVoids()
-    /**
-     * Completes admitted durable intent without consulting current session permissions.
-     * Existing financial evidence is verified, never repaired or overwritten.
-     */
-    /**
-     * Completes already-admitted durable Credit Sale intent.
-     *
-     * Recovery never asks current UI/session permission again.
-     * The persisted operation + durable Credit Sale payload are authoritative.
-     * Normal execution and recovery share executeAdmittedCreditSale(), so
-     * transaction/settlement/credit-obligation semantics cannot drift.
-     */
+    /** Public compatibility entry points for pending sale recovery. */
     suspend fun recoverPendingCreditSales(): List<TransactionEntity> =
         saleFinancialRepository.recoverPendingCreditSales()
 
@@ -775,11 +752,5 @@ class RegisterRepository @Inject constructor(
                 transactionId
             )
 
-
 }
-
-
-
-
-
 
