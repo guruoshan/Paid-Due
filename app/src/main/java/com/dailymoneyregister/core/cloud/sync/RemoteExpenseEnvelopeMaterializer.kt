@@ -246,6 +246,8 @@ internal object RemoteExpenseEnvelopeMaterializer {
             }
         }
         true
+    } catch (error: kotlinx.coroutines.CancellationException) {
+        throw error
     } catch (_: Exception) {
         false
     }

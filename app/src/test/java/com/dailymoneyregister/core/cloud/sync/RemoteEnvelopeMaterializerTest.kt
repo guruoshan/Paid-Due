@@ -562,6 +562,90 @@ class RemoteEnvelopeMaterializerTest {
         coVerify(exactly = 1) { transactionDao.insertVoid(match { it.transactionId == transactionId }) }
     }
 
+    @Test
+    fun rejectsAmountCorrectionWhenPositiveDeltaOverflowsLong() = runTest {
+        val correctionOperationId = "correction-positive-overflow"
+        val evidence = JSONObject().put(
+            "amount_correction_events",
+            JSONArray().put(JSONObject().apply {
+                put("id", "correction-positive-overflow-event")
+                put("transaction_id", transactionId)
+                put("operation_id", correctionOperationId)
+                put("previous_amount_minor", Long.MIN_VALUE)
+                put("corrected_amount_minor", Long.MAX_VALUE)
+                put("actor_user_id", actorUserId)
+                put("occurred_at", Instant.parse("2026-10-09T10:00:00Z").toEpochMilli())
+            })
+        )
+        val envelope = transactionLifecycleEnvelope(
+            operationType = "RECORD_AMOUNT_CORRECTION",
+            lifecycleOperationId = correctionOperationId,
+            signedSettlementMinor = 1L,
+            entryPurpose = "FUNDING_CORRECTION",
+            financialEvidence = evidence
+        )
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
+    }
+
+    @Test
+    fun rejectsAmountCorrectionWhenNegativeDeltaOverflowsLong() = runTest {
+        val correctionOperationId = "correction-negative-overflow"
+        val evidence = JSONObject().put(
+            "amount_correction_events",
+            JSONArray().put(JSONObject().apply {
+                put("id", "correction-negative-overflow-event")
+                put("transaction_id", transactionId)
+                put("operation_id", correctionOperationId)
+                put("previous_amount_minor", Long.MAX_VALUE)
+                put("corrected_amount_minor", Long.MIN_VALUE)
+                put("actor_user_id", actorUserId)
+                put("occurred_at", Instant.parse("2026-10-09T10:00:00Z").toEpochMilli())
+            })
+        )
+        val envelope = transactionLifecycleEnvelope(
+            operationType = "RECORD_AMOUNT_CORRECTION",
+            lifecycleOperationId = correctionOperationId,
+            signedSettlementMinor = -1L,
+            entryPurpose = "FUNDING_CORRECTION",
+            financialEvidence = evidence
+        )
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
+    }
+
+    @Test
+    fun rejectsZeroSumPaymentMethodChangeWithWrongOldAndNewChannelEvidence() = runTest {
+        val base = paymentMethodChangeEnvelope()
+        val payload = JSONObject(base.canonicalText)
+        val settlements = payload.getJSONArray("settlements")
+        settlements.getJSONObject(0)
+            .put("category", "ONLINE")
+            .put("channel", "MANUAL_QR")
+        settlements.getJSONObject(1)
+            .put("category", "CASH")
+            .put("channel", "CASH_TENDER")
+        val envelope = envelopeFromPayload(base, "RECORD_PAYMENT_METHOD_CHANGE", payload)
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue("A zero-sum but incorrectly classified pair must be rejected", result is InboundProcessResult.Rejected)
+        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
+        coVerify(exactly = 0) { transactionDao.insertSettlements(any()) }
+    }
+
     private fun transactionLifecycleEnvelope(
         operationType: String,
         lifecycleOperationId: String,

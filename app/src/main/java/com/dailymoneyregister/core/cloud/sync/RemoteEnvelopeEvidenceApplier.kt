@@ -320,8 +320,10 @@ internal object RemoteEnvelopeEvidenceApplier {
             require(event.operationId == operationId && event.actorUserId == actorUserId) {
                 "Cash-shift event operation/actor mismatch"
             }
-            require(database.cashShiftDao().getShiftById(event.shiftId) != null) {
-                "Cash-shift event references a missing shift"
+            val referencedShift = database.cashShiftDao().getShiftById(event.shiftId)
+                ?: error("Cash-shift event references a missing shift")
+            require(referencedShift.branchId == branchId) {
+                "Cash-shift event references a shift owned by another branch"
             }
             val existing = database.cashShiftDao().getEventByOperationId(operationId)
             if (existing == null) database.cashShiftDao().insertShiftEvent(event)

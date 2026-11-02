@@ -491,14 +491,81 @@ object RemoteEnvelopeMaterializer {
             "RECORD_AMOUNT_CORRECTION" -> {
                 val event = financialEvidence.optJSONArray("amount_correction_events")?.optJSONObject(0)
                     ?: return InboundProcessResult.Rejected("Amount correction event is missing")
-                val expectedDelta = event.optLong("corrected_amount_minor", Long.MIN_VALUE) -
-                    event.optLong("previous_amount_minor", Long.MAX_VALUE)
+                val expectedDelta = try {
+                    Math.subtractExact(
+                        event.getLong("corrected_amount_minor"),
+                        event.getLong("previous_amount_minor")
+                    )
+                } catch (_: ArithmeticException) {
+                    return InboundProcessResult.Rejected("Amount correction delta overflows the supported money range")
+                }
                 if (expectedDelta == 0L || settlementSum != expectedDelta) {
                     return InboundProcessResult.Rejected("Amount correction delta does not match signed settlements")
                 }
             }
-            "RECORD_PAYMENT_METHOD_CHANGE" -> if (settlementSum != 0L) {
-                return InboundProcessResult.Rejected("Payment-method reclassification settlements must net to zero")
+            "RECORD_PAYMENT_METHOD_CHANGE" -> {
+                val event = financialEvidence.optJSONArray("payment_method_change_events")
+                    ?.optJSONObject(0)
+                    ?: return InboundProcessResult.Rejected("Payment-method change event is missing")
+                val previousMethod = runCatching {
+                    PaymentCategory.valueOf(event.getString("previous_method"))
+                }.getOrElse {
+                    return InboundProcessResult.Rejected("Payment-method change previous category is invalid")
+                }
+                val previousChannel = runCatching {
+                    PaymentChannel.valueOf(event.getString("previous_channel"))
+                }.getOrElse {
+                    return InboundProcessResult.Rejected("Payment-method change previous channel is invalid")
+                }
+                val newMethod = runCatching {
+                    PaymentCategory.valueOf(event.getString("new_method"))
+                }.getOrElse {
+                    return InboundProcessResult.Rejected("Payment-method change new category is invalid")
+                }
+                val newChannel = runCatching {
+                    PaymentChannel.valueOf(event.getString("new_channel"))
+                }.getOrElse {
+                    return InboundProcessResult.Rejected("Payment-method change new channel is invalid")
+                }
+                if (
+                    event.optString("operation_id") != opId ||
+                    event.optString("transaction_id") != tJson.optString("id") ||
+                    event.optString("actor_user_id") != actorUserId ||
+                    (previousMethod == newMethod && previousChannel == newChannel)
+                ) {
+                    return InboundProcessResult.Rejected("Payment-method change event identity or classification is invalid")
+                }
+                val oldRows = (0 until settlementsArray.length())
+                    .map { settlementsArray.getJSONObject(it) }
+                    .filter {
+                        it.optString("category") == previousMethod.name &&
+                            it.optString("channel") == previousChannel.name &&
+                            it.optLong("amount_signed_minor", 0L) < 0L &&
+                            it.optString("actor_user_id") == actorUserId
+                    }
+                val newRows = (0 until settlementsArray.length())
+                    .map { settlementsArray.getJSONObject(it) }
+                    .filter {
+                        it.optString("category") == newMethod.name &&
+                            it.optString("channel") == newChannel.name &&
+                            it.optLong("amount_signed_minor", 0L) > 0L &&
+                            it.optString("actor_user_id") == actorUserId
+                    }
+                if (settlementsArray.length() != 2 || oldRows.size != 1 || newRows.size != 1) {
+                    return InboundProcessResult.Rejected(
+                        "Payment-method change requires one old-channel reversal and one new-channel funding entry"
+                    )
+                }
+                val reversedAmount = try {
+                    Math.negateExact(oldRows.single().getLong("amount_signed_minor"))
+                } catch (_: ArithmeticException) {
+                    return InboundProcessResult.Rejected("Payment-method change amount overflows the supported money range")
+                }
+                if (reversedAmount <= 0L || newRows.single().getLong("amount_signed_minor") != reversedAmount) {
+                    return InboundProcessResult.Rejected(
+                        "Payment-method change reversal and replacement funding amounts do not match"
+                    )
+                }
             }
             "RECORD_COUPON_PURCHASE" -> {
                 val couponTotal = (financialEvidence.optJSONArray("coupon_ledger_events") ?: org.json.JSONArray())
@@ -850,13 +917,16 @@ object RemoteEnvelopeMaterializer {
                 ) {
                     return InboundProcessResult.Rejected("Cash count cannot be negative")
                 }
+                val shiftId = shiftJson.optString("id")
                 if (
-                    payload.optString("subject_type").isNotBlank() &&
-                        payload.optString("subject_type") != SubjectType.CASH_SHIFT.name ||
-                    payload.optString("subject_id").isNotBlank() &&
-                        payload.optString("subject_id") != shiftJson.optString("id")
+                    shiftId.isBlank() ||
+                    payload.optString("subject_type") != SubjectType.CASH_SHIFT.name ||
+                    payload.optString("subject_id") != shiftId ||
+                    shiftEventJson.optString("shift_id") != shiftId
                 ) {
-                    return InboundProcessResult.Rejected("Cash-shift subject metadata mismatch")
+                    return InboundProcessResult.Rejected(
+                        "Cash-shift event identity must match the authoritative envelope subject"
+                    )
                 }
                 if ((payload.optJSONArray("settlements")?.length() ?: 0) != 0) {
                     return InboundProcessResult.Rejected("Cash-shift lifecycle operations cannot carry settlements")
@@ -879,11 +949,11 @@ object RemoteEnvelopeMaterializer {
                 if (operationEvents.size != 1) {
                     return InboundProcessResult.Rejected("Expense lifecycle operation must have exactly one event")
                 }
+                val expenseId = expenseSnapshot.optString("id")
                 if (
-                    payload.optString("subject_type").isNotBlank() &&
-                        payload.optString("subject_type") != SubjectType.EXPENSE.name ||
-                    payload.optString("subject_id").isNotBlank() &&
-                        payload.optString("subject_id") != expenseSnapshot.optString("id")
+                    expenseId.isBlank() ||
+                    payload.optString("subject_type") != SubjectType.EXPENSE.name ||
+                    payload.optString("subject_id") != expenseId
                 ) {
                     return InboundProcessResult.Rejected("Expense lifecycle subject metadata mismatch")
                 }
@@ -899,13 +969,36 @@ object RemoteEnvelopeMaterializer {
                         row.optString("subject_type") != SubjectType.EXPENSE.name ||
                         row.optString("subject_id") != expenseSnapshot.optString("id") ||
                         row.optString("transaction_id").isNotBlank() ||
-                        row.optString("currency_code") != expenseSnapshot.optString("currency_code")
+                        row.optString("currency_code") != expenseSnapshot.optString("currency_code") ||
+                        row.optString("actor_user_id") != actorUserId ||
+                        row.optString("entry_purpose") != (
+                            if (operationType == OperationType.RECORD_EXPENSE_VOID) {
+                                EntryPurpose.VOID_REVERSAL.name
+                            } else {
+                                EntryPurpose.EXPENSE_CORRECTION.name
+                            }
+                        )
                     ) {
                         return InboundProcessResult.Rejected("Expense lifecycle settlement identity mismatch")
                     }
                     total = Math.addExact(total, row.getLong("amount_signed_minor"))
                 }
                 val event = operationEvents.single()
+                val expectedEventType = if (operationType == OperationType.RECORD_EXPENSE_VOID) {
+                    "VOIDED"
+                } else {
+                    "CORRECTED"
+                }
+                if (
+                    event.optString("expense_id") != expenseId ||
+                    event.optString("operation_id") != envelope.operationId ||
+                    event.optString("actor_user_id") != actorUserId ||
+                    event.optString("event_type") != expectedEventType
+                ) {
+                    return InboundProcessResult.Rejected(
+                        "Expense lifecycle event must match the exact expense, operation, actor, and event type"
+                    )
+                }
                 if (operationType == OperationType.RECORD_EXPENSE_VOID) {
                     val amountBeingVoided = event.optLong("previous_amount_minor", 0L)
                     if (amountBeingVoided <= 0L || total != amountBeingVoided) {
@@ -951,8 +1044,13 @@ object RemoteEnvelopeMaterializer {
                 }
                 val fingerprint = payload.optString("request_fingerprint")
                 val occurredAt = java.time.Instant.parse(envelope.occurredAtIso).toEpochMilli()
-                val cashShiftId = payload.optString("cash_shift_id").ifBlank {
-                    shiftJson?.optString("id")?.ifBlank { null }
+                val isCashShiftLifecycle = operationType == OperationType.OPEN_CASH_SHIFT ||
+                    operationType == OperationType.COUNT_CASH_SHIFT ||
+                    operationType == OperationType.CLOSE_CASH_SHIFT
+                val cashShiftId = if (isCashShiftLifecycle) {
+                    null
+                } else {
+                    payload.optString("cash_shift_id").ifBlank { null }
                 }
                 val operation = OperationEntity(
                     id = envelope.operationId,
