@@ -33,7 +33,12 @@ internal object RemoteCreditRepaymentValidator {
         }
         val customerId = repaymentJson.optString("customer_id")
         val customer = database.customerDao().getCustomerById(customerId)
-            ?: evidence.optJSONObject("customer")?.let { null }
+            ?: return InboundProcessResult.Rejected(
+                "Credit repayment customer is missing from the synchronized business"
+            )
+        if (customer.id != customerId || customer.businessId != sessionBusinessId) {
+            return InboundProcessResult.Rejected("Credit repayment customer identity belongs to another business")
+        }
         val branch = database.businessBranchDao().getBranchById(branchId)
             ?: return InboundProcessResult.Rejected("Referenced branch is missing locally")
         if (branch.businessId != sessionBusinessId ||

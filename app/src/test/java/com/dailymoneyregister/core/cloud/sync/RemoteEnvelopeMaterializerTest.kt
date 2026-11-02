@@ -75,7 +75,7 @@ class RemoteEnvelopeMaterializerTest {
         every { database.customerDao() } returns customerDao
         every { database.ledgerDao() } returns ledgerDao
         every { customer.businessId } returns businessId
-        every { customer.id } returns "local-customer-id"
+        every { customer.id } returns "credit-customer-id"
         every { database.operationDao() } returns operationDao
         every { database.expenseDao() } returns expenseDao
         every { database.financialSyncOutboxDao() } returns outboxDao
@@ -855,7 +855,7 @@ class RemoteEnvelopeMaterializerTest {
             put("subject_type", SubjectType.REPAYMENT.name)
             put("subject_id", repaymentId)
             put("settlements", JSONArray().put(JSONObject().apply {
-                put("id", "credit-repayment-collection")
+                put("id", "$repaymentOperationId:collection")
                 put("operation_id", repaymentOperationId)
                 put("subject_type", SubjectType.REPAYMENT.name)
                 put("subject_id", repaymentId)
@@ -880,7 +880,7 @@ class RemoteEnvelopeMaterializerTest {
                     put("actor_user_id", actorUserId)
                 })
                 put("credit_ledger_events", JSONArray().put(JSONObject().apply {
-                    put("id", "credit-repayment-ledger-event")
+                    put("id", "$repaymentOperationId:credit-repayment")
                     put("operation_id", repaymentOperationId)
                     put("customer_id", customerId)
                     put("type", "REPAYMENT")
@@ -890,7 +890,7 @@ class RemoteEnvelopeMaterializerTest {
                     put("occurred_at", occurredAt)
                 }))
                 put("credit_repayment_allocations", JSONArray().put(JSONObject().apply {
-                    put("id", "credit-repayment-allocation")
+                    put("id", java.util.UUID.nameUUIDFromBytes("credit-repayment:$repaymentOperationId:original-credit-transaction".toByteArray(Charsets.UTF_8)).toString())
                     put("repayment_id", repaymentId)
                     put("original_transaction_id", "original-credit-transaction")
                     put("allocated_amount_minor", 1_000L)
@@ -922,7 +922,7 @@ class RemoteEnvelopeMaterializerTest {
             put("created_at", occurredAt)
         }))
         evidence.put("coupon_ledger_events", JSONArray().put(JSONObject().apply {
-            put("id", "coupon-credit-redemption")
+            put("id", "${base.operationId}:coupon-credit-repayment")
             put("operation_id", base.operationId)
             put("wallet_id", walletId)
             put("type", "REDEMPTION")
