@@ -659,4 +659,3 @@ abstract class RemoteEnvelopeMaterializerTestSupport {
         )
     }
 }
-}
