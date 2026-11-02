@@ -139,6 +139,17 @@ internal object RemoteExpenseEnvelopeMaterializer {
         )
 
         database.withTransaction {
+            if (cashShiftId != null) {
+                val cashShift = database.cashShiftDao().getShiftById(cashShiftId)
+                    ?: error("Expense references a missing cash shift")
+                require(cashShift.branchId == branchId) {
+                    "Expense cash shift belongs to another branch"
+                }
+                require(cashShift.userId == actorUserId) {
+                    "Expense cash shift belongs to another actor"
+                }
+            }
+
             CustomerIdentityReconciler.reconcileEvidenceCustomers(
                 database, businessId,
                 jsonPayload.optJSONObject("financial_evidence") ?: JSONObject()
