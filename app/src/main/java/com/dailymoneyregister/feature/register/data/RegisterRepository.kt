@@ -557,40 +557,7 @@ class RegisterRepository @Inject constructor(
     ): CommandResult<TransactionEntity> =
         saleFinancialRepository.executeCashSale(command, actorUser, actorMembership)
 
-    private fun creditSaleIntent(
-        command: CreditSaleCommand,
-        customerId: String
-    ) = SaleFinancialWriter.Intent(
-        operationId = command.operationId.value,
-        transactionId = command.transactionIdVal.value,
-        branchId = command.branchId,
-        actorUserId = command.actorUserId,
-        deviceId = command.deviceId,
-        occurredAt = command.occurredAt,
-        currencyCode = command.currencyCode,
-        currencyDecimalPlaces = command.currencyDecimalPlaces,
-        draft = command.draftState,
-        funding = SaleFinancialWriter.FundingIdentity(
-            PaymentCategory.CREDIT,
-            PaymentChannel.CREDIT_ACCOUNT,
-            ConfirmationType.CASHIER_CONFIRMED
-        ),
-        customerId = customerId
-    )
 
-    private fun creditSaleObligation(
-        command: CreditSaleCommand,
-        customerId: String
-    ) = com.dailymoneyregister.core.database.entity.CreditLedgerEventEntity(
-        id = "${command.operationId.value}:credit",
-        operationId = command.operationId.value,
-        customerId = customerId,
-        type = com.dailymoneyregister.core.model.enums.CreditLedgerType.OBLIGATION,
-        amountSignedMinor = command.draftState.grandTotal.amount,
-        currencyCode = command.currencyCode,
-        transactionId = command.transactionIdVal.value,
-        occurredAt = command.occurredAt
-    )
 
     /*
      * BOARDLOCK GOD-file decomposition.
@@ -638,193 +605,13 @@ class RegisterRepository @Inject constructor(
             .getCreditInvoiceDetails(
                 command
             )
-    private suspend fun loadCreditSaleEvidence(
-        command: CreditSaleCommand
-    ): TransactionEntity {
-        val transaction = checkNotNull(
-            transactionDao.getTransactionById(command.transactionIdVal.value)
-        ) { "Credit Sale transaction evidence is missing" }
 
-        val customerId = checkNotNull(transaction.customerId) {
-            "Credit Sale transaction customer is missing"
-        }
-
-        val customer = checkNotNull(
-            database.customerDao().getCustomerById(customerId)
-        ) { "Credit Sale customer evidence is missing" }
-
-        check(customer.businessId == command.businessId) {
-            "Credit Sale customer business mismatch"
-        }
-
-        check(
-            customer.canonicalPhone ==
-                com.dailymoneyregister.feature.customers.data.CustomerIdentity
-                    .canonicalPhone(command.customerPhone)
-        ) {
-            "Credit Sale customer identity mismatch"
-        }
-
-        saleFinancialWriter.loadVerified(
-            creditSaleIntent(command, customerId)
-        )
-
-        val expected =
-            creditSaleObligation(command, customerId)
-
-        val actual =
-            ledgerDao.getCreditLedgerForCustomer(customerId)
-                .filter { it.operationId == command.operationId.value }
-
-        check(actual == listOf(expected)) {
-            "Credit Sale obligation evidence mismatch"
-        }
-
-        return transaction
-    }
 
     suspend fun executeCreditSale(
         command: CreditSaleCommand
-    ): CommandResult<TransactionEntity> {
-        return try {
-            // Validate identity before admitting a new financial operation.
-            com.dailymoneyregister.feature.customers.data.CustomerIdentity
-                .canonicalPhone(command.customerPhone)
-
-            require(command.customerName.trim().isNotEmpty()) {
-                "Enter the customer name"
-            }
-
-            val existing =
-                operationDao
-                    .getOperationById(command.operationId.value)
-
-            if (existing != null) {
-                if (
-                    existing.requestFingerprint != command.requestFingerprint ||
-                    existing.intentPayload != command.intentPayload
-                ) {
-                    return CommandResult.Conflict(
-                        "Credit Sale operation already belongs to a different request"
-                    )
-                }
-
-                return executeAdmittedCreditSale(
-                    CreditSalePayloadCodec.decode(existing)
-                )
-            }
-
-            authorizeNewFinancialMutation(
-                command.actorUserId,
-                command.businessId,
-                command.branchId,
-                PermissionAction.CREATE_SALE,
-                "Credit Sale"
-            )?.let { return it }
-
-            authorizeNewFinancialMutation(
-                command.actorUserId,
-                command.businessId,
-                command.branchId,
-                PermissionAction.CREATE_CREDIT_SALE,
-                "Credit Sale"
-            )?.let { return it }
-
-            executeAdmittedCreditSale(command)
-
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            CommandResult.Error(e)
-        }
-    }
-
-    private suspend fun executeAdmittedCreditSale(
-        command: CreditSaleCommand
     ): CommandResult<TransactionEntity> =
-        commandExecutor.execute(
-            command = command,
-            cashShiftId = resolveFinancialCashShiftId(command),
-            replayResolver = {
-                loadCreditSaleEvidence(command)
-            }
-        ) {
-            val branch = checkNotNull(
-                businessBranchDao.getBranchById(command.branchId)
-            ) { "Credit Sale branch does not exist" }
+        saleFinancialRepository.executeCreditSale(command)
 
-            require(
-                branch.businessId == command.businessId &&
-                    branch.currencyCode == command.currencyCode &&
-                    branch.currencyDecimalPlaces ==
-                        command.currencyDecimalPlaces
-            ) {
-                "Credit Sale branch/currency mismatch"
-            }
-
-            val resolved =
-                com.dailymoneyregister.feature.customers.data.CustomerIdentity
-                    .resolveOrCreate(
-                        customerDao = database.customerDao(),
-                        businessId = command.businessId,
-                        rawPhone = command.customerPhone,
-                        rawName = command.customerName,
-                        now = command.occurredAt
-                    )
-
-            val customer = resolved.customer
-            val txId = command.transactionIdVal.value
-
-            val existingTransaction =
-                transactionDao.getTransactionById(txId)
-
-            val existingItems =
-                transactionDao.getItemsForTransaction(txId)
-
-            val existingSettlements =
-                transactionDao.getSettlementsForCashSaleRecovery(
-                    command.operationId.value,
-                    txId
-                )
-
-            val existingCredit =
-                ledgerDao.getCreditLedgerForCustomer(customer.id)
-                    .filter {
-                        it.operationId == command.operationId.value
-                    }
-
-            if (
-                existingTransaction != null ||
-                existingItems.isNotEmpty() ||
-                existingSettlements.isNotEmpty() ||
-                existingCredit.isNotEmpty()
-            ) {
-                throw CommandRequiresReconciliationException(
-                    "Unexpected existing Credit Sale financial evidence"
-                )
-            }
-
-            Math.addExact(
-                ledgerDao.getCreditBalance(
-                    customer.id,
-                    command.currencyCode
-                ),
-                command.draftState.grandTotal.amount
-            )
-
-            saleFinancialWriter.materialize(
-                creditSaleIntent(command, customer.id)
-            )
-
-            ledgerDao.insertCreditEvent(
-                creditSaleObligation(command, customer.id)
-            )
-
-            val transaction =
-                loadCreditSaleEvidence(command)
-
-            transaction to ("TRANSACTION" to txId)
-        }
 
 
     data class CreditRepaymentExecutionResult(
@@ -1065,63 +852,9 @@ class RegisterRepository @Inject constructor(
      * Normal execution and recovery share executeAdmittedCreditSale(), so
      * transaction/settlement/credit-obligation semantics cannot drift.
      */
-    suspend fun recoverPendingCreditSales(): List<TransactionEntity> {
-        val pending =
-            commandExecutor.getPendingOperations()
-                .filter {
-                    it.operationType == OperationType.RECORD_SALE &&
-                        it.intentPayload
-                            .lineSequence()
-                            .any { line ->
-                                line.trim() == "commandType=CREDIT_SALE"
-                            }
-                }
+    suspend fun recoverPendingCreditSales(): List<TransactionEntity> =
+        saleFinancialRepository.recoverPendingCreditSales()
 
-        val recovered = mutableListOf<TransactionEntity>()
-
-        for (operation in pending) {
-            val command =
-                try {
-                    CreditSalePayloadCodec.decode(operation)
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) {
-                        throw e
-                    }
-
-                    throw IllegalStateException(
-                        "Invalid durable Credit Sale intent for operation ${operation.id}",
-                        e
-                    )
-                }
-
-            when (
-                val result =
-                    executeAdmittedCreditSale(command)
-            ) {
-                is CommandResult.Success -> {
-                    recovered += result.data
-                }
-
-                is CommandResult.Conflict -> {
-                    throw IllegalStateException(
-                        "Credit Sale recovery conflict: ${result.message}"
-                    )
-                }
-
-                is CommandResult.PermissionDenied -> {
-                    throw IllegalStateException(
-                        "Admitted Credit Sale recovery unexpectedly requested permission"
-                    )
-                }
-
-                is CommandResult.Error -> {
-                    throw result.exception
-                }
-            }
-        }
-
-        return recovered
-    }
     suspend fun recoverPendingCashSales(): List<TransactionEntity> =
         saleFinancialRepository.recoverPendingCashSales()
 
