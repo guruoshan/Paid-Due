@@ -41,11 +41,10 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
-import org.junit.Test
 import java.time.Instant
 
-class RemoteEnvelopeMaterializerTest {
-    private val database = mockk<DmrDatabase>()
+abstract class RemoteEnvelopeMaterializerTestSupport {
+    protected val database = mockk<DmrDatabase>()
     private val branchDao = mockk<BusinessBranchDao>()
     private val cashShiftDao = mockk<CashShiftDao>()
     private val identityDao = mockk<CloudStaffIdentityDao>()
@@ -64,8 +63,8 @@ class RemoteEnvelopeMaterializerTest {
     private val transactionId = "0199c102-1234-7abc-8def-0123456789ab"
     private val operationId = "0199c101-1234-7abc-8def-0123456789ab"
     private val fingerprint = "cash-sale-request-fingerprint"
-    private var storedOperation: OperationEntity? = null
-    private lateinit var cloudIdentity: CloudStaffIdentityEntity
+    protected var storedOperation: OperationEntity? = null
+    protected lateinit var cloudIdentity: CloudStaffIdentityEntity
 
     @Before
     fun setUp() {
@@ -187,661 +186,8 @@ class RemoteEnvelopeMaterializerTest {
         }
     }
 
-    @Test
-    fun appliesSaleWithSyncedCashierIdentityWhenLocalUserRowIsAbsentAndReplayIsSkipped() = runTest {
-        val envelope = cashSaleEnvelope()
 
-        val first = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database = database,
-            envelope = envelope,
-            sessionBusinessId = businessId,
-            sessionBranchId = branchId
-        )
-        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database = database,
-            envelope = envelope,
-            sessionBusinessId = businessId,
-            sessionBranchId = branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, first)
-        assertEquals(InboundProcessResult.Skipped, replay)
-        assertEquals(operationId, storedOperation?.id)
-        assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
-        assertEquals(fingerprint, storedOperation?.requestFingerprint)
-        assertEquals("TRANSACTION", storedOperation?.resultReferenceType)
-        assertEquals(transactionId, storedOperation?.resultReferenceId)
-        coVerify(exactly = 1) { operationDao.insertOperationIfAbsent(any()) }
-        coVerify(exactly = 1) { transactionDao.insertTransaction(any()) }
-        coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
-        // The remote identity projection, not a locally installed cashier account,
-        // is sufficient to validate the actor and replay the immutable sale.
-        coVerify(exactly = 0) { userDao.getUserByIdInBusiness(actorUserId, businessId) }
-    }
-
-    @Test
-    fun appliesExpenseWithSyncedCashierIdentityWhenLocalUserRowIsAbsent() = runTest {
-        val envelope = expenseEnvelope()
-        coEvery { operationDao.markSucceededIfPending(any(), any(), any(), any()) } coAnswers {
-            storedOperation = storedOperation?.copy(status = OperationStatus.SUCCEEDED)
-            1
-        }
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database = database,
-            envelope = envelope,
-            sessionBusinessId = businessId,
-            sessionBranchId = branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, result)
-        assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
-        assertEquals(null, storedOperation?.transactionId)
-        coVerify(exactly = 1) { expenseDao.insertExpense(any()) }
-        coVerify(exactly = 1) { operationDao.insertOperationIfAbsent(any()) }
-        coVerifyOrder {
-            operationDao.insertOperationIfAbsent(any())
-            transactionDao.insertSettlements(any())
-        }
-        coVerify(exactly = 0) { operationDao.markSucceededIfPending(any(), any(), any(), any()) }
-        coVerify(exactly = 1) {
-            transactionDao.insertSettlements(match { settlements ->
-                settlements.size == 1 &&
-                    settlements.single().entryPurpose.name == "EXPENSE_OUTFLOW" &&
-                    settlements.single().amountSignedMinor == -1_000L &&
-                    settlements.single().transactionId == null
-            })
-        }
-        coVerify(exactly = 0) { userDao.getUserByIdInBusiness(actorUserId, businessId) }
-        coVerify(exactly = 0) { transactionDao.insertTransaction(any()) }
-    }
-
-    @Test
-    fun rejectsExpenseWithoutAuthoritativeOutflowSettlement() = runTest {
-        val base = expenseEnvelope()
-        val payload = JSONObject(base.canonicalText).put("settlements", JSONArray())
-        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database = database,
-            envelope = envelope,
-            sessionBusinessId = businessId,
-            sessionBranchId = branchId
-        )
-
-        assertTrue("Expense without outflow evidence must be rejected", result is InboundProcessResult.Rejected)
-        coVerify(exactly = 0) { expenseDao.insertExpense(any()) }
-        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
-    }
-
-    @Test
-    fun completesMatchingPendingExpenseOperationAfterEvidenceIsMaterialized() = runTest {
-        val envelope = expenseEnvelope()
-        val payload = envelope.payloadJson
-        val expenseId = payload.getJSONObject("expense").getString("id")
-        storedOperation = OperationEntity(
-            id = operationId,
-            businessId = businessId,
-            branchId = branchId,
-            operationType = OperationType.RECORD_EXPENSE,
-            subjectType = SubjectType.EXPENSE,
-            subjectId = expenseId,
-            transactionId = null,
-            actorUserId = actorUserId,
-            deviceId = "cashier-device",
-            occurredAt = payload.getLong("occurred_at"),
-            requestFingerprint = fingerprint,
-            commandSchemaVersion = 1,
-            intentPayload = "{}",
-            status = OperationStatus.PENDING
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database = database,
-            envelope = envelope,
-            sessionBusinessId = businessId,
-            sessionBranchId = branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, result)
-        assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
-        coVerifyOrder {
-            outboxDao.insertOutbox(match {
-                it.operationId == operationId &&
-                    it.transactionId == expenseId &&
-                    it.status == "ACKNOWLEDGED"
-            })
-            operationDao.markSucceededIfPending(
-                operationId,
-                fingerprint,
-                "EXPENSE",
-                expenseId
-            )
-        }
-    }
-
-    @Test
-    fun preservesExpenseCashShiftAttributionFromAuthoritativeEnvelope() = runTest {
-        val base = expenseEnvelope()
-        val payload = JSONObject(base.canonicalText)
-        val shiftId = "expense-attributed-shift"
-        payload.put("cash_shift_id", shiftId)
-        payload.getJSONObject("expense").put("cash_shift_id", shiftId)
-        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, result)
-        assertEquals(shiftId, storedOperation?.cashShiftId)
-    }
-
-    @Test
-    fun rejectsExpenseWhenOutflowSettlementDoesNotMatchSnapshot() = runTest {
-        val base = expenseEnvelope()
-        val payload = JSONObject(base.canonicalText)
-        payload.getJSONArray("settlements").getJSONObject(0)
-            .put("amount_signed_minor", 1_000L)
-        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database = database,
-            envelope = envelope,
-            sessionBusinessId = businessId,
-            sessionBranchId = branchId
-        )
-
-        assertTrue("Mismatched expense settlement must be rejected", result is InboundProcessResult.Rejected)
-        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
-        coVerify(exactly = 0) { expenseDao.insertExpense(any()) }
-    }
-
-    @Test
-    fun appliesPaymentMethodChangeWithSyncedCashierIdentityAndReclassificationEvidence() = runTest {
-        val occurredAt = Instant.parse("2026-10-09T10:00:00Z").toEpochMilli()
-        coEvery { transactionDao.getTransactionById(transactionId) } returns TransactionEntity(
-            id = transactionId,
-            branchId = branchId,
-            type = TransactionType.SALE,
-            customerId = null,
-            subtotalMinor = 1_000L,
-            taxRateBps = 0,
-            taxableBaseMinor = 1_000L,
-            taxAmountMinor = 0L,
-            txShippingMinor = 0L,
-            txPackingMinor = 0L,
-            grandTotalMinor = 1_000L,
-            currencyCode = "OMR",
-            currencyDecimalPlaces = 3,
-            createdByUserId = actorUserId,
-            deviceId = "cashier-device",
-            createdAt = occurredAt,
-            description = null,
-            displayRef = "SALE-001"
-        )
-        val envelope = paymentMethodChangeEnvelope()
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database = database,
-            envelope = envelope,
-            sessionBusinessId = businessId,
-            sessionBranchId = branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, result)
-        assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
-        assertEquals("PAYMENT_METHOD_CHANGE_EVENT", storedOperation?.resultReferenceType)
-        assertEquals("payment-change-event", storedOperation?.resultReferenceId)
-        coVerify(exactly = 0) { transactionDao.insertTransaction(any()) }
-        coVerify(exactly = 1) { transactionDao.insertSettlements(match { it.size == 2 }) }
-        coVerify(exactly = 1) { transactionDao.insertPaymentMethodChange(any()) }
-        coVerify(exactly = 0) { userDao.getUserByIdInBusiness(actorUserId, businessId) }
-    }
-
-    @Test
-    fun appliesRefundWithEventSpecificOperationResultReference() = runTest {
-        val refundOperationId = "refund-operation"
-        val refundEventId = "refund-event"
-        val occurredAt = Instant.parse("2026-10-09T10:00:00Z").toEpochMilli()
-        val evidence = JSONObject().put("refund_event", JSONObject().apply {
-            put("id", refundEventId)
-            put("transaction_id", transactionId)
-            put("operation_id", refundOperationId)
-            put("refund_amount_minor", 1_000L)
-            put("reason", "Customer return")
-            put("actor_user_id", actorUserId)
-            put("occurred_at", occurredAt)
-        })
-        val envelope = transactionLifecycleEnvelope(
-            operationType = "RECORD_REFUND",
-            lifecycleOperationId = refundOperationId,
-            signedSettlementMinor = -1_000L,
-            entryPurpose = "REFUND_OUTFLOW",
-            financialEvidence = evidence
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database = database,
-            envelope = envelope,
-            sessionBusinessId = businessId,
-            sessionBranchId = branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, result)
-        assertEquals("REFUND_EVENT", storedOperation?.resultReferenceType)
-        assertEquals(refundEventId, storedOperation?.resultReferenceId)
-        coVerify(exactly = 1) { transactionDao.insertRefund(match { it.id == refundEventId }) }
-    }
-
-    @Test
-    fun appliesAmountCorrectionWithEventSpecificOperationResultReference() = runTest {
-        val correctionOperationId = "correction-operation"
-        val correctionEventId = "correction-event"
-        val occurredAt = Instant.parse("2026-10-09T10:00:00Z").toEpochMilli()
-        val evidence = JSONObject().put(
-            "amount_correction_events",
-            JSONArray().put(JSONObject().apply {
-                put("id", correctionEventId)
-                put("transaction_id", transactionId)
-                put("operation_id", correctionOperationId)
-                put("previous_amount_minor", 1_000L)
-                put("corrected_amount_minor", 1_200L)
-                put("reason", "Corrected amount")
-                put("actor_user_id", actorUserId)
-                put("occurred_at", occurredAt)
-            })
-        )
-        val envelope = transactionLifecycleEnvelope(
-            operationType = "RECORD_AMOUNT_CORRECTION",
-            lifecycleOperationId = correctionOperationId,
-            signedSettlementMinor = 200L,
-            entryPurpose = "FUNDING_CORRECTION",
-            financialEvidence = evidence
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database = database,
-            envelope = envelope,
-            sessionBusinessId = businessId,
-            sessionBranchId = branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, result)
-        assertEquals("AMOUNT_CORRECTION_EVENT", storedOperation?.resultReferenceType)
-        assertEquals(correctionEventId, storedOperation?.resultReferenceId)
-        coVerify(exactly = 1) {
-            transactionDao.insertAmountCorrection(match { it.id == correctionEventId })
-        }
-    }
-
-    @Test
-    fun appliesServerAuthenticatedAdminSaleWhenAdminRowIsAbsentAndSkipsReplay() = runTest {
-        val adminActorId = "admin-user-from-authoritative-envelope"
-        val envelope = cashSaleEnvelope(
-            actorId = adminActorId,
-            serverActorMembershipId = "admin-membership-a",
-            serverActorRole = "ADMIN"
-        )
-
-        val first = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database = database,
-            envelope = envelope,
-            sessionBusinessId = businessId,
-            sessionBranchId = branchId
-        )
-        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database = database,
-            envelope = envelope,
-            sessionBusinessId = businessId,
-            sessionBranchId = branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, first)
-        assertEquals(InboundProcessResult.Skipped, replay)
-        assertEquals(operationId, storedOperation?.id)
-        assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
-        coVerify(exactly = 1) { operationDao.insertOperationIfAbsent(any()) }
-        coVerify(exactly = 1) { transactionDao.insertTransaction(any()) }
-        coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
-        coVerify(exactly = 0) { userDao.getUserByIdInBusiness(adminActorId, businessId) }
-    }
-
-    @Test
-    fun removedSynchronizedIdentityFailsClosedBeforeFinancialWrites() = runTest {
-        cloudIdentity = cloudIdentity.copy(isActive = false, isRemoved = true)
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database = database,
-            envelope = cashSaleEnvelope(),
-            sessionBusinessId = businessId,
-            sessionBranchId = branchId
-        )
-
-        assertEquals(
-            InboundProcessResult.Rejected(
-                "Referenced operation actor is missing from synchronized staff identities"
-            ),
-            result
-        )
-        assertEquals(null, storedOperation)
-        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
-        coVerify(exactly = 0) { transactionDao.insertTransaction(any()) }
-    }
-
-    @Test
-    fun partialRefundThenVoidAcceptsOnlyTheRemainingReversibleAmount() = runTest {
-        val priorRefund = RefundEventEntity(
-            id = "prior-refund-event",
-            transactionId = transactionId,
-            operationId = "prior-refund-operation",
-            refundAmountMinor = 900L,
-            reason = "Partial return",
-            actorUserId = actorUserId,
-            occurredAt = Instant.parse("2026-10-09T10:00:01Z").toEpochMilli()
-        )
-        coEvery { transactionDao.getRefundEvents(transactionId) } returns listOf(priorRefund)
-
-        val base = cashSaleEnvelope()
-        val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at") + 2_000L
-        val voidOperationId = "void-operation-after-partial-refund"
-        val payload = JSONObject(base.canonicalText).apply {
-            put("operation_id", voidOperationId)
-            put("operation_type", "RECORD_VOID")
-            put("occurred_at", occurredAt)
-            put("settlements", JSONArray().put(JSONObject().apply {
-                put("id", "void-residual-settlement")
-                put("operation_id", voidOperationId)
-                put("subject_type", SubjectType.TRANSACTION.name)
-                put("subject_id", transactionId)
-                put("transaction_id", transactionId)
-                put("entry_purpose", "VOID_REVERSAL")
-                put("category", "CASH")
-                put("channel", "CASH_TENDER")
-                put("amount_signed_minor", -100L)
-                put("currency_code", "OMR")
-                put("confirmation_type", ConfirmationType.CASHIER_CONFIRMED.name)
-                put("actor_user_id", actorUserId)
-                put("occurred_at", occurredAt)
-            }))
-            put("financial_evidence", JSONObject().put("void_event", JSONObject().apply {
-                put("id", "void-event-after-partial-refund")
-                put("transaction_id", transactionId)
-                put("operation_id", voidOperationId)
-                put("reason", "Cancel remaining amount")
-                put("actor_user_id", actorUserId)
-                put("occurred_at", occurredAt)
-            }))
-        }
-        val envelope = envelopeFromPayload(base, "RECORD_VOID", payload, voidOperationId)
-        storedOperation = OperationEntity(
-            id = voidOperationId,
-            businessId = businessId,
-            branchId = branchId,
-            operationType = OperationType.RECORD_VOID,
-            subjectType = SubjectType.TRANSACTION,
-            subjectId = transactionId,
-            transactionId = transactionId,
-            actorUserId = actorUserId,
-            deviceId = "cashier-device",
-            occurredAt = occurredAt,
-            requestFingerprint = fingerprint,
-            commandSchemaVersion = 1,
-            intentPayload = "{}",
-            status = OperationStatus.PENDING
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database = database,
-            envelope = envelope,
-            sessionBusinessId = businessId,
-            sessionBranchId = branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, result)
-        assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
-        assertEquals("VOID_EVENT", storedOperation?.resultReferenceType)
-        assertEquals("void-event-after-partial-refund", storedOperation?.resultReferenceId)
-        coVerifyOrder {
-            outboxDao.insertOutbox(match {
-                it.operationId == voidOperationId &&
-                    it.transactionId == transactionId &&
-                    it.status == "ACKNOWLEDGED"
-            })
-            operationDao.markSucceededIfPending(
-                voidOperationId,
-                fingerprint,
-                "VOID_EVENT",
-                "void-event-after-partial-refund"
-            )
-        }
-        coVerify(exactly = 1) { transactionDao.insertVoid(match { it.transactionId == transactionId }) }
-    }
-
-    @Test
-    fun rejectsAmountCorrectionWhenPositiveDeltaOverflowsLong() = runTest {
-        val correctionOperationId = "correction-positive-overflow"
-        val evidence = JSONObject().put(
-            "amount_correction_events",
-            JSONArray().put(JSONObject().apply {
-                put("id", "correction-positive-overflow-event")
-                put("transaction_id", transactionId)
-                put("operation_id", correctionOperationId)
-                put("previous_amount_minor", Long.MIN_VALUE)
-                put("corrected_amount_minor", Long.MAX_VALUE)
-                put("actor_user_id", actorUserId)
-                put("occurred_at", Instant.parse("2026-10-09T10:00:00Z").toEpochMilli())
-            })
-        )
-        val envelope = transactionLifecycleEnvelope(
-            operationType = "RECORD_AMOUNT_CORRECTION",
-            lifecycleOperationId = correctionOperationId,
-            signedSettlementMinor = 1L,
-            entryPurpose = "FUNDING_CORRECTION",
-            financialEvidence = evidence
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertTrue(result is InboundProcessResult.Rejected)
-        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
-    }
-
-    @Test
-    fun rejectsAmountCorrectionWhenNegativeDeltaOverflowsLong() = runTest {
-        val correctionOperationId = "correction-negative-overflow"
-        val evidence = JSONObject().put(
-            "amount_correction_events",
-            JSONArray().put(JSONObject().apply {
-                put("id", "correction-negative-overflow-event")
-                put("transaction_id", transactionId)
-                put("operation_id", correctionOperationId)
-                put("previous_amount_minor", Long.MAX_VALUE)
-                put("corrected_amount_minor", Long.MIN_VALUE)
-                put("actor_user_id", actorUserId)
-                put("occurred_at", Instant.parse("2026-10-09T10:00:00Z").toEpochMilli())
-            })
-        )
-        val envelope = transactionLifecycleEnvelope(
-            operationType = "RECORD_AMOUNT_CORRECTION",
-            lifecycleOperationId = correctionOperationId,
-            signedSettlementMinor = -1L,
-            entryPurpose = "FUNDING_CORRECTION",
-            financialEvidence = evidence
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertTrue(result is InboundProcessResult.Rejected)
-        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
-    }
-
-    @Test
-    fun rejectsZeroSumPaymentMethodChangeWithWrongOldAndNewChannelEvidence() = runTest {
-        val base = paymentMethodChangeEnvelope()
-        val payload = JSONObject(base.canonicalText)
-        val settlements = payload.getJSONArray("settlements")
-        settlements.getJSONObject(0)
-            .put("category", "ONLINE")
-            .put("channel", "MANUAL_QR")
-        settlements.getJSONObject(1)
-            .put("category", "CASH")
-            .put("channel", "CASH_TENDER")
-        val envelope = envelopeFromPayload(base, "RECORD_PAYMENT_METHOD_CHANGE", payload)
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertTrue("A zero-sum but incorrectly classified pair must be rejected", result is InboundProcessResult.Rejected)
-        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
-        coVerify(exactly = 0) { transactionDao.insertSettlements(any()) }
-    }
-
-    @Test
-    fun appliesCreditRepaymentInboundOnceAndSkipsReplay() = runTest {
-        val envelope = creditRepaymentEnvelope()
-
-        val first = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, first)
-        assertEquals(InboundProcessResult.Skipped, replay)
-        assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
-        assertEquals("REPAYMENT", storedOperation?.resultReferenceType)
-        assertEquals("repayment-evidence-id", storedOperation?.resultReferenceId)
-        coVerify(exactly = 1) { ledgerDao.insertCreditRepayment(any()) }
-        coVerify(exactly = 1) { ledgerDao.insertCreditEvent(any()) }
-        coVerify(exactly = 1) { ledgerDao.insertCreditRepaymentAllocations(any()) }
-        coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
-    }
-
-    @Test
-    fun completesMatchingPendingCreditRepaymentWithAcknowledgedOutboxBeforeSuccess() = runTest {
-        val envelope = creditRepaymentEnvelope()
-        val payload = envelope.payloadJson
-        val repaymentId = payload.optString("subject_id")
-        storedOperation = OperationEntity(
-            id = envelope.operationId,
-            businessId = businessId,
-            branchId = branchId,
-            operationType = OperationType.RECORD_CREDIT_REPAYMENT,
-            subjectType = SubjectType.REPAYMENT,
-            subjectId = repaymentId,
-            transactionId = null,
-            cashShiftId = null,
-            actorUserId = actorUserId,
-            deviceId = "cashier-device",
-            occurredAt = payload.getLong("occurred_at"),
-            requestFingerprint = fingerprint,
-            commandSchemaVersion = 1,
-            intentPayload = "{}",
-            status = OperationStatus.PENDING
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, result)
-        assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
-        coVerifyOrder {
-            outboxDao.insertOutbox(match {
-                it.operationId == envelope.operationId &&
-                    it.transactionId == repaymentId &&
-                    it.status == "ACKNOWLEDGED"
-            })
-            operationDao.markSucceededIfPending(
-                envelope.operationId, fingerprint, "REPAYMENT", repaymentId
-            )
-        }
-    }
-
-    @Test
-    fun appliesCouponFundedCreditRepaymentWithRedemptionEvidence() = runTest {
-        val envelope = couponCreditRepaymentEnvelope()
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, result)
-        coVerify(exactly = 1) { ledgerDao.insertCreditRepayment(any()) }
-        coVerify(exactly = 1) { ledgerDao.insertCreditEvent(any()) }
-        coVerify(exactly = 1) { ledgerDao.insertCouponWallet(any()) }
-        coVerify(exactly = 1) { ledgerDao.insertCouponEvent(match { it.type.name == "REDEMPTION" }) }
-        coVerify(exactly = 0) { outboxDao.insertOutbox(any()) }
-    }
-
-    @Test
-    fun rejectsCreditRepaymentWithIncompleteLedgerEvidenceBeforeWrites() = runTest {
-        val base = creditRepaymentEnvelope()
-        val payload = JSONObject(base.canonicalText)
-        payload.getJSONObject("financial_evidence").remove("credit_ledger_events")
-        val envelope = envelopeFromPayload(
-            base, "RECORD_CREDIT_REPAYMENT", payload, "credit-repayment-operation"
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertTrue(result is InboundProcessResult.Rejected)
-        assertEquals(null, storedOperation)
-        coVerify(exactly = 0) { ledgerDao.insertCreditRepayment(any()) }
-        coVerify(exactly = 0) { ledgerDao.insertCreditEvent(any()) }
-        coVerify(exactly = 0) { transactionDao.insertSettlements(any()) }
-    }
-
-    @Test
-    fun rejectsCouponPurchaseWithoutPurchaseLedgerEvidenceBeforeWrites() = runTest {
-        val base = couponPurchaseEnvelope()
-        val payload = JSONObject(base.canonicalText)
-        payload.getJSONObject("financial_evidence").remove("coupon_ledger_events")
-        val envelope = envelopeFromPayload(
-            base, "RECORD_COUPON_PURCHASE", payload, "coupon-purchase-operation"
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertTrue(result is InboundProcessResult.Rejected)
-        assertEquals(null, storedOperation)
-        coVerify(exactly = 0) { ledgerDao.insertCouponWallet(any()) }
-        coVerify(exactly = 0) { ledgerDao.insertCouponEvent(any()) }
-        coVerify(exactly = 0) { transactionDao.insertTransaction(any()) }
-    }
-
-    @Test
-    fun appliesCouponPurchaseInboundOnceAndSkipsReplay() = runTest {
-        val envelope = couponPurchaseEnvelope()
-
-        val first = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, first)
-        assertEquals(InboundProcessResult.Skipped, replay)
-        assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
-        coVerify(exactly = 1) { ledgerDao.insertCouponWallet(any()) }
-        coVerify(exactly = 1) { ledgerDao.insertCouponEvent(any()) }
-        coVerify(exactly = 1) { transactionDao.insertTransaction(any()) }
-        coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
-    }
-
-    private fun creditRepaymentEnvelope(): RemoteEnvelopeV2 {
+    protected fun creditRepaymentEnvelope(): RemoteEnvelopeV2 {
         val base = cashSaleEnvelope()
         val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at")
         val repaymentId = "repayment-evidence-id"
@@ -901,7 +247,7 @@ class RemoteEnvelopeMaterializerTest {
         return envelopeFromPayload(base, "RECORD_CREDIT_REPAYMENT", payload, repaymentOperationId)
     }
 
-    private fun couponCreditRepaymentEnvelope(): RemoteEnvelopeV2 {
+    protected fun couponCreditRepaymentEnvelope(): RemoteEnvelopeV2 {
         val base = creditRepaymentEnvelope()
         val payload = JSONObject(base.canonicalText)
         val evidence = payload.getJSONObject("financial_evidence")
@@ -937,7 +283,7 @@ class RemoteEnvelopeMaterializerTest {
         )
     }
 
-    private fun couponPurchaseEnvelope(): RemoteEnvelopeV2 {
+    protected fun couponPurchaseEnvelope(): RemoteEnvelopeV2 {
         val base = cashSaleEnvelope()
         val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at")
         val couponOperationId = "coupon-purchase-operation"
@@ -976,280 +322,7 @@ class RemoteEnvelopeMaterializerTest {
         return envelopeFromPayload(base, "RECORD_COUPON_PURCHASE", payload, couponOperationId)
     }
 
-    @Test
-    fun appliesCashShiftOpenWithSubjectIdentityAndNoCashShiftAttribution() = runTest {
-        val envelope = cashShiftEnvelope("OPEN_CASH_SHIFT")
-        val shift = CashShiftEntity(
-            id = "inbound-shift-id",
-            branchId = branchId,
-            userId = actorUserId,
-            createdAt = Instant.parse("2026-10-09T10:00:00Z").toEpochMilli()
-        )
-        coEvery { cashShiftDao.getShiftById(shift.id) } returnsMany listOf(null, shift)
-
-        val first = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, first)
-        assertEquals(InboundProcessResult.Skipped, replay)
-        assertEquals(null, storedOperation?.cashShiftId)
-        assertEquals(SubjectType.CASH_SHIFT, storedOperation?.subjectType)
-        coVerify(exactly = 1) { cashShiftDao.insertShift(shift) }
-        coVerify(exactly = 1) {
-            cashShiftDao.insertShiftEvent(match {
-                it.shiftId == shift.id && it.operationId == "open-shift-operation"
-            })
-        }
-        coVerify(exactly = 0) { outboxDao.insertOutbox(any()) }
-    }
-
-    @Test
-    fun rejectsCashShiftSnapshotOwnedByAnotherBranch() = runTest {
-        val envelope = cashShiftEnvelope("OPEN_CASH_SHIFT")
-        val shift = CashShiftEntity(
-            id = "inbound-shift-id",
-            branchId = "another-branch",
-            userId = actorUserId,
-            createdAt = envelope.payloadJson.getJSONObject("financial_evidence").getJSONObject("cash_shift").getLong("created_at")
-        )
-        coEvery { cashShiftDao.getShiftById(shift.id) } returns shift
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertTrue(result is InboundProcessResult.Rejected)
-        assertEquals(null, storedOperation)
-        coVerify(exactly = 0) { cashShiftDao.insertShiftEvent(any()) }
-    }
-
-    @Test
-    fun appliesCashShiftCountWithSubjectAsAuthoritativeIdentity() = runTest {
-        val envelope = cashShiftEnvelope("COUNT_CASH_SHIFT", occurredAtOffset = 1_000L)
-        val shift = CashShiftEntity(
-            id = "inbound-shift-id",
-            branchId = branchId,
-            userId = actorUserId,
-            createdAt = envelope.payloadJson.getLong("occurred_at")
-        )
-        coEvery { cashShiftDao.getShiftById(shift.id) } returns shift
-        coEvery { cashShiftDao.getEventsForShift(shift.id) } returns listOf(
-            CashShiftEventEntity(
-                id = "prior-open-event",
-                shiftId = shift.id,
-                operationId = "prior-open-operation",
-                type = CashShiftEventType.OPENED,
-                amountMinor = 0L,
-                occurredAt = shift.createdAt,
-                actorUserId = actorUserId
-            )
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, result)
-        assertEquals(null, storedOperation?.cashShiftId)
-        coVerify(exactly = 1) {
-            cashShiftDao.insertShiftEvent(match {
-                it.shiftId == shift.id && it.type == CashShiftEventType.COUNTED
-            })
-        }
-    }
-
-    @Test
-    fun appliesCashShiftCloseWithSubjectAsAuthoritativeIdentity() = runTest {
-        val envelope = cashShiftEnvelope("CLOSE_CASH_SHIFT", occurredAtOffset = 2_000L)
-        val shift = CashShiftEntity(
-            id = "inbound-shift-id",
-            branchId = branchId,
-            userId = actorUserId,
-            createdAt = envelope.payloadJson.getLong("occurred_at")
-        )
-        coEvery { cashShiftDao.getShiftById(shift.id) } returns shift
-        coEvery { cashShiftDao.getEventsForShift(shift.id) } returns listOf(
-            CashShiftEventEntity(
-                id = "prior-open-event",
-                shiftId = shift.id,
-                operationId = "prior-open-operation",
-                type = CashShiftEventType.OPENED,
-                amountMinor = 0L,
-                occurredAt = shift.createdAt,
-                actorUserId = actorUserId
-            ),
-            CashShiftEventEntity(
-                id = "prior-count-event",
-                shiftId = shift.id,
-                operationId = "prior-count-operation",
-                type = CashShiftEventType.COUNTED,
-                amountMinor = 1_000L,
-                occurredAt = shift.createdAt + 1_000L,
-                actorUserId = actorUserId
-            )
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, result)
-        assertEquals(null, storedOperation?.cashShiftId)
-        coVerify(exactly = 1) {
-            cashShiftDao.insertShiftEvent(match {
-                it.shiftId == shift.id && it.type == CashShiftEventType.CLOSED
-            })
-        }
-    }
-
-    @Test
-    fun rejectsCashShiftEventWhoseShiftIdDiffersFromEnvelopeSubject() = runTest {
-        val envelope = cashShiftEnvelope(
-            operationType = "OPEN_CASH_SHIFT",
-            eventShiftId = "different-shift-id"
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertTrue(result is InboundProcessResult.Rejected)
-        assertEquals(null, storedOperation)
-        coVerify(exactly = 0) { cashShiftDao.insertShift(any()) }
-        coVerify(exactly = 0) { cashShiftDao.insertShiftEvent(any()) }
-    }
-
-    @Test
-    fun appliesExpenseCorrectionOnlyForExactExpenseEventAndSettlement() = runTest {
-        val expenseId = "lifecycle-expense-id"
-        val expense = mockk<ExpenseEntity>()
-        every { expense.businessId } returns businessId
-        every { expense.branchId } returns branchId
-        every { expense.amountMinor } returns 1_000L
-        every { expense.paymentCategory } returns "CASH"
-        every { expense.category } returns "OTHER"
-        every { expense.payeeId } returns null
-        coEvery { expenseDao.getExpenseById(expenseId) } returns expense
-        coEvery { expenseDao.getEventsForExpense(expenseId) } returns emptyList()
-        coEvery { expenseDao.insertExpenseEvent(any()) } returns Unit
-        val envelope = expenseLifecycleEnvelope(
-            operationType = "RECORD_EXPENSE_CORRECTION",
-            eventType = "CORRECTED",
-            signedSettlementMinor = 200L,
-            previousAmount = 1_000L,
-            newAmount = 800L
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, result)
-        coVerify(exactly = 1) {
-            expenseDao.insertExpenseEvent(match {
-                it.expenseId == expenseId &&
-                    it.operationId == "expense-correction-operation" &&
-                    it.eventType == "CORRECTED" &&
-                    it.actorUserId == actorUserId
-            })
-        }
-        coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
-    }
-
-    @Test
-    fun appliesExpenseVoidWithExactVoidEventAndPositiveReversal() = runTest {
-        val expenseId = "lifecycle-expense-id"
-        val expense = mockk<ExpenseEntity>()
-        every { expense.businessId } returns businessId
-        every { expense.branchId } returns branchId
-        every { expense.amountMinor } returns 1_000L
-        every { expense.paymentCategory } returns "CASH"
-        every { expense.category } returns "OTHER"
-        every { expense.payeeId } returns null
-        coEvery { expenseDao.getExpenseById(expenseId) } returns expense
-        coEvery { expenseDao.getEventsForExpense(expenseId) } returns emptyList()
-        coEvery { expenseDao.insertExpenseEvent(any()) } returns Unit
-        val envelope = expenseLifecycleEnvelope(
-            operationType = "RECORD_EXPENSE_VOID",
-            eventType = "VOIDED",
-            signedSettlementMinor = 1_000L,
-            previousAmount = 1_000L,
-            newAmount = null
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, result)
-        coVerify(exactly = 1) {
-            expenseDao.insertExpenseEvent(match {
-                it.expenseId == expenseId &&
-                    it.operationId == "expense-void-operation" &&
-                    it.eventType == "VOIDED"
-            })
-        }
-        coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
-    }
-
-    @Test
-    fun rejectsExpenseLifecycleEventWithWrongEventTypeBeforeWrites() = runTest {
-        val base = expenseLifecycleEnvelope(
-            operationType = "RECORD_EXPENSE_CORRECTION",
-            eventType = "CORRECTED",
-            signedSettlementMinor = 200L,
-            previousAmount = 1_000L,
-            newAmount = 800L
-        )
-        val payload = JSONObject(base.canonicalText)
-        payload.getJSONObject("financial_evidence")
-            .getJSONArray("expense_events").getJSONObject(0)
-            .put("event_type", "VOIDED")
-        val envelope = envelopeFromPayload(
-            base, "RECORD_EXPENSE_CORRECTION", payload, "expense-correction-operation"
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertTrue(result is InboundProcessResult.Rejected)
-        assertEquals(null, storedOperation)
-        coVerify(exactly = 0) { expenseDao.insertExpenseEvent(any()) }
-    }
-
-    @Test
-    fun rejectsExpenseLifecycleEventForDifferentExpenseBeforeWrites() = runTest {
-        val base = expenseLifecycleEnvelope(
-            operationType = "RECORD_EXPENSE_CORRECTION",
-            eventType = "CORRECTED",
-            signedSettlementMinor = 200L,
-            previousAmount = 1_000L,
-            newAmount = 800L
-        )
-        val payload = JSONObject(base.canonicalText)
-        payload.getJSONObject("financial_evidence")
-            .getJSONArray("expense_events").getJSONObject(0)
-            .put("expense_id", "another-expense-id")
-        val envelope = envelopeFromPayload(
-            base, "RECORD_EXPENSE_CORRECTION", payload, "expense-correction-operation"
-        )
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertTrue(result is InboundProcessResult.Rejected)
-        assertEquals(null, storedOperation)
-        coVerify(exactly = 0) { expenseDao.insertExpenseEvent(any()) }
-        coVerify(exactly = 0) { transactionDao.insertSettlements(any()) }
-    }
-
-    private fun cashShiftEnvelope(
+    protected fun cashShiftEnvelope(
         operationType: String,
         eventShiftId: String = "inbound-shift-id",
         occurredAtOffset: Long = 0L
@@ -1291,7 +364,7 @@ class RemoteEnvelopeMaterializerTest {
         return envelopeFromPayload(base, operationType, payload, operation)
     }
 
-    private fun expenseLifecycleEnvelope(
+    protected fun expenseLifecycleEnvelope(
         operationType: String,
         eventType: String,
         signedSettlementMinor: Long,
@@ -1359,7 +432,7 @@ class RemoteEnvelopeMaterializerTest {
         return envelopeFromPayload(base, operationType, payload, lifecycleOperationId)
     }
 
-    private fun transactionLifecycleEnvelope(
+    protected fun transactionLifecycleEnvelope(
         operationType: String,
         lifecycleOperationId: String,
         signedSettlementMinor: Long,
@@ -1393,7 +466,7 @@ class RemoteEnvelopeMaterializerTest {
         return envelopeFromPayload(base, operationType, payload, lifecycleOperationId)
     }
 
-    private fun expenseEnvelope(): RemoteEnvelopeV2 {
+    protected fun expenseEnvelope(): RemoteEnvelopeV2 {
         val base = cashSaleEnvelope()
         val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at")
         val expenseId = "0199c104-1234-7abc-8def-0123456789ab"
@@ -1437,7 +510,7 @@ class RemoteEnvelopeMaterializerTest {
         return envelopeFromPayload(base, "RECORD_EXPENSE", payload)
     }
 
-    private fun paymentMethodChangeEnvelope(): RemoteEnvelopeV2 {
+    protected fun paymentMethodChangeEnvelope(): RemoteEnvelopeV2 {
         val base = cashSaleEnvelope()
         val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at")
         val paymentChangeOperationId = "payment-change-operation"
@@ -1492,7 +565,7 @@ class RemoteEnvelopeMaterializerTest {
         )
     }
 
-    private fun envelopeFromPayload(
+    protected fun envelopeFromPayload(
         base: RemoteEnvelopeV2,
         operationType: String,
         payload: JSONObject,
@@ -1515,7 +588,7 @@ class RemoteEnvelopeMaterializerTest {
         )
     }
 
-    private fun cashSaleEnvelope(
+    protected fun cashSaleEnvelope(
         actorId: String = actorUserId,
         serverActorMembershipId: String? = null,
         serverActorRole: String? = null
@@ -1585,4 +658,5 @@ class RemoteEnvelopeMaterializerTest {
             actorRole = if (serverActorMembershipId == null) null else serverActorRole
         )
     }
+}
 }
