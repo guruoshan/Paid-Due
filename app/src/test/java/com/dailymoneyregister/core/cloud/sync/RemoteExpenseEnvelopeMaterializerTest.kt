@@ -167,6 +167,7 @@ class RemoteExpenseEnvelopeMaterializerTest : RemoteEnvelopeMaterializerTestSupp
         every { customer.id } returns "local-phone-payee"
         every { customer.businessId } returns businessId
         every { customer.canonicalPhone } returns "+96891234567"
+        every { customer.name } returns "Test payee"
         coEvery { customerDao.getCustomerByPhone(businessId, "+96891234567") } returns customer
 
         val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
