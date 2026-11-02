@@ -47,9 +47,6 @@ internal object RemoteCreditRepaymentValidator {
         ) {
             return InboundProcessResult.Rejected("Credit repayment business, branch, or currency mismatch")
         }
-        if (customer != null && customer.businessId != sessionBusinessId) {
-            return InboundProcessResult.Rejected("Credit repayment customer belongs to another business")
-        }
         val repaymentId = repaymentJson.optString("id")
         val repaymentAmount = repaymentJson.optLong("amount_minor", 0L)
         if (
