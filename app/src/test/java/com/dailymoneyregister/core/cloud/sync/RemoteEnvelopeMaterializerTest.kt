@@ -389,7 +389,7 @@ abstract class RemoteEnvelopeMaterializerTestSupport {
             put("subject_type", SubjectType.EXPENSE.name)
             put("subject_id", expenseId)
             put("settlements", JSONArray().put(JSONObject().apply {
-                put("id", "$lifecycleOperationId-settlement")
+                put("id", "$lifecycleOperationId:expense-lifecycle-settlement")
                 put("operation_id", lifecycleOperationId)
                 put("subject_type", SubjectType.EXPENSE.name)
                 put("subject_id", expenseId)
@@ -411,7 +411,7 @@ abstract class RemoteEnvelopeMaterializerTestSupport {
                     put("payment_category", "CASH")
                 })
                 put("expense_events", JSONArray().put(JSONObject().apply {
-                    put("id", "$lifecycleOperationId-event")
+                    put("id", "$lifecycleOperationId:expense-event")
                     put("expense_id", expenseId)
                     put("operation_id", lifecycleOperationId)
                     put("event_type", eventType)

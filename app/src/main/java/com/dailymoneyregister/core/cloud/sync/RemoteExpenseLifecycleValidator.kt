@@ -74,6 +74,7 @@ internal object RemoteExpenseLifecycleValidator {
         }
         if (
             !validChannel ||
+            row.optString("id") != "${envelope.operationId}:expense-lifecycle-settlement" ||
             row.optString("operation_id") != envelope.operationId ||
             row.optString("subject_type") != SubjectType.EXPENSE.name ||
             row.optString("subject_id") != expenseId ||
@@ -95,7 +96,8 @@ internal object RemoteExpenseLifecycleValidator {
             "CORRECTED"
         }
         if (
-            event.optString("id").isBlank() ||
+            event.optString("id") != "${envelope.operationId}:expense-event" ||
+            event.optString("reason").isBlank() ||
             event.optString("expense_id") != expenseId ||
             event.optString("operation_id") != envelope.operationId ||
             event.optString("actor_user_id") != actorUserId ||
@@ -108,7 +110,17 @@ internal object RemoteExpenseLifecycleValidator {
         }
         if (operationType == OperationType.RECORD_EXPENSE_VOID) {
             val amountBeingVoided = event.optLong("previous_amount_minor", 0L)
-            if (amountBeingVoided <= 0L || total != amountBeingVoided) {
+            if (
+                !event.has("previous_payment_category") ||
+                !event.has("previous_category") ||
+                !event.has("previous_payee_id") ||
+                (event.has("new_amount_minor") && !event.isNull("new_amount_minor")) ||
+                event.optString("new_payment_category").isNotBlank() ||
+                event.optString("new_category").isNotBlank() ||
+                event.optString("new_payee_id") != event.optString("previous_payee_id") ||
+                amountBeingVoided <= 0L ||
+                total != amountBeingVoided
+            ) {
                 return InboundProcessResult.Rejected("Expense void settlement does not reverse the effective expense outflow")
             }
         } else {
@@ -120,7 +132,14 @@ internal object RemoteExpenseLifecycleValidator {
             }
             val previousAmount = event.getLong("previous_amount_minor")
             val newAmount = event.getLong("new_amount_minor")
-            if (previousAmount <= 0L || newAmount <= 0L || previousAmount == newAmount) {
+            if (
+                previousAmount <= 0L || newAmount <= 0L || previousAmount == newAmount ||
+                event.optString("previous_payment_category").isBlank() ||
+                event.optString("previous_payment_category") != event.optString("new_payment_category") ||
+                event.optString("previous_category").isBlank() ||
+                event.optString("previous_category") != event.optString("new_category") ||
+                event.optString("previous_payee_id") != event.optString("new_payee_id")
+            ) {
                 return InboundProcessResult.Rejected("Expense correction before/after amounts are invalid")
             }
             val expectedDelta = try {

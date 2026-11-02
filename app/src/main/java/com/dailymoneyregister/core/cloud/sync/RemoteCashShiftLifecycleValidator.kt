@@ -43,7 +43,8 @@ internal object RemoteCashShiftLifecycleValidator {
             (operationType == OperationType.OPEN_CASH_SHIFT && expectedShiftAmount != 0L) ||
             (operationType == OperationType.CLOSE_CASH_SHIFT && expectedShiftAmount != 0L) ||
             (operationType == OperationType.OPEN_CASH_SHIFT &&
-                shiftJson.optString("user_id") != actorUserId)
+                (shiftJson.optString("user_id") != actorUserId ||
+                    shiftJson.optLong("created_at", Long.MIN_VALUE) != expectedShiftOccurredAt))
         ) {
             return InboundProcessResult.Rejected("Cash-shift lifecycle amount, actor, or event identity is invalid")
         }
