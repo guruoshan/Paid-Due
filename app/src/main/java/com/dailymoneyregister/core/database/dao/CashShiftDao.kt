@@ -19,9 +19,6 @@ interface CashShiftDao {
     @Query("SELECT * FROM cash_shifts WHERE id = :shiftId LIMIT 1")
     suspend fun getShiftById(shiftId: String): CashShiftEntity?
 
-    @Query("SELECT * FROM cash_shifts WHERE branch_id = :branchId ORDER BY created_at DESC LIMIT 1")
-    suspend fun getLatestShiftForBranch(branchId: String): CashShiftEntity?
-
     @Query(
         """
         SELECT * FROM cash_shifts

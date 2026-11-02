@@ -251,16 +251,4 @@ interface ReportingReadDao {
         operationIds: List<String>
     ): List<OperationEntity>
 
-    @Query(
-        """
-        SELECT *
-        FROM user_accounts
-        WHERE business_id = :businessId
-          AND id IN (:userIds)
-        """
-    )
-    suspend fun getUsersByIdsInBusiness(
-        businessId: String,
-        userIds: List<String>
-    ): List<UserAccountEntity>
 }
