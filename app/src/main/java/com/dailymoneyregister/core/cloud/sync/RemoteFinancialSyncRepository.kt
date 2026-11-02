@@ -259,22 +259,6 @@ class RemoteFinancialSyncRepository @Inject constructor(
             actorRole = row.optString("actor_role").ifBlank { null }
         )
     }
-
-    private suspend fun fetchRemoteEnvelopes(
-        businessId: String,
-        sinceReceivedAtIso: String = "1970-01-01T00:00:00Z",
-        limit: Int = 100
-    ): List<JSONObject> {
-        val params = FetchEnvelopesParams(businessId, sinceReceivedAtIso, limit)
-        val paramJsonObj = json.parseToJsonElement(json.encodeToString(FetchEnvelopesParams.serializer(), params)).jsonObject
-
-        val dtoList = supabase.postgrest.rpc(
-                function = "fetch_financial_envelopes",
-                parameters = paramJsonObj
-            ).decodeList<RemoteEnvelopeDto>()
-
-        return dtoList.map { JSONObject(it.canonicalText) }
-    }
 }
 
 internal object FinancialSyncErrorClassifier {
