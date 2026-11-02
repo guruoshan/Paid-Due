@@ -16,8 +16,10 @@ import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.CreditLedgerType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.OperationStatus
+import com.dailymoneyregister.core.model.enums.OperationType
 import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.enums.PaymentChannel
+import com.dailymoneyregister.core.model.enums.SubjectType
 import com.dailymoneyregister.core.model.enums.TransactionType
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.model.ids.OperationId
@@ -583,6 +585,74 @@ class CreditSaleFinancialIntegrationTest {
             original.requestFingerprint,
             decoded.requestFingerprint
         )
+    }
+
+    @Test
+    fun creditObligationFailureRollsBackSaleTransactionItemsAndSettlement() = runBlocking {
+        val command = command(
+            operationId = "credit-obligation-rollback-op",
+            transactionId = "credit-obligation-rollback-tx"
+        )
+        database.openHelper.writableDatabase.execSQL(
+            """
+            CREATE TRIGGER test_abort_credit_sale_obligation
+            BEFORE INSERT ON credit_ledger_events
+            BEGIN
+                SELECT RAISE(ABORT, 'forced Credit sale obligation failure');
+            END
+            """.trimIndent()
+        )
+
+        val result = try {
+            repository.executeCreditSale(command)
+        } finally {
+            database.openHelper.writableDatabase.execSQL(
+                "DROP TRIGGER IF EXISTS test_abort_credit_sale_obligation"
+            )
+        }
+
+        assertTrue("Injected obligation failure must fail the Credit sale: $result", result is CommandResult.Error)
+        assertEquals(null, database.transactionDao().getTransactionById(command.transactionIdVal.value))
+        assertTrue(database.transactionDao().getItemsForTransaction(command.transactionIdVal.value).isEmpty())
+        assertTrue(database.transactionDao().getSettlementsForTransaction(command.transactionIdVal.value).isEmpty())
+        val creditRows = database.openHelper.readableDatabase.query(
+            "SELECT COUNT(*) FROM credit_ledger_events WHERE operation_id = ?",
+            arrayOf(command.operationId.value)
+        ).use {
+            assertTrue(it.moveToFirst())
+            it.getInt(0)
+        }
+        assertEquals(0, creditRows)
+    }
+
+    @Test
+    fun malformedPendingCreditSaleFailsClosedWithoutChangingItsDurableStatus() = runBlocking {
+        val operation = OperationEntity(
+            id = "malformed-credit-recovery-op",
+            businessId = business.id,
+            branchId = branch.id,
+            operationType = OperationType.RECORD_SALE,
+            subjectType = SubjectType.TRANSACTION,
+            subjectId = "malformed-credit-recovery-tx",
+            transactionId = "malformed-credit-recovery-tx",
+            actorUserId = user.id,
+            deviceId = "device-1",
+            occurredAt = 1700000000000L,
+            requestFingerprint = "malformed-credit-fingerprint",
+            commandSchemaVersion = 1,
+            intentPayload = "v=1\ncommandType=CREDIT_SALE\n",
+            status = OperationStatus.PENDING
+        )
+        database.operationDao().insertOperation(operation)
+
+        val failure = runCatching { repository.recoverPendingCreditSales() }.exceptionOrNull()
+
+        assertTrue("Invalid admitted Credit intent must fail closed", failure is IllegalStateException)
+        assertEquals(
+            OperationStatus.PENDING,
+            database.operationDao().getOperationById(operation.id)?.status
+        )
+        assertEquals(null, database.transactionDao().getTransactionById(operation.transactionId!!))
     }
 
     @Test
