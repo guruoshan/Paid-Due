@@ -14,8 +14,8 @@ import com.dailymoneyregister.core.database.entity.CustomerEntity
  * - verify persisted sale-customer evidence.
  *
  * It MUST NOT create or update customers.
- * Customer creation remains in RegisterRepository's existing
- * resolveOptionalSaleCustomerId() admission path.
+ * Customer identity creation is owned by SaleFinancialRepository's
+ * sale admission path.
  */
 internal class RegisterCustomerReadRepository(
     database: DmrDatabase
