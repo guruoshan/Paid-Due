@@ -104,6 +104,7 @@ object RemoteEnvelopeMaterializer {
             }
         }
 
+        return try {
         // Expense creation already has a canonical expense snapshot and a Room
         // entity. Route only RECORD_EXPENSE through the generic atomic writer after
         // validating its tenant/branch/actor links. Corrections/voids require their
@@ -155,13 +156,20 @@ object RemoteEnvelopeMaterializer {
             )
         }
 
-        return RemoteTransactionEnvelopeMaterializer.materialize(
+        RemoteTransactionEnvelopeMaterializer.materialize(
             database = database,
             envelope = envelope,
             sessionBusinessId = sessionBusinessId,
             branchId = branchId,
             actorUserId = jsonPayload.optString("actor_user_id")
         )
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            InboundProcessResult.Rejected(
+                "Unable to materialize $opTypeStr: ${error.message ?: "integrity validation failed"}"
+            )
+        }
     }
 
     private fun normalizeJson(value: Any?): Any? = when (value) {
