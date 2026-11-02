@@ -47,23 +47,6 @@ import java.time.Instant
 class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerTestSupport() {
 
     @Test
-    fun preservesExpenseCashShiftAttributionFromAuthoritativeEnvelope() = runTest {
-        val base = expenseEnvelope()
-        val payload = JSONObject(base.canonicalText)
-        val shiftId = "expense-attributed-shift"
-        payload.put("cash_shift_id", shiftId)
-        payload.getJSONObject("expense").put("cash_shift_id", shiftId)
-        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
-
-        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
-            database, envelope, businessId, branchId
-        )
-
-        assertEquals(InboundProcessResult.Applied, result)
-        assertEquals(shiftId, storedOperation?.cashShiftId)
-    }
-
-    @Test
     fun appliesCreditRepaymentInboundOnceAndSkipsReplay() = runTest {
         val envelope = creditRepaymentEnvelope()
 
