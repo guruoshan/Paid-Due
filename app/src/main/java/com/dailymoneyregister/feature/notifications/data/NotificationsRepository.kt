@@ -43,20 +43,6 @@ data class BusinessNotification(
     @SerialName("recipient_membership_id") val recipientMembershipId: String? = null
 )
 
-@Serializable
-data class PermissionRequestRecord(
-    val id: String,
-    @SerialName("business_id") val businessId: String,
-    @SerialName("branch_id") val branchId: String,
-    @SerialName("branch_name") val branchName: String,
-    @SerialName("requester_membership_id") val requesterMembershipId: String,
-    @SerialName("requester_name") val requesterName: String,
-    @SerialName("permission_key") val permissionKey: String,
-    val note: String? = null,
-    val status: String,
-    @SerialName("created_at") val createdAt: String
-)
-
 /** Durable server-backed inbox. Finance figures are displayed from close-event evidence, never recalculated here. */
 @Singleton
 class NotificationsRepository @Inject constructor(
@@ -106,7 +92,6 @@ class NotificationsRepository @Inject constructor(
         return emptyList()
     }
 
-    suspend fun listPermissionRequests(): List<PermissionRequestRecord> = emptyList()
 
     suspend fun markRead(notificationId: String) {
         if (isAdmin()) {
@@ -118,16 +103,4 @@ class NotificationsRepository @Inject constructor(
         }
     }
 
-    suspend fun requestPermission(permissionKey: String, note: String?) {
-        throw IllegalStateException("Cashier permissions are retired.")
-    }
-
-
-    companion object {
-        val ALLOWED_PERMISSION_KEYS = setOf(
-            "CREATE_SALE", "ACCEPT_CASH", "ACCEPT_ONLINE", "CREATE_CREDIT_SALE", "USE_COUPON",
-            "ISSUE_INVOICE", "REFUND", "VOID", "CORRECT_AMOUNT",
-            "CHANGE_PAYMENT_METHOD", "VIEW_BROAD_HISTORY"
-        )
-    }
 }

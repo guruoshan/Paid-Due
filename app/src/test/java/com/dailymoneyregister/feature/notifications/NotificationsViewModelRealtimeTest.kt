@@ -65,7 +65,6 @@ class NotificationsViewModelRealtimeTest {
             }
         }
         coEvery { repository.listNotifications() } returns emptyList()
-        coEvery { repository.listPermissionRequests() } returns emptyList()
 
         val viewModel = NotificationsViewModel(repository, mockk(relaxed = true))
         store = ViewModelStore().apply { put("notifications-test", viewModel) }
@@ -94,7 +93,6 @@ class NotificationsViewModelRealtimeTest {
             notificationLoads.incrementAndGet()
             emptyList()
         }
-        coEvery { repository.listPermissionRequests() } returns emptyList()
 
         val viewModel = NotificationsViewModel(repository, mockk(relaxed = true))
         store = ViewModelStore().apply { put("notifications-test", viewModel) }
@@ -131,7 +129,6 @@ class NotificationsViewModelRealtimeTest {
         coEvery { repository.listNotifications() } coAnswers {
             if (notificationLoads.getAndIncrement() == 0) emptyList() else listOf(dayClosed)
         }
-        coEvery { repository.listPermissionRequests() } returns emptyList()
 
         val viewModel = NotificationsViewModel(repository, financialSyncScheduler)
         store = ViewModelStore().apply { put("notifications-catch-up-test", viewModel) }
