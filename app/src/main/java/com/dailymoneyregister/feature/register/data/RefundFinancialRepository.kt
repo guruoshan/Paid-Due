@@ -60,6 +60,7 @@ internal class RefundFinancialRepository(
     private val refundAdmissionCoordinator = RefundAdmissionCoordinator(database)
     private val refundReplayCoordinator = RefundReplayCoordinator(
         database = database,
+        commandExecutor = commandExecutor,
         admissionCoordinator = refundAdmissionCoordinator,
         executeAdmittedRefund = ::executeAdmittedRefund,
         buildCreditReturnB2Plan = ::buildCreditReturnB2Plan
