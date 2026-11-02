@@ -1225,6 +1225,22 @@ object RemoteEnvelopeMaterializer {
 
                 if (shiftJson != null && shiftEventJson != null) {
                     val shiftId = shiftJson.getString("id")
+                    val existingShift = database.cashShiftDao().getShiftById(shiftId)
+                    if (operationType != OperationType.OPEN_CASH_SHIFT && existingShift == null) {
+                        error("Count/close cannot materialize a cash shift that is not already open locally")
+                    }
+                    if (operationType == OperationType.OPEN_CASH_SHIFT && existingShift == null) {
+                        val latestShift = database.cashShiftDao().getLatestShiftForCashier(
+                            branchId = branchId,
+                            userId = shiftJson.getString("user_id")
+                        )
+                        if (latestShift != null) {
+                            val latestEvents = database.cashShiftDao().getEventsForShift(latestShift.id)
+                            check(latestEvents.lastOrNull()?.type == CashShiftEventType.CLOSED) {
+                                "A Register Shift is already open for this cashier"
+                            }
+                        }
+                    }
                     val priorEvents = database.cashShiftDao().getEventsForShift(shiftId)
                         .filter { it.operationId != envelope.operationId }
                     val existingShiftEvent = database.cashShiftDao().getEventByOperationId(envelope.operationId)
