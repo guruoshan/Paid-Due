@@ -24,9 +24,4 @@ interface CloudStaffIdentityDao {
         branchId: String
     ): CloudStaffIdentityEntity?
 
-    @Query("""
-        SELECT * FROM cloud_staff_identities
-        WHERE business_id = :businessId AND branch_id = :branchId
-    """)
-    suspend fun listForBranch(businessId: String, branchId: String): List<CloudStaffIdentityEntity>
 }
