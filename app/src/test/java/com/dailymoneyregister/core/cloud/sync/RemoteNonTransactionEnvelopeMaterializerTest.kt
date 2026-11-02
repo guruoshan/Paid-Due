@@ -86,6 +86,26 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
     }
 
     @Test
+    fun rejectsSuccessfulReplayWhenStoredActorIdentityDiffers() = runTest {
+        val envelope = creditRepaymentEnvelope()
+
+        val first = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        storedOperation = requireNotNull(storedOperation).copy(actorUserId = "different-actor")
+
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertEquals(InboundProcessResult.Applied, first)
+        assertTrue(replay is InboundProcessResult.Rejected)
+        assertEquals("different-actor", storedOperation?.actorUserId)
+        coVerify(exactly = 1) { ledgerDao.insertCreditRepayment(any()) }
+        coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
+    }
+
+    @Test
     fun completesMatchingPendingCreditRepaymentWithAcknowledgedOutboxBeforeSuccess() = runTest {
         val envelope = creditRepaymentEnvelope()
         val payload = envelope.payloadJson
