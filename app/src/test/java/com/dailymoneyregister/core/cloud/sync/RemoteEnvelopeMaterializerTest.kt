@@ -45,24 +45,24 @@ import java.time.Instant
 
 abstract class RemoteEnvelopeMaterializerTestSupport {
     protected val database = mockk<DmrDatabase>()
-    private val branchDao = mockk<BusinessBranchDao>()
-    private val cashShiftDao = mockk<CashShiftDao>()
-    private val identityDao = mockk<CloudStaffIdentityDao>()
-    private val customerDao = mockk<CustomerDao>()
-    private val ledgerDao = mockk<LedgerDao>()
-    private val customer = mockk<CustomerEntity>()
-    private val operationDao = mockk<OperationDao>()
-    private val expenseDao = mockk<ExpenseDao>()
-    private val outboxDao = mockk<FinancialSyncOutboxDao>()
-    private val transactionDao = mockk<TransactionDao>()
-    private val userDao = mockk<UserDao>()
+    protected val branchDao = mockk<BusinessBranchDao>()
+    protected val cashShiftDao = mockk<CashShiftDao>()
+    protected val identityDao = mockk<CloudStaffIdentityDao>()
+    protected val customerDao = mockk<CustomerDao>()
+    protected val ledgerDao = mockk<LedgerDao>()
+    protected val customer = mockk<CustomerEntity>()
+    protected val operationDao = mockk<OperationDao>()
+    protected val expenseDao = mockk<ExpenseDao>()
+    protected val outboxDao = mockk<FinancialSyncOutboxDao>()
+    protected val transactionDao = mockk<TransactionDao>()
+    protected val userDao = mockk<UserDao>()
 
-    private val businessId = "business-a"
-    private val branchId = "branch-a"
-    private val actorUserId = "cashier-user-a"
-    private val transactionId = "0199c102-1234-7abc-8def-0123456789ab"
-    private val operationId = "0199c101-1234-7abc-8def-0123456789ab"
-    private val fingerprint = "cash-sale-request-fingerprint"
+    protected val businessId = "business-a"
+    protected val branchId = "branch-a"
+    protected val actorUserId = "cashier-user-a"
+    protected val transactionId = "0199c102-1234-7abc-8def-0123456789ab"
+    protected val operationId = "0199c101-1234-7abc-8def-0123456789ab"
+    protected val fingerprint = "cash-sale-request-fingerprint"
     protected var storedOperation: OperationEntity? = null
     protected lateinit var cloudIdentity: CloudStaffIdentityEntity
 
