@@ -8,6 +8,7 @@ import com.dailymoneyregister.core.cloud.sync.RemoteEnvelopeV2
 import com.dailymoneyregister.core.command.CommandFingerprint
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.BranchEntity
+import com.dailymoneyregister.core.database.entity.CashShiftEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
 import com.dailymoneyregister.core.model.enums.ConfirmationType
@@ -68,6 +69,14 @@ class ExpenseRollbackTest {
                         isRemoved = false,
                         updatedAt = 1L
                     )
+                )
+            )
+            db.cashShiftDao().insertShift(
+                CashShiftEntity(
+                    id = "expense-cash-shift",
+                    branchId = branchId,
+                    userId = actorUserId,
+                    createdAt = Instant.parse("2026-10-09T10:00:00Z").toEpochMilli()
                 )
             )
         }
@@ -160,6 +169,7 @@ class ExpenseRollbackTest {
             remove("transaction_id")
             remove("items")
             put("operation_type", "RECORD_EXPENSE")
+            put("cash_shift_id", "expense-cash-shift")
             put("subject_type", SubjectType.EXPENSE.name)
             put("subject_id", expenseId)
             put("settlements", JSONArray().put(JSONObject().apply {
@@ -182,6 +192,7 @@ class ExpenseRollbackTest {
                 put("operation_id", operationId)
                 put("business_id", businessId)
                 put("branch_id", branchId)
+                put("cash_shift_id", "expense-cash-shift")
                 put("actor_user_id", actorUserId)
                 put("payee_name_snapshot", "Test payee")
                 put("category", "OTHER")
