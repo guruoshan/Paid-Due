@@ -134,6 +134,10 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
             database, envelope, businessId, branchId
         )
 
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        assertEquals(InboundProcessResult.Skipped, replay)
         assertEquals(InboundProcessResult.Applied, result)
         coVerify(exactly = 1) { ledgerDao.insertCreditRepayment(any()) }
         coVerify(exactly = 1) { ledgerDao.insertCreditEvent(any()) }
@@ -239,6 +243,10 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
             database, envelope, businessId, branchId
         )
 
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        assertEquals(InboundProcessResult.Skipped, replay)
         assertEquals(InboundProcessResult.Applied, result)
         assertEquals(null, storedOperation?.cashShiftId)
         coVerify(exactly = 1) {
@@ -283,6 +291,10 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
             database, envelope, businessId, branchId
         )
 
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        assertEquals(InboundProcessResult.Skipped, replay)
         assertEquals(InboundProcessResult.Applied, result)
         assertEquals(null, storedOperation?.cashShiftId)
         coVerify(exactly = 1) {
@@ -334,6 +346,10 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
             database, envelope, businessId, branchId
         )
 
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        assertEquals(InboundProcessResult.Skipped, replay)
         assertEquals(InboundProcessResult.Applied, result)
         coVerify(exactly = 1) {
             expenseDao.insertExpenseEvent(match {
@@ -371,6 +387,10 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
             database, envelope, businessId, branchId
         )
 
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        assertEquals(InboundProcessResult.Skipped, replay)
         assertEquals(InboundProcessResult.Applied, result)
         coVerify(exactly = 1) {
             expenseDao.insertExpenseEvent(match {

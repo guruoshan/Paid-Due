@@ -126,6 +126,10 @@ class RemoteEnvelopeTransactionMaterializerTest : RemoteEnvelopeMaterializerTest
             sessionBranchId = branchId
         )
 
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        assertEquals(InboundProcessResult.Skipped, replay)
         assertEquals(InboundProcessResult.Applied, result)
         assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
         assertEquals("PAYMENT_METHOD_CHANGE_EVENT", storedOperation?.resultReferenceType)
@@ -165,6 +169,10 @@ class RemoteEnvelopeTransactionMaterializerTest : RemoteEnvelopeMaterializerTest
             sessionBranchId = branchId
         )
 
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        assertEquals(InboundProcessResult.Skipped, replay)
         assertEquals(InboundProcessResult.Applied, result)
         assertEquals("REFUND_EVENT", storedOperation?.resultReferenceType)
         assertEquals(refundEventId, storedOperation?.resultReferenceId)
@@ -204,6 +212,10 @@ class RemoteEnvelopeTransactionMaterializerTest : RemoteEnvelopeMaterializerTest
             sessionBranchId = branchId
         )
 
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        assertEquals(InboundProcessResult.Skipped, replay)
         assertEquals(InboundProcessResult.Applied, result)
         assertEquals("AMOUNT_CORRECTION_EVENT", storedOperation?.resultReferenceType)
         assertEquals(correctionEventId, storedOperation?.resultReferenceId)
@@ -335,6 +347,10 @@ class RemoteEnvelopeTransactionMaterializerTest : RemoteEnvelopeMaterializerTest
             sessionBranchId = branchId
         )
 
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        assertEquals(InboundProcessResult.Skipped, replay)
         assertEquals(InboundProcessResult.Applied, result)
         assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
         assertEquals("VOID_EVENT", storedOperation?.resultReferenceType)

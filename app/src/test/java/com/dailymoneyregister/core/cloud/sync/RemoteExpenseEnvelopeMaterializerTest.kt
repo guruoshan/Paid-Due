@@ -61,6 +61,10 @@ class RemoteExpenseEnvelopeMaterializerTest : RemoteEnvelopeMaterializerTestSupp
             sessionBranchId = branchId
         )
 
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        assertEquals(InboundProcessResult.Skipped, replay)
         assertEquals(InboundProcessResult.Applied, result)
         assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
         assertEquals(null, storedOperation?.transactionId)
