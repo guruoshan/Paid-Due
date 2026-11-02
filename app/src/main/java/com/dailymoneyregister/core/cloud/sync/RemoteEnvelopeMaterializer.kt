@@ -1067,21 +1067,13 @@ object RemoteEnvelopeMaterializer {
                     requestFingerprint = fingerprint,
                     commandSchemaVersion = payload.optInt("command_schema_version", 1),
                     intentPayload = payload.optString("intent_payload", "{}"),
-                    status = OperationStatus.PENDING
+                    status = OperationStatus.SUCCEEDED,
+                    resultReferenceType = subjectType.name,
+                    resultReferenceId = subjectId
                 )
-                val existing = operationDao.getOperationById(envelope.operationId)
-                if (existing == null) {
-                    operationDao.insertOperationIfAbsent(operation)
-                } else {
-                    check(
-                        existing.businessId == operation.businessId &&
-                            existing.branchId == operation.branchId &&
-                            existing.operationType == operation.operationType &&
-                            existing.requestFingerprint == operation.requestFingerprint
-                    ) { "Inbound operation identity collision" }
-                    if (existing.status == OperationStatus.SUCCEEDED) {
-                        return@withTransaction InboundProcessResult.Skipped
-                    }
+                val admission = InboundOperationCompletion.ensure(database, operation)
+                if (admission == InboundOperationAdmission.ALREADY_SUCCEEDED) {
+                    return@withTransaction InboundProcessResult.Skipped
                 }
 
                 val settlementsArray = payload.optJSONArray("settlements") ?: org.json.JSONArray()
@@ -1125,17 +1117,17 @@ object RemoteEnvelopeMaterializer {
                     transactionId = null
                 )
 
-                val finalized = operationDao.markSucceededIfPending(
-                    operationId = envelope.operationId,
-                    requestFingerprint = fingerprint,
-                    resultReferenceType = subjectType.name,
-                    resultReferenceId = subjectId
-                )
-                check(finalized == 1 || operationDao.isOperationSucceeded(envelope.operationId)) {
-                    "Inbound non-transaction operation could not be finalized"
+                if (admission == InboundOperationAdmission.PENDING) {
+                    InboundOperationCompletion.completePending(database, operation)
+                } else {
+                    check(operationDao.isOperationSucceeded(envelope.operationId)) {
+                        "Inbound non-transaction operation was not persisted as succeeded"
+                    }
                 }
                 InboundProcessResult.Applied
             }
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
         } catch (error: Exception) {
             InboundProcessResult.Rejected(
                 "Unable to materialize ${envelope.operationType}: ${error.message ?: "integrity validation failed"}"
