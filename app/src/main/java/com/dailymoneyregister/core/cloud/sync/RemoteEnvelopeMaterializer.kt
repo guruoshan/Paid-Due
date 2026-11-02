@@ -34,6 +34,28 @@ sealed class InboundProcessResult {
  */
 object RemoteEnvelopeMaterializer {
 
+    private fun resultReferenceFor(
+        operationType: String,
+        financialEvidence: JSONObject,
+        transactionId: String
+    ): Pair<String, String> {
+        val (referenceType, referenceId) = when (operationType) {
+            "RECORD_REFUND" -> "REFUND_EVENT" to
+                financialEvidence.getJSONObject("refund_event").getString("id")
+            "RECORD_VOID" -> "VOID_EVENT" to
+                financialEvidence.getJSONObject("void_event").getString("id")
+            "RECORD_AMOUNT_CORRECTION" -> "AMOUNT_CORRECTION_EVENT" to
+                financialEvidence.getJSONArray("amount_correction_events").getJSONObject(0).getString("id")
+            "RECORD_PAYMENT_METHOD_CHANGE" -> "PAYMENT_METHOD_CHANGE_EVENT" to
+                financialEvidence.getJSONArray("payment_method_change_events").getJSONObject(0).getString("id")
+            else -> "TRANSACTION" to transactionId
+        }
+        require(referenceId.isNotBlank()) {
+            "Inbound $operationType result reference ID is missing"
+        }
+        return referenceType to referenceId
+    }
+
     suspend fun materializeInboundEnvelope(
         database: DmrDatabase,
         envelope: RemoteEnvelopeV2,
@@ -504,6 +526,7 @@ object RemoteEnvelopeMaterializer {
             val occurredAt = java.time.Instant.parse(envelope.occurredAtIso).toEpochMilli()
 
             val txId = tJson.getString("id")
+            val resultReference = resultReferenceFor(opTypeStr, financialEvidence, txId)
 
             // Insert directly as SUCCEEDED. The outbox trigger only observes local
             // lifecycle UPDATE transitions, so downloaded evidence cannot be requeued.
@@ -525,8 +548,8 @@ object RemoteEnvelopeMaterializer {
                     commandSchemaVersion = envelope.payloadJson.optInt("command_schema_version", 1),
                     intentPayload = envelope.payloadJson.optString("intent_payload", "{}"),
                     status = OperationStatus.SUCCEEDED,
-                    resultReferenceType = "TRANSACTION",
-                    resultReferenceId = txId
+                    resultReferenceType = resultReference.first,
+                    resultReferenceId = resultReference.second
                 )
             )
 
@@ -664,8 +687,8 @@ object RemoteEnvelopeMaterializer {
             val markedSucceeded = operationDao.markSucceededIfPending(
                 operationId = opId,
                 requestFingerprint = jsonPayload.optString("request_fingerprint", "remote-$opId"),
-                resultReferenceType = "TRANSACTION",
-                resultReferenceId = txId
+                resultReferenceType = resultReference.first,
+                resultReferenceId = resultReference.second
             )
             check(markedSucceeded == 1 || operationDao.isOperationSucceeded(opId)) {
                 "Inbound sale could not be finalized with the matching request fingerprint"
