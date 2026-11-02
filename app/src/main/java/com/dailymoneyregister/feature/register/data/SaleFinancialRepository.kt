@@ -810,4 +810,266 @@ internal class SaleFinancialRepository(
 
         return recovered
     }
+
+
+    suspend fun executeOnlineSale(command: OnlineSaleCommand): CommandResult<TransactionEntity> {
+        val operationDao = operationDao
+        val existing = operationDao.getOperationById(command.operationId.value)
+
+        if (existing != null) {
+            if (existing.requestFingerprint != command.requestFingerprint) {
+                return CommandResult.Conflict(
+                    "Conflict: Operation ID '${command.operationId.value}' has already been used with a different request fingerprint."
+                )
+            }
+            if (existing.intentPayload != command.intentPayload ||
+                existing.commandSchemaVersion != command.commandSchemaVersion
+            ) {
+                return CommandResult.Conflict(
+                    "Conflict: Operation ID '${command.operationId.value}' has different durable intent."
+                )
+            }
+            val durable = try {
+                OnlineSalePayloadCodec.decode(existing)
+            } catch (error: RuntimeException) {
+                if (existing.status == OperationStatus.PENDING) {
+                    operationDao.markRequiresReconciliationIfPending(
+                        existing.id,
+                        existing.requestFingerprint,
+                        "Invalid durable Online Sale intent: ${error.message ?: "decode failure"}"
+                    )
+                    return CommandResult.Conflict("Online Sale requires financial reconciliation")
+                }
+                return CommandResult.Error(error)
+            }
+            return executeAdmittedOnlineSale(durable)
+        }
+
+        financialMutationAuthorizer.authorizeNewFinancialMutation(
+            actorUserId = command.actorUserId,
+            businessId = command.businessId,
+            branchId = command.branchId,
+            action = PermissionAction.CREATE_SALE,
+            actionLabel = "Online sale"
+        )?.let { return it }
+        financialMutationAuthorizer.authorizeNewFinancialMutation(
+            actorUserId = command.actorUserId,
+            businessId = command.businessId,
+            branchId = command.branchId,
+            action = PermissionAction.ACCEPT_ONLINE,
+            actionLabel = "Online sale"
+        )?.let { return it }
+
+        return executeAdmittedOnlineSale(command)
+    }
+
+    private suspend fun executeAdmittedOnlineSale(
+        command: OnlineSaleCommand
+    ): CommandResult<TransactionEntity> {
+        val validation = validateOnlineSale(command)
+        if (validation != null) return validation
+
+        return try {
+            commandExecutor.execute(
+                command = command,
+                cashShiftId = resolveCashShiftId(command),
+                replayResolver = {
+                    val customerId = existingOptionalSaleCustomerId(
+                        businessId = command.businessId,
+                        customerPhone = command.customerPhone
+                    )
+
+                    saleFinancialWriter.loadVerified(
+                        SaleFinancialWriter.Intent(
+                            operationId = command.operationId.value,
+                            transactionId = command.transactionIdVal.value,
+                            branchId = command.branchId,
+                            actorUserId = command.actorUserId,
+                            deviceId = command.deviceId,
+                            occurredAt = command.occurredAt,
+                            currencyCode = command.currencyCode,
+                            currencyDecimalPlaces = command.currencyDecimalPlaces,
+                            draft = command.draftState,
+                            funding = onlineFunding(),
+                            customerId = customerId
+                        )
+                    )
+                }
+            ) {
+                val customerId = resolveOptionalSaleCustomerId(
+                    businessId = command.businessId,
+                    customerPhone = command.customerPhone,
+                    customerName = command.customerName,
+                    occurredAt = command.occurredAt
+                )
+
+                saleFinancialWriter.materialize(
+                    SaleFinancialWriter.Intent(
+                        operationId = command.operationId.value,
+                        transactionId = command.transactionIdVal.value,
+                        branchId = command.branchId,
+                        actorUserId = command.actorUserId,
+                        deviceId = command.deviceId,
+                        occurredAt = command.occurredAt,
+                        currencyCode = command.currencyCode,
+                        currencyDecimalPlaces = command.currencyDecimalPlaces,
+                        draft = command.draftState,
+                        funding = onlineFunding(),
+                        customerId = customerId
+                    )
+                )
+            }
+        } catch (error: RuntimeException) {
+            CommandResult.Error(error)
+        }
+    }
+
+    private fun onlineFunding() = SaleFinancialWriter.FundingIdentity(
+        PaymentCategory.ONLINE,
+        PaymentChannel.MANUAL_QR,
+        ConfirmationType.CASHIER_CONFIRMED
+    )
+
+    private suspend fun validateOnlineSale(
+        command: OnlineSaleCommand
+    ): CommandResult<Nothing>? {
+        val branch = businessBranchDao.getBranchById(command.branchId)
+            ?: return CommandResult.Error(IllegalArgumentException("Online sale branch does not exist"))
+        try {
+            CurrencyInvariant.assertSameCurrency(command.currencyCode, branch.currencyCode, "Online sale")
+        } catch (error: IllegalStateException) {
+            return CommandResult.Error(error)
+        }
+        if (command.currencyDecimalPlaces != branch.currencyDecimalPlaces) {
+            return CommandResult.Error(IllegalArgumentException("Online sale currency precision does not match branch configuration"))
+        }
+        val draft = command.draftState
+        if (draft.taxRateBps !in 0..10_000) return CommandResult.Error(IllegalArgumentException("Online sale tax rate is invalid"))
+        if (draft.items.map { it.id }.toSet().size != draft.items.size) return CommandResult.Error(IllegalArgumentException("Online sale item IDs must be unique"))
+        if (draft.subtotal.amount <= 0L) return CommandResult.Error(IllegalArgumentException("Online sale subtotal must be greater than zero"))
+        if (draft.grandTotal.amount <= 0L) return CommandResult.Error(IllegalArgumentException("Online sale grand total must be greater than zero"))
+        if (draft.txShipping.amount < 0L || draft.txPacking.amount < 0L || draft.itemShippingTotal.amount < 0L || draft.itemPackingTotal.amount < 0L) {
+            return CommandResult.Error(IllegalArgumentException("Shipping and packing charges cannot be negative"))
+        }
+        if (draft.taxAmount.amount < 0L || (draft.isTaxEnabled && draft.taxRateBps <= 0) || (!draft.isTaxEnabled && draft.taxAmount.amount != 0L)) {
+            return CommandResult.Error(IllegalArgumentException("Online sale tax values are invalid"))
+        }
+        for (item in draft.items) {
+            if (item.quantity <= 0 || item.unitPrice.amount < 0L || item.itemPackingCharge.amount < 0L || item.itemShippingCharge.amount < 0L || item.lineTotal.amount < 0L) {
+                return CommandResult.Error(IllegalArgumentException("Online sale item values are invalid"))
+            }
+        }
+        return null
+    }
+
+    suspend fun recoverPendingOnlineSales(): List<TransactionEntity> {
+        val operationDao = operationDao
+        val recovered = mutableListOf<TransactionEntity>()
+        val pending = commandExecutor.getPendingOperations()
+            .filter {
+                it.operationType == OperationType.RECORD_SALE &&
+                    it.intentPayload.lineSequence().any { line -> line == "commandType=ONLINE_SALE" }
+            }
+
+        for (candidate in pending) {
+            try {
+                database.withTransaction {
+                    val op = checkNotNull(operationDao.getOperationById(candidate.id))
+                    if (op.status == OperationStatus.SUCCEEDED) return@withTransaction
+                    check(op.status == OperationStatus.PENDING) { "Online Sale operation is no longer pending" }
+
+                    val command = try {
+                        OnlineSalePayloadCodec.decode(op)
+                    } catch (error: RuntimeException) {
+                        operationDao.markRequiresReconciliationIfPending(
+                            op.id,
+                            op.requestFingerprint,
+                            "Invalid durable Online Sale intent: ${error.message ?: "decode failure"}"
+                        )
+                        return@withTransaction
+                    }
+                    val validation = validateOnlineSale(command)
+                    if (validation != null) {
+                        operationDao.markRequiresReconciliationIfPending(
+                            op.id,
+                            op.requestFingerprint,
+                            "Invalid durable Online Sale financial intent"
+                        )
+                        return@withTransaction
+                    }
+                    val txId = command.transactionIdVal.value
+                    val existing = transactionDao.getTransactionById(txId)
+                    val items = transactionDao.getItemsForTransaction(txId)
+                    val settlements = transactionDao.getSettlementsForCashSaleRecovery(op.id, txId)
+
+                    val customerId =
+                        if (existing != null || items.isNotEmpty() || settlements.isNotEmpty()) {
+                            existingOptionalSaleCustomerId(
+                                businessId = command.businessId,
+                                customerPhone = command.customerPhone
+                            )
+                        } else {
+                            resolveOptionalSaleCustomerId(
+                                businessId = command.businessId,
+                                customerPhone = command.customerPhone,
+                                customerName = command.customerName,
+                                occurredAt = command.occurredAt
+                            )
+                        }
+
+                    val intent = SaleFinancialWriter.Intent(
+                        operationId = command.operationId.value,
+                        transactionId = command.transactionIdVal.value,
+                        branchId = command.branchId,
+                        actorUserId = command.actorUserId,
+                        deviceId = command.deviceId,
+                        occurredAt = command.occurredAt,
+                        currencyCode = command.currencyCode,
+                        currencyDecimalPlaces = command.currencyDecimalPlaces,
+                        draft = command.draftState,
+                        funding = onlineFunding(),
+                        customerId = customerId
+                    )
+
+                    val expected = saleFinancialWriter.expected(intent)
+
+                    if (existing != null) {
+                        val mismatch = saleFinancialWriter.mismatch(expected, existing, items, settlements)
+                        if (mismatch != null) {
+                            operationDao.markRequiresReconciliationIfPending(op.id, op.requestFingerprint, mismatch)
+                            return@withTransaction
+                        }
+                    } else {
+                        if (items.isNotEmpty() || settlements.isNotEmpty()) {
+                            operationDao.markRequiresReconciliationIfPending(op.id, op.requestFingerprint, "Partial Online Sale financial records")
+                            return@withTransaction
+                        }
+                        saleFinancialWriter.materialize(intent)
+                        check(
+                            saleFinancialWriter.mismatch(
+                                expected,
+                                transactionDao.getTransactionById(txId),
+                                transactionDao.getItemsForTransaction(txId),
+                                transactionDao.getSettlementsForCashSaleRecovery(op.id, txId)
+                            ) == null
+                        ) { "Online Sale materialization verification failed" }
+                    }
+                    check(operationDao.markSucceededIfPending(op.id, op.requestFingerprint, "TRANSACTION", txId) == 1)
+                    recovered += expected.transaction
+                }
+            } catch (error: RuntimeException) {
+                database.withTransaction {
+                    val latest = operationDao.getOperationById(candidate.id)
+                    if (latest != null && latest.status == OperationStatus.PENDING) {
+                        operationDao.markRequiresReconciliationIfPending(
+                            latest.id,
+                            latest.requestFingerprint,
+                            "Online Sale recovery failed: ${error.message ?: "financial evidence mismatch"}"
+                        )
+                    }
+                }
+            }
+        }
+        return recovered
+    }
 }
