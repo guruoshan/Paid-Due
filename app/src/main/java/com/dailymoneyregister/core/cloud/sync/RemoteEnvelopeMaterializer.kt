@@ -568,13 +568,43 @@ object RemoteEnvelopeMaterializer {
                 }
             }
             "RECORD_COUPON_PURCHASE" -> {
-                val couponTotal = (financialEvidence.optJSONArray("coupon_ledger_events") ?: org.json.JSONArray())
-                    .let { events ->
-                        (0 until events.length())
-                            .map { events.getJSONObject(it) }
-                            .filter { it.optString("type") == "PURCHASE" }
-                            .sumOf { it.optLong("amount_signed_minor", 0L) }
-                    }
+                val wallets = financialEvidence.optJSONArray("coupon_wallets") ?: org.json.JSONArray()
+                val couponEvents = financialEvidence.optJSONArray("coupon_ledger_events") ?: org.json.JSONArray()
+                val purchaseEvents = (0 until couponEvents.length())
+                    .map { couponEvents.getJSONObject(it) }
+                    .filter { it.optString("type") == "PURCHASE" }
+                if (wallets.length() != 1 || purchaseEvents.size != 1) {
+                    return InboundProcessResult.Rejected(
+                        "Coupon purchase requires one wallet snapshot and one purchase ledger event"
+                    )
+                }
+                val wallet = wallets.getJSONObject(0)
+                val purchase = purchaseEvents.single()
+                val customerId = tJson.optString("customer_id")
+                val purchaseAmount = purchase.optLong("amount_signed_minor", 0L)
+                if (
+                    customerId.isBlank() ||
+                    wallet.optString("id").isBlank() ||
+                    wallet.optString("customer_id") != customerId ||
+                    wallet.optString("currency_code") != txCurrencyCode ||
+                    !wallet.optBoolean("is_active", true) ||
+                    purchase.optString("operation_id") != opId ||
+                    purchase.optString("wallet_id") != wallet.optString("id") ||
+                    purchase.optString("transaction_id") != tJson.optString("id") ||
+                    purchase.optString("currency_code") != txCurrencyCode ||
+                    purchaseAmount <= 0L ||
+                    purchaseAmount != grandTotalMinor ||
+                    purchase.optLong("occurred_at", Long.MIN_VALUE) != jsonPayload.optLong("occurred_at", Long.MAX_VALUE)
+                ) {
+                    return InboundProcessResult.Rejected(
+                        "Coupon purchase wallet and purchase ledger evidence do not match the transaction"
+                    )
+                }
+                val couponTotal = try {
+                    Math.addExact(0L, purchaseAmount)
+                } catch (_: ArithmeticException) {
+                    return InboundProcessResult.Rejected("Coupon purchase ledger amount overflows the supported money range")
+                }
                 if (couponTotal != grandTotalMinor) {
                     return InboundProcessResult.Rejected("Coupon purchase ledger amount does not match purchase total")
                 }
@@ -855,38 +885,101 @@ object RemoteEnvelopeMaterializer {
                 if (customer != null && customer.businessId != sessionBusinessId) {
                     return InboundProcessResult.Rejected("Credit repayment customer belongs to another business")
                 }
+                val repaymentId = repaymentJson.optString("id")
+                val repaymentAmount = repaymentJson.optLong("amount_minor", 0L)
+                if (
+                    repaymentId.isBlank() ||
+                    payload.optString("subject_type") != SubjectType.REPAYMENT.name ||
+                    payload.optString("subject_id") != repaymentId
+                ) {
+                    return InboundProcessResult.Rejected("Credit repayment subject does not match its repayment evidence")
+                }
+                val paymentCategory = runCatching {
+                    PaymentCategory.valueOf(repaymentJson.getString("payment_category"))
+                }.getOrElse {
+                    return InboundProcessResult.Rejected("Credit repayment payment category is invalid")
+                }
                 val settlements = payload.optJSONArray("settlements") ?: org.json.JSONArray()
-                if (settlements.length() == 0) {
-                    return InboundProcessResult.Rejected("Credit repayment has no funding settlement")
+                if (settlements.length() != 1) {
+                    return InboundProcessResult.Rejected("Credit repayment requires exactly one funding settlement")
                 }
-                var total = 0L
-                for (i in 0 until settlements.length()) {
-                    val row = settlements.getJSONObject(i)
-                    if (
-                        row.optString("operation_id") != envelope.operationId ||
-                        row.optString("currency_code") != repaymentJson.optString("currency_code") ||
-                        row.optString("entry_purpose") != EntryPurpose.CREDIT_REPAYMENT_COLLECTION.name
-                    ) {
-                        return InboundProcessResult.Rejected("Credit repayment settlement identity mismatch")
-                    }
-                    total = Math.addExact(total, row.getLong("amount_signed_minor"))
+                val settlement = settlements.getJSONObject(0)
+                val paymentChannel = runCatching {
+                    PaymentChannel.valueOf(settlement.getString("channel"))
+                }.getOrElse {
+                    return InboundProcessResult.Rejected("Credit repayment settlement channel is invalid")
                 }
-                if (total != repaymentJson.getLong("amount_minor")) {
-                    return InboundProcessResult.Rejected("Credit repayment settlements do not balance to repayment amount")
+                val validPaymentPair = when (paymentCategory) {
+                    PaymentCategory.CASH -> paymentChannel == PaymentChannel.CASH_TENDER
+                    PaymentCategory.ONLINE -> paymentChannel == PaymentChannel.MANUAL_QR ||
+                        paymentChannel == PaymentChannel.SOFTPOS
+                    else -> false
+                }
+                if (
+                    !validPaymentPair ||
+                    settlement.optString("operation_id") != envelope.operationId ||
+                    settlement.optString("subject_type") != SubjectType.REPAYMENT.name ||
+                    settlement.optString("subject_id") != repaymentId ||
+                    settlement.optString("transaction_id").isNotBlank() ||
+                    settlement.optString("currency_code") != repaymentJson.optString("currency_code") ||
+                    settlement.optString("entry_purpose") != EntryPurpose.CREDIT_REPAYMENT_COLLECTION.name ||
+                    settlement.optString("category") != paymentCategory.name ||
+                    settlement.optString("actor_user_id") != actorUserId ||
+                    settlement.optString("confirmation_type") != ConfirmationType.CASHIER_CONFIRMED.name ||
+                    settlement.optLong("amount_signed_minor", 0L) != repaymentAmount ||
+                    settlement.optLong("occurred_at", Long.MIN_VALUE) != repaymentJson.optLong("occurred_at", Long.MAX_VALUE)
+                ) {
+                    return InboundProcessResult.Rejected("Credit repayment settlement does not match the repayment record")
                 }
                 val ledgerEvents = evidence.optJSONArray("credit_ledger_events") ?: org.json.JSONArray()
-                val repaymentEvents = (0 until ledgerEvents.length()).map { ledgerEvents.getJSONObject(it) }
-                    .filter {
-                        it.optString("type") == "REPAYMENT" &&
-                            it.optString("repayment_id") == repaymentJson.optString("id")
-                    }
+                if (ledgerEvents.length() != 1) {
+                    return InboundProcessResult.Rejected("Credit repayment requires exactly one matching Credit ledger event")
+                }
+                val ledgerEvent = ledgerEvents.getJSONObject(0)
+                val expectedNegativeAmount = try {
+                    Math.negateExact(repaymentAmount)
+                } catch (_: ArithmeticException) {
+                    return InboundProcessResult.Rejected("Credit repayment amount overflows the supported money range")
+                }
                 if (
-                    repaymentEvents.size != 1 ||
-                    repaymentEvents.single().optLong("amount_signed_minor", 0L) != -repaymentJson.getLong("amount_minor") ||
-                    repaymentEvents.single().optString("customer_id") != customerId ||
-                    repaymentEvents.single().optString("currency_code") != repaymentJson.optString("currency_code")
+                    ledgerEvent.optString("operation_id") != envelope.operationId ||
+                    ledgerEvent.optString("type") != "REPAYMENT" ||
+                    ledgerEvent.optString("repayment_id") != repaymentId ||
+                    ledgerEvent.optString("transaction_id").isNotBlank() ||
+                    ledgerEvent.optString("customer_id") != customerId ||
+                    ledgerEvent.optString("currency_code") != repaymentJson.optString("currency_code") ||
+                    ledgerEvent.optLong("amount_signed_minor", 0L) != expectedNegativeAmount ||
+                    ledgerEvent.optLong("occurred_at", Long.MIN_VALUE) != repaymentJson.optLong("occurred_at", Long.MAX_VALUE)
                 ) {
-                    return InboundProcessResult.Rejected("Credit repayment is missing its matching negative ledger event")
+                    return InboundProcessResult.Rejected("Credit repayment is missing its exact negative ledger event")
+                }
+                val allocations = evidence.optJSONArray("credit_repayment_allocations") ?: org.json.JSONArray()
+                if (allocations.length() == 0) {
+                    return InboundProcessResult.Rejected("Credit repayment is missing FIFO allocation evidence")
+                }
+                var allocatedTotal = 0L
+                val allocationIds = mutableSetOf<String>()
+                val allocatedTransactions = mutableSetOf<String>()
+                for (i in 0 until allocations.length()) {
+                    val allocation = allocations.getJSONObject(i)
+                    val allocationId = allocation.optString("id")
+                    val originalTransactionId = allocation.optString("original_transaction_id")
+                    val allocatedAmount = allocation.optLong("allocated_amount_minor", 0L)
+                    if (
+                        allocation.optString("repayment_id") != repaymentId ||
+                        allocationId.isBlank() ||
+                        originalTransactionId.isBlank() ||
+                        allocatedAmount <= 0L ||
+                        allocation.optLong("occurred_at", Long.MIN_VALUE) != repaymentJson.optLong("occurred_at", Long.MAX_VALUE) ||
+                        !allocationIds.add(allocationId) ||
+                        !allocatedTransactions.add(originalTransactionId)
+                    ) {
+                        return InboundProcessResult.Rejected("Credit repayment FIFO allocation identity or amount is invalid")
+                    }
+                    allocatedTotal = Math.addExact(allocatedTotal, allocatedAmount)
+                }
+                if (allocatedTotal != repaymentAmount) {
+                    return InboundProcessResult.Rejected("Credit repayment FIFO allocations do not equal the repayment amount")
                 }
             }
             OperationType.OPEN_CASH_SHIFT,
