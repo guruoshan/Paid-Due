@@ -169,6 +169,8 @@ class RemoteEnvelopeMaterializerTest {
         assertEquals(operationId, storedOperation?.id)
         assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
         assertEquals(fingerprint, storedOperation?.requestFingerprint)
+        assertEquals("TRANSACTION", storedOperation?.resultReferenceType)
+        assertEquals(transactionId, storedOperation?.resultReferenceId)
         coVerify(exactly = 1) { operationDao.insertOperationIfAbsent(any()) }
         coVerify(exactly = 1) { transactionDao.insertTransaction(any()) }
         coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
