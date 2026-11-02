@@ -1054,6 +1054,42 @@ object RemoteEnvelopeMaterializer {
                         "Cash-shift event identity must match the authoritative envelope subject"
                     )
                 }
+                val existingShift = database.cashShiftDao().getShiftById(shiftId)
+                val existingShiftEvents = if (existingShift == null) {
+                    emptyList()
+                } else {
+                    if (existingShift.branchId != branchId) {
+                        return InboundProcessResult.Rejected("Cash-shift lifecycle references a shift from another branch")
+                    }
+                    database.cashShiftDao().getEventsForShift(shiftId)
+                }
+                when (operationType) {
+                    OperationType.OPEN_CASH_SHIFT -> {
+                        if (existingShift != null || existingShiftEvents.isNotEmpty()) {
+                            return InboundProcessResult.Rejected("Cash shift already exists before its inbound OPENED event")
+                        }
+                    }
+                    OperationType.COUNT_CASH_SHIFT -> {
+                        if (
+                            existingShift == null ||
+                            existingShiftEvents.none { it.type == CashShiftEventType.OPENED } ||
+                            existingShiftEvents.any { it.type == CashShiftEventType.CLOSED }
+                        ) {
+                            return InboundProcessResult.Rejected("Cash shift must be open and not closed before an inbound count")
+                        }
+                    }
+                    OperationType.CLOSE_CASH_SHIFT -> {
+                        if (
+                            existingShift == null ||
+                            existingShiftEvents.none { it.type == CashShiftEventType.OPENED } ||
+                            existingShiftEvents.none { it.type == CashShiftEventType.COUNTED } ||
+                            existingShiftEvents.any { it.type == CashShiftEventType.CLOSED }
+                        ) {
+                            return InboundProcessResult.Rejected("Cash shift must be open, counted, and not already closed")
+                        }
+                    }
+                    else -> Unit
+                }
                 if ((payload.optJSONArray("settlements")?.length() ?: 0) != 0) {
                     return InboundProcessResult.Rejected("Cash-shift lifecycle operations cannot carry settlements")
                 }
