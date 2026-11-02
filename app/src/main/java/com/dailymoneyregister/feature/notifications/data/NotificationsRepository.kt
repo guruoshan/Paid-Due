@@ -122,14 +122,6 @@ class NotificationsRepository @Inject constructor(
         throw IllegalStateException("Cashier permissions are retired.")
     }
 
-    suspend fun resolvePermissionRequest(
-        requestId: String,
-        approve: Boolean,
-        additionalPermissions: Set<String> = emptySet()
-    ) {
-        throw IllegalStateException("Cashier permissions are retired.")
-    }
-
 
     companion object {
         val ALLOWED_PERMISSION_KEYS = setOf(

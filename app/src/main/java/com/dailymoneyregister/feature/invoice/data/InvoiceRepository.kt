@@ -95,11 +95,6 @@ class InvoiceRepository @Inject constructor(
         return IssuedInvoice(doc, InvoiceSnapshotCodec.decode(doc.snapshotJson))
     }
 
-    suspend fun listInvoices(branchId: String, limit: Int = 50): List<IssuedInvoice> =
-        documentDao.getInvoicesForBranch(branchId, limit).map {
-            IssuedInvoice(it, InvoiceSnapshotCodec.decode(it.snapshotJson))
-        }
-
     suspend fun findCustomerByPhone(
         businessId: String,
         canonicalPhone: String
