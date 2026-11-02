@@ -48,7 +48,14 @@ class RemoteExpenseEnvelopeMaterializerTest : RemoteEnvelopeMaterializerTestSupp
 
     @Test
     fun appliesExpenseWithSyncedCashierIdentityWhenLocalUserRowIsAbsent() = runTest {
-        val envelope = expenseEnvelope()
+        val shiftId = "expense-default-shift"
+        val envelope = expenseEnvelopeWithCashShift(shiftId)
+        coEvery { cashShiftDao.getShiftById(shiftId) } returns CashShiftEntity(
+            id = shiftId,
+            branchId = branchId,
+            userId = actorUserId,
+            createdAt = envelope.payloadJson.getLong("occurred_at")
+        )
         coEvery { operationDao.markSucceededIfPending(any(), any(), any(), any()) } coAnswers {
             storedOperation = storedOperation?.copy(status = OperationStatus.SUCCEEDED)
             1
@@ -89,7 +96,14 @@ class RemoteExpenseEnvelopeMaterializerTest : RemoteEnvelopeMaterializerTestSupp
 
     @Test
     fun rejectsExpenseWithoutAuthoritativeOutflowSettlement() = runTest {
-        val base = expenseEnvelope()
+        val shiftId = "empty-settlement-shift"
+        val base = expenseEnvelopeWithCashShift(shiftId)
+        coEvery { cashShiftDao.getShiftById(shiftId) } returns CashShiftEntity(
+            id = shiftId,
+            branchId = branchId,
+            userId = actorUserId,
+            createdAt = base.payloadJson.getLong("occurred_at")
+        )
         val payload = JSONObject(base.canonicalText).put("settlements", JSONArray())
         val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
 
@@ -107,7 +121,14 @@ class RemoteExpenseEnvelopeMaterializerTest : RemoteEnvelopeMaterializerTestSupp
 
     @Test
     fun completesMatchingPendingExpenseOperationAfterEvidenceIsMaterialized() = runTest {
-        val envelope = expenseEnvelope()
+        val shiftId = "expense-default-shift"
+        val envelope = expenseEnvelopeWithCashShift(shiftId)
+        coEvery { cashShiftDao.getShiftById(shiftId) } returns CashShiftEntity(
+            id = shiftId,
+            branchId = branchId,
+            userId = actorUserId,
+            createdAt = envelope.payloadJson.getLong("occurred_at")
+        )
         val payload = envelope.payloadJson
         val expenseId = payload.getJSONObject("expense").getString("id")
         storedOperation = OperationEntity(
@@ -149,6 +170,55 @@ class RemoteExpenseEnvelopeMaterializerTest : RemoteEnvelopeMaterializerTestSupp
                 expenseId
             )
         }
+    }
+
+    @Test
+    fun rejectsExpenseWhenCashShiftIdIsMissingBeforeAnyFinancialWrites() = runTest {
+        val base = expenseEnvelope()
+        val payload = JSONObject(base.canonicalText).apply {
+            remove("cash_shift_id")
+            getJSONObject("expense").remove("cash_shift_id")
+        }
+        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertNoExpenseFinancialWrites()
+    }
+
+    @Test
+    fun rejectsExpenseWhenCashShiftIdIsBlankBeforeAnyFinancialWrites() = runTest {
+        val base = expenseEnvelope()
+        val payload = JSONObject(base.canonicalText).apply {
+            put("cash_shift_id", " ")
+            getJSONObject("expense").put("cash_shift_id", " ")
+        }
+        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertNoExpenseFinancialWrites()
+    }
+
+    @Test
+    fun rejectsExpenseWithUnknownCategoryBeforeAnyFinancialWrites() = runTest {
+        val base = expenseEnvelopeWithCashShift("category-test-shift")
+        val payload = JSONObject(base.canonicalText)
+        payload.getJSONObject("expense").put("category", "UNSUPPORTED_CATEGORY")
+        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertNoExpenseFinancialWrites()
     }
 
     @Test
@@ -240,7 +310,14 @@ class RemoteExpenseEnvelopeMaterializerTest : RemoteEnvelopeMaterializerTestSupp
 
     @Test
     fun rejectsExpenseWhenOutflowSettlementDoesNotMatchSnapshot() = runTest {
-        val base = expenseEnvelope()
+        val shiftId = "mismatched-settlement-shift"
+        val base = expenseEnvelopeWithCashShift(shiftId)
+        coEvery { cashShiftDao.getShiftById(shiftId) } returns CashShiftEntity(
+            id = shiftId,
+            branchId = branchId,
+            userId = actorUserId,
+            createdAt = base.payloadJson.getLong("occurred_at")
+        )
         val payload = JSONObject(base.canonicalText)
         payload.getJSONArray("settlements").getJSONObject(0)
             .put("amount_signed_minor", 1_000L)

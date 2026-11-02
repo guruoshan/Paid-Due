@@ -48,16 +48,34 @@ internal object RemoteNonTransactionEnvelopeMaterializer {
                 )?.let { return it }
             }
             OperationType.RECORD_EXPENSE_CORRECTION,
-            OperationType.RECORD_EXPENSE_VOID -> {
-                RemoteExpenseLifecycleValidator.validate(
-                    envelope, operationType, branchId, sessionBusinessId, actorUserId, expenseSnapshot, expenseEvents
-                )?.let { return it }
-            }
+            OperationType.RECORD_EXPENSE_VOID -> Unit
             else -> return InboundProcessResult.UnsupportedYet(envelope.operationType)
         }
 
         return try {
             database.withTransaction {
+                if (
+                    operationType == OperationType.RECORD_EXPENSE_CORRECTION ||
+                    operationType == OperationType.RECORD_EXPENSE_VOID
+                ) {
+                    val existingExpense = expenseSnapshot?.optString("id")
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { database.expenseDao().getExpenseById(it) }
+                    val existingExpenseEvents = existingExpense?.let {
+                        database.expenseDao().getEventsForExpense(it.id)
+                    } ?: emptyList()
+                    RemoteExpenseLifecycleValidator.validate(
+                        envelope = envelope,
+                        operationType = operationType,
+                        branchId = branchId,
+                        sessionBusinessId = sessionBusinessId,
+                        actorUserId = actorUserId,
+                        expenseSnapshot = expenseSnapshot,
+                        expenseEvents = expenseEvents,
+                        existingExpense = existingExpense,
+                        existingExpenseEvents = existingExpenseEvents
+                    )?.let { return@withTransaction it }
+                }
                 val operationDao = database.operationDao()
                 val subjectType = payload.optString("subject_type").ifBlank {
                     when (operationType) {

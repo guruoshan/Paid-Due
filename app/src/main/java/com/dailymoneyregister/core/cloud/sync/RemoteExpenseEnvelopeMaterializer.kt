@@ -5,6 +5,7 @@ import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
+import com.dailymoneyregister.feature.register.data.ExpenseCategory
 import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.OperationStatus
@@ -32,7 +33,18 @@ internal object RemoteExpenseEnvelopeMaterializer {
         val intentPayload = jsonPayload.optString("intent_payload", "{}")
         val expenseJson = jsonPayload.getJSONObject("expense")
         val expenseId = expenseJson.getString("id")
-        val cashShiftId = jsonPayload.optString("cash_shift_id").ifBlank { null }
+        val cashShiftId = jsonPayload.optString("cash_shift_id").trim()
+            .takeIf { it.isNotBlank() && it != "null" }
+            ?: error("Inbound expense is missing its required cash shift ID")
+        val expenseShiftId = expenseJson.optString("cash_shift_id").trim()
+        require(expenseShiftId == cashShiftId) {
+            "Expense snapshot cash shift ID does not match the envelope"
+        }
+        val expenseCategory = runCatching {
+            ExpenseCategory.valueOf(expenseJson.getString("category"))
+        }.getOrElse {
+            error("Inbound expense category is unsupported")
+        }
 
         require(operationId.isNotBlank() && expenseId.isNotBlank())
         require(deviceId.isNotBlank() && requestFingerprint.isNotBlank() && schemaVersion > 0)
@@ -58,7 +70,7 @@ internal object RemoteExpenseEnvelopeMaterializer {
             payeeNameSnapshot = expenseJson.getString("payee_name_snapshot"),
             payeePhoneSnapshot = expenseJson.optString("payee_phone_snapshot").ifBlank { null },
             payeeAccountSnapshot = expenseJson.optString("payee_account_snapshot").ifBlank { null },
-            category = expenseJson.getString("category"),
+            category = expenseCategory.name,
             amountMinor = expenseJson.getLong("amount_minor"),
             paymentCategory = expenseJson.getString("payment_category"),
             currencyCode = expenseJson.getString("currency_code"),
@@ -139,21 +151,32 @@ internal object RemoteExpenseEnvelopeMaterializer {
         )
 
         database.withTransaction {
-            if (cashShiftId != null) {
-                val cashShift = database.cashShiftDao().getShiftById(cashShiftId)
-                    ?: error("Expense references a missing cash shift")
-                require(cashShift.branchId == branchId) {
-                    "Expense cash shift belongs to another branch"
-                }
-                require(cashShift.userId == actorUserId) {
-                    "Expense cash shift belongs to another actor"
-                }
+            val cashShift = database.cashShiftDao().getShiftById(cashShiftId)
+                ?: error("Expense references a missing cash shift")
+            require(cashShift.branchId == branchId) {
+                "Expense cash shift belongs to another branch"
+            }
+            val shiftBranch = database.businessBranchDao().getBranchById(cashShift.branchId)
+                ?: error("Expense cash shift references a missing branch")
+            require(shiftBranch.businessId == businessId) {
+                "Expense cash shift belongs to another business"
+            }
+            require(cashShift.userId == actorUserId) {
+                "Expense cash shift belongs to another actor"
             }
 
             CustomerIdentityReconciler.reconcileEvidenceCustomers(
                 database, businessId,
                 jsonPayload.optJSONObject("financial_evidence") ?: JSONObject()
             )
+            val resolvedPayeeId = expense.payeeId?.let { incomingPayeeId ->
+                CustomerIdentityReconciler.resolveLocalCustomerIdOrSelf(
+                    database = database,
+                    businessId = businessId,
+                    incomingCustomerId = incomingPayeeId
+                )
+            }
+            val materializedExpense = expense.copy(payeeId = resolvedPayeeId)
             val admission = InboundOperationCompletion.ensure(database, operation)
             if (admission == InboundOperationAdmission.ALREADY_SUCCEEDED) {
                 return@withTransaction
@@ -162,9 +185,9 @@ internal object RemoteExpenseEnvelopeMaterializer {
             val expenseDao = database.expenseDao()
             val existingExpense = expenseDao.getExpenseById(expenseId)
             if (existingExpense == null) {
-                expenseDao.insertExpense(expense)
+                expenseDao.insertExpense(materializedExpense)
             } else {
-                check(existingExpense == expense) {
+                check(existingExpense == materializedExpense) {
                     "Inbound expense snapshot conflicts with existing immutable expense"
                 }
             }

@@ -1,5 +1,7 @@
 package com.dailymoneyregister.core.cloud.sync
 
+import com.dailymoneyregister.core.database.entity.ExpenseEntity
+import com.dailymoneyregister.core.database.entity.ExpenseEventEntity
 import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.OperationType
@@ -17,19 +19,45 @@ internal object RemoteExpenseLifecycleValidator {
         sessionBusinessId: String,
         actorUserId: String,
         expenseSnapshot: JSONObject?,
-        expenseEvents: JSONArray?
+        expenseEvents: JSONArray?,
+        existingExpense: ExpenseEntity?,
+        existingExpenseEvents: List<ExpenseEventEntity>
     ): InboundProcessResult? {
         val payload = envelope.payloadJson
-        
         if (expenseSnapshot == null || expenseEvents == null || expenseEvents.length() == 0) {
             return InboundProcessResult.Rejected("Missing linked expense event evidence")
         }
+        if (existingExpense == null) {
+            return InboundProcessResult.Rejected("Expense lifecycle references a missing local expense")
+        }
         if (
             expenseSnapshot.optString("business_id") != sessionBusinessId ||
-            expenseSnapshot.optString("branch_id") != branchId
+            expenseSnapshot.optString("branch_id") != branchId ||
+            existingExpense.businessId != sessionBusinessId ||
+            existingExpense.branchId != branchId ||
+            expenseSnapshot.optString("id") != existingExpense.id
         ) {
-            return InboundProcessResult.Rejected("Expense lifecycle evidence belongs to another tenant or branch")
+            return InboundProcessResult.Rejected("Expense lifecycle evidence belongs to another tenant, branch, or local expense")
         }
+
+        if (existingExpenseEvents.any { it.eventType.uppercase().contains("VOID") }) {
+            val message = if (operationType == OperationType.RECORD_EXPENSE_VOID) {
+                "Expense has already been voided"
+            } else {
+                "A voided expense cannot be corrected"
+            }
+            return InboundProcessResult.Rejected(message)
+        }
+        val effectiveAmount = existingExpenseEvents
+            .asSequence()
+            .filterNot { it.eventType.uppercase().contains("VOID") }
+            .sortedWith(compareBy<ExpenseEventEntity>({ it.occurredAt }, { it.id }))
+            .mapNotNull { it.newAmountMinor }
+            .lastOrNull() ?: existingExpense.amountMinor
+        if (effectiveAmount <= 0L) {
+            return InboundProcessResult.Rejected("Local expense has an invalid effective amount")
+        }
+
         val operationEvents = (0 until expenseEvents.length())
             .map { expenseEvents.getJSONObject(it) }
             .filter { it.optString("operation_id") == envelope.operationId }
@@ -54,6 +82,9 @@ internal object RemoteExpenseLifecycleValidator {
             PaymentCategory.valueOf(expenseSnapshot.optString("payment_category"))
         }.getOrElse {
             return InboundProcessResult.Rejected("Expense lifecycle payment category is invalid")
+        }
+        if (existingExpense.paymentCategory != expectedCategory.name) {
+            return InboundProcessResult.Rejected("Expense lifecycle payment category differs from local history")
         }
         val row = settlements.getJSONObject(0)
         val rowChannel = runCatching {
@@ -84,7 +115,7 @@ internal object RemoteExpenseLifecycleValidator {
             row.optString("entry_purpose") != expectedPurpose ||
             row.optString("category") != expectedCategory.name ||
             row.optString("confirmation_type") != ConfirmationType.CASHIER_CONFIRMED.name ||
-            row.optLong("occurred_at", Long.MIN_VALUE) != envelope.payloadJson.optLong("occurred_at", Long.MAX_VALUE)
+            row.optLong("occurred_at", Long.MIN_VALUE) != payload.optLong("occurred_at", Long.MAX_VALUE)
         ) {
             return InboundProcessResult.Rejected("Expense lifecycle settlement identity mismatch")
         }
@@ -102,10 +133,28 @@ internal object RemoteExpenseLifecycleValidator {
             event.optString("operation_id") != envelope.operationId ||
             event.optString("actor_user_id") != actorUserId ||
             event.optString("event_type") != expectedEventType ||
-            event.optLong("occurred_at", Long.MIN_VALUE) != envelope.payloadJson.optLong("occurred_at", Long.MAX_VALUE)
+            event.optLong("occurred_at", Long.MIN_VALUE) != payload.optLong("occurred_at", Long.MAX_VALUE)
         ) {
             return InboundProcessResult.Rejected(
                 "Expense lifecycle event must match the exact expense, operation, actor, and event type"
+            )
+        }
+        if (
+            event.optString("previous_payment_category") != existingExpense.paymentCategory ||
+            event.optString("previous_category") != existingExpense.category ||
+            event.optString("previous_payee_id") != existingExpense.payeeId.orEmpty()
+        ) {
+            return InboundProcessResult.Rejected(
+                "Expense lifecycle previous snapshot does not match the locally stored expense"
+            )
+        }
+        if (
+            !event.has("previous_amount_minor") ||
+            event.isNull("previous_amount_minor") ||
+            event.optLong("previous_amount_minor", Long.MIN_VALUE) != effectiveAmount
+        ) {
+            return InboundProcessResult.Rejected(
+                "Expense lifecycle previous amount does not match the locally effective expense amount"
             )
         }
         if (operationType == OperationType.RECORD_EXPENSE_VOID) {
@@ -124,10 +173,7 @@ internal object RemoteExpenseLifecycleValidator {
                 return InboundProcessResult.Rejected("Expense void settlement does not reverse the effective expense outflow")
             }
         } else {
-            if (
-                !event.has("previous_amount_minor") || event.isNull("previous_amount_minor") ||
-                !event.has("new_amount_minor") || event.isNull("new_amount_minor")
-            ) {
+            if (!event.has("new_amount_minor") || event.isNull("new_amount_minor")) {
                 return InboundProcessResult.Rejected("Expense correction is missing its before/after amount evidence")
             }
             val previousAmount = event.getLong("previous_amount_minor")

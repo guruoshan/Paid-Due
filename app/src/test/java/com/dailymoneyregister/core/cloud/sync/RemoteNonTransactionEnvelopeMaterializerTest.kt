@@ -18,6 +18,7 @@ import com.dailymoneyregister.core.database.entity.CashShiftEventEntity
 import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
 import com.dailymoneyregister.core.database.entity.CustomerEntity
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
+import com.dailymoneyregister.core.database.entity.ExpenseEventEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.RefundEventEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
@@ -351,6 +352,7 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
     fun appliesExpenseCorrectionOnlyForExactExpenseEventAndSettlement() = runTest {
         val expenseId = "lifecycle-expense-id"
         val expense = mockk<ExpenseEntity>()
+        every { expense.id } returns expenseId
         every { expense.businessId } returns businessId
         every { expense.branchId } returns branchId
         every { expense.amountMinor } returns 1_000L
@@ -392,6 +394,7 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
     fun appliesExpenseVoidWithExactVoidEventAndPositiveReversal() = runTest {
         val expenseId = "lifecycle-expense-id"
         val expense = mockk<ExpenseEntity>()
+        every { expense.id } returns expenseId
         every { expense.businessId } returns businessId
         every { expense.branchId } returns branchId
         every { expense.amountMinor } returns 1_000L
@@ -429,7 +432,125 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
     }
 
     @Test
+    fun rejectsDuplicateExpenseVoidWithDifferentOperationIdBeforeFinancialWrites() = runTest {
+        val expenseId = "lifecycle-expense-id"
+        val expense = mockk<ExpenseEntity>()
+        every { expense.id } returns expenseId
+        every { expense.businessId } returns businessId
+        every { expense.branchId } returns branchId
+        every { expense.amountMinor } returns 1_000L
+        every { expense.paymentCategory } returns "CASH"
+        every { expense.category } returns "OTHER"
+        every { expense.payeeId } returns null
+        coEvery { expenseDao.getExpenseById(expenseId) } returns expense
+        coEvery { expenseDao.getEventsForExpense(expenseId) } returns listOf(
+            ExpenseEventEntity(
+                id = "prior-void-event",
+                expenseId = expenseId,
+                operationId = "prior-void-operation",
+                eventType = "VOIDED",
+                actorUserId = actorUserId,
+                previousAmountMinor = 1_000L,
+                occurredAt = 1L
+            )
+        )
+        val envelope = expenseLifecycleEnvelope(
+            operationType = "RECORD_EXPENSE_VOID",
+            eventType = "VOIDED",
+            signedSettlementMinor = 1_000L,
+            previousAmount = 1_000L,
+            newAmount = null
+        )
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertNoExpenseLifecycleFinancialWrites()
+    }
+
+    @Test
+    fun rejectsExpenseCorrectionAfterVoidBeforeFinancialWrites() = runTest {
+        val expenseId = "lifecycle-expense-id"
+        val expense = mockk<ExpenseEntity>()
+        every { expense.id } returns expenseId
+        every { expense.businessId } returns businessId
+        every { expense.branchId } returns branchId
+        every { expense.amountMinor } returns 1_000L
+        every { expense.paymentCategory } returns "CASH"
+        every { expense.category } returns "OTHER"
+        every { expense.payeeId } returns null
+        coEvery { expenseDao.getExpenseById(expenseId) } returns expense
+        coEvery { expenseDao.getEventsForExpense(expenseId) } returns listOf(
+            ExpenseEventEntity(
+                id = "prior-void-event",
+                expenseId = expenseId,
+                operationId = "prior-void-operation",
+                eventType = "VOIDED",
+                actorUserId = actorUserId,
+                previousAmountMinor = 1_000L,
+                occurredAt = 1L
+            )
+        )
+        val envelope = expenseLifecycleEnvelope(
+            operationType = "RECORD_EXPENSE_CORRECTION",
+            eventType = "CORRECTED",
+            signedSettlementMinor = 200L,
+            previousAmount = 1_000L,
+            newAmount = 800L
+        )
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertNoExpenseLifecycleFinancialWrites()
+    }
+
+    @Test
+    fun rejectsExpenseCorrectionWhenPreviousAmountDiffersFromLocalEffectiveAmount() = runTest {
+        val expenseId = "lifecycle-expense-id"
+        val expense = mockk<ExpenseEntity>()
+        every { expense.id } returns expenseId
+        every { expense.businessId } returns businessId
+        every { expense.branchId } returns branchId
+        every { expense.amountMinor } returns 1_000L
+        every { expense.paymentCategory } returns "CASH"
+        every { expense.category } returns "OTHER"
+        every { expense.payeeId } returns null
+        coEvery { expenseDao.getExpenseById(expenseId) } returns expense
+        coEvery { expenseDao.getEventsForExpense(expenseId) } returns emptyList()
+        val envelope = expenseLifecycleEnvelope(
+            operationType = "RECORD_EXPENSE_CORRECTION",
+            eventType = "CORRECTED",
+            signedSettlementMinor = 100L,
+            previousAmount = 900L,
+            newAmount = 800L
+        )
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertNoExpenseLifecycleFinancialWrites()
+    }
+
+    @Test
     fun rejectsExpenseLifecycleEventWithWrongEventTypeBeforeWrites() = runTest {
+        val expenseId = "lifecycle-expense-id"
+        val expense = mockk<ExpenseEntity>()
+        every { expense.id } returns expenseId
+        every { expense.businessId } returns businessId
+        every { expense.branchId } returns branchId
+        every { expense.amountMinor } returns 1_000L
+        every { expense.paymentCategory } returns "CASH"
+        every { expense.category } returns "OTHER"
+        every { expense.payeeId } returns null
+        coEvery { expenseDao.getExpenseById(expenseId) } returns expense
+        coEvery { expenseDao.getEventsForExpense(expenseId) } returns emptyList()
         val base = expenseLifecycleEnvelope(
             operationType = "RECORD_EXPENSE_CORRECTION",
             eventType = "CORRECTED",
@@ -454,8 +575,27 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
         coVerify(exactly = 0) { expenseDao.insertExpenseEvent(any()) }
     }
 
+    private fun assertNoExpenseLifecycleFinancialWrites() {
+        assertEquals(null, storedOperation)
+        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
+        coVerify(exactly = 0) { expenseDao.insertExpenseEvent(any()) }
+        coVerify(exactly = 0) { transactionDao.insertSettlements(any()) }
+        coVerify(exactly = 0) { outboxDao.insertOutbox(any()) }
+    }
+
     @Test
     fun rejectsExpenseLifecycleEventForDifferentExpenseBeforeWrites() = runTest {
+        val expenseId = "lifecycle-expense-id"
+        val expense = mockk<ExpenseEntity>()
+        every { expense.id } returns expenseId
+        every { expense.businessId } returns businessId
+        every { expense.branchId } returns branchId
+        every { expense.amountMinor } returns 1_000L
+        every { expense.paymentCategory } returns "CASH"
+        every { expense.category } returns "OTHER"
+        every { expense.payeeId } returns null
+        coEvery { expenseDao.getExpenseById(expenseId) } returns expense
+        coEvery { expenseDao.getEventsForExpense(expenseId) } returns emptyList()
         val base = expenseLifecycleEnvelope(
             operationType = "RECORD_EXPENSE_CORRECTION",
             eventType = "CORRECTED",
