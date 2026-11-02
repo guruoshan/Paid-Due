@@ -80,7 +80,6 @@ internal object RemoteTransactionEnvelopeMaterializer {
             return InboundProcessResult.Rejected("Transaction currency '$txCurrencyCode' does not match branch currency '${branchEntity.currencyCode}'")
         }
 
-        val actorUserId = jsonPayload.optString("actor_user_id")
         if (actorUserId.isBlank()) {
             return InboundProcessResult.Rejected("Actor user ID is missing")
         }
