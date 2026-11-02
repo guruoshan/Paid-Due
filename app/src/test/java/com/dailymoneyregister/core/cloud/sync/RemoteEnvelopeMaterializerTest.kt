@@ -338,6 +338,7 @@ abstract class RemoteEnvelopeMaterializerTestSupport {
             remove("transaction")
             remove("transaction_id")
             remove("items")
+            put("occurred_at", occurredAt)
             put("operation_id", operation)
             put("operation_type", operationType)
             put("subject_type", SubjectType.CASH_SHIFT.name)
