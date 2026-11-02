@@ -913,6 +913,7 @@ object RemoteEnvelopeMaterializer {
                     PaymentCategory.CASH -> paymentChannel == PaymentChannel.CASH_TENDER
                     PaymentCategory.ONLINE -> paymentChannel == PaymentChannel.MANUAL_QR ||
                         paymentChannel == PaymentChannel.SOFTPOS
+                    PaymentCategory.COUPON -> paymentChannel == PaymentChannel.COUPON_WALLET
                     else -> false
                 }
                 if (
@@ -980,6 +981,41 @@ object RemoteEnvelopeMaterializer {
                 }
                 if (allocatedTotal != repaymentAmount) {
                     return InboundProcessResult.Rejected("Credit repayment FIFO allocations do not equal the repayment amount")
+                }
+                val couponEvents = evidence.optJSONArray("coupon_ledger_events") ?: org.json.JSONArray()
+                if (paymentCategory == PaymentCategory.COUPON) {
+                    val wallets = evidence.optJSONArray("coupon_wallets") ?: org.json.JSONArray()
+                    if (wallets.length() != 1 || couponEvents.length() != 1) {
+                        return InboundProcessResult.Rejected(
+                            "Coupon-funded Credit repayment requires one wallet and one redemption event"
+                        )
+                    }
+                    val wallet = wallets.getJSONObject(0)
+                    val couponEvent = couponEvents.getJSONObject(0)
+                    if (
+                        wallet.optString("id").isBlank() ||
+                        wallet.optString("customer_id") != customerId ||
+                        wallet.optString("currency_code") != repaymentJson.optString("currency_code") ||
+                        !wallet.optBoolean("is_active", true) ||
+                        couponEvent.optString("id").isBlank() ||
+                        couponEvent.optString("operation_id") != envelope.operationId ||
+                        couponEvent.optString("wallet_id") != wallet.optString("id") ||
+                        couponEvent.optString("type") != "REDEMPTION" ||
+                        couponEvent.optLong("amount_signed_minor", 0L) != expectedNegativeAmount ||
+                        couponEvent.optString("currency_code") != repaymentJson.optString("currency_code") ||
+                        couponEvent.optString("transaction_id").isNotBlank() ||
+                        couponEvent.optString("authorized_user_id").isBlank() ||
+                        couponEvent.optString("authorized_user_name_snapshot").isBlank() ||
+                        couponEvent.optLong("occurred_at", Long.MIN_VALUE) != repaymentJson.optLong("occurred_at", Long.MAX_VALUE)
+                    ) {
+                        return InboundProcessResult.Rejected(
+                            "Coupon-funded Credit repayment is missing its exact wallet redemption evidence"
+                        )
+                    }
+                } else if (couponEvents.length() != 0) {
+                    return InboundProcessResult.Rejected(
+                        "Cash/Online Credit repayment cannot carry Coupon redemption evidence"
+                    )
                 }
             }
             OperationType.OPEN_CASH_SHIFT,
