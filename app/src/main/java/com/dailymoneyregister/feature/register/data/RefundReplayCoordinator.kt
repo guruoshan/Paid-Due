@@ -121,16 +121,6 @@ internal class RefundReplayCoordinator(
         }
     }
 
-    /**
-     * Executes a Refund whose durable financial intent has already
-     * been admitted.
-     *
-     * CommandExecutor provides the transaction boundary. Therefore:
-     *
-     * RefundEvent + REFUND_OUTFLOW + SUCCEEDED
-     *
-     * either commit together or none commit.
-
     internal suspend fun resolveRefundReplay(
         operation: OperationEntity,
         expectedTransactionId: String
