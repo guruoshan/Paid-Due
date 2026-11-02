@@ -101,6 +101,22 @@ class RemoteEnvelopeTransactionMaterializerTest : RemoteEnvelopeMaterializerTest
             description = null,
             displayRef = "SALE-001"
         )
+        val originalFunding = com.dailymoneyregister.core.database.entity.SettlementEntryEntity(
+            id = "original-sale-funding",
+            operationId = "original-sale-operation",
+            subjectType = SubjectType.TRANSACTION,
+            subjectId = transactionId,
+            transactionId = transactionId,
+            entryPurpose = com.dailymoneyregister.core.model.enums.EntryPurpose.SALE_FUNDING,
+            category = com.dailymoneyregister.core.model.enums.PaymentCategory.CASH,
+            channel = com.dailymoneyregister.core.model.enums.PaymentChannel.CASH_TENDER,
+            amountSignedMinor = 1_000L,
+            currencyCode = "OMR",
+            confirmationType = ConfirmationType.CASHIER_CONFIRMED,
+            occurredAt = occurredAt,
+            actorUserId = actorUserId
+        )
+        coEvery { transactionDao.getSettlementsForTransaction(transactionId) } returns listOf(originalFunding)
         val envelope = paymentMethodChangeEnvelope()
 
         val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(

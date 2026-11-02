@@ -395,6 +395,33 @@ internal object RemoteTransactionEnvelopeMaterializer {
                 ) {
                     return InboundProcessResult.Rejected("Payment-method change event identity or classification is invalid")
                 }
+                val originalFunding = database.transactionDao()
+                    .getSettlementsForTransaction(tJson.getString("id"))
+                    .filter {
+                        it.entryPurpose == EntryPurpose.SALE_FUNDING &&
+                            it.amountSignedMinor > 0L
+                    }
+                if (originalFunding.size != 1) {
+                    return InboundProcessResult.Rejected(
+                        "Payment-method change requires one authoritative original funding entry"
+                    )
+                }
+                val priorChanges = database.transactionDao()
+                    .getPaymentMethodChanges(tJson.getString("id"))
+                    .sortedWith(compareBy({ it.occurredAt }, { it.id }))
+                val effectiveMethod = priorChanges.lastOrNull()?.newMethod ?: originalFunding.single().category
+                val effectiveChannel = priorChanges.lastOrNull()?.newChannel ?: originalFunding.single().channel
+                if (
+                    previousMethod != effectiveMethod ||
+                    previousChannel != effectiveChannel ||
+                    priorChanges.lastOrNull()?.occurredAt?.let {
+                        event.optLong("occurred_at", Long.MIN_VALUE) <= it
+                    } == true
+                ) {
+                    return InboundProcessResult.Rejected(
+                        "Payment-method change does not continue the authoritative tender history"
+                    )
+                }
                 val oldRows = (0 until settlementsArray.length())
                     .map { settlementsArray.getJSONObject(it) }
                     .filter {
@@ -421,7 +448,11 @@ internal object RemoteTransactionEnvelopeMaterializer {
                 } catch (_: ArithmeticException) {
                     return InboundProcessResult.Rejected("Payment-method change amount overflows the supported money range")
                 }
-                if (reversedAmount <= 0L || newRows.single().getLong("amount_signed_minor") != reversedAmount) {
+                if (
+                    reversedAmount <= 0L ||
+                    reversedAmount != originalFunding.single().amountSignedMinor ||
+                    newRows.single().getLong("amount_signed_minor") != reversedAmount
+                ) {
                     return InboundProcessResult.Rejected(
                         "Payment-method change reversal and replacement funding amounts do not match"
                     )
