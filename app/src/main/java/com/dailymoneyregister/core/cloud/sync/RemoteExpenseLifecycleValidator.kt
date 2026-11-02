@@ -10,7 +10,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 internal object RemoteExpenseLifecycleValidator {
-    suspend fun validate(
+    fun validate(
         envelope: RemoteEnvelopeV2,
         operationType: OperationType,
         branchId: String,
