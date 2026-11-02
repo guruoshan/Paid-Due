@@ -3,7 +3,6 @@ package com.dailymoneyregister.core.cloud.sync
 import androidx.room.withTransaction
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
-import com.dailymoneyregister.core.database.entity.FinancialSyncOutboxEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
 import com.dailymoneyregister.core.model.enums.ConfirmationType
@@ -140,34 +139,9 @@ internal object RemoteExpenseEnvelopeMaterializer {
                 database, businessId,
                 jsonPayload.optJSONObject("financial_evidence") ?: JSONObject()
             )
-            val operationDao = database.operationDao()
-            val existingOperation = operationDao.getOperationById(operationId)
-            if (existingOperation == null) {
-                check(operationDao.insertOperationIfAbsent(operation) != -1L) {
-                    "Inbound expense operation could not be inserted"
-                }
-            } else {
-                check(
-                    existingOperation.businessId == operation.businessId &&
-                        existingOperation.branchId == operation.branchId &&
-                        existingOperation.operationType == operation.operationType &&
-                        existingOperation.subjectType == operation.subjectType &&
-                        existingOperation.subjectId == operation.subjectId &&
-                        existingOperation.transactionId == operation.transactionId &&
-                        existingOperation.cashShiftId == operation.cashShiftId &&
-                        existingOperation.actorUserId == operation.actorUserId &&
-                        existingOperation.deviceId == operation.deviceId &&
-                        existingOperation.occurredAt == operation.occurredAt &&
-                        existingOperation.requestFingerprint == operation.requestFingerprint &&
-                        existingOperation.commandSchemaVersion == operation.commandSchemaVersion &&
-                        existingOperation.intentPayload == operation.intentPayload
-                ) { "Inbound expense operation immutable identity mismatch" }
-                if (existingOperation.status == OperationStatus.SUCCEEDED) {
-                    return@withTransaction
-                }
-                check(existingOperation.status == OperationStatus.PENDING) {
-                    "Inbound expense cannot complete an operation outside PENDING state"
-                }
+            val admission = InboundOperationCompletion.ensure(database, operation)
+            if (admission == InboundOperationAdmission.ALREADY_SUCCEEDED) {
+                return@withTransaction
             }
 
             val expenseDao = database.expenseDao()
@@ -200,47 +174,10 @@ internal object RemoteExpenseEnvelopeMaterializer {
                 transactionId = null
             )
 
-            if (existingOperation != null) {
-                val acknowledged = FinancialSyncOutboxEntity(
-                    operationId = operationId,
-                    businessId = businessId,
-                    branchId = branchId,
-                    transactionId = expenseId,
-                    actorUserId = actorUserId,
-                    deviceId = deviceId,
-                    requestFingerprint = requestFingerprint,
-                    commandSchemaVersion = schemaVersion,
-                    occurredAt = occurredAt,
-                    status = "ACKNOWLEDGED",
-                    attemptCount = 0
-                )
-                val outboxDao = database.financialSyncOutboxDao()
-                val existingOutbox = outboxDao.findByOperationId(operationId)
-                if (existingOutbox == null) {
-                    val inserted = outboxDao.insertOutbox(acknowledged)
-                    if (inserted == -1L) {
-                        val raced = outboxDao.findByOperationId(operationId)
-                        check(raced?.hasSameAcknowledgedIdentity(acknowledged) == true) {
-                            "Inbound expense found a conflicting outbound outbox row"
-                        }
-                    }
-                } else {
-                    check(existingOutbox.hasSameAcknowledgedIdentity(acknowledged)) {
-                        "Inbound expense found an unexpected outbound outbox row"
-                    }
-                }
-
-                val finalized = operationDao.markSucceededIfPending(
-                    operationId = operationId,
-                    requestFingerprint = requestFingerprint,
-                    resultReferenceType = "EXPENSE",
-                    resultReferenceId = expenseId
-                )
-                check(finalized == 1 || operationDao.isOperationSucceeded(operationId)) {
-                    "Inbound pending expense operation could not be finalized"
-                }
+            if (admission == InboundOperationAdmission.PENDING) {
+                InboundOperationCompletion.completePending(database, operation)
             } else {
-                check(operationDao.isOperationSucceeded(operationId)) {
+                check(database.operationDao().isOperationSucceeded(operationId)) {
                     "Inbound expense operation was not persisted as succeeded"
                 }
             }
@@ -252,17 +189,5 @@ internal object RemoteExpenseEnvelopeMaterializer {
         false
     }
 
-    private fun FinancialSyncOutboxEntity.hasSameAcknowledgedIdentity(
-        expected: FinancialSyncOutboxEntity
-    ): Boolean =
-        operationId == expected.operationId &&
-            businessId == expected.businessId &&
-            branchId == expected.branchId &&
-            transactionId == expected.transactionId &&
-            actorUserId == expected.actorUserId &&
-            deviceId == expected.deviceId &&
-            requestFingerprint == expected.requestFingerprint &&
-            commandSchemaVersion == expected.commandSchemaVersion &&
-            occurredAt == expected.occurredAt &&
-            status == "ACKNOWLEDGED"
+
 }
