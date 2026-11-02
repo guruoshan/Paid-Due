@@ -80,7 +80,7 @@ internal fun ReportingSummarySection(
 }
 
 @Composable
-private fun summaryMetricLabel(
+internal fun summaryMetricLabel(
     metric: ReportingSummaryMetric
 ): String =
     when (metric) {

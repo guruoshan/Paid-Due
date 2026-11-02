@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dailymoneyregister.R
+import com.dailymoneyregister.feature.reporting.ui.components.summaryMetricLabel
 
 @Composable
 fun ReportingDashboardSection(
@@ -94,7 +95,7 @@ fun ReportingDashboardSection(
                                     Modifier.padding(12.dp)
                             ) {
                                 Text(
-                                    dashboardMetricLabel(
+                                    summaryMetricLabel(
                                         card.metric
                                     ),
                                     style =
@@ -116,49 +117,3 @@ fun ReportingDashboardSection(
         }
     }
 }
-
-@Composable
-private fun dashboardMetricLabel(
-    metric: ReportingSummaryMetric
-): String =
-    when (metric) {
-        ReportingSummaryMetric.NET_SALES_ACTIVITY ->
-            stringResource(
-                R.string.reporting_net_sales_activity
-            )
-
-        ReportingSummaryMetric.CASH_IN_HAND ->
-            stringResource(
-                R.string.reporting_cash_in_hand
-            )
-
-        ReportingSummaryMetric.CASH_AT_BANK ->
-            stringResource(
-                R.string.reporting_cash_at_bank
-            )
-
-        ReportingSummaryMetric.CREDIT_SALES ->
-            stringResource(
-                R.string.reporting_credit_sales
-            )
-
-        ReportingSummaryMetric.CREDIT_REPAYMENTS ->
-            stringResource(
-                R.string.reporting_credit_repayments
-            )
-
-        ReportingSummaryMetric.CREDIT_OUTSTANDING ->
-            stringResource(
-                R.string.reporting_credit_outstanding
-            )
-
-        ReportingSummaryMetric.REFUNDS ->
-            stringResource(
-                R.string.reporting_refunds
-            )
-
-        ReportingSummaryMetric.EXPENSES ->
-            stringResource(
-                R.string.reporting_expenses
-            )
-    }
