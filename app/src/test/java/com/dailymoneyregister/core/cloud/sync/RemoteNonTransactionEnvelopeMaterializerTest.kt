@@ -1,3 +1,5 @@
+package com.dailymoneyregister.core.cloud.sync
+
 import androidx.room.withTransaction
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.dao.BusinessBranchDao
