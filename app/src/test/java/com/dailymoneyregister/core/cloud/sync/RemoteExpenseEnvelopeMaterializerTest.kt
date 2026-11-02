@@ -152,13 +152,64 @@ class RemoteExpenseEnvelopeMaterializerTest : RemoteEnvelopeMaterializerTestSupp
     }
 
     @Test
-    fun preservesExpenseCashShiftAttributionFromAuthoritativeEnvelope() = runTest {
-        val base = expenseEnvelope()
-        val payload = JSONObject(base.canonicalText)
+    fun rejectsExpenseWithMissingCashShiftBeforeAnyFinancialWrites() = runTest {
+        val envelope = expenseEnvelopeWithCashShift("missing-shift")
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertNoExpenseFinancialWrites()
+    }
+
+    @Test
+    fun rejectsExpenseWithCashShiftFromAnotherBranchBeforeAnyFinancialWrites() = runTest {
+        val envelope = expenseEnvelopeWithCashShift("cross-branch-shift")
+        coEvery { cashShiftDao.getShiftById("cross-branch-shift") } returns CashShiftEntity(
+            id = "cross-branch-shift",
+            branchId = "another-branch",
+            userId = actorUserId,
+            createdAt = envelope.payloadJson.getLong("occurred_at")
+        )
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertNoExpenseFinancialWrites()
+    }
+
+    @Test
+    fun rejectsExpenseWithCashShiftOwnedByAnotherActorBeforeAnyFinancialWrites() = runTest {
+        val envelope = expenseEnvelopeWithCashShift("wrong-actor-shift")
+        coEvery { cashShiftDao.getShiftById("wrong-actor-shift") } returns CashShiftEntity(
+            id = "wrong-actor-shift",
+            branchId = branchId,
+            userId = "another-actor",
+            createdAt = envelope.payloadJson.getLong("occurred_at")
+        )
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertNoExpenseFinancialWrites()
+    }
+
+    @Test
+    fun preservesExpenseCashShiftAttributionWhenShiftBranchAndActorMatch() = runTest {
         val shiftId = "expense-attributed-shift"
-        payload.put("cash_shift_id", shiftId)
-        payload.getJSONObject("expense").put("cash_shift_id", shiftId)
-        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
+        val envelope = expenseEnvelopeWithCashShift(shiftId)
+        val shift = CashShiftEntity(
+            id = shiftId,
+            branchId = branchId,
+            userId = actorUserId,
+            createdAt = envelope.payloadJson.getLong("occurred_at")
+        )
+        coEvery { cashShiftDao.getShiftById(shiftId) } returns shift
 
         val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
             database, envelope, businessId, branchId
@@ -166,6 +217,25 @@ class RemoteExpenseEnvelopeMaterializerTest : RemoteEnvelopeMaterializerTestSupp
 
         assertEquals(InboundProcessResult.Applied, result)
         assertEquals(shiftId, storedOperation?.cashShiftId)
+        coVerify(exactly = 1) { expenseDao.insertExpense(match { it.cashShiftId == shiftId }) }
+        coVerify(exactly = 1) {
+            transactionDao.insertSettlements(match { it.single().subjectId == "0199c104-1234-7abc-8def-0123456789ab" })
+        }
+    }
+
+    private fun expenseEnvelopeWithCashShift(shiftId: String): RemoteEnvelopeV2 {
+        val base = expenseEnvelope()
+        val payload = JSONObject(base.canonicalText)
+        payload.put("cash_shift_id", shiftId)
+        payload.getJSONObject("expense").put("cash_shift_id", shiftId)
+        return envelopeFromPayload(base, "RECORD_EXPENSE", payload)
+    }
+
+    private fun assertNoExpenseFinancialWrites() {
+        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
+        coVerify(exactly = 0) { expenseDao.insertExpense(any()) }
+        coVerify(exactly = 0) { transactionDao.insertSettlements(any()) }
+        coVerify(exactly = 0) { outboxDao.insertOutbox(any()) }
     }
 
     @Test
