@@ -157,7 +157,6 @@ internal class RefundFinancialRepository(
     }
 
 
-     */
     private suspend fun executeAdmittedRefund(
         command: RefundCommand
     ): CommandResult<RefundExecutionResult> {
