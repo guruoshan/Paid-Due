@@ -23,6 +23,7 @@ import com.dailymoneyregister.core.model.enums.PaymentChannel
 import com.dailymoneyregister.core.model.enums.SubjectType
 import com.dailymoneyregister.core.model.ids.IdGenerator
 import com.dailymoneyregister.core.model.ids.OperationId
+import com.dailymoneyregister.core.model.ids.OperationId
 
 /**
  * Captures and decodes the durable Refund admission snapshot.
