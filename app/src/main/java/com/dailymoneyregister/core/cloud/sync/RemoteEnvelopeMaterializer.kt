@@ -105,64 +105,65 @@ object RemoteEnvelopeMaterializer {
         }
 
         return try {
-        // Expense creation already has a canonical expense snapshot and a Room
-        // entity. Route only RECORD_EXPENSE through the generic atomic writer after
-        // validating its tenant/branch/actor links. Corrections/voids require their
-        // dedicated immutable event rows and are deliberately not treated as creates.
-        if (opTypeStr == "RECORD_EXPENSE") {
-            val expense = jsonPayload.optJSONObject("expense")
-                ?: return InboundProcessResult.Rejected("Missing expense object for RECORD_EXPENSE")
-            if (expense.optString("operation_id") != opId ||
-                expense.optString("business_id") != sessionBusinessId ||
-                expense.optString("branch_id") != branchId
-            ) {
-                return InboundProcessResult.Rejected("Expense references do not match the envelope tenant, branch, or operation")
+            // Expense creation already has a canonical expense snapshot and a Room
+            // entity. Route only RECORD_EXPENSE through the generic atomic writer after
+            // validating its tenant/branch/actor links. Corrections/voids require their
+            // dedicated immutable event rows and are deliberately not treated as creates.
+            if (opTypeStr == "RECORD_EXPENSE") {
+                val expense = jsonPayload.optJSONObject("expense")
+                    ?: return InboundProcessResult.Rejected("Missing expense object for RECORD_EXPENSE")
+                if (expense.optString("operation_id") != opId ||
+                    expense.optString("business_id") != sessionBusinessId ||
+                    expense.optString("branch_id") != branchId
+                ) {
+                    return InboundProcessResult.Rejected("Expense references do not match the envelope tenant, branch, or operation")
+                }
+                val actorUserId = expense.optString("actor_user_id").ifBlank {
+                    jsonPayload.optString("actor_user_id")
+                }
+                if (actorUserId.isBlank() ||
+                    !RemoteEnvelopeIdentity.hasActorIdentity(database, actorUserId, sessionBusinessId, branchId, envelope)
+                ) {
+                    return InboundProcessResult.Rejected("Referenced expense actor is missing from synchronized staff identities")
+                }
+                val branch = database.businessBranchDao().getBranchById(branchId)
+                    ?: return InboundProcessResult.Rejected("Referenced branch '$branchId' is missing locally")
+                if (branch.businessId != sessionBusinessId ||
+                    expense.optString("currency_code") != branch.currencyCode
+                ) {
+                    return InboundProcessResult.Rejected("Expense branch or currency does not match the active business")
+                }
+                return RemoteExpenseEnvelopeMaterializer.materialize(database, jsonPayload)
             }
-            val actorUserId = expense.optString("actor_user_id").ifBlank {
-                jsonPayload.optString("actor_user_id")
-            }
-            if (actorUserId.isBlank() ||
-                !RemoteEnvelopeIdentity.hasActorIdentity(database, actorUserId, sessionBusinessId, branchId, envelope)
-            ) {
-                return InboundProcessResult.Rejected("Referenced expense actor is missing from synchronized staff identities")
-            }
-            val branch = database.businessBranchDao().getBranchById(branchId)
-                ?: return InboundProcessResult.Rejected("Referenced branch '$branchId' is missing locally")
-            if (branch.businessId != sessionBusinessId ||
-                expense.optString("currency_code") != branch.currencyCode
-            ) {
-                return InboundProcessResult.Rejected("Expense branch or currency does not match the active business")
-            }
-            return RemoteExpenseEnvelopeMaterializer.materialize(database, jsonPayload)
-        }
 
-        // Transaction-linked operations share the immutable original transaction
-        // snapshot, but each must also carry its own typed event/ledger evidence.
-        val transactionOperationTypes = setOf(
-            "RECORD_SALE",
-            "RECORD_COUPON_PURCHASE",
-            "RECORD_AMOUNT_CORRECTION",
-            "RECORD_PAYMENT_METHOD_CHANGE",
-            "RECORD_VOID",
-            "RECORD_REFUND"
-        )
-        if (opTypeStr !in transactionOperationTypes) {
-            return RemoteNonTransactionEnvelopeMaterializer.materialize(
+            // Transaction-linked operations share the immutable original transaction
+            // snapshot, but each must also carry its own typed event/ledger evidence.
+            val transactionOperationTypes = setOf(
+                "RECORD_SALE",
+                "RECORD_COUPON_PURCHASE",
+                "RECORD_AMOUNT_CORRECTION",
+                "RECORD_PAYMENT_METHOD_CHANGE",
+                "RECORD_VOID",
+                "RECORD_REFUND"
+            )
+            if (opTypeStr !in transactionOperationTypes) {
+                return RemoteNonTransactionEnvelopeMaterializer.materialize(
+                    database = database,
+                    envelope = envelope,
+                    branchId = branchId,
+                    sessionBusinessId = sessionBusinessId,
+                    actorUserId = jsonPayload.optString("actor_user_id")
+                )
+            }
+
+            RemoteTransactionEnvelopeMaterializer.materialize(
                 database = database,
                 envelope = envelope,
-                branchId = branchId,
                 sessionBusinessId = sessionBusinessId,
+                branchId = branchId,
                 actorUserId = jsonPayload.optString("actor_user_id")
             )
-        }
 
-        RemoteTransactionEnvelopeMaterializer.materialize(
-            database = database,
-            envelope = envelope,
-            sessionBusinessId = sessionBusinessId,
-            branchId = branchId,
-            actorUserId = jsonPayload.optString("actor_user_id")
-        )
         } catch (error: kotlinx.coroutines.CancellationException) {
             throw error
         } catch (error: Exception) {
