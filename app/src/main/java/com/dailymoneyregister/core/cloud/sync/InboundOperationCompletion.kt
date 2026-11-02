@@ -29,7 +29,12 @@ internal object InboundOperationCompletion {
             "Inbound operation immutable identity mismatch"
         }
         return when (existing.status) {
-            OperationStatus.SUCCEEDED -> true
+            OperationStatus.SUCCEEDED -> {
+                check(existing.hasSameResultReference(expected)) {
+                    "Inbound operation result reference mismatch"
+                }
+                true
+            }
             OperationStatus.PENDING -> false
             else -> error("Inbound operation cannot replay from ${existing.status}")
         }
@@ -149,7 +154,12 @@ internal object InboundOperationCompletion {
         }
         check(existing.hasSameImmutableIdentity(expected)) { "Inbound operation immutable identity mismatch" }
         return when (existing.status) {
-            OperationStatus.SUCCEEDED -> InboundOperationAdmission.ALREADY_SUCCEEDED
+            OperationStatus.SUCCEEDED -> {
+                check(existing.hasSameResultReference(expected)) {
+                    "Inbound operation result reference mismatch"
+                }
+                InboundOperationAdmission.ALREADY_SUCCEEDED
+            }
             OperationStatus.PENDING -> InboundOperationAdmission.PENDING
             else -> error("Inbound operation cannot complete from ${existing.status}")
         }
@@ -194,8 +204,10 @@ internal object InboundOperationCompletion {
             cashShiftId == expected.cashShiftId && actorUserId == expected.actorUserId &&
             deviceId == expected.deviceId && occurredAt == expected.occurredAt &&
             requestFingerprint == expected.requestFingerprint &&
-            commandSchemaVersion == expected.commandSchemaVersion && intentPayload == expected.intentPayload &&
-            resultReferenceType == expected.resultReferenceType &&
+            commandSchemaVersion == expected.commandSchemaVersion && intentPayload == expected.intentPayload
+
+    private fun OperationEntity.hasSameResultReference(expected: OperationEntity): Boolean =
+        resultReferenceType == expected.resultReferenceType &&
             resultReferenceId == expected.resultReferenceId
 
     private fun FinancialSyncOutboxEntity.hasSameAcknowledgedIdentity(expected: FinancialSyncOutboxEntity): Boolean =
