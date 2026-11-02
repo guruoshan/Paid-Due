@@ -188,6 +188,16 @@ internal object RemoteExpenseEnvelopeMaterializer {
                         now = expense.occurredAt
                     ).customer
                 }
+            val resolvedIncomingPayee = resolvedIncomingPayeeId?.let { customerId ->
+                database.customerDao().getCustomerById(customerId)
+            }
+            require(
+                resolvedIncomingPayee == null ||
+                    resolvedPayee == null ||
+                    resolvedIncomingPayee.id == resolvedPayee.id
+            ) {
+                "Conflicting payee identity evidence"
+            }
             val materializedExpense = expense.copy(
                 payeeId = resolvedPayee?.id ?: resolvedIncomingPayeeId,
                 payeePhoneSnapshot = resolvedPayee?.canonicalPhone ?: expense.payeePhoneSnapshot
