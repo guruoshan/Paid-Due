@@ -18,6 +18,7 @@ internal object RemoteCreditRepaymentValidator {
         repaymentJson: JSONObject?,
         evidence: JSONObject
     ): InboundProcessResult? {
+        val payload = envelope.payloadJson
         
         if (repaymentJson == null) {
             return InboundProcessResult.Rejected("Missing credit repayment evidence")

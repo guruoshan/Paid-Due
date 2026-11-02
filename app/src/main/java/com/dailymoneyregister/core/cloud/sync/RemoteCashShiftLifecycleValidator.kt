@@ -16,6 +16,7 @@ internal object RemoteCashShiftLifecycleValidator {
         shiftJson: JSONObject?,
         shiftEventJson: JSONObject?
     ): InboundProcessResult? {
+        val payload = envelope.payloadJson
         
         if (shiftJson == null || shiftEventJson == null) {
             return InboundProcessResult.Rejected("Missing cash-shift identity/event evidence")

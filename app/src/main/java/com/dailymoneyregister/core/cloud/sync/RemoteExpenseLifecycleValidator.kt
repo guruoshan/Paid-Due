@@ -19,6 +19,7 @@ internal object RemoteExpenseLifecycleValidator {
         expenseSnapshot: JSONObject?,
         expenseEvents: JSONArray?
     ): InboundProcessResult? {
+        val payload = envelope.payloadJson
         
         if (expenseSnapshot == null || expenseEvents == null || expenseEvents.length() == 0) {
             return InboundProcessResult.Rejected("Missing linked expense event evidence")
