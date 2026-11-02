@@ -326,16 +326,11 @@ internal class RefundReplayCoordinator(
 
             val replayPlan =
                 buildCreditReturnB2Plan(
-                    transaction =
-                        transaction,
-                    record =
-                        replayRecord,
-                    allocations =
-                        replayAllocations,
-                    requestedReturnMinor =
-                        payload.refundAmountMinor,
-                    excludeReturnOperationId =
-                        operation.id
+                    transaction,
+                    replayRecord,
+                    replayAllocations,
+                    payload.refundAmountMinor,
+                    operation.id
                 )
 
             check(

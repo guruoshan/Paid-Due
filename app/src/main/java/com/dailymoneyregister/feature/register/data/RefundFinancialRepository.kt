@@ -33,13 +33,6 @@ data class RefundExecutionResult(
     val couponBalanceAfterMinor: Long? = null
 )
 
-/**
- * Owns the complete durable Refund execution and recovery workflow.
- *
- * RegisterRepository remains the public compatibility facade. This
- * extraction preserves the existing command, transaction, replay,
- * reconciliation, authorization and cash-shift boundaries.
- */
 internal class RefundFinancialRepository(
     private val database: DmrDatabase,
     private val commandExecutor: CommandExecutor,
