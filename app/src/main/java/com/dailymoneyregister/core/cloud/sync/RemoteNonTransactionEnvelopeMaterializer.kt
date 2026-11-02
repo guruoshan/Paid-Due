@@ -4,9 +4,6 @@ import androidx.room.withTransaction
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
-import com.dailymoneyregister.core.database.entity.ExpenseEntity
-import com.dailymoneyregister.core.database.entity.TransactionEntity
-import com.dailymoneyregister.core.database.entity.TransactionItemEntity
 import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.CashShiftEventType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
@@ -15,9 +12,7 @@ import com.dailymoneyregister.core.model.enums.OperationType
 import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.enums.PaymentChannel
 import com.dailymoneyregister.core.model.enums.SubjectType
-import com.dailymoneyregister.core.model.enums.TransactionType
 import org.json.JSONObject
-import java.math.BigDecimal
 
 /** Routes non-transaction inbound operations through their atomic evidence writer. */
 internal object RemoteNonTransactionEnvelopeMaterializer {
