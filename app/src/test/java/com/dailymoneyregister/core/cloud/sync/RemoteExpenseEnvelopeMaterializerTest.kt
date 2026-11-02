@@ -185,6 +185,58 @@ class RemoteExpenseEnvelopeMaterializerTest : RemoteEnvelopeMaterializerTestSupp
     }
 
     @Test
+    fun rejectsExpenseWhenPayeeIdAndPhoneResolveToDifferentCustomers() = runTest {
+        val shiftId = "conflicting-payee-shift"
+        val base = expenseEnvelopeWithCashShift(shiftId)
+        val payload = JSONObject(base.canonicalText)
+        payload.getJSONObject("expense").apply {
+            put("payee_id", "payee-id-customer")
+            put("payee_phone_snapshot", "+968 9123 4567")
+        }
+        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
+        coEvery { cashShiftDao.getShiftById(shiftId) } returns CashShiftEntity(
+            id = shiftId,
+            branchId = branchId,
+            userId = actorUserId,
+            createdAt = payload.getLong("occurred_at")
+        )
+
+        val payeeIdCustomer = mockk<CustomerEntity>()
+        every { payeeIdCustomer.id } returns "payee-id-customer"
+        every { payeeIdCustomer.businessId } returns businessId
+        val phoneCustomer = mockk<CustomerEntity>()
+        every { phoneCustomer.id } returns "phone-payee-customer"
+        every { phoneCustomer.businessId } returns businessId
+        every { phoneCustomer.canonicalPhone } returns "+96891234567"
+        every { phoneCustomer.name } returns "Phone payee"
+        coEvery { customerDao.getCustomerById("payee-id-customer") } returns payeeIdCustomer
+        coEvery { customerDao.getCustomerById("phone-payee-customer") } returns phoneCustomer
+        coEvery { customerDao.getCustomerByPhone(businessId, "+96891234567") } returns phoneCustomer
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertTrue(
+            (result as InboundProcessResult.Rejected).reason.contains(
+                "Conflicting payee identity evidence"
+            )
+        )
+        assertEquals(null, storedOperation)
+        coVerify(exactly = 0) { expenseDao.insertExpense(any()) }
+        coVerify(exactly = 0) { transactionDao.insertSettlements(any()) }
+        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
+        coVerify(exactly = 0) { operationDao.markSucceededIfPending(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { customerDao.insertCustomer(any()) }
+        coVerify(exactly = 0) { customerDao.insertCustomerIdAlias(any()) }
+        coVerify(exactly = 0) { customerDao.updateCustomer(any()) }
+        coVerify(exactly = 0) {
+            customerDao.updateCanonicalIdForLocalAliases(any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
     fun preservesUnknownExpensePayeeIdUntilCustomerDirectorySnapshotArrives() = runTest {
         val shiftId = "unknown-payee-shift"
         val base = expenseEnvelopeWithCashShift(shiftId)
