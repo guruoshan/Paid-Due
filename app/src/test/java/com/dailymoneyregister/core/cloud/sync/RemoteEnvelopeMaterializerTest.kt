@@ -14,12 +14,14 @@ import com.dailymoneyregister.core.database.dao.TransactionDao
 import com.dailymoneyregister.core.database.dao.UserDao
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.CashShiftEntity
+import com.dailymoneyregister.core.database.entity.CashShiftEventEntity
 import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
 import com.dailymoneyregister.core.database.entity.CustomerEntity
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.RefundEventEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
+import com.dailymoneyregister.core.model.enums.CashShiftEventType
 import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.OperationStatus
 import com.dailymoneyregister.core.model.enums.OperationType
@@ -96,6 +98,7 @@ class RemoteEnvelopeMaterializerTest {
         )
         coEvery { branchDao.getBranchById(branchId) } returns branch
         coEvery { cashShiftDao.getEventByOperationId(any()) } returns null
+        coEvery { cashShiftDao.getEventsForShift(any()) } returns emptyList()
         coEvery { cashShiftDao.insertShift(any()) } returns Unit
         coEvery { cashShiftDao.insertShiftEvent(any()) } returns Unit
         cloudIdentity = CloudStaffIdentityEntity(
@@ -1033,6 +1036,17 @@ class RemoteEnvelopeMaterializerTest {
             createdAt = envelope.payloadJson.getLong("occurred_at")
         )
         coEvery { cashShiftDao.getShiftById(shift.id) } returns shift
+        coEvery { cashShiftDao.getEventsForShift(shift.id) } returns listOf(
+            CashShiftEventEntity(
+                id = "prior-open-event",
+                shiftId = shift.id,
+                operationId = "prior-open-operation",
+                type = CashShiftEventType.OPENED,
+                amountMinor = 0L,
+                occurredAt = shift.createdAt,
+                actorUserId = actorUserId
+            )
+        )
 
         val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
             database, envelope, businessId, branchId
@@ -1042,7 +1056,7 @@ class RemoteEnvelopeMaterializerTest {
         assertEquals(null, storedOperation?.cashShiftId)
         coVerify(exactly = 1) {
             cashShiftDao.insertShiftEvent(match {
-                it.shiftId == shift.id && it.type.name == "COUNTED"
+                it.shiftId == shift.id && it.type == CashShiftEventType.COUNTED
             })
         }
     }
@@ -1057,6 +1071,26 @@ class RemoteEnvelopeMaterializerTest {
             createdAt = envelope.payloadJson.getLong("occurred_at")
         )
         coEvery { cashShiftDao.getShiftById(shift.id) } returns shift
+        coEvery { cashShiftDao.getEventsForShift(shift.id) } returns listOf(
+            CashShiftEventEntity(
+                id = "prior-open-event",
+                shiftId = shift.id,
+                operationId = "prior-open-operation",
+                type = CashShiftEventType.OPENED,
+                amountMinor = 0L,
+                occurredAt = shift.createdAt,
+                actorUserId = actorUserId
+            ),
+            CashShiftEventEntity(
+                id = "prior-count-event",
+                shiftId = shift.id,
+                operationId = "prior-count-operation",
+                type = CashShiftEventType.COUNTED,
+                amountMinor = 1_000L,
+                occurredAt = shift.createdAt + 1L,
+                actorUserId = actorUserId
+            )
+        )
 
         val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
             database, envelope, businessId, branchId
@@ -1066,7 +1100,7 @@ class RemoteEnvelopeMaterializerTest {
         assertEquals(null, storedOperation?.cashShiftId)
         coVerify(exactly = 1) {
             cashShiftDao.insertShiftEvent(match {
-                it.shiftId == shift.id && it.type.name == "CLOSED"
+                it.shiftId == shift.id && it.type == CashShiftEventType.CLOSED
             })
         }
     }
@@ -1222,6 +1256,8 @@ class RemoteEnvelopeMaterializerTest {
         val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at")
         val shiftId = "inbound-shift-id"
         val operation = when (operationType) { "OPEN_CASH_SHIFT" -> "open-shift-operation"; "COUNT_CASH_SHIFT" -> "count-shift-operation"; else -> "close-shift-operation" }
+        val eventType = when (operationType) { "OPEN_CASH_SHIFT" -> "OPENED"; "COUNT_CASH_SHIFT" -> "COUNTED"; else -> "CLOSED" }
+        val eventAmount = when (operationType) { "OPEN_CASH_SHIFT", "CLOSE_CASH_SHIFT" -> 0L; else -> 1_000L }
         val payload = JSONObject(base.canonicalText).apply {
             remove("transaction")
             remove("transaction_id")
@@ -1239,11 +1275,11 @@ class RemoteEnvelopeMaterializerTest {
                     put("created_at", occurredAt)
                 })
                 put("cash_shift_event", JSONObject().apply {
-                    put("id", "$operation-event")
+                    put("id", operation + ":" + eventType)
                     put("shift_id", eventShiftId)
                     put("operation_id", operation)
-                    put("type", when (operationType) { "OPEN_CASH_SHIFT" -> "OPENED"; "COUNT_CASH_SHIFT" -> "COUNTED"; else -> "CLOSED" })
-                    put("amount_minor", 1_000L)
+                    put("type", eventType)
+                    put("amount_minor", eventAmount)
                     put("occurred_at", occurredAt)
                     put("actor_user_id", actorUserId)
                 })

@@ -1233,7 +1233,7 @@ object RemoteEnvelopeMaterializer {
                                 existingShiftEvent.shiftId != shiftId ||
                                 existingShiftEvent.type.name != shiftEventJson.optString("type") ||
                                 existingShiftEvent.amountMinor != shiftEventJson.optLong("amount_minor") ||
-                                existingShiftEvent.occurredAt != expectedShiftOccurredAt ||
+                                existingShiftEvent.occurredAt != payload.optLong("occurred_at", Long.MAX_VALUE) ||
                                 existingShiftEvent.actorUserId != actorUserId
                         )
                     ) {
