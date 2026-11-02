@@ -73,6 +73,7 @@ class RemoteEnvelopeMaterializerTest {
         every { database.customerDao() } returns customerDao
         every { database.ledgerDao() } returns ledgerDao
         every { customer.businessId } returns businessId
+        every { customer.id } returns "local-customer-id"
         every { database.operationDao() } returns operationDao
         every { database.expenseDao() } returns expenseDao
         every { database.financialSyncOutboxDao() } returns outboxDao
