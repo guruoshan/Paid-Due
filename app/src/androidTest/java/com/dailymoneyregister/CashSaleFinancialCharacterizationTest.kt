@@ -517,6 +517,37 @@ class CashSaleFinancialCharacterizationTest {
             )
         }
     }
+
+    @Test
+    fun malformedPendingCashSalePersistsReconciliationHold() = runBlocking {
+        val operation = OperationEntity(
+            id = "malformed-cash-recovery-op",
+            businessId = business.id,
+            branchId = branch.id,
+            operationType = OperationType.RECORD_SALE,
+            subjectType = SubjectType.TRANSACTION,
+            subjectId = "malformed-cash-recovery-tx",
+            transactionId = "malformed-cash-recovery-tx",
+            actorUserId = fixtureUser.id,
+            deviceId = "device-1",
+            occurredAt = 1700000000000L,
+            requestFingerprint = "malformed-cash-fingerprint",
+            commandSchemaVersion = 1,
+            intentPayload = "invalid durable cash sale payload",
+            status = OperationStatus.PENDING
+        )
+        database.operationDao().insertOperation(operation)
+
+        val recovery = runCatching { repository.recoverPendingCashSales() }
+
+        assertTrue("Cash recovery must stop when its reconciliation gate is raised", recovery.isFailure)
+        assertEquals(
+            OperationStatus.REQUIRES_RECONCILIATION,
+            database.operationDao().getOperationById(operation.id)?.status
+        )
+        assertNull(database.transactionDao().getTransactionById(operation.transactionId!!))
+    }
+
     private suspend fun insertPending(payload: String) {
         val command = CashSalePayloadCodec.decode(payload)
         val payloadVersion = payload.lineSequence()

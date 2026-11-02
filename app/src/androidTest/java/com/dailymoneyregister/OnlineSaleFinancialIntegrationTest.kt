@@ -212,6 +212,71 @@ class OnlineSaleFinancialIntegrationTest {
         assertEquals(null, database.transactionDao().getTransactionById("malformed-tx"))
     }
 
+
+    @Test
+    fun partialOnlineSaleMaterializationFailureRollsBackAllFinancialRows() = runBlocking {
+        val command = command(operation = "online-partial-rollback-op", transaction = "online-partial-rollback-tx")
+        database.openHelper.writableDatabase.execSQL(
+            """
+            CREATE TRIGGER test_abort_online_sale_funding
+            BEFORE INSERT ON settlement_entries
+            WHEN NEW.entry_purpose = 'SALE_FUNDING'
+            BEGIN
+                SELECT RAISE(ABORT, 'forced Online sale funding failure');
+            END
+            """.trimIndent()
+        )
+
+        val result = try {
+            repository.executeOnlineSale(command)
+        } finally {
+            database.openHelper.writableDatabase.execSQL(
+                "DROP TRIGGER IF EXISTS test_abort_online_sale_funding"
+            )
+        }
+
+        assertTrue("Injected settlement failure must fail the Online sale: $result", result is CommandResult.Error)
+        assertEquals(null, database.transactionDao().getTransactionById(command.transactionIdVal.value))
+        assertTrue(database.transactionDao().getItemsForTransaction(command.transactionIdVal.value).isEmpty())
+        assertTrue(database.transactionDao().getSettlementsForTransaction(command.transactionIdVal.value).isEmpty())
+    }
+
+    @Test
+    fun onlineRecoveryLeavesPendingCreditSaleUntouched() = runBlocking {
+        val unrelated = OperationEntity(
+            id = "unrelated-credit-pending-op",
+            businessId = business.id,
+            branchId = branch.id,
+            operationType = OperationType.RECORD_SALE,
+            subjectType = SubjectType.TRANSACTION,
+            subjectId = "unrelated-credit-pending-tx",
+            transactionId = "unrelated-credit-pending-tx",
+            actorUserId = user.id,
+            deviceId = "device-1",
+            occurredAt = 1700000000000L,
+            requestFingerprint = "unrelated-credit-fingerprint",
+            commandSchemaVersion = 1,
+            intentPayload = "v=1\\ncommandType=CREDIT_SALE\\n",
+            status = OperationStatus.PENDING
+        )
+        val online = command(operation = "online-recovery-isolation-op", transaction = "online-recovery-isolation-tx")
+        database.operationDao().insertOperation(unrelated)
+        database.operationDao().insertOperation(pendingOperation(online))
+
+        val recovered = repository.recoverPendingOnlineSales()
+
+        assertEquals(1, recovered.size)
+        assertEquals(
+            OperationStatus.PENDING,
+            database.operationDao().getOperationById(unrelated.id)?.status
+        )
+        assertEquals(null, database.transactionDao().getTransactionById(unrelated.transactionId!!))
+        assertEquals(
+            OperationStatus.SUCCEEDED,
+            database.operationDao().getOperationById(online.operationId.value)?.status
+        )
+    }
+
     private fun command(
         actor: String = user.id,
         operation: String = "online-op",
