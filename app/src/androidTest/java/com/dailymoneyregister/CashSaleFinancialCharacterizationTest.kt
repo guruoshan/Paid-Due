@@ -522,8 +522,8 @@ class CashSaleFinancialCharacterizationTest {
     fun malformedPendingCashSalePersistsReconciliationHold() = runBlocking {
         val operation = OperationEntity(
             id = "malformed-cash-recovery-op",
-            businessId = business.id,
-            branchId = branch.id,
+            businessId = "biz-characterization",
+            branchId = "branch-characterization",
             operationType = OperationType.RECORD_SALE,
             subjectType = SubjectType.TRANSACTION,
             subjectId = "malformed-cash-recovery-tx",
