@@ -167,11 +167,7 @@ object RemoteEnvelopeMaterializer {
             ) {
                 return InboundProcessResult.Rejected("Expense branch or currency does not match the active business")
             }
-            return if (RemoteExpenseEnvelopeMaterializer.materialize(database, jsonPayload)) {
-                InboundProcessResult.Applied
-            } else {
-                InboundProcessResult.Rejected("Expense envelope could not be materialized")
-            }
+            return RemoteExpenseEnvelopeMaterializer.materialize(database, jsonPayload)
         }
 
         // Transaction-linked operations share the immutable original transaction
