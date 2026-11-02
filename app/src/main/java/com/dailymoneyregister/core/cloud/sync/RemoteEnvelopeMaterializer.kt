@@ -1,7 +1,6 @@
 package com.dailymoneyregister.core.cloud.sync
 
 import com.dailymoneyregister.core.database.DmrDatabase
-import com.dailymoneyregister.core.model.enums.OperationStatus
 import org.json.JSONObject
 import java.math.BigDecimal
 
@@ -83,26 +82,10 @@ object RemoteEnvelopeMaterializer {
             return InboundProcessResult.Rejected("Referenced operation actor is missing from synchronized staff identities")
         }
 
-        // A duplicate operation ID is only a replay when its immutable identity
-        // matches the active tenant, branch, type, and request fingerprint. Scope
-        // checks intentionally precede duplicate handling.
-        val incomingFingerprint = jsonPayload.optString("request_fingerprint")
-        val existingOp = database.operationDao().getOperationById(opId)
-        if (existingOp != null) {
-            if (
-                existingOp.businessId != envelope.businessId ||
-                existingOp.branchId != branchId ||
-                existingOp.operationType.name != opTypeStr ||
-                existingOp.requestFingerprint != incomingFingerprint
-            ) {
-                return InboundProcessResult.Rejected(
-                    "Operation ID collision: existing operation identity does not match inbound envelope"
-                )
-            }
-            if (existingOp.status == OperationStatus.SUCCEEDED) {
-                return InboundProcessResult.Skipped
-            }
-        }
+        // Existing operations are checked by each typed materializer after it has
+        // reconstructed the complete expected OperationEntity. This deliberately
+        // avoids a partial duplicate shortcut that could bypass immutable identity
+        // validation for successful replays.
 
         return try {
             // Expense creation already has a canonical expense snapshot and a Room
