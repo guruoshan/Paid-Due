@@ -1014,7 +1014,7 @@ class RemoteEnvelopeMaterializerTest {
             id = "inbound-shift-id",
             branchId = "another-branch",
             userId = actorUserId,
-            createdAt = envelope.payloadJson.getLong("occurred_at")
+            createdAt = envelope.payloadJson.getJSONObject("financial_evidence").getJSONObject("cash_shift").getLong("created_at")
         )
         coEvery { cashShiftDao.getShiftById(shift.id) } returns shift
 
@@ -1029,7 +1029,7 @@ class RemoteEnvelopeMaterializerTest {
 
     @Test
     fun appliesCashShiftCountWithSubjectAsAuthoritativeIdentity() = runTest {
-        val envelope = cashShiftEnvelope("COUNT_CASH_SHIFT")
+        val envelope = cashShiftEnvelope("COUNT_CASH_SHIFT", occurredAtOffset = 1_000L)
         val shift = CashShiftEntity(
             id = "inbound-shift-id",
             branchId = branchId,
@@ -1064,7 +1064,7 @@ class RemoteEnvelopeMaterializerTest {
 
     @Test
     fun appliesCashShiftCloseWithSubjectAsAuthoritativeIdentity() = runTest {
-        val envelope = cashShiftEnvelope("CLOSE_CASH_SHIFT")
+        val envelope = cashShiftEnvelope("CLOSE_CASH_SHIFT", occurredAtOffset = 2_000L)
         val shift = CashShiftEntity(
             id = "inbound-shift-id",
             branchId = branchId,
@@ -1088,7 +1088,7 @@ class RemoteEnvelopeMaterializerTest {
                 operationId = "prior-count-operation",
                 type = CashShiftEventType.COUNTED,
                 amountMinor = 1_000L,
-                occurredAt = shift.createdAt + 1L,
+                occurredAt = shift.createdAt + 1_000L,
                 actorUserId = actorUserId
             )
         )
@@ -1251,10 +1251,12 @@ class RemoteEnvelopeMaterializerTest {
 
     private fun cashShiftEnvelope(
         operationType: String,
-        eventShiftId: String = "inbound-shift-id"
+        eventShiftId: String = "inbound-shift-id",
+        occurredAtOffset: Long = 0L
     ): RemoteEnvelopeV2 {
         val base = cashSaleEnvelope()
-        val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at")
+        val shiftCreatedAt = JSONObject(base.canonicalText).getLong("occurred_at")
+        val occurredAt = shiftCreatedAt + occurredAtOffset
         val shiftId = "inbound-shift-id"
         val operation = when (operationType) { "OPEN_CASH_SHIFT" -> "open-shift-operation"; "COUNT_CASH_SHIFT" -> "count-shift-operation"; else -> "close-shift-operation" }
         val eventType = when (operationType) { "OPEN_CASH_SHIFT" -> "OPENED"; "COUNT_CASH_SHIFT" -> "COUNTED"; else -> "CLOSED" }
@@ -1273,7 +1275,7 @@ class RemoteEnvelopeMaterializerTest {
                     put("id", shiftId)
                     put("branch_id", branchId)
                     put("user_id", actorUserId)
-                    put("created_at", occurredAt)
+                    put("created_at", shiftCreatedAt)
                 })
                 put("cash_shift_event", JSONObject().apply {
                     put("id", operation + ":" + eventType)
