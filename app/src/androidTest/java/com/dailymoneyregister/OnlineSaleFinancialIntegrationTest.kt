@@ -212,7 +212,6 @@ class OnlineSaleFinancialIntegrationTest {
         assertEquals(null, database.transactionDao().getTransactionById("malformed-tx"))
     }
 
-
     @Test
     fun partialOnlineSaleMaterializationFailureRollsBackAllFinancialRows() = runBlocking {
         val command = command(operation = "online-partial-rollback-op", transaction = "online-partial-rollback-tx")

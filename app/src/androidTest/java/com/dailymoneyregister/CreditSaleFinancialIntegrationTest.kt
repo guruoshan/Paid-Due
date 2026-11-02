@@ -17,9 +17,9 @@ import com.dailymoneyregister.core.model.enums.CreditLedgerType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.OperationStatus
 import com.dailymoneyregister.core.model.enums.OperationType
-import com.dailymoneyregister.core.model.enums.SubjectType
 import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.enums.PaymentChannel
+import com.dailymoneyregister.core.model.enums.SubjectType
 import com.dailymoneyregister.core.model.enums.TransactionType
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.model.ids.OperationId
@@ -586,7 +586,6 @@ class CreditSaleFinancialIntegrationTest {
             decoded.requestFingerprint
         )
     }
-
 
     @Test
     fun creditObligationFailureRollsBackSaleTransactionItemsAndSettlement() = runBlocking {
