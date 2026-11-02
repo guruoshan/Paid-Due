@@ -31,6 +31,7 @@ import com.dailymoneyregister.core.database.readmodel.TransactionFinancialRecord
  */
 internal class RefundReplayCoordinator(
     private val database: DmrDatabase,
+    private val commandExecutor: CommandExecutor,
     private val admissionCoordinator: RefundAdmissionCoordinator,
     private val executeAdmittedRefund: suspend (RefundCommand) -> CommandResult<RefundExecutionResult>,
     private val buildCreditReturnB2Plan: suspend (
