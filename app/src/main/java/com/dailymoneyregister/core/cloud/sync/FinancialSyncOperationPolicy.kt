@@ -31,7 +31,4 @@ object FinancialSyncOperationPolicy {
         } else {
             FinancialSyncDeliveryState.NOT_APPLICABLE
         }
-
-    fun canUpload(role: UserRole, type: OperationType): Boolean =
-        initialState(role, type) == FinancialSyncDeliveryState.QUEUED
 }
