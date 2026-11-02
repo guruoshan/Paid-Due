@@ -594,30 +594,33 @@ object RemoteEnvelopeMaterializer {
             val txId = tJson.getString("id")
             val resultReference = resultReferenceFor(opTypeStr, financialEvidence, txId)
 
-            // Insert directly as SUCCEEDED. The outbox trigger only observes local
-            // lifecycle UPDATE transitions, so downloaded evidence cannot be requeued.
-            operationDao.insertOperationIfAbsent(
-                OperationEntity(
-                    id = opId,
-                    businessId = sessionBusinessId,
-                    branchId = branchId,
-                    operationType = OperationType.valueOf(opTypeStr),
-                    subjectType = jsonPayload.optString("subject_type").ifBlank { SubjectType.TRANSACTION.name }
-                        .let { SubjectType.valueOf(it) },
-                    subjectId = jsonPayload.optString("subject_id").ifBlank { txId },
-                    transactionId = txId,
-                    cashShiftId = jsonPayload.optString("cash_shift_id").ifBlank { null },
-                    actorUserId = actorUserId,
-                    deviceId = envelope.payloadJson.optString("device_id", "remote"),
-                    occurredAt = occurredAt,
-                    requestFingerprint = envelope.payloadJson.optString("request_fingerprint", "remote-$opId"),
-                    commandSchemaVersion = envelope.payloadJson.optInt("command_schema_version", 1),
-                    intentPayload = envelope.payloadJson.optString("intent_payload", "{}"),
-                    status = OperationStatus.SUCCEEDED,
-                    resultReferenceType = resultReference.first,
-                    resultReferenceId = resultReference.second
-                )
+            // Insert downloaded operations as SUCCEEDED without firing the local
+            // outbox trigger. A pre-existing PENDING operation is finalized later
+            // through the shared acknowledged-outbox protocol.
+            val operation = OperationEntity(
+                id = opId,
+                businessId = sessionBusinessId,
+                branchId = branchId,
+                operationType = OperationType.valueOf(opTypeStr),
+                subjectType = jsonPayload.optString("subject_type").ifBlank { SubjectType.TRANSACTION.name }
+                    .let { SubjectType.valueOf(it) },
+                subjectId = jsonPayload.optString("subject_id").ifBlank { txId },
+                transactionId = txId,
+                cashShiftId = jsonPayload.optString("cash_shift_id").ifBlank { null },
+                actorUserId = actorUserId,
+                deviceId = envelope.payloadJson.optString("device_id", "remote"),
+                occurredAt = occurredAt,
+                requestFingerprint = envelope.payloadJson.optString("request_fingerprint", "remote-$opId"),
+                commandSchemaVersion = envelope.payloadJson.optInt("command_schema_version", 1),
+                intentPayload = envelope.payloadJson.optString("intent_payload", "{}"),
+                status = OperationStatus.SUCCEEDED,
+                resultReferenceType = resultReference.first,
+                resultReferenceId = resultReference.second
             )
+            val admission = InboundOperationCompletion.ensure(database, operation)
+            if (admission == InboundOperationAdmission.ALREADY_SUCCEEDED) {
+                return@withTransaction InboundProcessResult.Skipped
+            }
 
             // 1. Transaction
             val tEntity = TransactionEntity(
@@ -748,16 +751,14 @@ object RemoteEnvelopeMaterializer {
                 transactionId = txId
             )
 
-            // If this replay resumed a PENDING operation, finalize it only after
-            // all linked transaction, item, settlement, and event evidence is durable.
-            val markedSucceeded = operationDao.markSucceededIfPending(
-                operationId = opId,
-                requestFingerprint = jsonPayload.optString("request_fingerprint", "remote-$opId"),
-                resultReferenceType = resultReference.first,
-                resultReferenceId = resultReference.second
-            )
-            check(markedSucceeded == 1 || operationDao.isOperationSucceeded(opId)) {
-                "Inbound sale could not be finalized with the matching request fingerprint"
+            // A downloaded PENDING operation must not be re-enqueued by the
+            // local success trigger. Acknowledge it before the status transition.
+            if (admission == InboundOperationAdmission.PENDING) {
+                InboundOperationCompletion.completePending(database, operation)
+            } else {
+                check(operationDao.isOperationSucceeded(opId)) {
+                    "Inbound transaction operation was not persisted as succeeded"
+                }
             }
 
             InboundProcessResult.Applied

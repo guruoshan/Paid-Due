@@ -32,7 +32,7 @@ internal object InboundOperationCompletion {
         val referenceType = requireNotNull(operation.resultReferenceType)
         val acknowledged = FinancialSyncOutboxEntity(
             operationId = operation.id, businessId = operation.businessId, branchId = branchId,
-            transactionId = referenceId, actorUserId = operation.actorUserId, deviceId = operation.deviceId,
+            transactionId = operation.transactionId ?: referenceId, actorUserId = operation.actorUserId, deviceId = operation.deviceId,
             requestFingerprint = operation.requestFingerprint, commandSchemaVersion = operation.commandSchemaVersion,
             occurredAt = operation.occurredAt, status = "ACKNOWLEDGED", attemptCount = 0
         )

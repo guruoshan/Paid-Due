@@ -532,7 +532,7 @@ class RemoteEnvelopeMaterializerTest {
             subjectId = transactionId,
             transactionId = transactionId,
             actorUserId = actorUserId,
-            deviceId = "remote-device",
+            deviceId = "cashier-device",
             occurredAt = occurredAt,
             requestFingerprint = fingerprint,
             commandSchemaVersion = 1,
@@ -551,7 +551,12 @@ class RemoteEnvelopeMaterializerTest {
         assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
         assertEquals("VOID_EVENT", storedOperation?.resultReferenceType)
         assertEquals("void-event-after-partial-refund", storedOperation?.resultReferenceId)
-        coVerify(exactly = 1) {
+        coVerifyOrder {
+            outboxDao.insertOutbox(match {
+                it.operationId == voidOperationId &&
+                    it.transactionId == transactionId &&
+                    it.status == "ACKNOWLEDGED"
+            })
             operationDao.markSucceededIfPending(
                 voidOperationId,
                 fingerprint,
