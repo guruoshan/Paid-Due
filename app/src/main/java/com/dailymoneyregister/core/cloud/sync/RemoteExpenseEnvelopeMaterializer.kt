@@ -20,7 +20,7 @@ import org.json.JSONObject
  */
 internal object RemoteExpenseEnvelopeMaterializer {
 
-    suspend fun materialize(database: DmrDatabase, jsonPayload: JSONObject): Boolean = try {
+    suspend fun materialize(database: DmrDatabase, jsonPayload: JSONObject): InboundProcessResult = try {
         val operationId = jsonPayload.getString("operation_id")
         val businessId = jsonPayload.getString("business_id")
         val branchId = jsonPayload.getString("branch_id")
@@ -34,10 +34,13 @@ internal object RemoteExpenseEnvelopeMaterializer {
         val expenseId = expenseJson.getString("id")
         val cashShiftId = jsonPayload.optString("cash_shift_id").ifBlank { null }
 
+        require(operationId.isNotBlank() && expenseId.isNotBlank())
+        require(deviceId.isNotBlank() && requestFingerprint.isNotBlank() && schemaVersion > 0)
+        require(jsonPayload.optString("operation_type") == OperationType.RECORD_EXPENSE.name)
         require(expenseJson.getString("operation_id") == operationId)
         require(expenseJson.getString("business_id") == businessId)
         require(expenseJson.getString("branch_id") == branchId)
-        require(expenseJson.getString("actor_user_id") == actorUserId)
+        require(expenseJson.getString("actor_user_id") == actorUserId && jsonPayload.getString("actor_user_id") == actorUserId)
         require(expenseJson.optString("cash_shift_id").ifBlank { null } == cashShiftId)
         require(jsonPayload.optString("subject_type") == SubjectType.EXPENSE.name)
         require(jsonPayload.optString("subject_id") == expenseId)
@@ -98,7 +101,8 @@ internal object RemoteExpenseEnvelopeMaterializer {
             else -> false
         }
         require(
-            settlement.operationId == operationId &&
+            settlement.id.isNotBlank() &&
+                settlement.operationId == operationId &&
                 settlement.subjectType == SubjectType.EXPENSE &&
                 settlement.subjectId == expenseId &&
                 settlement.transactionId == null &&
@@ -182,11 +186,13 @@ internal object RemoteExpenseEnvelopeMaterializer {
                 }
             }
         }
-        true
+        InboundProcessResult.Applied
     } catch (error: kotlinx.coroutines.CancellationException) {
         throw error
-    } catch (_: Exception) {
-        false
+    } catch (error: Exception) {
+        InboundProcessResult.Rejected(
+            "Expense envelope could not be materialized: ${error.message ?: "integrity validation failed"}"
+        )
     }
 
 
