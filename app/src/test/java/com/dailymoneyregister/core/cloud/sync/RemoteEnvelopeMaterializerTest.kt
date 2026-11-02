@@ -97,6 +97,7 @@ abstract class RemoteEnvelopeMaterializerTestSupport {
         )
         coEvery { branchDao.getBranchById(branchId) } returns branch
         coEvery { cashShiftDao.getEventByOperationId(any()) } returns null
+        coEvery { cashShiftDao.getShiftById(any()) } returns null
         coEvery { cashShiftDao.getEventsForShift(any()) } returns emptyList()
         coEvery { cashShiftDao.getLatestShiftForCashier(any(), any()) } returns null
         coEvery { cashShiftDao.insertShift(any()) } returns Unit
