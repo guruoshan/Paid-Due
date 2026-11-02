@@ -632,8 +632,8 @@ class CreditSaleFinancialIntegrationTest {
             id = "malformed-credit-recovery-op",
             businessId = business.id,
             branchId = branch.id,
-            operationType = com.dailymoneyregister.core.model.enums.OperationType.RECORD_SALE,
-            subjectType = com.dailymoneyregister.core.model.enums.SubjectType.TRANSACTION,
+            operationType = OperationType.RECORD_SALE,
+            subjectType = SubjectType.TRANSACTION,
             subjectId = "malformed-credit-recovery-tx",
             transactionId = "malformed-credit-recovery-tx",
             actorUserId = user.id,
@@ -641,7 +641,7 @@ class CreditSaleFinancialIntegrationTest {
             occurredAt = 1700000000000L,
             requestFingerprint = "malformed-credit-fingerprint",
             commandSchemaVersion = 1,
-            intentPayload = "v=1\\ncommandType=CREDIT_SALE\\n",
+            intentPayload = "v=1\ncommandType=CREDIT_SALE\n",
             status = OperationStatus.PENDING
         )
         database.operationDao().insertOperation(operation)

@@ -256,7 +256,7 @@ class OnlineSaleFinancialIntegrationTest {
             occurredAt = 1700000000000L,
             requestFingerprint = "unrelated-credit-fingerprint",
             commandSchemaVersion = 1,
-            intentPayload = "v=1\\ncommandType=CREDIT_SALE\\n",
+            intentPayload = "v=1\ncommandType=CREDIT_SALE\n",
             status = OperationStatus.PENDING
         )
         val online = command(operation = "online-recovery-isolation-op", transaction = "online-recovery-isolation-tx")
