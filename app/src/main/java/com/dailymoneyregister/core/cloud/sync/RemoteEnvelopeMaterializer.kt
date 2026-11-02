@@ -269,12 +269,10 @@ object RemoteEnvelopeMaterializer {
             return InboundProcessResult.Rejected("Transaction business/currency does not match the branch")
         }
         if (
-            jsonPayload.optString("subject_type").isNotBlank() &&
-                jsonPayload.optString("subject_type") != SubjectType.TRANSACTION.name ||
-            jsonPayload.optString("subject_id").isNotBlank() &&
-                jsonPayload.optString("subject_id") != tJson.getString("id") ||
-            jsonPayload.optString("transaction_id").isNotBlank() &&
-                jsonPayload.optString("transaction_id") != tJson.getString("id")
+            tJson.optString("id").isBlank() ||
+            jsonPayload.optString("subject_type") != SubjectType.TRANSACTION.name ||
+            jsonPayload.optString("subject_id") != tJson.optString("id") ||
+            jsonPayload.optString("transaction_id") != tJson.optString("id")
         ) {
             return InboundProcessResult.Rejected("Transaction subject metadata does not match the transaction snapshot")
         }
@@ -340,11 +338,8 @@ object RemoteEnvelopeMaterializer {
             if ((opTypeStr == "RECORD_AMOUNT_CORRECTION" || opTypeStr == "RECORD_PAYMENT_METHOD_CHANGE") && signedAmount == 0L) {
                 return InboundProcessResult.Rejected("Correction/reclassification settlement cannot be zero")
             }
-            val settlementActor = settlement.optString("actor_user_id").ifBlank { actorUserId }
-            if (!hasActorIdentity(database, settlementActor, sessionBusinessId, branchId, envelope)) {
-                return InboundProcessResult.Rejected(
-                    "Referenced settlement user '$settlementActor' is missing from synchronized staff identities"
-                )
+            if (settlement.optString("actor_user_id") != actorUserId) {
+                return InboundProcessResult.Rejected("Settlement actor does not match the owning operation actor")
             }
         }
 
@@ -587,7 +582,8 @@ object RemoteEnvelopeMaterializer {
                     wallet.optString("id").isBlank() ||
                     wallet.optString("customer_id") != customerId ||
                     wallet.optString("currency_code") != txCurrencyCode ||
-                    !wallet.optBoolean("is_active", true) ||
+                    !wallet.has("is_active") || wallet.isNull("is_active") || !wallet.optBoolean("is_active", false) ||
+                    purchase.optString("id").isBlank() ||
                     purchase.optString("operation_id") != opId ||
                     purchase.optString("wallet_id") != wallet.optString("id") ||
                     purchase.optString("transaction_id") != tJson.optString("id") ||
@@ -863,7 +859,9 @@ object RemoteEnvelopeMaterializer {
                 if (
                     repaymentJson.optString("operation_id") != envelope.operationId ||
                     repaymentJson.optString("actor_user_id") != actorUserId ||
-                    repaymentJson.optLong("amount_minor", 0L) <= 0L
+                    repaymentJson.optString("customer_id").isBlank() ||
+                    repaymentJson.optLong("amount_minor", 0L) <= 0L ||
+                    repaymentJson.optLong("occurred_at", Long.MIN_VALUE) != payload.optLong("occurred_at", Long.MAX_VALUE)
                 ) {
                     return InboundProcessResult.Rejected("Credit repayment identity or amount is invalid")
                 }
@@ -991,7 +989,7 @@ object RemoteEnvelopeMaterializer {
                         wallet.optString("id").isBlank() ||
                         wallet.optString("customer_id") != customerId ||
                         wallet.optString("currency_code") != repaymentJson.optString("currency_code") ||
-                        !wallet.optBoolean("is_active", true) ||
+                        !wallet.has("is_active") || wallet.isNull("is_active") || !wallet.optBoolean("is_active", false) ||
                         couponEvent.optString("id").isBlank() ||
                         couponEvent.optString("operation_id") != envelope.operationId ||
                         couponEvent.optString("wallet_id") != wallet.optString("id") ||
