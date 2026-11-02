@@ -65,7 +65,9 @@ internal object InboundOperationCompletion {
             cashShiftId == expected.cashShiftId && actorUserId == expected.actorUserId &&
             deviceId == expected.deviceId && occurredAt == expected.occurredAt &&
             requestFingerprint == expected.requestFingerprint &&
-            commandSchemaVersion == expected.commandSchemaVersion && intentPayload == expected.intentPayload
+            commandSchemaVersion == expected.commandSchemaVersion && intentPayload == expected.intentPayload &&
+            resultReferenceType == expected.resultReferenceType &&
+            resultReferenceId == expected.resultReferenceId
 
     private fun FinancialSyncOutboxEntity.hasSameAcknowledgedIdentity(expected: FinancialSyncOutboxEntity): Boolean =
         operationId == expected.operationId && businessId == expected.businessId && branchId == expected.branchId &&
