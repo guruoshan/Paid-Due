@@ -36,7 +36,7 @@ internal class RefundAdmissionCoordinator(
     private val transactionDao = database.transactionDao()
     private val ledgerDao = database.ledgerDao()
 
-    private suspend fun prepareRefundAdmission(
+    internal suspend fun prepareRefundAdmission(
         command: RefundCommand
     ): RefundCommand {
 
@@ -99,7 +99,7 @@ internal class RefundAdmissionCoordinator(
         )
     }
 
-    private fun decodePersistedRefundCommand(
+    internal fun decodePersistedRefundCommand(
         operation: OperationEntity
     ): RefundCommand {
 

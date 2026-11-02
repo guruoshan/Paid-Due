@@ -33,6 +33,13 @@ data class RefundExecutionResult(
     val couponBalanceAfterMinor: Long? = null
 )
 
+/**
+ * Owns the complete durable Refund execution and recovery workflow.
+ *
+ * RegisterRepository remains the public compatibility facade. This
+ * extraction preserves the existing command, transaction, replay,
+ * reconciliation, authorization and cash-shift boundaries.
+ */
 internal class RefundFinancialRepository(
     private val database: DmrDatabase,
     private val commandExecutor: CommandExecutor,
@@ -1601,11 +1608,5 @@ internal class RefundFinancialRepository(
                 .toByteArray(Charsets.UTF_8)
         ).toString()
 
-    /**
-     * Recover only already-admitted PENDING Refund operations.
-     *
-     * Permission is deliberately NOT checked again because mutable current
-     * permissions must not redefine historical durable intent.
-     */
 
 }
