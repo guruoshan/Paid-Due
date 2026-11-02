@@ -30,6 +30,7 @@ import kotlinx.coroutines.test.runTest
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -214,6 +215,65 @@ class RemoteEnvelopeMaterializerTest {
         }
         coVerify(exactly = 0) { userDao.getUserByIdInBusiness(actorUserId, businessId) }
         coVerify(exactly = 0) { transactionDao.insertTransaction(any()) }
+    }
+
+    @Test
+    fun rejectsExpenseWithoutAuthoritativeOutflowSettlement() = runTest {
+        val base = expenseEnvelope()
+        val payload = JSONObject(base.canonicalText).put("settlements", JSONArray())
+        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database = database,
+            envelope = envelope,
+            sessionBusinessId = businessId,
+            sessionBranchId = branchId
+        )
+
+        assertTrue("Expense without outflow evidence must be rejected", result is InboundProcessResult.Rejected)
+        coVerify(exactly = 0) { expenseDao.insertExpense(any()) }
+        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
+    }
+
+    @Test
+    fun completesMatchingPendingExpenseOperationAfterEvidenceIsMaterialized() = runTest {
+        val envelope = expenseEnvelope()
+        val payload = envelope.payloadJson
+        val expenseId = payload.getJSONObject("expense").getString("id")
+        storedOperation = OperationEntity(
+            id = operationId,
+            businessId = businessId,
+            branchId = branchId,
+            operationType = OperationType.RECORD_EXPENSE,
+            subjectType = SubjectType.EXPENSE,
+            subjectId = expenseId,
+            transactionId = null,
+            actorUserId = actorUserId,
+            deviceId = "cashier-device",
+            occurredAt = payload.getLong("occurred_at"),
+            requestFingerprint = fingerprint,
+            commandSchemaVersion = 1,
+            intentPayload = "{}",
+            status = OperationStatus.PENDING
+        )
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database = database,
+            envelope = envelope,
+            sessionBusinessId = businessId,
+            sessionBranchId = branchId
+        )
+
+        assertEquals(InboundProcessResult.Applied, result)
+        assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
+        coVerify(exactly = 1) {
+            operationDao.markSucceededIfPending(
+                operationId,
+                fingerprint,
+                "EXPENSE",
+                expenseId
+            )
+        }
     }
 
     @Test
