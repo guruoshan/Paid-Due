@@ -1,6 +1,7 @@
 package com.dailymoneyregister.core.cloud.sync
 
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.model.enums.OperationStatus
 import org.json.JSONObject
 import java.math.BigDecimal
 
