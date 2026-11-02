@@ -215,7 +215,7 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
             userId = actorUserId,
             createdAt = Instant.parse("2026-10-09T10:00:00Z").toEpochMilli()
         )
-        coEvery { cashShiftDao.getShiftById(shift.id) } returnsMany listOf(null, null)
+        coEvery { cashShiftDao.getShiftById(shift.id) } returns null
 
         val first = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
             database, envelope, businessId, branchId
@@ -264,7 +264,8 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
             id = "inbound-shift-id",
             branchId = branchId,
             userId = actorUserId,
-            createdAt = envelope.payloadJson.getLong("occurred_at")
+            createdAt = envelope.payloadJson.getJSONObject("financial_evidence")
+                .getJSONObject("cash_shift").getLong("created_at")
         )
         coEvery { cashShiftDao.getShiftById(shift.id) } returns shift
         coEvery { cashShiftDao.getEventsForShift(shift.id) } returns listOf(
@@ -303,7 +304,8 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
             id = "inbound-shift-id",
             branchId = branchId,
             userId = actorUserId,
-            createdAt = envelope.payloadJson.getLong("occurred_at")
+            createdAt = envelope.payloadJson.getJSONObject("financial_evidence")
+                .getJSONObject("cash_shift").getLong("created_at")
         )
         coEvery { cashShiftDao.getShiftById(shift.id) } returns shift
         coEvery { cashShiftDao.getEventsForShift(shift.id) } returns listOf(
