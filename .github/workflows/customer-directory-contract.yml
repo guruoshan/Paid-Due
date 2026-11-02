@@ -1,6 +1,8 @@
 name: Customer Directory Contract Gate
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
