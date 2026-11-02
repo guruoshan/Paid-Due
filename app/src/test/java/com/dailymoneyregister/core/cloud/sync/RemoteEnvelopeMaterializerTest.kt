@@ -317,6 +317,23 @@ class RemoteEnvelopeMaterializerTest {
     }
 
     @Test
+    fun preservesExpenseCashShiftAttributionFromAuthoritativeEnvelope() = runTest {
+        val base = expenseEnvelope()
+        val payload = JSONObject(base.canonicalText)
+        val shiftId = "expense-attributed-shift"
+        payload.put("cash_shift_id", shiftId)
+        payload.getJSONObject("expense").put("cash_shift_id", shiftId)
+        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertEquals(InboundProcessResult.Applied, result)
+        assertEquals(shiftId, storedOperation?.cashShiftId)
+    }
+
+    @Test
     fun rejectsExpenseWhenOutflowSettlementDoesNotMatchSnapshot() = runTest {
         val base = expenseEnvelope()
         val payload = JSONObject(base.canonicalText)
@@ -781,6 +798,26 @@ class RemoteEnvelopeMaterializerTest {
     }
 
     @Test
+    fun rejectsCouponPurchaseWithoutPurchaseLedgerEvidenceBeforeWrites() = runTest {
+        val base = couponPurchaseEnvelope()
+        val payload = JSONObject(base.canonicalText)
+        payload.getJSONObject("financial_evidence").remove("coupon_ledger_events")
+        val envelope = envelopeFromPayload(
+            base, "RECORD_COUPON_PURCHASE", payload, "coupon-purchase-operation"
+        )
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertEquals(null, storedOperation)
+        coVerify(exactly = 0) { ledgerDao.insertCouponWallet(any()) }
+        coVerify(exactly = 0) { ledgerDao.insertCouponEvent(any()) }
+        coVerify(exactly = 0) { transactionDao.insertTransaction(any()) }
+    }
+
+    @Test
     fun appliesCouponPurchaseInboundOnceAndSkipsReplay() = runTest {
         val envelope = couponPurchaseEnvelope()
 
@@ -967,6 +1004,26 @@ class RemoteEnvelopeMaterializerTest {
     }
 
     @Test
+    fun rejectsCashShiftSnapshotOwnedByAnotherBranch() = runTest {
+        val envelope = cashShiftEnvelope("OPEN_CASH_SHIFT")
+        val shift = CashShiftEntity(
+            id = "inbound-shift-id",
+            branchId = "another-branch",
+            userId = actorUserId,
+            createdAt = envelope.payloadJson.getLong("occurred_at")
+        )
+        coEvery { cashShiftDao.getShiftById(shift.id) } returns shift
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertEquals(null, storedOperation)
+        coVerify(exactly = 0) { cashShiftDao.insertShiftEvent(any()) }
+    }
+
+    @Test
     fun appliesCashShiftCountWithSubjectAsAuthoritativeIdentity() = runTest {
         val envelope = cashShiftEnvelope("COUNT_CASH_SHIFT")
         val shift = CashShiftEntity(
@@ -1102,6 +1159,32 @@ class RemoteEnvelopeMaterializerTest {
             })
         }
         coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
+    }
+
+    @Test
+    fun rejectsExpenseLifecycleEventWithWrongEventTypeBeforeWrites() = runTest {
+        val base = expenseLifecycleEnvelope(
+            operationType = "RECORD_EXPENSE_CORRECTION",
+            eventType = "CORRECTED",
+            signedSettlementMinor = 200L,
+            previousAmount = 1_000L,
+            newAmount = 800L
+        )
+        val payload = JSONObject(base.canonicalText)
+        payload.getJSONObject("financial_evidence")
+            .getJSONArray("expense_events").getJSONObject(0)
+            .put("event_type", "VOIDED")
+        val envelope = envelopeFromPayload(
+            base, "RECORD_EXPENSE_CORRECTION", payload, "expense-correction-operation"
+        )
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertEquals(null, storedOperation)
+        coVerify(exactly = 0) { expenseDao.insertExpenseEvent(any()) }
     }
 
     @Test
