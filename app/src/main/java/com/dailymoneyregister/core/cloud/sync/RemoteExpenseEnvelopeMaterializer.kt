@@ -5,6 +5,7 @@ import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.ExpenseEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
+import com.dailymoneyregister.feature.customers.data.CustomerIdentity
 import com.dailymoneyregister.feature.register.data.ExpenseCategory
 import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
@@ -113,7 +114,7 @@ internal object RemoteExpenseEnvelopeMaterializer {
             else -> false
         }
         require(
-            settlement.id.isNotBlank() &&
+            settlement.id == "$operationId:expense-outflow" &&
                 settlement.operationId == operationId &&
                 settlement.subjectType == SubjectType.EXPENSE &&
                 settlement.subjectId == expenseId &&
@@ -169,14 +170,28 @@ internal object RemoteExpenseEnvelopeMaterializer {
                 database, businessId,
                 jsonPayload.optJSONObject("financial_evidence") ?: JSONObject()
             )
-            val resolvedPayeeId = expense.payeeId?.let { incomingPayeeId ->
+            val resolvedIncomingPayeeId = expense.payeeId?.let { incomingPayeeId ->
                 CustomerIdentityReconciler.resolveLocalCustomerIdOrSelf(
                     database = database,
                     businessId = businessId,
                     incomingCustomerId = incomingPayeeId
                 )
             }
-            val materializedExpense = expense.copy(payeeId = resolvedPayeeId)
+            val resolvedPayee = expense.payeePhoneSnapshot
+                ?.takeIf { it.isNotBlank() }
+                ?.let { rawPhone ->
+                    CustomerIdentity.resolveOrCreate(
+                        customerDao = database.customerDao(),
+                        businessId = businessId,
+                        rawPhone = rawPhone,
+                        rawName = expense.payeeNameSnapshot,
+                        now = expense.occurredAt
+                    ).customer
+                }
+            val materializedExpense = expense.copy(
+                payeeId = resolvedPayee?.id ?: resolvedIncomingPayeeId,
+                payeePhoneSnapshot = resolvedPayee?.canonicalPhone ?: expense.payeePhoneSnapshot
+            )
             val admission = InboundOperationCompletion.ensure(database, operation)
             if (admission == InboundOperationAdmission.ALREADY_SUCCEEDED) {
                 return@withTransaction

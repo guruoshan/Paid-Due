@@ -11,6 +11,8 @@ import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.CashShiftEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
+import com.dailymoneyregister.core.database.entity.CustomerEntity
+import com.dailymoneyregister.core.database.entity.CustomerIdAliasEntity
 import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.SubjectType
 import kotlinx.coroutines.runBlocking
@@ -160,7 +162,7 @@ class ExpenseRollbackTest {
         )
     }
 
-    private fun expenseEnvelope(): RemoteEnvelopeV2 {
+    private fun expenseEnvelope(includeCustomerEvidence: Boolean = false): RemoteEnvelopeV2 {
         val base = cashSaleEnvelope()
         val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at")
         val expenseId = "0199c104-1234-7abc-8def-0123456789ab"
@@ -173,7 +175,7 @@ class ExpenseRollbackTest {
             put("subject_type", SubjectType.EXPENSE.name)
             put("subject_id", expenseId)
             put("settlements", JSONArray().put(JSONObject().apply {
-                put("id", "expense-outflow-settlement")
+                put("id", "$operationId:expense-outflow")
                 put("operation_id", operationId)
                 put("subject_type", SubjectType.EXPENSE.name)
                 put("subject_id", expenseId)
@@ -186,7 +188,18 @@ class ExpenseRollbackTest {
                 put("actor_user_id", actorUserId)
                 put("occurred_at", occurredAt)
             }))
-            put("financial_evidence", JSONObject())
+            put("financial_evidence", JSONObject().apply {
+                if (includeCustomerEvidence) {
+                    put("customer", JSONObject().apply {
+                        put("id", "rollback-evidence-customer")
+                        put("business_id", businessId)
+                        put("canonical_phone", "+96891234567")
+                        put("name", "Rollback Evidence Customer")
+                        put("created_at", occurredAt)
+                        put("updated_at", occurredAt)
+                    })
+                }
+            })
             put("expense", JSONObject().apply {
                 put("id", expenseId)
                 put("operation_id", operationId)
@@ -246,13 +259,35 @@ class ExpenseRollbackTest {
     }
 
     @Test
-    fun settlementFailure_rollsBackExpenseAndOperation() {
+    fun settlementFailure_rollsBackExpenseOperationCustomerAndAlias() {
+        runBlocking {
+            db.customerDao().insertCustomer(
+                CustomerEntity(
+                    id = "preexisting-customer",
+                    businessId = businessId,
+                    canonicalPhone = "+96890000000",
+                    name = "Pre-existing Customer",
+                    createdAt = 1L,
+                    updatedAt = 1L
+                )
+            )
+            db.customerDao().insertCustomerIdAlias(
+                CustomerIdAliasEntity(
+                    businessId = businessId,
+                    aliasCustomerId = "preexisting-customer-alias",
+                    localCustomerId = "preexisting-customer",
+                    canonicalCustomerId = "preexisting-customer-alias",
+                    canonicalPhone = "+96890000000",
+                    updatedAt = 1L
+                )
+            )
+        }
         db.openHelper.writableDatabase.execSQL(
             "CREATE TRIGGER fail_settlement BEFORE INSERT ON settlement_entries " +
                 "BEGIN SELECT RAISE(ABORT, 'forced'); END"
         )
 
-        val result = materialize(expenseEnvelope())
+        val result = materialize(expenseEnvelope(includeCustomerEvidence = true))
 
         assertEquals(1, count("branches"))
         assertEquals(1, count("cloud_staff_identities"))
@@ -263,5 +298,24 @@ class ExpenseRollbackTest {
         assertEquals(0, count("expenses"))
         assertEquals(0, count("operations"))
         assertEquals(0, count("settlement_entries"))
+        assertEquals(1, count("customers"))
+        assertEquals(1, count("customer_id_aliases"))
+        runBlocking {
+            val existing = db.customerDao().getCustomerById("preexisting-customer")
+            assertEquals("Pre-existing Customer", existing?.name)
+            assertEquals(
+                "preexisting-customer",
+                db.customerDao().getCustomerIdAliasByAliasId(
+                    businessId, "preexisting-customer-alias"
+                )?.localCustomerId
+            )
+            assertEquals(null, db.customerDao().getCustomerById("rollback-evidence-customer"))
+            assertEquals(
+                null,
+                db.customerDao().getCustomerIdAliasByAliasId(
+                    businessId, "rollback-evidence-customer"
+                )
+            )
+        }
     }
 }

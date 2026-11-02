@@ -85,6 +85,7 @@ class RemoteExpenseEnvelopeMaterializerTest : RemoteEnvelopeMaterializerTestSupp
         coVerify(exactly = 1) {
             transactionDao.insertSettlements(match { settlements ->
                 settlements.size == 1 &&
+                    settlements.single().id == "$operationId:expense-outflow" &&
                     settlements.single().entryPurpose.name == "EXPENSE_OUTFLOW" &&
                     settlements.single().amountSignedMinor == -1_000L &&
                     settlements.single().transactionId == null
@@ -117,6 +118,125 @@ class RemoteExpenseEnvelopeMaterializerTest : RemoteEnvelopeMaterializerTestSupp
         assertTrue("Expense without outflow evidence must be rejected", result is InboundProcessResult.Rejected)
         coVerify(exactly = 0) { expenseDao.insertExpense(any()) }
         coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
+    }
+
+    @Test
+    fun rejectsExpenseWithWrongOutflowSettlementIdBeforeAnyFinancialWrites() = runTest {
+        val base = expenseEnvelopeWithCashShift("wrong-settlement-id-shift")
+        val payload = JSONObject(base.canonicalText)
+        payload.getJSONArray("settlements").getJSONObject(0)
+            .put("id", "unrelated-settlement-id")
+        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertNoExpenseFinancialWrites()
+    }
+
+    @Test
+    fun rejectsExpenseWithBlankOutflowSettlementIdBeforeAnyFinancialWrites() = runTest {
+        val base = expenseEnvelopeWithCashShift("blank-settlement-id-shift")
+        val payload = JSONObject(base.canonicalText)
+        payload.getJSONArray("settlements").getJSONObject(0).put("id", " ")
+        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertNoExpenseFinancialWrites()
+    }
+
+    @Test
+    fun resolvesExpensePayeeFromPhoneSnapshotUsingBusinessCustomerIdentity() = runTest {
+        val shiftId = "phone-payee-shift"
+        val base = expenseEnvelopeWithCashShift(shiftId)
+        val payload = JSONObject(base.canonicalText)
+        payload.getJSONObject("expense").put("payee_phone_snapshot", "+968 9123 4567")
+        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
+        coEvery { cashShiftDao.getShiftById(shiftId) } returns CashShiftEntity(
+            id = shiftId,
+            branchId = branchId,
+            userId = actorUserId,
+            createdAt = payload.getLong("occurred_at")
+        )
+        every { customer.id } returns "local-phone-payee"
+        every { customer.businessId } returns businessId
+        every { customer.canonicalPhone } returns "+96891234567"
+        coEvery { customerDao.getCustomerByPhone(businessId, "+96891234567") } returns customer
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertEquals(InboundProcessResult.Applied, result)
+        coVerify(exactly = 1) { customerDao.getCustomerByPhone(businessId, "+96891234567") }
+        coVerify(exactly = 1) {
+            expenseDao.insertExpense(match {
+                it.payeeId == "local-phone-payee" &&
+                    it.payeePhoneSnapshot == "+96891234567"
+            })
+        }
+    }
+
+    @Test
+    fun preservesUnknownExpensePayeeIdUntilCustomerDirectorySnapshotArrives() = runTest {
+        val shiftId = "unknown-payee-shift"
+        val base = expenseEnvelopeWithCashShift(shiftId)
+        val payload = JSONObject(base.canonicalText)
+        payload.getJSONObject("expense").put("payee_id", "not-yet-synced-payee")
+        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
+        coEvery { cashShiftDao.getShiftById(shiftId) } returns CashShiftEntity(
+            id = shiftId,
+            branchId = branchId,
+            userId = actorUserId,
+            createdAt = payload.getLong("occurred_at")
+        )
+        coEvery { customerDao.getCustomerById("not-yet-synced-payee") } returns null
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertEquals(InboundProcessResult.Applied, result)
+        coVerify(exactly = 1) {
+            expenseDao.insertExpense(match { it.payeeId == "not-yet-synced-payee" })
+        }
+    }
+
+    @Test
+    fun rejectsExpensePayeeIdOwnedByAnotherBusinessBeforeFinancialWrites() = runTest {
+        val shiftId = "foreign-payee-shift"
+        val base = expenseEnvelopeWithCashShift(shiftId)
+        val payload = JSONObject(base.canonicalText)
+        payload.getJSONObject("expense").put("payee_id", "foreign-business-payee")
+        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
+        coEvery { cashShiftDao.getShiftById(shiftId) } returns CashShiftEntity(
+            id = shiftId,
+            branchId = branchId,
+            userId = actorUserId,
+            createdAt = payload.getLong("occurred_at")
+        )
+        val foreignCustomer = CustomerEntity(
+            id = "foreign-business-payee",
+            businessId = "business-b",
+            canonicalPhone = "+96890000000",
+            name = "Foreign Customer",
+            createdAt = 1L,
+            updatedAt = 1L
+        )
+        coEvery { customerDao.getCustomerById("foreign-business-payee") } returns foreignCustomer
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertNoExpenseFinancialWrites()
     }
 
     @Test

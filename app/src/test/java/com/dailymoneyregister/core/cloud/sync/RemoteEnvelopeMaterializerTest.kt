@@ -116,6 +116,7 @@ abstract class RemoteEnvelopeMaterializerTestSupport {
         coEvery { identityDao.findIdentity(actorUserId, businessId, branchId) } coAnswers { cloudIdentity }
         coEvery { userDao.getUserByIdInBusiness(actorUserId, businessId) } returns null
         coEvery { customerDao.getCustomerById(any()) } returns customer
+        coEvery { customerDao.getCustomerIdAliasByAliasId(any(), any()) } returns null
         coEvery { ledgerDao.getCreditRepaymentById(any()) } returns null
         coEvery { ledgerDao.getCreditRepaymentsForOperation(any()) } returns emptyList()
         coEvery { ledgerDao.getCreditRepaymentAllocations(any()) } returns emptyList()
@@ -480,7 +481,7 @@ abstract class RemoteEnvelopeMaterializerTestSupport {
             put("subject_type", SubjectType.EXPENSE.name)
             put("subject_id", expenseId)
             put("settlements", JSONArray().put(JSONObject().apply {
-                put("id", "expense-outflow-settlement")
+                put("id", "$operationId:expense-outflow")
                 put("operation_id", operationId)
                 put("subject_type", SubjectType.EXPENSE.name)
                 put("subject_id", expenseId)
