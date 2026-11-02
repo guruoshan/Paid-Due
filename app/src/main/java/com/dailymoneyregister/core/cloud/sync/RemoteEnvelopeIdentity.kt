@@ -4,7 +4,7 @@ import com.dailymoneyregister.core.database.DmrDatabase
 
 /** Shared actor-identity validation for inbound operation handlers. */
 internal object RemoteEnvelopeIdentity {
-    private suspend fun hasActorIdentity(
+    suspend fun hasActorIdentity(
         database: DmrDatabase,
         actorUserId: String,
         businessId: String,
