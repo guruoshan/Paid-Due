@@ -2,6 +2,7 @@ name: Notification Migration Compatibility Gate
 on:
   push:
     branches:
+      - main
       - notifications-migration-production-reconcile
       - fix/supabase-live-source-reconciliation
   pull_request:
