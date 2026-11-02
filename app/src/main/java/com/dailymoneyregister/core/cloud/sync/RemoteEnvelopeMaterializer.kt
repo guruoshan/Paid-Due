@@ -1030,15 +1030,18 @@ object RemoteEnvelopeMaterializer {
                 ) {
                     return InboundProcessResult.Rejected("Cash-shift operation/event identity mismatch")
                 }
-                if (operationType == OperationType.OPEN_CASH_SHIFT &&
-                    shiftEventJson.optLong("amount_minor", -1L) < 0L
+                val expectedShiftAmount = shiftEventJson.optLong("amount_minor", Long.MIN_VALUE)
+                val expectedShiftOccurredAt = payload.optLong("occurred_at", Long.MAX_VALUE)
+                if (
+                    shiftEventJson.optString("id") != envelope.operationId + ":" + expectedEvent.name ||
+                    shiftEventJson.optLong("occurred_at", Long.MIN_VALUE) != expectedShiftOccurredAt ||
+                    expectedShiftAmount < 0L ||
+                    (operationType == OperationType.OPEN_CASH_SHIFT && expectedShiftAmount != 0L) ||
+                    (operationType == OperationType.CLOSE_CASH_SHIFT && expectedShiftAmount != 0L) ||
+                    (operationType == OperationType.OPEN_CASH_SHIFT &&
+                        shiftJson.optString("user_id") != actorUserId)
                 ) {
-                    return InboundProcessResult.Rejected("Cash-shift opening amount cannot be negative")
-                }
-                if (operationType == OperationType.COUNT_CASH_SHIFT &&
-                    shiftEventJson.optLong("amount_minor", -1L) < 0L
-                ) {
-                    return InboundProcessResult.Rejected("Cash count cannot be negative")
+                    return InboundProcessResult.Rejected("Cash-shift lifecycle amount, actor, or event identity is invalid")
                 }
                 val shiftId = shiftJson.optString("id")
                 if (
@@ -1218,6 +1221,39 @@ object RemoteEnvelopeMaterializer {
                 val admission = InboundOperationCompletion.ensure(database, operation)
                 if (admission == InboundOperationAdmission.ALREADY_SUCCEEDED) {
                     return@withTransaction InboundProcessResult.Skipped
+                }
+
+                if (shiftJson != null && shiftEventJson != null) {
+                    val shiftId = shiftJson.getString("id")
+                    val priorEvents = database.cashShiftDao().getEventsForShift(shiftId)
+                        .filter { it.operationId != envelope.operationId }
+                    val existingShiftEvent = database.cashShiftDao().getEventByOperationId(envelope.operationId)
+                    if (existingShiftEvent != null && (
+                            existingShiftEvent.id != shiftEventJson.optString("id") ||
+                                existingShiftEvent.shiftId != shiftId ||
+                                existingShiftEvent.type.name != shiftEventJson.optString("type") ||
+                                existingShiftEvent.amountMinor != shiftEventJson.optLong("amount_minor") ||
+                                existingShiftEvent.occurredAt != expectedShiftOccurredAt ||
+                                existingShiftEvent.actorUserId != actorUserId
+                        )
+                    ) {
+                        error("Existing cash-shift event conflicts with the inbound lifecycle intent")
+                    }
+                    val hasOpened = priorEvents.any { it.type == CashShiftEventType.OPENED }
+                    val hasCounted = priorEvents.any { it.type == CashShiftEventType.COUNTED }
+                    val hasClosed = priorEvents.any { it.type == CashShiftEventType.CLOSED }
+                    when (operationType) {
+                        OperationType.OPEN_CASH_SHIFT -> check(!hasOpened && !hasClosed) {
+                            "Cash shift already has a conflicting lifecycle history"
+                        }
+                        OperationType.COUNT_CASH_SHIFT -> check(hasOpened && !hasClosed) {
+                            "Cash shift must be open and not closed before counting"
+                        }
+                        OperationType.CLOSE_CASH_SHIFT -> check(hasOpened && hasCounted && !hasClosed) {
+                            "Cash shift must be opened and counted before closing"
+                        }
+                        else -> Unit
+                    }
                 }
 
                 val settlementsArray = payload.optJSONArray("settlements") ?: org.json.JSONArray()
