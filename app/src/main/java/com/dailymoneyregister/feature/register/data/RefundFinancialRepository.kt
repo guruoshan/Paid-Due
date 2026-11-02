@@ -10,19 +10,15 @@ import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
 import com.dailymoneyregister.core.database.entity.RefundEventEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
-import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.CustomerEntity
 import com.dailymoneyregister.core.database.entity.CouponWalletEntity
-import androidx.room.withTransaction
 import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.OperationStatus
-import com.dailymoneyregister.core.model.enums.OperationType
 import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.enums.PaymentChannel
 import com.dailymoneyregister.core.model.enums.SubjectType
 import com.dailymoneyregister.core.model.ids.IdGenerator
-import com.dailymoneyregister.core.model.ids.OperationId
 import com.dailymoneyregister.core.security.PermissionAction
 
 data class RefundExecutionResult(
