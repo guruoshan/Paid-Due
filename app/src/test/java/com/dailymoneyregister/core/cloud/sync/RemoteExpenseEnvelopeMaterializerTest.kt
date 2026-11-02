@@ -139,6 +139,7 @@ class RemoteExpenseEnvelopeMaterializerTest : RemoteEnvelopeMaterializerTestSupp
             subjectType = SubjectType.EXPENSE,
             subjectId = expenseId,
             transactionId = null,
+            cashShiftId = shiftId,
             actorUserId = actorUserId,
             deviceId = "cashier-device",
             occurredAt = payload.getLong("occurred_at"),
