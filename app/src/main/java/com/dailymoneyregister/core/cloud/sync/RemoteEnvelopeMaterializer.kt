@@ -82,10 +82,18 @@ object RemoteEnvelopeMaterializer {
             return InboundProcessResult.Rejected("Referenced operation actor is missing from synchronized staff identities")
         }
 
-        // Existing operations are checked by each typed materializer after it has
-        // reconstructed the complete expected OperationEntity. This deliberately
-        // avoids a partial duplicate shortcut that could bypass immutable identity
-        // validation for successful replays.
+        // Validate an existing operation against the complete canonical identity
+        // before validators inspect state that the original successful operation changed.
+        val successfulReplay = try {
+            InboundOperationCompletion.isExistingReplay(
+                database, envelope, sessionBusinessId, branchId, payloadActorUserId
+            )
+        } catch (error: Exception) {
+            return InboundProcessResult.Rejected(
+                "Operation ID collision: ${error.message ?: "immutable identity mismatch"}"
+            )
+        }
+        if (successfulReplay) return InboundProcessResult.Skipped
 
         return try {
             // Expense creation already has a canonical expense snapshot and a Room
