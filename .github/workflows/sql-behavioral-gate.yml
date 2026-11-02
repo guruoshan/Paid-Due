@@ -3,6 +3,7 @@ name: SQL Behavioral Gate
 on:
   push:
     branches:
+      - main
       - migration-only-cashier-financial-contract
   pull_request:
     branches:
