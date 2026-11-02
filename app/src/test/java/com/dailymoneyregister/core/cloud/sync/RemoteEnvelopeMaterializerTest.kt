@@ -4,6 +4,8 @@ import androidx.room.withTransaction
 import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.dao.BusinessBranchDao
 import com.dailymoneyregister.core.database.dao.CloudStaffIdentityDao
+import com.dailymoneyregister.core.database.dao.CustomerDao
+import com.dailymoneyregister.core.database.dao.LedgerDao
 import com.dailymoneyregister.core.database.dao.ExpenseDao
 import com.dailymoneyregister.core.database.dao.FinancialSyncOutboxDao
 import com.dailymoneyregister.core.database.dao.OperationDao
@@ -11,6 +13,7 @@ import com.dailymoneyregister.core.database.dao.TransactionDao
 import com.dailymoneyregister.core.database.dao.UserDao
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
+import com.dailymoneyregister.core.database.entity.CustomerEntity
 import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.RefundEventEntity
 import com.dailymoneyregister.core.database.entity.TransactionEntity
@@ -40,6 +43,9 @@ class RemoteEnvelopeMaterializerTest {
     private val database = mockk<DmrDatabase>()
     private val branchDao = mockk<BusinessBranchDao>()
     private val identityDao = mockk<CloudStaffIdentityDao>()
+    private val customerDao = mockk<CustomerDao>()
+    private val ledgerDao = mockk<LedgerDao>()
+    private val customer = mockk<CustomerEntity>()
     private val operationDao = mockk<OperationDao>()
     private val expenseDao = mockk<ExpenseDao>()
     private val outboxDao = mockk<FinancialSyncOutboxDao>()
@@ -59,6 +65,9 @@ class RemoteEnvelopeMaterializerTest {
     fun setUp() {
         every { database.businessBranchDao() } returns branchDao
         every { database.cloudStaffIdentityDao() } returns identityDao
+        every { database.customerDao() } returns customerDao
+        every { database.ledgerDao() } returns ledgerDao
+        every { customer.businessId } returns businessId
         every { database.operationDao() } returns operationDao
         every { database.expenseDao() } returns expenseDao
         every { database.financialSyncOutboxDao() } returns outboxDao
@@ -93,6 +102,18 @@ class RemoteEnvelopeMaterializerTest {
             )
         coEvery { identityDao.findIdentity(actorUserId, businessId, branchId) } coAnswers { cloudIdentity }
         coEvery { userDao.getUserByIdInBusiness(actorUserId, businessId) } returns null
+        coEvery { customerDao.getCustomerById(any()) } returns customer
+        coEvery { ledgerDao.getCreditRepaymentById(any()) } returns null
+        coEvery { ledgerDao.getCreditRepaymentsForOperation(any()) } returns emptyList()
+        coEvery { ledgerDao.getCreditRepaymentAllocations(any()) } returns emptyList()
+        coEvery { ledgerDao.getCreditEventsForOperations(any()) } returns emptyList()
+        coEvery { ledgerDao.insertCreditRepayment(any()) } returns Unit
+        coEvery { ledgerDao.insertCreditRepaymentAllocations(any()) } returns Unit
+        coEvery { ledgerDao.insertCreditEvent(any()) } returns Unit
+        coEvery { ledgerDao.getCouponWalletById(any()) } returns null
+        coEvery { ledgerDao.getCouponEventsForOperation(any()) } returns emptyList()
+        coEvery { ledgerDao.insertCouponWallet(any()) } returns Unit
+        coEvery { ledgerDao.insertCouponEvent(any()) } returns Unit
         coEvery { operationDao.getOperationById(any()) } coAnswers { storedOperation }
         coEvery { operationDao.insertOperationIfAbsent(any()) } coAnswers {
             if (storedOperation == null) {
@@ -649,6 +670,167 @@ class RemoteEnvelopeMaterializerTest {
         assertTrue("A zero-sum but incorrectly classified pair must be rejected", result is InboundProcessResult.Rejected)
         coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
         coVerify(exactly = 0) { transactionDao.insertSettlements(any()) }
+    }
+
+    @Test
+    fun appliesCreditRepaymentInboundOnceAndSkipsReplay() = runTest {
+        val envelope = creditRepaymentEnvelope()
+
+        val first = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertEquals(InboundProcessResult.Applied, first)
+        assertEquals(InboundProcessResult.Skipped, replay)
+        assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
+        assertEquals("REPAYMENT", storedOperation?.resultReferenceType)
+        assertEquals("repayment-evidence-id", storedOperation?.resultReferenceId)
+        coVerify(exactly = 1) { ledgerDao.insertCreditRepayment(any()) }
+        coVerify(exactly = 1) { ledgerDao.insertCreditEvent(any()) }
+        coVerify(exactly = 1) { ledgerDao.insertCreditRepaymentAllocations(any()) }
+        coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
+    }
+
+    @Test
+    fun rejectsCreditRepaymentWithIncompleteLedgerEvidenceBeforeWrites() = runTest {
+        val base = creditRepaymentEnvelope()
+        val payload = JSONObject(base.canonicalText)
+        payload.getJSONObject("financial_evidence").remove("credit_ledger_events")
+        val envelope = envelopeFromPayload(
+            base, "RECORD_CREDIT_REPAYMENT", payload, "credit-repayment-operation"
+        )
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertTrue(result is InboundProcessResult.Rejected)
+        assertEquals(null, storedOperation)
+        coVerify(exactly = 0) { ledgerDao.insertCreditRepayment(any()) }
+        coVerify(exactly = 0) { ledgerDao.insertCreditEvent(any()) }
+        coVerify(exactly = 0) { transactionDao.insertSettlements(any()) }
+    }
+
+    @Test
+    fun appliesCouponPurchaseInboundOnceAndSkipsReplay() = runTest {
+        val envelope = couponPurchaseEnvelope()
+
+        val first = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertEquals(InboundProcessResult.Applied, first)
+        assertEquals(InboundProcessResult.Skipped, replay)
+        assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
+        coVerify(exactly = 1) { ledgerDao.insertCouponWallet(any()) }
+        coVerify(exactly = 1) { ledgerDao.insertCouponEvent(any()) }
+        coVerify(exactly = 1) { transactionDao.insertTransaction(any()) }
+        coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
+    }
+
+    private fun creditRepaymentEnvelope(): RemoteEnvelopeV2 {
+        val base = cashSaleEnvelope()
+        val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at")
+        val repaymentId = "repayment-evidence-id"
+        val repaymentOperationId = "credit-repayment-operation"
+        val customerId = "credit-customer-id"
+        val payload = JSONObject(base.canonicalText).apply {
+            remove("transaction")
+            remove("transaction_id")
+            remove("items")
+            put("operation_type", "RECORD_CREDIT_REPAYMENT")
+            put("subject_type", SubjectType.REPAYMENT.name)
+            put("subject_id", repaymentId)
+            put("settlements", JSONArray().put(JSONObject().apply {
+                put("id", "credit-repayment-collection")
+                put("operation_id", repaymentOperationId)
+                put("subject_type", SubjectType.REPAYMENT.name)
+                put("subject_id", repaymentId)
+                put("entry_purpose", "CREDIT_REPAYMENT_COLLECTION")
+                put("category", "CASH")
+                put("channel", "CASH_TENDER")
+                put("amount_signed_minor", 1_000L)
+                put("currency_code", "OMR")
+                put("confirmation_type", "CASHIER_CONFIRMED")
+                put("actor_user_id", actorUserId)
+                put("occurred_at", occurredAt)
+            }))
+            put("financial_evidence", JSONObject().apply {
+                put("credit_repayment", JSONObject().apply {
+                    put("id", repaymentId)
+                    put("operation_id", repaymentOperationId)
+                    put("customer_id", customerId)
+                    put("amount_minor", 1_000L)
+                    put("currency_code", "OMR")
+                    put("payment_category", "CASH")
+                    put("occurred_at", occurredAt)
+                    put("actor_user_id", actorUserId)
+                })
+                put("credit_ledger_events", JSONArray().put(JSONObject().apply {
+                    put("id", "credit-repayment-ledger-event")
+                    put("operation_id", repaymentOperationId)
+                    put("customer_id", customerId)
+                    put("type", "REPAYMENT")
+                    put("amount_signed_minor", -1_000L)
+                    put("currency_code", "OMR")
+                    put("repayment_id", repaymentId)
+                    put("occurred_at", occurredAt)
+                }))
+                put("credit_repayment_allocations", JSONArray().put(JSONObject().apply {
+                    put("id", "credit-repayment-allocation")
+                    put("repayment_id", repaymentId)
+                    put("original_transaction_id", "original-credit-transaction")
+                    put("allocated_amount_minor", 1_000L)
+                    put("occurred_at", occurredAt)
+                }))
+            })
+        }
+        return envelopeFromPayload(base, "RECORD_CREDIT_REPAYMENT", payload, repaymentOperationId)
+    }
+
+    private fun couponPurchaseEnvelope(): RemoteEnvelopeV2 {
+        val base = cashSaleEnvelope()
+        val occurredAt = JSONObject(base.canonicalText).getLong("occurred_at")
+        val couponOperationId = "coupon-purchase-operation"
+        val walletId = "coupon-purchase-wallet"
+        val customerId = "coupon-purchase-customer"
+        val payload = JSONObject(base.canonicalText).apply {
+            put("operation_type", "RECORD_COUPON_PURCHASE")
+            getJSONObject("transaction").apply {
+                put("type", "COUPON_PURCHASE")
+                put("customer_id", customerId)
+            }
+            getJSONArray("settlements").getJSONObject(0).apply {
+                put("operation_id", couponOperationId)
+                put("entry_purpose", "COUPON_PURCHASE_FUNDING")
+            }
+            put("financial_evidence", JSONObject().apply {
+                put("coupon_wallets", JSONArray().put(JSONObject().apply {
+                    put("id", walletId)
+                    put("customer_id", customerId)
+                    put("currency_code", "OMR")
+                    put("is_active", true)
+                    put("created_at", occurredAt)
+                }))
+                put("coupon_ledger_events", JSONArray().put(JSONObject().apply {
+                    put("id", "coupon-purchase-ledger-event")
+                    put("operation_id", couponOperationId)
+                    put("wallet_id", walletId)
+                    put("type", "PURCHASE")
+                    put("amount_signed_minor", 1_000L)
+                    put("currency_code", "OMR")
+                    put("transaction_id", transactionId)
+                    put("occurred_at", occurredAt)
+                }))
+            })
+        }
+        return envelopeFromPayload(base, "RECORD_COUPON_PURCHASE", payload, couponOperationId)
     }
 
     private fun transactionLifecycleEnvelope(
