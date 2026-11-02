@@ -111,7 +111,7 @@ class RemoteEnvelopeMaterializerTest {
                 storedOperation = current.copy(
                     status = OperationStatus.SUCCEEDED,
                     resultReferenceType = thirdArg<String>(),
-                    resultReferenceId = lastArg<String>(),
+                    resultReferenceId = args[3] as String,
                     reason = null
                 )
                 1
