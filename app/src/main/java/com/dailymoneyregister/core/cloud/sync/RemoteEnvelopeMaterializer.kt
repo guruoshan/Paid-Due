@@ -383,8 +383,15 @@ object RemoteEnvelopeMaterializer {
                 val refundAmount = refundEvent.optLong("refund_amount_minor", 0L)
                 val refundTransactionId = refundEvent.optString("transaction_id")
                 val transactionId = tJson.optString("id")
-                if (refundAmount <= 0L || refundTransactionId != transactionId) {
-                    return InboundProcessResult.Rejected("Refund event amount or transaction reference is invalid")
+                if (
+                    refundAmount <= 0L ||
+                    refundTransactionId != transactionId ||
+                    refundEvent.optString("id").isBlank() ||
+                    refundEvent.optString("operation_id") != opId ||
+                    refundEvent.optString("actor_user_id") != actorUserId ||
+                    refundEvent.optLong("occurred_at", Long.MIN_VALUE) != jsonPayload.optLong("occurred_at", Long.MAX_VALUE)
+                ) {
+                    return InboundProcessResult.Rejected("Refund event identity, amount, or transaction reference is invalid")
                 }
 
                 val transactionDao = database.transactionDao()
@@ -458,8 +465,14 @@ object RemoteEnvelopeMaterializer {
                 val voidEvent = financialEvidence.optJSONObject("void_event")
                     ?: return InboundProcessResult.Rejected("Void is missing its immutable void event")
                 val transactionId = tJson.optString("id")
-                if (voidEvent.optString("transaction_id") != transactionId) {
-                    return InboundProcessResult.Rejected("Void event references a different transaction")
+                if (
+                    voidEvent.optString("transaction_id") != transactionId ||
+                    voidEvent.optString("id").isBlank() ||
+                    voidEvent.optString("operation_id") != opId ||
+                    voidEvent.optString("actor_user_id") != actorUserId ||
+                    voidEvent.optLong("occurred_at", Long.MIN_VALUE) != jsonPayload.optLong("occurred_at", Long.MAX_VALUE)
+                ) {
+                    return InboundProcessResult.Rejected("Void event identity or transaction reference is invalid")
                 }
                 val transactionDao = database.transactionDao()
                 if (transactionDao.getVoidEvent(transactionId) != null) {
@@ -486,6 +499,15 @@ object RemoteEnvelopeMaterializer {
             "RECORD_AMOUNT_CORRECTION" -> {
                 val event = financialEvidence.optJSONArray("amount_correction_events")?.optJSONObject(0)
                     ?: return InboundProcessResult.Rejected("Amount correction event is missing")
+                if (
+                    event.optString("id").isBlank() ||
+                    event.optString("operation_id") != opId ||
+                    event.optString("transaction_id") != tJson.optString("id") ||
+                    event.optString("actor_user_id") != actorUserId ||
+                    event.optLong("occurred_at", Long.MIN_VALUE) != jsonPayload.optLong("occurred_at", Long.MAX_VALUE)
+                ) {
+                    return InboundProcessResult.Rejected("Amount correction event identity does not match the operation")
+                }
                 val expectedDelta = try {
                     Math.subtractExact(
                         event.getLong("corrected_amount_minor"),
@@ -502,6 +524,15 @@ object RemoteEnvelopeMaterializer {
                 val event = financialEvidence.optJSONArray("payment_method_change_events")
                     ?.optJSONObject(0)
                     ?: return InboundProcessResult.Rejected("Payment-method change event is missing")
+                if (
+                    event.optString("id").isBlank() ||
+                    event.optString("operation_id") != opId ||
+                    event.optString("transaction_id") != tJson.optString("id") ||
+                    event.optString("actor_user_id") != actorUserId ||
+                    event.optLong("occurred_at", Long.MIN_VALUE) != jsonPayload.optLong("occurred_at", Long.MAX_VALUE)
+                ) {
+                    return InboundProcessResult.Rejected("Payment-method change event identity does not match the operation")
+                }
                 val previousMethod = runCatching {
                     PaymentCategory.valueOf(event.getString("previous_method"))
                 }.getOrElse {
