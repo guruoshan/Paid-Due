@@ -1,0 +1,266 @@
+package com.dailymoneyregister.core.cloud.sync
+
+import androidx.room.withTransaction
+import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.entity.ExpenseEntity
+import com.dailymoneyregister.core.database.entity.FinancialSyncOutboxEntity
+import com.dailymoneyregister.core.database.entity.OperationEntity
+import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
+import com.dailymoneyregister.core.model.enums.ConfirmationType
+import com.dailymoneyregister.core.model.enums.EntryPurpose
+import com.dailymoneyregister.core.model.enums.OperationStatus
+import com.dailymoneyregister.core.model.enums.OperationType
+import com.dailymoneyregister.core.model.enums.PaymentCategory
+import com.dailymoneyregister.core.model.enums.PaymentChannel
+import com.dailymoneyregister.core.model.enums.SubjectType
+import org.json.JSONObject
+
+/**
+ * Owns the inbound expense-create boundary so the universal envelope dispatcher
+ * does not accumulate another financial workflow.
+ */
+internal object RemoteExpenseEnvelopeMaterializer {
+
+    suspend fun materialize(database: DmrDatabase, jsonPayload: JSONObject): Boolean = try {
+        val operationId = jsonPayload.getString("operation_id")
+        val businessId = jsonPayload.getString("business_id")
+        val branchId = jsonPayload.getString("branch_id")
+        val actorUserId = jsonPayload.getString("actor_user_id")
+        val deviceId = jsonPayload.getString("device_id")
+        val occurredAt = jsonPayload.getLong("occurred_at")
+        val schemaVersion = jsonPayload.optInt("command_schema_version", 1)
+        val requestFingerprint = jsonPayload.getString("request_fingerprint")
+        val intentPayload = jsonPayload.optString("intent_payload", "{}")
+        val expenseJson = jsonPayload.getJSONObject("expense")
+        val expenseId = expenseJson.getString("id")
+        val cashShiftId = jsonPayload.optString("cash_shift_id").ifBlank { null }
+
+        require(expenseJson.getString("operation_id") == operationId)
+        require(expenseJson.getString("business_id") == businessId)
+        require(expenseJson.getString("branch_id") == branchId)
+        require(expenseJson.getString("actor_user_id") == actorUserId)
+        require(expenseJson.optString("cash_shift_id").ifBlank { null } == cashShiftId)
+        require(jsonPayload.optString("subject_type") == SubjectType.EXPENSE.name)
+        require(jsonPayload.optString("subject_id") == expenseId)
+        require(!jsonPayload.has("transaction") || jsonPayload.isNull("transaction"))
+        require((jsonPayload.optJSONArray("items")?.length() ?: 0) == 0)
+
+        val expense = ExpenseEntity(
+            id = expenseId,
+            operationId = operationId,
+            businessId = businessId,
+            branchId = branchId,
+            cashShiftId = cashShiftId,
+            actorUserId = actorUserId,
+            payeeId = expenseJson.optString("payee_id").ifBlank { null },
+            payeeNameSnapshot = expenseJson.getString("payee_name_snapshot"),
+            payeePhoneSnapshot = expenseJson.optString("payee_phone_snapshot").ifBlank { null },
+            payeeAccountSnapshot = expenseJson.optString("payee_account_snapshot").ifBlank { null },
+            category = expenseJson.getString("category"),
+            amountMinor = expenseJson.getLong("amount_minor"),
+            paymentCategory = expenseJson.getString("payment_category"),
+            currencyCode = expenseJson.getString("currency_code"),
+            reference = expenseJson.optString("reference").ifBlank { null },
+            note = expenseJson.optString("note").ifBlank { null },
+            recurrenceId = expenseJson.optString("recurrence_id").ifBlank { null },
+            occurredAt = expenseJson.getLong("occurred_at"),
+            createdAt = expenseJson.getLong("created_at")
+        )
+        require(expense.amountMinor > 0L && expense.occurredAt == occurredAt)
+
+        val category = PaymentCategory.valueOf(expense.paymentCategory)
+        require(category == PaymentCategory.CASH || category == PaymentCategory.ONLINE)
+        val settlementsJson = jsonPayload.getJSONArray("settlements")
+        require(settlementsJson.length() == 1) {
+            "Expense must have exactly one authoritative outflow settlement"
+        }
+        val settlementJson = settlementsJson.getJSONObject(0)
+        val settlement = SettlementEntryEntity(
+            id = settlementJson.getString("id"),
+            operationId = settlementJson.getString("operation_id"),
+            subjectType = SubjectType.valueOf(settlementJson.getString("subject_type")),
+            subjectId = settlementJson.getString("subject_id"),
+            transactionId = settlementJson.optString("transaction_id").ifBlank { null },
+            entryPurpose = EntryPurpose.valueOf(settlementJson.getString("entry_purpose")),
+            category = PaymentCategory.valueOf(settlementJson.getString("category")),
+            channel = PaymentChannel.valueOf(settlementJson.getString("channel")),
+            amountSignedMinor = settlementJson.getLong("amount_signed_minor"),
+            currencyCode = settlementJson.getString("currency_code"),
+            confirmationType = ConfirmationType.valueOf(settlementJson.getString("confirmation_type")),
+            qrProfileIdSnapshot = settlementJson.optString("qr_profile_id_snapshot").ifBlank { null },
+            occurredAt = settlementJson.getLong("occurred_at"),
+            actorUserId = settlementJson.getString("actor_user_id"),
+            providerRef = settlementJson.optString("provider_ref").ifBlank { null }
+        )
+        val validChannel = when (category) {
+            PaymentCategory.CASH -> settlement.channel == PaymentChannel.CASH_TENDER
+            PaymentCategory.ONLINE -> settlement.channel == PaymentChannel.MANUAL_QR ||
+                settlement.channel == PaymentChannel.SOFTPOS
+            else -> false
+        }
+        require(
+            settlement.operationId == operationId &&
+                settlement.subjectType == SubjectType.EXPENSE &&
+                settlement.subjectId == expenseId &&
+                settlement.transactionId == null &&
+                settlement.entryPurpose == EntryPurpose.EXPENSE_OUTFLOW &&
+                settlement.category == category &&
+                validChannel &&
+                settlement.amountSignedMinor == Math.negateExact(expense.amountMinor) &&
+                settlement.currencyCode == expense.currencyCode &&
+                settlement.confirmationType == ConfirmationType.CASHIER_CONFIRMED &&
+                settlement.actorUserId == actorUserId &&
+                settlement.occurredAt == occurredAt
+        ) {
+            "Expense outflow settlement does not match the expense snapshot and envelope"
+        }
+
+        val operation = OperationEntity(
+            id = operationId,
+            businessId = businessId,
+            branchId = branchId,
+            operationType = OperationType.RECORD_EXPENSE,
+            subjectType = SubjectType.EXPENSE,
+            subjectId = expenseId,
+            transactionId = null,
+            cashShiftId = cashShiftId,
+            actorUserId = actorUserId,
+            deviceId = deviceId,
+            occurredAt = occurredAt,
+            requestFingerprint = requestFingerprint,
+            commandSchemaVersion = schemaVersion,
+            intentPayload = intentPayload,
+            status = OperationStatus.SUCCEEDED,
+            resultReferenceType = "EXPENSE",
+            resultReferenceId = expenseId
+        )
+
+        database.withTransaction {
+            CustomerIdentityReconciler.reconcileEvidenceCustomers(
+                database, businessId,
+                jsonPayload.optJSONObject("financial_evidence") ?: JSONObject()
+            )
+            val operationDao = database.operationDao()
+            val existingOperation = operationDao.getOperationById(operationId)
+            if (existingOperation == null) {
+                check(operationDao.insertOperationIfAbsent(operation) != -1L) {
+                    "Inbound expense operation could not be inserted"
+                }
+            } else {
+                check(
+                    existingOperation.businessId == operation.businessId &&
+                        existingOperation.branchId == operation.branchId &&
+                        existingOperation.operationType == operation.operationType &&
+                        existingOperation.subjectType == operation.subjectType &&
+                        existingOperation.subjectId == operation.subjectId &&
+                        existingOperation.transactionId == operation.transactionId &&
+                        existingOperation.cashShiftId == operation.cashShiftId &&
+                        existingOperation.actorUserId == operation.actorUserId &&
+                        existingOperation.deviceId == operation.deviceId &&
+                        existingOperation.occurredAt == operation.occurredAt &&
+                        existingOperation.requestFingerprint == operation.requestFingerprint &&
+                        existingOperation.commandSchemaVersion == operation.commandSchemaVersion &&
+                        existingOperation.intentPayload == operation.intentPayload
+                ) { "Inbound expense operation immutable identity mismatch" }
+                if (existingOperation.status == OperationStatus.SUCCEEDED) {
+                    return@withTransaction
+                }
+                check(existingOperation.status == OperationStatus.PENDING) {
+                    "Inbound expense cannot complete an operation outside PENDING state"
+                }
+            }
+
+            val expenseDao = database.expenseDao()
+            val existingExpense = expenseDao.getExpenseById(expenseId)
+            if (existingExpense == null) {
+                expenseDao.insertExpense(expense)
+            } else {
+                check(existingExpense == expense) {
+                    "Inbound expense snapshot conflicts with existing immutable expense"
+                }
+            }
+
+            val transactionDao = database.transactionDao()
+            val existingSettlements = transactionDao.getSettlementsForOperation(operationId)
+            if (existingSettlements.isEmpty()) {
+                transactionDao.insertSettlements(listOf(settlement))
+            } else {
+                check(existingSettlements == listOf(settlement)) {
+                    "Inbound expense settlements conflict with local financial history"
+                }
+            }
+
+            RemoteEnvelopeEvidenceApplier.apply(
+                database = database,
+                evidence = jsonPayload.optJSONObject("financial_evidence") ?: JSONObject(),
+                operationId = operationId,
+                businessId = businessId,
+                branchId = branchId,
+                actorUserId = actorUserId,
+                transactionId = null
+            )
+
+            if (existingOperation != null) {
+                val acknowledged = FinancialSyncOutboxEntity(
+                    operationId = operationId,
+                    businessId = businessId,
+                    branchId = branchId,
+                    transactionId = expenseId,
+                    actorUserId = actorUserId,
+                    deviceId = deviceId,
+                    requestFingerprint = requestFingerprint,
+                    commandSchemaVersion = schemaVersion,
+                    occurredAt = occurredAt,
+                    status = "ACKNOWLEDGED",
+                    attemptCount = 0
+                )
+                val outboxDao = database.financialSyncOutboxDao()
+                val existingOutbox = outboxDao.findByOperationId(operationId)
+                if (existingOutbox == null) {
+                    val inserted = outboxDao.insertOutbox(acknowledged)
+                    if (inserted == -1L) {
+                        val raced = outboxDao.findByOperationId(operationId)
+                        check(raced?.hasSameAcknowledgedIdentity(acknowledged) == true) {
+                            "Inbound expense found a conflicting outbound outbox row"
+                        }
+                    }
+                } else {
+                    check(existingOutbox.hasSameAcknowledgedIdentity(acknowledged)) {
+                        "Inbound expense found an unexpected outbound outbox row"
+                    }
+                }
+
+                val finalized = operationDao.markSucceededIfPending(
+                    operationId = operationId,
+                    requestFingerprint = requestFingerprint,
+                    resultReferenceType = "EXPENSE",
+                    resultReferenceId = expenseId
+                )
+                check(finalized == 1 || operationDao.isOperationSucceeded(operationId)) {
+                    "Inbound pending expense operation could not be finalized"
+                }
+            } else {
+                check(operationDao.isOperationSucceeded(operationId)) {
+                    "Inbound expense operation was not persisted as succeeded"
+                }
+            }
+        }
+        true
+    } catch (_: Exception) {
+        false
+    }
+
+    private fun FinancialSyncOutboxEntity.hasSameAcknowledgedIdentity(
+        expected: FinancialSyncOutboxEntity
+    ): Boolean =
+        operationId == expected.operationId &&
+            businessId == expected.businessId &&
+            branchId == expected.branchId &&
+            transactionId == expected.transactionId &&
+            actorUserId == expected.actorUserId &&
+            deviceId == expected.deviceId &&
+            requestFingerprint == expected.requestFingerprint &&
+            commandSchemaVersion == expected.commandSchemaVersion &&
+            occurredAt == expected.occurredAt &&
+            status == "ACKNOWLEDGED"
+}

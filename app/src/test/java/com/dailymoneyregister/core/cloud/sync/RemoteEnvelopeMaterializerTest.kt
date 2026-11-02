@@ -5,6 +5,7 @@ import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.database.dao.BusinessBranchDao
 import com.dailymoneyregister.core.database.dao.CloudStaffIdentityDao
 import com.dailymoneyregister.core.database.dao.ExpenseDao
+import com.dailymoneyregister.core.database.dao.FinancialSyncOutboxDao
 import com.dailymoneyregister.core.database.dao.OperationDao
 import com.dailymoneyregister.core.database.dao.TransactionDao
 import com.dailymoneyregister.core.database.dao.UserDao
@@ -41,6 +42,7 @@ class RemoteEnvelopeMaterializerTest {
     private val identityDao = mockk<CloudStaffIdentityDao>()
     private val operationDao = mockk<OperationDao>()
     private val expenseDao = mockk<ExpenseDao>()
+    private val outboxDao = mockk<FinancialSyncOutboxDao>()
     private val transactionDao = mockk<TransactionDao>()
     private val userDao = mockk<UserDao>()
 
@@ -59,6 +61,7 @@ class RemoteEnvelopeMaterializerTest {
         every { database.cloudStaffIdentityDao() } returns identityDao
         every { database.operationDao() } returns operationDao
         every { database.expenseDao() } returns expenseDao
+        every { database.financialSyncOutboxDao() } returns outboxDao
         every { database.transactionDao() } returns transactionDao
         every { database.userDao() } returns userDao
         val branch = BranchEntity(
@@ -139,6 +142,8 @@ class RemoteEnvelopeMaterializerTest {
         coEvery { transactionDao.insertVoid(any()) } returns Unit
         coEvery { expenseDao.getExpenseById(any()) } returns null
         coEvery { expenseDao.insertExpense(any()) } returns Unit
+        coEvery { outboxDao.findByOperationId(any()) } returns null
+        coEvery { outboxDao.insertOutbox(any()) } returns 1L
 
         mockkStatic("androidx.room.RoomDatabaseKt")
         coEvery { database.withTransaction(any<suspend () -> Any>()) } coAnswers {
@@ -266,7 +271,12 @@ class RemoteEnvelopeMaterializerTest {
 
         assertEquals(InboundProcessResult.Applied, result)
         assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
-        coVerify(exactly = 1) {
+        coVerifyOrder {
+            outboxDao.insertOutbox(match {
+                it.operationId == operationId &&
+                    it.transactionId == expenseId &&
+                    it.status == "ACKNOWLEDGED"
+            })
             operationDao.markSucceededIfPending(
                 operationId,
                 fingerprint,
@@ -274,6 +284,26 @@ class RemoteEnvelopeMaterializerTest {
                 expenseId
             )
         }
+    }
+
+    @Test
+    fun rejectsExpenseWhenOutflowSettlementDoesNotMatchSnapshot() = runTest {
+        val base = expenseEnvelope()
+        val payload = JSONObject(base.canonicalText)
+        payload.getJSONArray("settlements").getJSONObject(0)
+            .put("amount_signed_minor", 1_000L)
+        val envelope = envelopeFromPayload(base, "RECORD_EXPENSE", payload)
+
+        val result = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database = database,
+            envelope = envelope,
+            sessionBusinessId = businessId,
+            sessionBranchId = branchId
+        )
+
+        assertTrue("Mismatched expense settlement must be rejected", result is InboundProcessResult.Rejected)
+        coVerify(exactly = 0) { operationDao.insertOperationIfAbsent(any()) }
+        coVerify(exactly = 0) { expenseDao.insertExpense(any()) }
     }
 
     @Test
