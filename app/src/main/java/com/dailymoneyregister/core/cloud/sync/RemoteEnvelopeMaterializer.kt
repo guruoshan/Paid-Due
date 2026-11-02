@@ -623,9 +623,6 @@ object RemoteEnvelopeMaterializer {
                         "Coupon purchase wallet and purchase ledger evidence do not match the transaction"
                     )
                 }
-                if (purchaseAmount != grandTotalMinor) {
-                    return InboundProcessResult.Rejected("Coupon purchase ledger amount does not match purchase total")
-                }
             }
         }
 
@@ -1225,7 +1222,13 @@ object RemoteEnvelopeMaterializer {
                     if (previousAmount <= 0L || newAmount <= 0L || previousAmount == newAmount) {
                         return InboundProcessResult.Rejected("Expense correction before/after amounts are invalid")
                     }
-                    val expectedDelta = Math.subtractExact(previousAmount, newAmount)
+                    val expectedDelta = try {
+                        Math.subtractExact(previousAmount, newAmount)
+                    } catch (_: ArithmeticException) {
+                        return InboundProcessResult.Rejected(
+                            "Expense correction delta overflows the supported money range"
+                        )
+                    }
                     if (total != expectedDelta) {
                         return InboundProcessResult.Rejected("Expense correction delta does not match signed settlements")
                     }
