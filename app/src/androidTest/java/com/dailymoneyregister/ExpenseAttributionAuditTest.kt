@@ -156,9 +156,9 @@ class ExpenseAttributionAuditTest {
             canonicalText = canonicalText,
             payloadJson = payload,
             canonicalSha256 = CommandFingerprint.sha256(canonicalText),
-            actorMembershipId = null,
-            actorLocalUserId = null,
-            actorRole = null
+            actorMembershipId = "membership-a",
+            actorLocalUserId = actorUserId,
+            actorRole = "ADMIN"
         )
     }
 
