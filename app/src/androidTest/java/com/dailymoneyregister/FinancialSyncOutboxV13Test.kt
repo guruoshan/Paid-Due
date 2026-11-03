@@ -136,7 +136,7 @@ class FinancialSyncOutboxV13Test {
     }
 
     @Test
-    fun cloudOnlyCashierCashShiftIsQueuedForSynchronization() = withDb { db ->
+    fun legacyCloudCashierCashShiftIsNotQueuedForSynchronization() = withDb { db ->
         val sql = db.openHelper.writableDatabase
         sql.execSQL(
             """
@@ -181,7 +181,7 @@ class FinancialSyncOutboxV13Test {
             """.trimIndent()
         )
 
-        // Cloud-only staff must not need a local login-account row to sync.
+        // A retired cloud-only cashier identity may remain for historical attribution, but it cannot queue new outbound work.
         assertEquals(
             0,
             sql.query("SELECT COUNT(*) FROM user_accounts WHERE id='cloud-cashier'").use {
@@ -205,10 +205,12 @@ class FinancialSyncOutboxV13Test {
             "SELECT status FROM financial_sync_outbox WHERE operation_id='cloud-shift-open'"
         ).use {
             assertTrue(it.moveToFirst())
-            assertEquals("QUEUED", it.getString(0))
+            assertEquals("NOT_APPLICABLE", it.getString(0))
         }
 
-        // Startup reconciliation must preserve queued work for cloud-only staff.
+        // Simulate a legacy queued row left by the retired cashier upload path.
+        sql.execSQL("UPDATE financial_sync_outbox SET status='QUEUED' WHERE operation_id='cloud-shift-open'")
+        // Startup reconciliation retires that stale delivery state without deleting the operation.
         runBlocking { db.financialSyncOutboxDao().classifyExistingRows() }
         sql.query(
             "SELECT status FROM financial_sync_outbox WHERE operation_id='cloud-shift-open'"
