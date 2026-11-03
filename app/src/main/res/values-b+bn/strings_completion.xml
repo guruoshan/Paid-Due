@@ -30,7 +30,7 @@
     <string name="online_no_qr_configured">কোনো পেমেন্ট QR সেট করা নেই। পেমেন্ট পাওয়া গেছে যাচাই করার পরও আপনি ম্যানুয়ালি অনলাইন পেমেন্ট নিশ্চিত করতে পারবেন।</string>
     <string name="online_add_qr">পেমেন্ট QR যোগ করুন</string>
     <string name="online_customer_choice_hint">গ্রাহক এই QR স্ক্যান করতে পারেন বা অন্য কোনো অনলাইন বা ব্যাংক পদ্ধতিতে পেমেন্ট করতে পারেন।</string>
-    <string name="online_cashier_confirmation_warning">পেমেন্ট পাওয়া গেছে তা যাচাই করার পরেই নিশ্চিত করুন।</string>
+    <string name="online_payment_confirmation_warning">পেমেন্ট পাওয়া গেছে তা যাচাই করার পরেই নিশ্চিত করুন।</string>
     <string name="hub_business_branch">%1$s • %2$s (%3$s)</string>
     <string name="lockout_countdown">লক: %1$s সেকেন্ড</string>
     <string name="sale_saved">বিক্রয় সংরক্ষিত হয়েছে</string>
