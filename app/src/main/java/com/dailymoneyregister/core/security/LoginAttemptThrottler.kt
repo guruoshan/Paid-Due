@@ -6,6 +6,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Persistent login-attempt throttling to prevent brute-force attacks.
+ * The legacy SharedPreferences file name is retained so existing lockouts survive this rename.
  * Policy:
  * - Max 5 consecutive failed attempts
  * - 30 seconds lockout after 5 failed attempts
