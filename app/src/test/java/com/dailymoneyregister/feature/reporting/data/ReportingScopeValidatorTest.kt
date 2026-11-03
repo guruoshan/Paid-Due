@@ -84,7 +84,7 @@ class ReportingScopeValidatorTest {
     @Test
     fun noSessionIsDenied() {
         assertDenied(ReportingDenyReason.NO_ACTIVE_SESSION) {
-            ReportingAccessValidator.validate(null, scope(), allBranches, null)
+            ReportingAccessValidator.validate(null, scope(), allBranches)
         }
     }
 
@@ -94,8 +94,7 @@ class ReportingScopeValidatorTest {
             ReportingAccessValidator.validate(
                 session(inactive = true),
                 scope(),
-                allBranches,
-                null
+                allBranches
             )
         }
     }
@@ -106,8 +105,7 @@ class ReportingScopeValidatorTest {
             ReportingAccessValidator.validate(
                 session(),
                 scope(businessId = "other"),
-                allBranches,
-                null
+                allBranches
             )
         }
     }
@@ -118,8 +116,7 @@ class ReportingScopeValidatorTest {
             ReportingAccessValidator.validate(
                 session(),
                 scope(branchId = "b9"),
-                allBranches,
-                null
+                allBranches
             )
         }
     }
@@ -130,8 +127,7 @@ class ReportingScopeValidatorTest {
             ReportingAccessValidator.validate(
                 session(),
                 scope(branchId = "b3", currency = "OMR"),
-                allBranches,
-                null
+                allBranches
             )
         }
     }
@@ -141,9 +137,8 @@ class ReportingScopeValidatorTest {
         val access = ReportingAccessValidator.validate(
             session(),
             scope(),
-            allBranches,
-            null
-        )
+            allBranches
+            )
 
         assertEquals(listOf("b1", "b2"), access.branchIds)
         assertEquals("OMR", access.currencyCode)
@@ -155,8 +150,7 @@ class ReportingScopeValidatorTest {
             ReportingAccessValidator.validate(
                 session(),
                 scope(currency = "USD"),
-                allBranches,
-                null
+                allBranches
             )
         }
     }
@@ -166,9 +160,8 @@ class ReportingScopeValidatorTest {
         val access = ReportingAccessValidator.validate(
             session(),
             scope(branchId = "b2"),
-            allBranches,
-            null
-        )
+            allBranches
+            )
 
         assertEquals(listOf("b2"), access.branchIds)
         assertEquals("business", access.businessId)
