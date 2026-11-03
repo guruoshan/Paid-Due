@@ -30,7 +30,7 @@
     <string name="online_no_qr_configured">कोई पेमेंट QR सेट नहीं है। भुगतान प्राप्त होने की पुष्टि करने के बाद भी आप ऑनलाइन भुगतान को मैन्युअल रूप से कन्फ़र्म कर सकते हैं।</string>
     <string name="online_add_qr">पेमेंट QR जोड़ें</string>
     <string name="online_customer_choice_hint">ग्राहक यह QR स्कैन कर सकता है या किसी अन्य ऑनलाइन या बैंक तरीके से भुगतान कर सकता है।</string>
-    <string name="online_cashier_confirmation_warning">केवल तभी कन्फ़र्म करें जब आपने सत्यापित कर लिया हो कि भुगतान प्राप्त हो गया है।</string>
+    <string name="online_payment_confirmation_warning">केवल तभी कन्फ़र्म करें जब आपने सत्यापित कर लिया हो कि भुगतान प्राप्त हो गया है।</string>
     <string name="hub_business_branch">%1$s • %2$s (%3$s)</string>
     <string name="lockout_countdown">लॉक: %1$s सेकंड</string>
     <string name="sale_saved">बिक्री सहेजी गई</string>
