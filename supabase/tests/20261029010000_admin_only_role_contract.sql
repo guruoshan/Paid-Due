@@ -142,6 +142,90 @@ BEGIN
   END;
 
   -- BEGIN GENERATED RETIRED FUNCTION ASSERTIONS. Regenerate with scripts/check_retired_functions.py --write.
+  IF to_regprocedure('private.notify_cashier_of_permission_change()') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: private.notify_cashier_of_permission_change()';
+  END IF;
+  IF to_regprocedure('public.activate_staff_invite(text, text, text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.activate_staff_invite(text, text, text)';
+  END IF;
+  IF to_regprocedure('public.cashier_login_credential(text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.cashier_login_credential(text)';
+  END IF;
+  IF to_regprocedure('public.cashier_restoration_payload(text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.cashier_restoration_payload(text)';
+  END IF;
+  IF to_regprocedure('public.create_cashier_permission_request(text, text, text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.create_cashier_permission_request(text, text, text)';
+  END IF;
+  IF to_regprocedure('public.create_cashier_sync_session(text, text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.create_cashier_sync_session(text, text)';
+  END IF;
+  IF to_regprocedure('public.create_staff_invite_for_admin(text, text, text, text, text, jsonb, uuid)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.create_staff_invite_for_admin(text, text, text, text, text, jsonb, uuid)';
+  END IF;
+  IF to_regprocedure('public.fetch_cashier_financial_envelopes(text, text, text, timestamptz, text, integer)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.fetch_cashier_financial_envelopes(text, text, text, timestamptz, text, integer)';
+  END IF;
+  IF to_regprocedure('public.fetch_cashier_financial_envelopes_v2(text, text, text, timestamptz, text, integer)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.fetch_cashier_financial_envelopes_v2(text, text, text, timestamptz, text, integer)';
+  END IF;
+  IF to_regprocedure('public.fetch_cashier_metadata(text, text, text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.fetch_cashier_metadata(text, text, text)';
+  END IF;
+  IF to_regprocedure('public.fetch_cashier_restoration(text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.fetch_cashier_restoration(text)';
+  END IF;
+  IF to_regprocedure('public.ingest_cashier_financial_envelope(text, text, text, text, text, text, integer, timestamptz, text, date, text, text, jsonb)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.ingest_cashier_financial_envelope(text, text, text, text, text, text, integer, timestamptz, text, date, text, text, jsonb)';
+  END IF;
+  IF to_regprocedure('public.list_admin_cashiers()') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.list_admin_cashiers()';
+  END IF;
+  IF to_regprocedure('public.list_admin_cashiers_with_permissions()') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.list_admin_cashiers_with_permissions()';
+  END IF;
+  IF to_regprocedure('public.list_admin_permission_requests()') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.list_admin_permission_requests()';
+  END IF;
+  IF to_regprocedure('public.list_cashier_notifications(text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.list_cashier_notifications(text)';
+  END IF;
+  IF to_regprocedure('public.list_staff_invites(text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.list_staff_invites(text)';
+  END IF;
+  IF to_regprocedure('public.mark_cashier_notification_read(text, uuid)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.mark_cashier_notification_read(text, uuid)';
+  END IF;
+  IF to_regprocedure('public.preview_staff_invite(text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.preview_staff_invite(text)';
+  END IF;
+  IF to_regprocedure('public.remove_admin_cashier(text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.remove_admin_cashier(text)';
+  END IF;
+  IF to_regprocedure('public.resolve_admin_permission_request(uuid, text, jsonb)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.resolve_admin_permission_request(uuid, text, jsonb)';
+  END IF;
+  IF to_regprocedure('public.revoke_staff_invite(uuid)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.revoke_staff_invite(uuid)';
+  END IF;
+  IF to_regprocedure('public.sync_customer_directory_list(text, text, text, timestamptz, integer)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.sync_customer_directory_list(text, text, text, timestamptz, integer)';
+  END IF;
+  IF to_regprocedure('public.sync_customer_directory_upsert(text, text, text, text, text, text, timestamptz)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.sync_customer_directory_upsert(text, text, text, text, text, text, timestamptz)';
+  END IF;
+  IF to_regprocedure('public.update_admin_cashier_permissions(text, jsonb)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.update_admin_cashier_permissions(text, jsonb)';
+  END IF;
+  IF to_regprocedure('public.update_cashier_permissions(text, jsonb)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.update_cashier_permissions(text, jsonb)';
+  END IF;
+  IF to_regprocedure('public.verify_cashier_notification_session(text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.verify_cashier_notification_session(text)';
+  END IF;
+  IF to_regprocedure('public.verify_cashier_sync_session(text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: retired function remains installed: public.verify_cashier_sync_session(text)';
+  END IF;
   -- END GENERATED RETIRED FUNCTION ASSERTIONS.
 
   RAISE NOTICE 'PASS: no active CASHIER memberships';
