@@ -45,8 +45,7 @@ class TrustedSessionRestorer @Inject constructor(
             return invalidate()
         }
 
-        // ADMIN/password is the only supported session type. UserRole.CASHIER
-        // remains decodable only for historical local data; it cannot restore.
+        // ADMIN/password is the only supported session type.
         if (user.role != UserRole.ADMIN || user.authType != AuthType.PASSWORD) {
             return invalidate()
         }

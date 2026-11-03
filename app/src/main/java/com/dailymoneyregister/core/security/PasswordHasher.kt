@@ -347,7 +347,7 @@ object PinHasher {
     ): String {
 
         require(isValidPin(pin)) {
-            "Cashier PIN must be exactly 6 numeric digits"
+            "PIN must be exactly 6 numeric digits"
         }
 
         return CredentialHasher.hashCurrent(
