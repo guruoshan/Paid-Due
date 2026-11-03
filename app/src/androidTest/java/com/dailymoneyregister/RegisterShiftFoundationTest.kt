@@ -17,6 +17,8 @@ import com.dailymoneyregister.core.model.enums.OperationType
 import com.dailymoneyregister.core.model.enums.SubjectType
 import com.dailymoneyregister.core.model.ids.CashShiftId
 import com.dailymoneyregister.core.model.ids.OperationId
+import com.dailymoneyregister.core.security.ActiveSession
+import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.feature.register.data.OpenRegisterShiftCommand
 import com.dailymoneyregister.feature.register.data.RegisterRepository
@@ -59,6 +61,7 @@ class RegisterShiftFoundationTest {
 
     @After
     fun tearDown() {
+        SessionManager.clearSession()
         trustedSessionStore.clear()
         database.close()
     }
@@ -66,6 +69,7 @@ class RegisterShiftFoundationTest {
     @Test
     fun openingShiftIsDurableAndIdempotent() = runBlocking {
         val setup = createSetup()
+        setSession(setup, setup.adminUserId.value)
         val command = openCommand(setup.businessId.value, setup.branchId.value, setup.adminUserId.value)
 
         val first = repository.openRegisterShift(command)
@@ -117,107 +121,51 @@ class RegisterShiftFoundationTest {
     }
 
     @Test
-    fun twoCashiersCanHoldIndependentOpenShiftsInSameBranch() = runBlocking {
+    fun legacyCashierCannotOpenANewRegisterShift() = runBlocking {
         val setup = createSetup()
+        val cashierId = "legacy-cashier-b"
 
-        val cashierId = "cashier-b"
-
-        database.userDao().insertUser(
-            UserAccountEntity(
-                id = cashierId,
-                businessId = setup.businessId.value,
-                displayName = "Cashier B",
-                username = "cashier_b",
-                role = UserRole.CASHIER,
-                authType = AuthType.PIN,
-                credentialHash = "hash",
-                credentialSalt = "salt",
-                isActive = true,
-                mustChangePin = false,
-                createdAt = 1000L,
-                updatedAt = 1000L
-            )
+        val cashier = UserAccountEntity(
+            id = cashierId,
+            businessId = setup.businessId.value,
+            displayName = "Legacy Cashier",
+            username = "legacy_cashier_b",
+            role = UserRole.CASHIER,
+            authType = AuthType.PIN,
+            credentialHash = "legacy-hash",
+            credentialSalt = "legacy-salt",
+            isActive = true,
+            mustChangePin = false,
+            createdAt = 1_000L,
+            updatedAt = 1_000L
         )
-
-        database.userDao().insertMembership(
-            UserBranchMembershipEntity(
-                id = "membership-cashier-b",
-                userId = cashierId,
-                branchId = setup.branchId.value,
-                role = UserRole.CASHIER,
-                createdAt = 1000L
-            )
+        database.userDao().insertUser(cashier)
+        val membership = UserBranchMembershipEntity(
+            id = "membership-$cashierId",
+            userId = cashierId,
+            branchId = setup.branchId.value,
+            role = UserRole.CASHIER,
+            createdAt = 1_000L
         )
+        database.userDao().insertMembership(membership)
+        setSession(setup, cashierId)
 
-        val cashierA =
-            openCommand(
-                setup.businessId.value,
-                setup.branchId.value,
-                setup.adminUserId.value
-            )
-
-        val cashierB =
-            openCommand(
-                setup.businessId.value,
-                setup.branchId.value,
-                cashierId
-            )
-
-        val resultA =
-            repository.openRegisterShift(cashierA)
-
-        val resultB =
-            repository.openRegisterShift(cashierB)
-
-        assertTrue(resultA is CommandResult.Success)
-        assertTrue(resultB is CommandResult.Success)
-
-        val shiftA =
-            database.cashShiftDao()
-                .getShiftById(cashierA.shiftId.value)
-
-        val shiftB =
-            database.cashShiftDao()
-                .getShiftById(cashierB.shiftId.value)
-
-        assertEquals(
-            setup.adminUserId.value,
-            shiftA?.userId
-        )
-
-        assertEquals(
-            cashierId,
-            shiftB?.userId
-        )
-
-        assertEquals(
+        val command = openCommand(
+            setup.businessId.value,
             setup.branchId.value,
-            shiftA?.branchId
+            cashierId
         )
+        val result = repository.openRegisterShift(command)
 
-        assertEquals(
-            setup.branchId.value,
-            shiftB?.branchId
-        )
-
-        assertEquals(
-            1,
-            database.cashShiftDao()
-                .getEventsForShift(cashierA.shiftId.value)
-                .size
-        )
-
-        assertEquals(
-            1,
-            database.cashShiftDao()
-                .getEventsForShift(cashierB.shiftId.value)
-                .size
-        )
+        assertTrue(result is CommandResult.PermissionDenied)
+        assertEquals(null, database.cashShiftDao().getShiftById(command.shiftId.value))
+        assertEquals(null, database.operationDao().getOperationById(command.operationId.value))
     }
 
     @Test
-    fun sameCashierCannotOpenSecondShiftWhileFirstIsOpen() = runBlocking {
+    fun sameAdminCannotOpenSecondShiftWhileFirstIsOpen() = runBlocking {
         val setup = createSetup()
+        setSession(setup, setup.adminUserId.value)
 
         val first =
             openCommand(
@@ -255,6 +203,25 @@ class RegisterShiftFoundationTest {
                 .getShiftById(second.shiftId.value)
         )
     }
+    private suspend fun setSession(setup: SetupResult, userId: String) {
+        val business = requireNotNull(
+            database.businessBranchDao().getBusinessById(setup.businessId.value)
+        )
+        val branch = requireNotNull(
+            database.businessBranchDao().getBranchById(setup.branchId.value)
+        )
+        val user = requireNotNull(database.userDao().getUserById(userId))
+        val membership = requireNotNull(database.userDao().getMembership(userId, branch.id))
+        SessionManager.setSession(
+            ActiveSession(
+                business = business,
+                branch = branch,
+                user = user,
+                membership = membership
+            )
+        )
+    }
+
     private suspend fun createSetup(): SetupResult =
         (setupRepository.executeSetup(
             SetupParams(
