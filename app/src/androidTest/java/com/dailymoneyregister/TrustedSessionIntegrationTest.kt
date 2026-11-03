@@ -10,7 +10,7 @@ import com.dailymoneyregister.core.database.DmrDatabase
 import com.dailymoneyregister.core.device.DeviceIdentityProvider
 import com.dailymoneyregister.core.i18n.LanguageManager
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
-import com.dailymoneyregister.core.security.PinThrottler
+import com.dailymoneyregister.core.security.LoginAttemptThrottler
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionRestorer
 import com.dailymoneyregister.core.security.TrustedSessionStore
@@ -74,7 +74,7 @@ class TrustedSessionIntegrationTest {
 
         authRepository = AuthRepository(
             database,
-            PinThrottler(context = context),
+            LoginAttemptThrottler(context = context),
             LanguageManager(context),
             trustedSessionStore
         )
