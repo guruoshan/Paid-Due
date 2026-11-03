@@ -697,7 +697,7 @@ internal fun RegisterOverlayHost(
                     )
     
                     Text(
-                        stringResource(R.string.online_cashier_confirmation_warning),
+                        stringResource(R.string.online_payment_confirmation_warning),
                         textAlign = TextAlign.Center,
                         fontWeight = FontWeight.SemiBold
                     )
