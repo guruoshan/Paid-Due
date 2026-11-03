@@ -99,7 +99,7 @@ abstract class RemoteEnvelopeMaterializerTestSupport {
         coEvery { cashShiftDao.getEventByOperationId(any()) } returns null
         coEvery { cashShiftDao.getShiftById(any()) } returns null
         coEvery { cashShiftDao.getEventsForShift(any()) } returns emptyList()
-        coEvery { cashShiftDao.getLatestShiftForCashier(any(), any()) } returns null
+        coEvery { cashShiftDao.getLatestShiftForUser(any(), any()) } returns null
         coEvery { cashShiftDao.insertShift(any()) } returns Unit
         coEvery { cashShiftDao.insertShiftEvent(any()) } returns Unit
         cloudIdentity = CloudStaffIdentityEntity(

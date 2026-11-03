@@ -109,9 +109,6 @@ class InvoiceLinkBackfillRepository @Inject constructor(
     private fun requireAccess(): String {
         val session = SessionManager.currentSession.value
             ?: throw PermissionDeniedException("No active session")
-        if (session.requiresPinChange) {
-            throw PermissionDeniedException("PIN change required before linking invoices")
-        }
         PermissionChecker.assertPermitted(session.user, session.membership, PermissionAction.VIEW_BROAD_HISTORY)
         PermissionChecker.assertPermitted(session.user, session.membership, PermissionAction.ISSUE_INVOICE)
         return session.business.id
@@ -123,7 +120,6 @@ class InvoiceLinkBackfillRepository @Inject constructor(
         /** UI gate only. The repository enforces the real check again. */
         fun canBackfill(): Boolean {
             val session = SessionManager.currentSession.value ?: return false
-            if (session.requiresPinChange) return false
             return PermissionChecker.isPermitted(session.user, session.membership, PermissionAction.VIEW_BROAD_HISTORY) &&
                 PermissionChecker.isPermitted(session.user, session.membership, PermissionAction.ISSUE_INVOICE)
         }

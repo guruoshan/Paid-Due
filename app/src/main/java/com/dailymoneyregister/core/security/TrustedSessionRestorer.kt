@@ -55,8 +55,7 @@ class TrustedSessionRestorer @Inject constructor(
             business = business,
             branch = branch,
             user = user,
-            membership = membership,
-            requiresPinChange = false
+            membership = membership
         )
 
         SessionManager.setSession(session)

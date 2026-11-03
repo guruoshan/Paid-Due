@@ -102,9 +102,6 @@ interface UserDao {
     @Query("SELECT u.* FROM user_accounts u INNER JOIN human_identities h ON h.id = u.identity_id WHERE h.canonical_phone = :canonicalPhone AND u.business_id = :businessId LIMIT 1")
     suspend fun getUserByCanonicalPhone(businessId: String, canonicalPhone: String): UserAccountEntity?
 
-    @Query("UPDATE user_accounts SET credential_hash = :newHash, credential_salt = :newSalt, must_change_pin = 0, updated_at = :updatedAt WHERE id = :userId AND credential_hash = :expectedHash AND (credential_salt = :expectedSalt OR (credential_salt IS NULL AND :expectedSalt IS NULL))")
-    suspend fun replaceCredentialAndClearPinChange(userId: String, expectedHash: String, expectedSalt: String?, newHash: String, newSalt: String, updatedAt: Long): Int
-
     @Query("SELECT * FROM user_accounts WHERE business_id = :businessId AND role = 'ADMIN' LIMIT 1")
     suspend fun getFirstAdmin(businessId: String): UserAccountEntity?
 

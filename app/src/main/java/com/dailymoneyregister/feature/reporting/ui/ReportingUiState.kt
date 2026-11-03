@@ -1,7 +1,6 @@
 package com.dailymoneyregister.feature.reporting.ui
 
 import com.dailymoneyregister.feature.reporting.data.ReportingBranchOption
-import com.dailymoneyregister.feature.reporting.data.ReportingCashierOption
 import com.dailymoneyregister.feature.reporting.domain.ReportActivityFilter
 import com.dailymoneyregister.feature.reporting.domain.ReportPaymentFilter
 import com.dailymoneyregister.feature.reporting.domain.ReportingPeriodPreset
@@ -26,10 +25,7 @@ data class ReportingUiState(
     val customToDate: String = "",
     val branchOptions: List<ReportingBranchOption> =
         emptyList(),
-    val cashierOptions: List<ReportingCashierOption> =
-        emptyList(),
     val selectedBranchId: String? = null,
-    val selectedCashierId: String? = null,
     val isLoading: Boolean = true,
     val readModel: ReportingReadModel? = null,
     val rows: List<ReportingRowUiModel> = emptyList(),

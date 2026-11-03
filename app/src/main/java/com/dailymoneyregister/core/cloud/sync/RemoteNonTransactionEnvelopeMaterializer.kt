@@ -133,7 +133,7 @@ internal object RemoteNonTransactionEnvelopeMaterializer {
                         error("Count/close cannot materialize a cash shift that is not already open locally")
                     }
                     if (operationType == OperationType.OPEN_CASH_SHIFT && existingShift == null) {
-                        val latestShift = database.cashShiftDao().getLatestShiftForCashier(
+                        val latestShift = database.cashShiftDao().getLatestShiftForUser(
                             branchId = branchId,
                             userId = shiftJson.getString("user_id")
                         )

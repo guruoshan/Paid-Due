@@ -13,3 +13,7 @@ A read-only comparison against the live Supabase function definitions on 2026-10
 `fetch_cashier_financial_envelopes.sql` has an equivalent function body in the comparison but is not an exact source match, so its signature, settings, grants, and comments still require review before reuse.
 
 Do not delete these files solely because they are stale; they may be useful historical design material. But do not use them as deployment input until each intended change is reconciled against the live definition and a tested migration.
+
+## CASHIER retirement status — 2026-11-03
+
+The CASHIER product feature is retired. The staged files named `fetch_cashier_*`, `list_admin_cashiers.sql`, and `verify_and_restore_staff_by_phone.sql` are archival review artifacts only. They have no supported app caller and must never be promoted or applied as part of normal deployment. The deployed `staff-*` and `api` compatibility routes return HTTP 410 `FEATURE_RETIRED`; the live database catalog contains no CASHIER/staff RPCs. Keep these files only to explain the historical schema and retirement path. Do not delete or replay historical migrations.

@@ -12,11 +12,8 @@ data class ActiveSession(
     val business: BusinessEntity,
     val branch: BranchEntity,
     val user: UserAccountEntity,
-    val membership: UserBranchMembershipEntity?,
-    val requiresPinChange: Boolean = false
+    val membership: UserBranchMembershipEntity?
 )
-
-fun ActiveSession.canUseFinancialRegister(): Boolean = !requiresPinChange
 
 object SessionManager {
     private val _currentSession = MutableStateFlow<ActiveSession?>(null)

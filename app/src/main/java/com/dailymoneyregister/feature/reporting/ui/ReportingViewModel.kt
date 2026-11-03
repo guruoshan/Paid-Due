@@ -42,7 +42,6 @@ class ReportingViewModel @Inject constructor(
         _uiState.asStateFlow()
 
     private var loadJob: Job? = null
-    private var filterOptionsJob: Job? = null
 
     init {
         syncScheduler.triggerSync()
@@ -109,49 +108,15 @@ class ReportingViewModel @Inject constructor(
     fun selectBranch(
         branchId: String
     ) {
-        if (
-            _uiState.value.branchOptions
-                .none { it.id == branchId }
-        ) {
+        if (_uiState.value.branchOptions.none { it.id == branchId }) {
             return
         }
-
-        val branch = _uiState.value.branchOptions.firstOrNull { it.id == branchId }
-            ?: return
-        val session = SessionManager.currentSession.value ?: return
-        loadJob?.cancel()
-        filterOptionsJob?.cancel()
-        _uiState.value =
-            _uiState.value.copy(
-                selectedBranchId = branchId,
-                selectedCashierId = null,
-                cashierOptions = emptyList(),
-                isLoading = true,
-                error = null
-            )
-        filterOptionsJob = viewModelScope.launch {
-            try {
-                val options = filterOptionsRepository.load(
-                    businessId = session.business.id,
-                    currencyCode = branch.currencyCode,
-                    branchId = branchId
-                )
-                _uiState.value = _uiState.value.copy(
-                    cashierOptions = emptyList(),
-                    isLoading = false,
-                    error = null
-                )
-                load()
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    cashierOptions = emptyList(),
-                    isLoading = false,
-                    error = ReportingUiError.LOAD_FAILED
-                )
-            }
-        }
+        _uiState.value = _uiState.value.copy(
+            selectedBranchId = branchId,
+            isLoading = true,
+            error = null
+        )
+        load()
     }
 
     fun updateCustomFromDate(
@@ -228,8 +193,7 @@ class ReportingViewModel @Inject constructor(
                     val options =
                         filterOptionsRepository.load(
                             businessId = session.business.id,
-                            currencyCode = session.branch.currencyCode,
-                            branchId = session.branch.id
+                            currencyCode = session.branch.currencyCode
                         )
 
                     val selectedBranch =
@@ -270,7 +234,6 @@ class ReportingViewModel @Inject constructor(
                     _uiState.value =
                         _uiState.value.copy(
                             branchOptions = branches,
-                            cashierOptions = emptyList(),
                             selectedBranchId =
                                 selectedBranch.id,
                             isLoading = false,
@@ -350,7 +313,6 @@ class ReportingViewModel @Inject constructor(
                     session.business.id,
                 branchId =
                     branch.id,
-                cashierUserId = null,
                 currencyCode =
                     branch.currencyCode,
                 period =

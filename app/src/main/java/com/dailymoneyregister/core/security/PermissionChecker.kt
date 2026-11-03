@@ -53,7 +53,7 @@ object PermissionChecker {
      */
     fun isPermitted(session: ActiveSession?, action: PermissionAction): Boolean {
         session ?: return false
-        if (session.requiresPinChange || !session.user.isActive) return false
+        if (!session.user.isActive) return false
         if (session.user.businessId != session.business.id) return false
         if (session.branch.businessId != session.business.id) return false
         if (session.user.role != UserRole.ADMIN) return false

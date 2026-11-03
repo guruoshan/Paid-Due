@@ -47,6 +47,14 @@ internal class RegisterShiftRepository(
             )
         }
 
+        authorizeNewRegisterShiftLifecycle(
+            operationId = command.operationId,
+            actorUserId = command.actorUserId,
+            businessId = command.businessId,
+            branchId = command.branchId,
+            actionLabel = "Register Shift open"
+        )?.let { return it }
+
         return commandExecutor.execute(
             command = command,
             replayResolver = { operation ->
@@ -63,7 +71,7 @@ internal class RegisterShiftRepository(
     }
 
     /**
-     * Appends immutable cash-count evidence to the cashier's OPEN shift.
+     * Appends immutable cash-count evidence to an OPEN register shift.
      *
      * The counted value is reconciliation evidence. It is not sales revenue
      * and does not mutate authoritative settlements.
@@ -98,7 +106,6 @@ internal class RegisterShiftRepository(
             actorUserId = command.actorUserId,
             businessId = command.businessId,
             branchId = command.branchId,
-            shiftOwnerUserId = shift.userId,
             actionLabel = "Register Shift count"
         )?.let { return it }
 
@@ -131,7 +138,7 @@ internal class RegisterShiftRepository(
      * Appends the immutable CLOSED event.
      *
      * Closing a shift never transfers, deletes, edits, or recreates any
-     * transaction belonging to the cashier.
+     * transaction belonging to the original shift owner.
      */
     suspend fun closeRegisterShift(
         command: CloseRegisterShiftCommand
@@ -163,7 +170,6 @@ internal class RegisterShiftRepository(
             actorUserId = command.actorUserId,
             businessId = command.businessId,
             branchId = command.branchId,
-            shiftOwnerUserId = shift.userId,
             actionLabel = "Register Shift close"
         )?.let { return it }
 
@@ -199,8 +205,8 @@ internal class RegisterShiftRepository(
      * - authenticated actor must match command actor
      * - business + branch must match active session
      * - actor must be active
-     * - Cashier may act only on their own shift
-     * - Admin may act on another cashier's shift
+     * - ADMIN is the only role allowed to create new lifecycle events
+     * - ADMIN may count or close a legacy shift while its original owner remains unchanged
      *
      * EXISTING durable intent:
      * authorization was already admitted, so retry/recovery must not
@@ -214,7 +220,6 @@ internal class RegisterShiftRepository(
         actorUserId: String,
         businessId: String,
         branchId: String,
-        shiftOwnerUserId: String,
         actionLabel: String
     ): CommandResult<Nothing>? {
 
@@ -246,12 +251,6 @@ internal class RegisterShiftRepository(
             )
         }
 
-        if (session.requiresPinChange) {
-            return CommandResult.PermissionDenied(
-                "$actionLabel is unavailable until the cashier PIN is changed"
-            )
-        }
-
         val actor =
             userDao.getUserByIdInBusiness(
                 actorUserId,
@@ -267,28 +266,9 @@ internal class RegisterShiftRepository(
             )
         }
 
-        if (actor.role == UserRole.ADMIN) {
-            return null
-        }
-
-        val membership =
-            userDao.getMembership(
-                actor.id,
-                branchId
-            )
-                ?: return CommandResult.PermissionDenied(
-                    "$actionLabel requires membership in the requested branch"
-                )
-
-        if (membership.userId != actor.id) {
+        if (actor.role != UserRole.ADMIN) {
             return CommandResult.PermissionDenied(
-                "$actionLabel branch membership identity mismatch"
-            )
-        }
-
-        if (shiftOwnerUserId != actor.id) {
-            return CommandResult.PermissionDenied(
-                "Cashier can $actionLabel only for their own Register Shift"
+                "$actionLabel is restricted to ADMIN"
             )
         }
 
@@ -360,10 +340,10 @@ internal class RegisterShiftRepository(
             ?: error("Register Shift does not exist")
 
         /*
-         * The CashShiftEntity still identifies the original cashier.
+         * The CashShiftEntity still identifies the original shift owner.
          * CLOSED.actorUserId identifies who actually closed it.
          * This allows an authenticated Admin override without
-         * rewriting cashier ownership.
+         * rewriting shift ownership.
          */
         check(shift.branchId == command.branchId) {
             "Register Shift close branch identity mismatch"
@@ -489,14 +469,14 @@ internal class RegisterShiftRepository(
                 "Register Shift identity conflicts with existing shift"
             }
         } else {
-            val latest = cashShiftDao.getLatestShiftForCashier(
+            val latest = cashShiftDao.getLatestShiftForUser(
             branchId = command.branchId,
             userId = command.actorUserId
         )
             if (latest != null) {
                 val latestEvents = cashShiftDao.getEventsForShift(latest.id)
                 check(latestEvents.lastOrNull()?.type == CashShiftEventType.CLOSED) {
-                    "A Register Shift is already open for this cashier"
+                    "A Register Shift is already open for this user"
                 }
             }
             cashShiftDao.insertShift(

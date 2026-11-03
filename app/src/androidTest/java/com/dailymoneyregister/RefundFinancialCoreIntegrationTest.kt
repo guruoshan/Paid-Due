@@ -307,11 +307,11 @@ class RefundFinancialCoreIntegrationTest {
         }
 
     @Test
-    fun productionRefund_mustChangePinActor_persistsNothing() =
+    fun productionRefund_legacyPinChangeFlagDoesNotBlockAdmin() =
         runBlocking {
             useAdminActor()
             val tx = seedSale(
-                transactionId = "refund-pin-change-actor",
+                transactionId = "refund-legacy-pin-flag",
                 amountMinor = 4_000L
             )
             val actor = checkNotNull(
@@ -330,17 +330,10 @@ class RefundFinancialCoreIntegrationTest {
 
             val result = repository.executeRefund(command)
 
-            assertTrue(result is CommandResult.PermissionDenied)
-            assertNull(
-                database.operationDao()
-                    .getOperationById(command.operationId.value)
-            )
-            assertTrue(
-                database.transactionDao()
-                    .getRefundEvents(tx.id)
-                    .isEmpty()
-            )
-            assertTrue(refundOutflows(tx.id).isEmpty())
+            assertTrue(result is CommandResult.Success)
+            assertEquals(1, database.transactionDao().getRefundEvents(tx.id).size)
+            assertEquals(1, refundOutflows(tx.id).size)
+            assertTrue(database.operationDao().getOperationById(command.operationId.value) != null)
         }
 
     @Test

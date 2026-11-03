@@ -11,6 +11,7 @@ enum class OperationType {
     CREATE_BUSINESS,
     CREATE_BRANCH,
     CREATE_ADMIN,
+    // Retired cashier-management operation tokens remain only for historical Room decoding.
     CREATE_CASHIER,
     UPDATE_USER_LANGUAGE,
     UPDATE_BUSINESS_PROFILE,
@@ -68,6 +69,8 @@ enum class PaymentChannel {
 }
 
 enum class ConfirmationType {
+    // Persisted settlement token retained for historical and current cash-tender evidence.
+    // Do not rename or remove without a versioned data-decoding migration.
     CASHIER_CONFIRMED,
     PROVIDER_APPROVED
 }
@@ -117,10 +120,12 @@ enum class CashShiftEventType {
 
 enum class UserRole {
     ADMIN,
+    // Legacy persisted role retained for Room and inbound-sync decoding; authorization rejects it.
     CASHIER
 }
 
 enum class AuthType {
+    // Legacy persisted credential type retained for decoding; login/restoration do not accept it.
     PIN,
     PASSWORD
 }

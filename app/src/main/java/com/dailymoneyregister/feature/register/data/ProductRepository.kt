@@ -7,11 +7,11 @@ import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
 /**
- * Lightweight item memory: lets the cashier type a few letters of a
+ * Lightweight item memory: lets the user type a few letters of a
  * previously-used item name and get it (with its last price) back.
  *
  * This is display/autofill convenience only - it never feeds financial
- * calculations directly. The cashier always sees and can edit the price
+ * calculations directly. The user always sees and can edit the price
  * before it's added to a bill.
  */
 class ProductRepository @Inject constructor(

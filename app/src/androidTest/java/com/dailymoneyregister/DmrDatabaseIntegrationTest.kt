@@ -33,7 +33,7 @@ import com.dailymoneyregister.core.model.ids.TransactionId
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.model.financial.FinancialReadModelResolver
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
-import com.dailymoneyregister.core.security.PinThrottler
+import com.dailymoneyregister.core.security.LoginAttemptThrottler
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
@@ -101,7 +101,7 @@ class DmrDatabaseIntegrationTest {
 
         commandExecutor = CommandExecutor(database)
         setupRepository = SetupRepository(database, commandExecutor, com.dailymoneyregister.core.device.DeviceIdentityProvider(context), trustedSessionStore)
-        authRepository = AuthRepository(database, PinThrottler(context = context), LanguageManager(context), trustedSessionStore)
+        authRepository = AuthRepository(database, LoginAttemptThrottler(context = context), LanguageManager(context), trustedSessionStore)
     }
 
     @After
@@ -404,7 +404,7 @@ class DmrDatabaseIntegrationTest {
         val prefs = context.getSharedPreferences("test_pin_throttler_prefs", Context.MODE_PRIVATE)
         prefs.edit().clear().commit()
 
-        val throttler1 = PinThrottler(context = context, prefs = prefs, maxAttempts = 5, lockoutDurationMillis = 30_000L)
+        val throttler1 = LoginAttemptThrottler(context = context, prefs = prefs, maxAttempts = 5, lockoutDurationMillis = 30_000L)
         val username = "cashier_sam"
 
         // Fail 5 times to trigger lockout
@@ -413,8 +413,8 @@ class DmrDatabaseIntegrationTest {
         }
         assertTrue("Throttler 1 should be locked out", throttler1.isLockedOut(username))
 
-        // Simulate app restart by creating a new PinThrottler instance with same prefs
-        val throttler2 = PinThrottler(context = context, prefs = prefs, maxAttempts = 5, lockoutDurationMillis = 30_000L)
+        // Simulate app restart by creating a new LoginAttemptThrottler instance with same prefs
+        val throttler2 = LoginAttemptThrottler(context = context, prefs = prefs, maxAttempts = 5, lockoutDurationMillis = 30_000L)
         assertTrue("Throttler 2 (after restart) MUST still be locked out", throttler2.isLockedOut(username))
         assertTrue("Remaining lockout seconds > 0", throttler2.getRemainingLockoutSeconds(username) > 0L)
 
@@ -422,7 +422,7 @@ class DmrDatabaseIntegrationTest {
         throttler2.recordSuccess(username)
         assertFalse("Lockout should be cleared after success/reset", throttler2.isLockedOut(username))
 
-        val throttler3 = PinThrottler(context = context, prefs = prefs, maxAttempts = 5, lockoutDurationMillis = 30_000L)
+        val throttler3 = LoginAttemptThrottler(context = context, prefs = prefs, maxAttempts = 5, lockoutDurationMillis = 30_000L)
         assertFalse("Throttler 3 should see lockout cleared", throttler3.isLockedOut(username))
     }
 
@@ -453,7 +453,7 @@ class DmrDatabaseIntegrationTest {
         prefs.edit().clear().commit()
         val throttledAuth = AuthRepository(
             database,
-            PinThrottler(context = context, prefs = prefs),
+            LoginAttemptThrottler(context = context, prefs = prefs),
             LanguageManager(context),
             trustedSessionStore
         )
@@ -511,7 +511,7 @@ class DmrDatabaseIntegrationTest {
         )) as CommandResult.Success).data
         val prefs = context.getSharedPreferences("test_maximum_lockout", Context.MODE_PRIVATE)
         prefs.edit().clear().commit()
-        val throttler = PinThrottler(context, prefs, maxAttempts = 1, lockoutDurationMillis = 30_000L)
+        val throttler = LoginAttemptThrottler(context, prefs, maxAttempts = 1, lockoutDurationMillis = 30_000L)
         val auth = AuthRepository(database, throttler, LanguageManager(context), trustedSessionStore)
         val preKey = "pre:v1:ADMIN:${setup.businessId.value}:${setup.branchId.value}:PHONE:+96891234567"
         val accountKey = "acct:v1:${setup.businessId.value}:${setup.adminUserId.value}"
@@ -549,7 +549,7 @@ class DmrDatabaseIntegrationTest {
         )) as CommandResult.Success).data
         val prefs = context.getSharedPreferences("test_unknown_pre_budget", Context.MODE_PRIVATE)
         prefs.edit().clear().commit()
-        val throttler = PinThrottler(context, prefs, maxAttempts = 2, lockoutDurationMillis = 30_000L)
+        val throttler = LoginAttemptThrottler(context, prefs, maxAttempts = 2, lockoutDurationMillis = 30_000L)
         val auth = AuthRepository(database, throttler, LanguageManager(context), trustedSessionStore)
         assertTrue(auth.loginAdmin("unknown_admin", "WrongPassword123") is AuthResult.InvalidCredentials)
         val locked = auth.loginAdmin("unknown_admin", "999999")
@@ -579,7 +579,7 @@ class DmrDatabaseIntegrationTest {
         )) as CommandResult.Success).data
         val prefs = context.getSharedPreferences("test_resolved_account_only", Context.MODE_PRIVATE)
         prefs.edit().clear().commit()
-        val throttler = PinThrottler(context, prefs, maxAttempts = 2, lockoutDurationMillis = 30_000L)
+        val throttler = LoginAttemptThrottler(context, prefs, maxAttempts = 2, lockoutDurationMillis = 30_000L)
         val auth = AuthRepository(database, throttler, LanguageManager(context), trustedSessionStore)
         val preKey = "pre:v1:ADMIN:${setup.businessId.value}:${setup.branchId.value}:PHONE:+96893456789"
         val accountKey = "acct:v1:${setup.businessId.value}:${setup.adminUserId.value}"
@@ -612,7 +612,7 @@ class DmrDatabaseIntegrationTest {
         )) as CommandResult.Success).data
         val prefs = context.getSharedPreferences("test_success_reset_keys", Context.MODE_PRIVATE)
         prefs.edit().clear().commit()
-        val throttler = PinThrottler(context, prefs, maxAttempts = 5, lockoutDurationMillis = 30_000L)
+        val throttler = LoginAttemptThrottler(context, prefs, maxAttempts = 5, lockoutDurationMillis = 30_000L)
         val auth = AuthRepository(database, throttler, LanguageManager(context), trustedSessionStore)
         val preKey = "pre:v1:ADMIN:${setup.businessId.value}:${setup.branchId.value}:PHONE:+96894567890"
         val accountKey = "acct:v1:${setup.businessId.value}:${setup.adminUserId.value}"
@@ -1559,64 +1559,4 @@ class DmrDatabaseIntegrationTest {
         }
     }
 
-    @Test
-    fun testSaleForUserNeedingPinChangeIsDeniedAndWritesNothing() = runBlocking {
-        val setup = (setupRepository.executeSetup(SetupParams(
-            businessName = "Restricted Sale Shop",
-            branchName = "Main",
-            branchCode = "RS1",
-            countryCode = "OM",
-            currencyCode = "OMR",
-            currencyDecimalPlaces = 3,
-            currencySymbol = "OMR",
-            timezoneId = "Asia/Muscat",
-            taxRoundingMode = TaxRoundingMode.HALF_UP,
-            defaultTaxRateBps = 0,
-            adminDisplayName = "Restricted Admin",
-            adminUsername = "+96891234567",
-            adminPhone = "91234567",
-            adminPasswordPlain = "RestrictedAdminPass123",
-            languageCode = "en"
-        )) as CommandResult.Success).data
-
-        val adminId = setup.adminUserId.value
-        val admin = database.userDao().getUserById(adminId)!!
-        val business = database.businessBranchDao().getBusinessById(setup.businessId.value)!!
-        val branch = database.businessBranchDao().getBranchById(setup.branchId.value)!!
-        val membership = database.userDao().getMembership(adminId, branch.id)!!
-
-        val registerRepository = RegisterRepository(database, commandExecutor)
-        val restrictedOperationId = OperationId.generate()
-        val restrictedTransactionId = TransactionId.generate()
-        val restrictedCommand = CashSaleCommand(
-            operationId = restrictedOperationId,
-            businessId = setup.businessId.value,
-            branchId = branch.id,
-            actorUserId = adminId,
-            transactionIdVal = restrictedTransactionId,
-            draftState = DraftState(manualAmount = MoneyMinorUnits(1000L)),
-            currencyCode = branch.currencyCode,
-            currencyDecimalPlaces = branch.currencyDecimalPlaces,
-            deviceId = "test-device"
-        )
-
-        SessionManager.setSession(ActiveSession(
-            business = business,
-            branch = branch,
-            user = admin,
-            membership = membership,
-            requiresPinChange = true
-        ))
-        val restrictedResult = registerRepository.executeCashSale(restrictedCommand, admin, membership)
-        assertTrue(restrictedResult is CommandResult.PermissionDenied)
-        assertNull(database.transactionDao().getTransactionById(restrictedTransactionId.value))
-        assertTrue(database.transactionDao().getSettlementsForTransaction(restrictedTransactionId.value).isEmpty())
-        assertNull(database.operationDao().getOperationById(restrictedOperationId.value))
-
-        val bypassAttempt = registerRepository.executeCashSale(restrictedCommand, admin, membership)
-        assertTrue(bypassAttempt is CommandResult.PermissionDenied)
-        assertNull(database.transactionDao().getTransactionById(restrictedTransactionId.value))
-        assertTrue(database.transactionDao().getSettlementsForTransaction(restrictedTransactionId.value).isEmpty())
-        assertNull(database.operationDao().getOperationById(restrictedOperationId.value))
-    }
 }

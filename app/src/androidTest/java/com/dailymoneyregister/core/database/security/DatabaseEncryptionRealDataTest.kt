@@ -16,7 +16,7 @@ import com.dailymoneyregister.core.model.ids.OperationId
 import com.dailymoneyregister.core.model.ids.TransactionId
 import com.dailymoneyregister.core.model.money.MoneyMinorUnits
 import com.dailymoneyregister.core.model.tax.TaxRoundingMode
-import com.dailymoneyregister.core.security.PinThrottler
+import com.dailymoneyregister.core.security.LoginAttemptThrottler
 import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.feature.auth.data.AuthRepository
 import com.dailymoneyregister.feature.auth.data.AuthResult
@@ -97,7 +97,7 @@ class DatabaseEncryptionRealDataTest {
             val authRepository =
                 AuthRepository(
                     db,
-                    PinThrottler(context = context),
+                    LoginAttemptThrottler(context = context),
                     LanguageManager(context),
                     TrustedSessionStore(context)
                 )
@@ -397,7 +397,7 @@ class DatabaseEncryptionRealDataTest {
             val reopenedAuthRepository =
                 AuthRepository(
                     reopened,
-                    PinThrottler(context = context),
+                    LoginAttemptThrottler(context = context),
                     LanguageManager(context),
                     TrustedSessionStore(context)
                 )
