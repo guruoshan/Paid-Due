@@ -322,6 +322,29 @@ class ExpenseAttributionAuditTest {
     }
 
 
+    @Test
+    fun cashShiftRowEvidenceCannotAddOtherShiftToExpense() {
+        // The expense is attributed to expense-cash-shift, but its evidence carries
+        // a bare cash_shift row for a different shift in the same branch and actor.
+        val base = expenseEnvelope()
+        val payload = JSONObject(base.canonicalText)
+        payload.getJSONObject("financial_evidence").put(
+            "cash_shift",
+            JSONObject().apply {
+                put("id", "other-cash-shift")
+                put("branch_id", branchId)
+                put("user_id", actorUserId)
+                put("created_at", 0L)
+            }
+        )
+        val result = materialize(envelopeFromPayload(base, "RECORD_EXPENSE", payload))
+
+        assertTrue("unrelated cash_shift row accepted: $result", result is InboundProcessResult.Rejected)
+        assertEquals("expense persisted despite unrelated shift evidence", 0, count("expenses"))
+        assertEquals("unrelated shift row persisted", 1, count("cash_shifts"))
+    }
+
+
     private fun materialize(envelope: RemoteEnvelopeV2): InboundProcessResult =
         runBlocking {
             RemoteEnvelopeMaterializer.materializeInboundEnvelope(
