@@ -38,7 +38,6 @@
     <string name="open_cash_register_desc">तेज़ नकद बिक्री, कैलकुलेटर, बिल, कर और शिपिंग</string>
     <string name="settings_languages_desc">ऐप की भाषा बदलें या प्रोफ़ाइल देखें</string>
 
-    <!-- Cashier Management -->
 
     <!-- Settings -->
     <string name="settings">सेटिंग्स</string>
@@ -218,7 +217,7 @@
     <string name="tx_settlement_funding_correction">फंडिंग सुधार</string>
     <string name="tx_settlement_payment_reclassification">भुगतान विधि पुनर्वर्गीकरण</string>
     <string name="tx_settlement_void_reversal">रद्दीकरण उलटाव</string>
-    <string name="tx_confirmation_cashier">कैशियर द्वारा पुष्टि</string>
+    <string name="tx_confirmation_cash_tender">नकद भुगतान की पुष्टि</string>
     <string name="tx_confirmation_provider">प्रदाता द्वारा अनुमोदित</string>
     <string name="history_back">वापस</string>
     <string name="history_search_hint">तारीख, फोन, नाम या राशि खोजें</string>
