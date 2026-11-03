@@ -90,25 +90,6 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
         // This trigger runs inside the successful operation UPDATE.
         // A failed transaction rolls back this insertion too.
         if (tableExists(db, "financial_sync_outbox")) {
-            // Cloud-only cashier identities have no user_accounts row. Include them
-            // only after the v15 identity table exists, and require the same tenant,
-            // branch, active state, and non-removed state as the synced membership.
-            val cloudCashierActorPredicate =
-                if (tableExists(db, "cloud_staff_identities")) {
-                    """
-                    OR EXISTS (
-                        SELECT 1 FROM cloud_staff_identities csi
-                        WHERE csi.local_user_id = NEW.actor_user_id
-                          AND csi.business_id = NEW.business_id
-                          AND csi.branch_id = NEW.branch_id
-                          AND csi.role = 'CASHIER'
-                          AND csi.is_active = 1
-                          AND csi.is_removed = 0
-                    )
-                    """.trimIndent()
-                } else {
-                    ""
-                }
             db.beginTransaction()
             try {
                 // Replaces only derived synchronization trigger metadata.
@@ -171,28 +152,6 @@ object FinancialImmutabilityCallback : RoomDatabase.Callback() {
                                     'RECORD_EXPENSE', 'RECORD_EXPENSE_CORRECTION', 'RECORD_EXPENSE_VOID',
                                     'OPEN_CASH_SHIFT', 'COUNT_CASH_SHIFT', 'CLOSE_CASH_SHIFT'
                                 ) THEN 'QUEUED'
-                                WHEN (
-                                    EXISTS (
-                                        SELECT 1 FROM user_accounts u
-                                        WHERE u.id = NEW.actor_user_id AND u.role = 'CASHIER'
-                                    )
-                                    $cloudCashierActorPredicate
-                                ) AND NEW.operation_type IN (
-                                    'RECORD_SALE', 'RECORD_CREDIT_REPAYMENT',
-                                    'RECORD_COUPON_PURCHASE', 'RECORD_REFUND', 'RECORD_VOID',
-                                    'RECORD_AMOUNT_CORRECTION', 'RECORD_PAYMENT_METHOD_CHANGE',
-                                    'RECORD_EXPENSE',
-                                    'OPEN_CASH_SHIFT', 'COUNT_CASH_SHIFT', 'CLOSE_CASH_SHIFT'
-                                ) THEN 'QUEUED'
-                                WHEN (
-                                    EXISTS (
-                                        SELECT 1 FROM user_accounts u
-                                        WHERE u.id = NEW.actor_user_id AND u.role = 'CASHIER'
-                                    )
-                                    $cloudCashierActorPredicate
-                                ) AND NEW.operation_type IN (
-                                    'RECORD_EXPENSE_CORRECTION', 'RECORD_EXPENSE_VOID'
-                                ) THEN 'NOT_SYNCABLE_YET'
                                 ELSE 'NOT_APPLICABLE'
                             END,
                             0
