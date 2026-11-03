@@ -217,7 +217,7 @@ internal fun confirmationLabel(
     return when (confirmation) {
         ConfirmationType.CASHIER_CONFIRMED ->
             stringResource(
-                R.string.tx_confirmation_provider
+                R.string.tx_confirmation_cash_tender
             )
 
         ConfirmationType.PROVIDER_APPROVED ->

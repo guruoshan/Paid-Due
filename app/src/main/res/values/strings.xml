@@ -38,6 +38,7 @@
     <string name="open_cash_register_desc">Fast cash sales, calculator, itemized bills, tax &amp; shipping</string>
     <string name="settings_languages_desc">Switch app language (EN, AR, HI, BN, UR) or view profile</string>
 
+
     <!-- Settings -->
     <string name="settings">Settings</string>
     <string name="change_language">Language</string>
@@ -248,6 +249,7 @@
     <string name="tx_settlement_funding_correction">Funding correction</string>
     <string name="tx_settlement_payment_reclassification">Payment method reclassification</string>
     <string name="tx_settlement_void_reversal">Void reversal</string>
+    <string name="tx_confirmation_cash_tender">Cash tender confirmed</string>
     <string name="tx_confirmation_provider">Provider approved</string>
     <string name="history_back">Back</string>
     <string name="history_search_hint">Search date, phone, name or amount</string>
@@ -331,7 +333,6 @@
     <string name="dmr22_closed_by">Closed by: %1$s</string>
     <string name="dmr22_closed_at">Closed at: %1$s</string>
 
-    <!-- Staff lifecycle: edit / permissions / disable / enable / reset PIN -->
     <string name="admin_email">Admin email</string>
 
     <!-- Help & FAQ: financial metric definitions (presentation-only; calculation rules live in reporting code). -->

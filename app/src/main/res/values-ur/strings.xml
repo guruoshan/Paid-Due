@@ -38,6 +38,7 @@
     <string name="open_cash_register_desc">تیز رفتار نقد فروخت، کیلکولیٹر، بل، ٹیکس اور شپنگ</string>
     <string name="settings_languages_desc">ایپ کی زبان تبدیل کریں یا پروفائل دیکھیں</string>
 
+
     <!-- Settings -->
     <string name="settings">ترتیبات</string>
     <string name="change_language">زبان</string>
@@ -216,6 +217,7 @@
     <string name="tx_settlement_funding_correction">فنڈنگ کی تصحیح</string>
     <string name="tx_settlement_payment_reclassification">ادائیگی کے طریقے کی دوبارہ درجہ بندی</string>
     <string name="tx_settlement_void_reversal">منسوخی ریورسل</string>
+    <string name="tx_confirmation_cash_tender">نقد ادائیگی کی تصدیق</string>
     <string name="tx_confirmation_provider">فراہم کنندہ سے منظور شدہ</string>
     <string name="history_back">واپس</string>
     <string name="history_search_hint">تاریخ، فون، نام یا رقم تلاش کریں</string>
