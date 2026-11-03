@@ -53,6 +53,9 @@ DECLARE
   v_active_cashiers bigint;
   v_trigger_count integer;
   v_constraint_count integer;
+  v_trigger_definition text;
+  v_trigger_function oid;
+  v_column text;
 BEGIN
   SELECT count(*) INTO v_active_cashiers
   FROM public.business_memberships
@@ -74,6 +77,32 @@ BEGIN
   IF v_trigger_count <> 1 THEN
     RAISE EXCEPTION 'FAIL: ADMIN-only membership trigger missing';
   END IF;
+
+  SELECT pg_get_triggerdef(t.oid), t.tgfoid
+  INTO v_trigger_definition, v_trigger_function
+  FROM pg_trigger t
+  JOIN pg_class c ON c.oid = t.tgrelid
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'public'
+    AND c.relname = 'business_memberships'
+    AND t.tgname = 'trg_prevent_new_cashier_memberships'
+    AND NOT t.tgisinternal;
+
+  IF v_trigger_function <> 'private.prevent_new_cashier_memberships()'::regprocedure::oid THEN
+    RAISE EXCEPTION 'FAIL: membership trigger is not bound to the retirement guard function';
+  END IF;
+
+  FOREACH v_column IN ARRAY ARRAY[
+    'role', 'is_active', 'removed_at', 'auth_user_id', 'staff_identity_id',
+    'can_create_sale', 'can_accept_cash', 'can_accept_online', 'can_create_credit_sale',
+    'can_use_coupon', 'can_issue_invoice', 'can_issue_receipt', 'can_refund', 'can_void',
+    'can_correct_amount', 'can_change_payment_method', 'can_view_broad_history',
+    'can_manage_products', 'can_view_reports', 'can_create_expense', 'can_view_customer_directory'
+  ] LOOP
+    IF position(v_column IN lower(v_trigger_definition)) = 0 THEN
+      RAISE EXCEPTION 'FAIL: membership trigger does not watch column %', v_column;
+    END IF;
+  END LOOP;
 
   SELECT count(*) INTO v_constraint_count
   FROM pg_constraint c
