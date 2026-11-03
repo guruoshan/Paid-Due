@@ -7,7 +7,7 @@ import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.security.ActiveSession
 import com.dailymoneyregister.core.security.PasswordHasher
-import com.dailymoneyregister.core.security.PinThrottler
+import com.dailymoneyregister.core.security.LoginAttemptThrottler
 import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.core.identity.PhoneNumberNormalizer
@@ -36,7 +36,7 @@ sealed class AuthResult {
 
 class AuthRepository @Inject constructor(
     private val database: DmrDatabase,
-    private val pinThrottler: PinThrottler,
+    private val loginAttemptThrottler: LoginAttemptThrottler,
     private val languageManager: LanguageManager,
     private val trustedSessionStore: TrustedSessionStore,
     private val remoteBusinessRestorer: BusinessRestorer
@@ -44,12 +44,12 @@ class AuthRepository @Inject constructor(
 
     constructor(
         database: DmrDatabase,
-        pinThrottler: PinThrottler,
+        loginAttemptThrottler: LoginAttemptThrottler,
         languageManager: LanguageManager,
         trustedSessionStore: TrustedSessionStore
     ) : this(
         database,
-        pinThrottler,
+        loginAttemptThrottler,
         languageManager,
         trustedSessionStore,
         object : BusinessRestorer {
@@ -139,17 +139,17 @@ class AuthRepository @Inject constructor(
                 PhoneNumberNormalizer.normalize(username, "OM")
             }.getOrNull()
             val cleanUsername = username.trim()
-            val preRemaining = pinThrottler.getRemainingLockoutSeconds(
+            val preRemaining = loginAttemptThrottler.getRemainingLockoutSeconds(
                 preResolutionThrottleKey(mode, "UNCONFIGURED", "UNCONFIGURED", canonicalPhone, cleanUsername)
             )
             return preRemaining
         }
         val branch = businessBranchDao.getFirstBranch(business.id) ?: return 0L
         val identifier = normalizeLoginIdentifier(mode, username, business.id, branch)
-        val preRemaining = pinThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
+        val preRemaining = loginAttemptThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
         val user = resolveLoginLookup(identifier, business.id)
         val accountRemaining = user?.let {
-            pinThrottler.getRemainingLockoutSeconds(
+            loginAttemptThrottler.getRemainingLockoutSeconds(
                 accountThrottleKey(business.id, it.id)
             )
         } ?: 0L
@@ -170,9 +170,9 @@ class AuthRepository @Inject constructor(
         user: UserAccountEntity?
     ) {
         user?.let {
-            pinThrottler.recordSuccess(accountThrottleKey(businessId, it.id))
+            loginAttemptThrottler.recordSuccess(accountThrottleKey(businessId, it.id))
         }
-        pinThrottler.recordSuccess(identifier.preResolutionKey)
+        loginAttemptThrottler.recordSuccess(identifier.preResolutionKey)
     }
 
     suspend fun loginAdmin(
@@ -198,11 +198,11 @@ class AuthRepository @Inject constructor(
         val branch = businessBranchDao.getFirstBranch(business.id)
             ?: return AuthResult.Error("No branch found for business")
         val identifier = normalizeLoginIdentifier("ADMIN", username, business.id, branch)
-        var remainingLockout = pinThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
+        var remainingLockout = loginAttemptThrottler.getRemainingLockoutSeconds(identifier.preResolutionKey)
         val user = resolveLoginLookup(identifier, business.id)
         val accountKey = user?.let { accountThrottleKey(business.id, it.id) }
         val accountRemaining = accountKey?.let {
-            pinThrottler.getRemainingLockoutSeconds(it)
+            loginAttemptThrottler.getRemainingLockoutSeconds(it)
         } ?: 0L
         remainingLockout = maxOf(remainingLockout, accountRemaining)
         if (remainingLockout > 0L) return AuthResult.LockedOut(remainingLockout)
@@ -217,7 +217,7 @@ class AuthRepository @Inject constructor(
             )
 
             val lockoutSeconds =
-                pinThrottler.recordFailure(
+                loginAttemptThrottler.recordFailure(
                     failureKey
                 )
 
@@ -238,7 +238,7 @@ class AuthRepository @Inject constructor(
             user.authType != AuthType.PASSWORD
         ) {
             val lockoutSeconds =
-                pinThrottler.recordFailure(
+                loginAttemptThrottler.recordFailure(
                     failureKey
                 )
 
@@ -262,7 +262,7 @@ class AuthRepository @Inject constructor(
 
         if (!isValid) {
             val lockoutSeconds =
-                pinThrottler.recordFailure(
+                loginAttemptThrottler.recordFailure(
                     failureKey
                 )
 
@@ -285,7 +285,7 @@ class AuthRepository @Inject constructor(
 
         if (authenticatedUser == null) {
             val lockoutSeconds =
-                pinThrottler.recordFailure(
+                loginAttemptThrottler.recordFailure(
                     failureKey
                 )
 
