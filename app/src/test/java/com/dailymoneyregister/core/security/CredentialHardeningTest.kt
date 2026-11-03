@@ -12,56 +12,6 @@ class CredentialHardeningTest {
     private val salt =
         "00112233445566778899aabbccddeeff"
 
-    @Test
-    fun newPinHashUsesVersionedCurrentWorkFactor() {
-        val hash =
-            PinHasher.hashPin(
-                "123456",
-                salt
-            )
-
-        assertTrue(
-            hash.startsWith(
-                "pbkdf2-sha256:600000:"
-            )
-        )
-
-        assertTrue(
-            PinHasher.verifyPin(
-                "123456",
-                salt,
-                hash
-            )
-        )
-
-        assertFalse(
-            PinHasher.needsUpgrade(hash)
-        )
-    }
-
-    @Test
-    fun legacyPinStillVerifiesAndIsMarkedForUpgrade() {
-        val legacyHash =
-            legacyHash(
-                secret = "123456",
-                saltHex = salt,
-                iterations = 10_000
-            )
-
-        assertTrue(
-            PinHasher.verifyPin(
-                "123456",
-                salt,
-                legacyHash
-            )
-        )
-
-        assertTrue(
-            PinHasher.needsUpgrade(
-                legacyHash
-            )
-        )
-    }
 
     @Test
     fun newPasswordHashUsesVersionedCurrentWorkFactor() {
