@@ -163,7 +163,7 @@ fun DmrApp(
                 Routes.ADMIN_HUB
             } else {
                 if (restoredSession != null) {
-                    // Unsupported sessions are cleared before entering the active UI.
+                    // Cashier sessions are no longer admitted through the active UI.
                     trustedSessionStore.clear()
                     SessionManager.clearSession()
                 }

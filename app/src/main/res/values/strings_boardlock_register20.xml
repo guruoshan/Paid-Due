@@ -3,11 +3,11 @@
     <string name="dmr20_day_closing">Day Closing</string>
     <string name="dmr20_confirm_day_closing">Confirm Day Closing</string>
     <string name="dmr20_day_loading">Loading register shift report…</string>
-    <string name="dmr20_day_no_open">No open cashier shift to close.</string>
-    <string name="dmr20_day_ready">Cashier shift report is ready.</string>
+    <string name="dmr20_day_no_open">No open register shift to close.</string>
+    <string name="dmr20_day_ready">register shift report is ready.</string>
     <string name="dmr20_day_review_totals">Review the authoritative shift totals before closing.</string>
     <string name="dmr20_actual_cash">Actual cash counted</string>
-    <string name="dmr20_day_notice">Closing saves the cash count and closes only your cashier shift. Existing transactions are not changed.</string>
+    <string name="dmr20_day_notice">Closing saves the cash count and closes only your register shift. Existing transactions are not changed.</string>
     <string name="dmr20_closing">Closing…</string>
     <string name="dmr20_confirm_close">Confirm Close</string>
     <string name="dmr20_review">Review</string>
@@ -26,7 +26,7 @@
     <string name="dmr20_enter_customer_name">Enter name for this new customer.</string>
     <string name="dmr20_note_optional">Note (optional)</string>
     <string name="dmr20_reference_optional">Reference (optional)</string>
-    <string name="dmr20_cash_expense_info">Cash Expense will be recorded as a cash outflow for this cashier shift.</string>
+    <string name="dmr20_cash_expense_info">Cash Expense will be recorded as a cash outflow for this register shift.</string>
     <string name="dmr20_online_expense_info">Online Expense will be recorded as an online outflow and will not reduce physical drawer cash.</string>
     <string name="dmr20_supporting_docs">Supporting Documents (optional)</string>
     <string name="dmr20_take_photo">Take Photo</string>
