@@ -340,10 +340,10 @@ internal class RegisterShiftRepository(
             ?: error("Register Shift does not exist")
 
         /*
-         * The CashShiftEntity still identifies the original cashier.
+         * The CashShiftEntity still identifies the original shift owner.
          * CLOSED.actorUserId identifies who actually closed it.
          * This allows an authenticated Admin override without
-         * rewriting cashier ownership.
+         * rewriting shift ownership.
          */
         check(shift.branchId == command.branchId) {
             "Register Shift close branch identity mismatch"
@@ -469,14 +469,14 @@ internal class RegisterShiftRepository(
                 "Register Shift identity conflicts with existing shift"
             }
         } else {
-            val latest = cashShiftDao.getLatestShiftForCashier(
+            val latest = cashShiftDao.getLatestShiftForUser(
             branchId = command.branchId,
             userId = command.actorUserId
         )
             if (latest != null) {
                 val latestEvents = cashShiftDao.getEventsForShift(latest.id)
                 check(latestEvents.lastOrNull()?.type == CashShiftEventType.CLOSED) {
-                    "A Register Shift is already open for this cashier"
+                    "A Register Shift is already open for this user"
                 }
             }
             cashShiftDao.insertShift(
