@@ -89,7 +89,7 @@ class SecurityAuthTest {
     @Test
     fun testAdminLoginThrottlingAndLockoutInMemory() {
         val throttler =
-            PinThrottler(
+            LoginAttemptThrottler(
                 maxAttempts = 5,
                 lockoutDurationMillis = 30_000L
             )
