@@ -65,7 +65,7 @@ class ExpenseAttributionAuditTest {
                         localUserId = actorUserId,
                         businessId = businessId,
                         branchId = branchId,
-                        role = "CASHIER",
+                        role = "ADMIN",
                         permissionsJson = "{}",
                         isActive = true,
                         isRemoved = false,
