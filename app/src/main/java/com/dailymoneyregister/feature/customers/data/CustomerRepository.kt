@@ -222,7 +222,7 @@ class CustomerRepository @Inject constructor(
     private fun requireDirectoryAccess(): String {
         val session = SessionManager.currentSession.value
             ?: throw PermissionDeniedException("No active session")
-        if (session.requiresPinChange || !session.user.isActive ||
+        if (!session.user.isActive ||
             session.user.businessId != session.business.id ||
             session.branch.businessId != session.business.id
         ) throw PermissionDeniedException("Active business session required")
