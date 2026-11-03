@@ -170,6 +170,8 @@ internal object RemoteExpenseEnvelopeMaterializer {
                 database.cashShiftDao().getEventsForShift(cashShift.id)
                     .none { it.type == CashShiftEventType.CLOSED }
             ) { "Expense cash shift is closed" }
+            val evidenceShiftId = jsonPayload.optJSONObject("financial_evidence")?.optJSONObject("cash_shift_event")?.optString("shift_id").orEmpty()
+            require(evidenceShiftId.isEmpty() || evidenceShiftId == cashShiftId) { "Cash-shift evidence references a shift other than the expense's shift" }
 
             CustomerIdentityReconciler.reconcileEvidenceCustomers(
                 database, businessId,
