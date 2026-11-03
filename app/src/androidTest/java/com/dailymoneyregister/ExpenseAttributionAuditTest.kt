@@ -284,6 +284,44 @@ class ExpenseAttributionAuditTest {
     }
 
 
+    @Test
+    fun crossShiftEvidenceCannotAlterOtherShift() {
+        // Second valid shift in the same branch, owned by the same actor.
+        runBlocking {
+            db.cashShiftDao().insertShift(
+                com.dailymoneyregister.core.database.entity.CashShiftEntity(
+                    id = "other-cash-shift",
+                    branchId = branchId,
+                    userId = actorUserId,
+                    createdAt = 0L
+                )
+            )
+        }
+
+        // The expense is attributed to expense-cash-shift (shift A), but its
+        // financial_evidence carries a CLOSED event for other-cash-shift (shift B).
+        val base = expenseEnvelope()
+        val payload = JSONObject(base.canonicalText)
+        payload.getJSONObject("financial_evidence").put(
+            "cash_shift_event",
+            JSONObject().apply {
+                put("id", "cross-shift-event")
+                put("shift_id", "other-cash-shift")
+                put("operation_id", operationId)
+                put("type", "CLOSED")
+                put("amount_minor", 0L)
+                put("occurred_at", 0L)
+                put("actor_user_id", actorUserId)
+            }
+        )
+        val result = materialize(envelopeFromPayload(base, "RECORD_EXPENSE", payload))
+
+        assertTrue("cross-shift evidence accepted: $result", result is InboundProcessResult.Rejected)
+        assertEquals("expense persisted despite cross-shift evidence", 0, count("expenses"))
+        assertEquals("cross-shift event persisted", 0, count("cash_shift_events"))
+    }
+
+
     private fun materialize(envelope: RemoteEnvelopeV2): InboundProcessResult =
         runBlocking {
             RemoteEnvelopeMaterializer.materializeInboundEnvelope(
