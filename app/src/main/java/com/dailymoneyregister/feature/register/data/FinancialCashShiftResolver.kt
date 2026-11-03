@@ -59,7 +59,7 @@ internal class FinancialCashShiftResolver(
                 }
 
             val latest =
-                cashShiftDao.getLatestShiftForCashier(
+                cashShiftDao.getLatestShiftForUser(
                     branchId = requireNotNull(command.branchId) {
                         "Cashier financial operation requires a branch"
                     },
