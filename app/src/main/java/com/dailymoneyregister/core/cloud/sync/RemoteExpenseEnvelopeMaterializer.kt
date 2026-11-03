@@ -15,6 +15,7 @@ import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.enums.PaymentChannel
 import com.dailymoneyregister.core.model.enums.SubjectType
 import org.json.JSONObject
+import com.dailymoneyregister.core.model.enums.CashShiftEventType
 
 /**
  * Owns the inbound expense-create boundary so the universal envelope dispatcher
@@ -165,6 +166,10 @@ internal object RemoteExpenseEnvelopeMaterializer {
             require(cashShift.userId == actorUserId) {
                 "Expense cash shift belongs to another actor"
             }
+            require(
+                database.cashShiftDao().getEventsForShift(cashShift.id)
+                    .none { it.type == CashShiftEventType.CLOSED }
+            ) { "Expense cash shift is closed" }
 
             CustomerIdentityReconciler.reconcileEvidenceCustomers(
                 database, businessId,
