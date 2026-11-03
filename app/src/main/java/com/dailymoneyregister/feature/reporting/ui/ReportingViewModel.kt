@@ -313,6 +313,7 @@ class ReportingViewModel @Inject constructor(
                     session.business.id,
                 branchId =
                     branch.id,
+                cashierUserId = null,
                 currencyCode =
                     branch.currencyCode,
                 period =
