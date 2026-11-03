@@ -22,13 +22,13 @@ interface OperationCommand {
     val transactionId: String?
 
     /**
-     * Immutable cashier-shift attribution for an admitted operation.
+     * Immutable register-shift attribution for an admitted operation.
      *
      * Null is valid for:
      * - historical operations created before shift attribution
-     * - operations that do not belong to a cashier financial shift
+     * - operations that do not belong to a register shift
      *
-     * New cashier financial operations must explicitly freeze this value
+     * New financial operations must explicitly freeze this value
      * before their durable Operation row is admitted.
      */
     val cashShiftId: String? get() = null
