@@ -6,6 +6,7 @@ DECLARE
   v_active_cashiers bigint;
   v_trigger_count integer;
   v_constraint_count integer;
+  v_admin_membership_id text;
 BEGIN
   SELECT count(*) INTO v_active_cashiers
   FROM public.business_memberships
@@ -41,6 +42,64 @@ BEGIN
     RAISE EXCEPTION 'FAIL: validated CASHIER tombstone constraint missing';
   END IF;
 
+  -- The tombstone CHECK intentionally permits inactive historical rows. These
+  -- attempts satisfy that CHECK so only the retirement trigger can reject them.
+  BEGIN
+    INSERT INTO public.business_memberships (
+      id, business_id, branch_id, role, auth_user_id, staff_identity_id,
+      can_create_sale, can_accept_cash, can_accept_online, can_create_credit_sale,
+      can_use_coupon, can_issue_invoice, can_issue_receipt, can_refund, can_void,
+      can_correct_amount, can_change_payment_method, can_view_broad_history,
+      can_manage_products, can_view_reports, can_create_expense,
+      can_view_customer_directory, is_active, removed_at
+    ) VALUES (
+      '__cashier_retirement_insert_test__', '__missing_business__', '__missing_branch__',
+      'CASHIER', NULL, NULL,
+      false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, now()
+    );
+    RAISE EXCEPTION 'FAIL: new CASHIER membership insert was accepted';
+  EXCEPTION WHEN check_violation THEN
+    NULL;
+  END;
+
+  SELECT id INTO v_admin_membership_id
+  FROM public.business_memberships
+  WHERE role = 'ADMIN'
+  ORDER BY id
+  LIMIT 1;
+
+  IF v_admin_membership_id IS NOT NULL THEN
+    BEGIN
+      UPDATE public.business_memberships
+      SET role = 'CASHIER',
+          auth_user_id = NULL,
+          staff_identity_id = NULL,
+          is_active = false,
+          removed_at = now(),
+          can_create_sale = false,
+          can_accept_cash = false,
+          can_accept_online = false,
+          can_create_credit_sale = false,
+          can_use_coupon = false,
+          can_issue_invoice = false,
+          can_issue_receipt = false,
+          can_refund = false,
+          can_void = false,
+          can_correct_amount = false,
+          can_change_payment_method = false,
+          can_view_broad_history = false,
+          can_manage_products = false,
+          can_view_reports = false,
+          can_create_expense = false,
+          can_view_customer_directory = false
+      WHERE id = v_admin_membership_id;
+      RAISE EXCEPTION 'FAIL: ADMIN membership conversion to CASHIER was accepted';
+    EXCEPTION WHEN check_violation THEN
+      NULL;
+    END;
+  END IF;
+
   IF to_regprocedure('public.create_staff_invite_for_admin(text,text,text,text,text,jsonb,uuid)') IS NOT NULL
      OR to_regprocedure('public.activate_staff_invite(text,text,text)') IS NOT NULL
      OR to_regprocedure('public.cashier_login_credential(text)') IS NOT NULL
@@ -52,7 +111,8 @@ BEGIN
   END IF;
 
   RAISE NOTICE 'PASS: no active CASHIER memberships';
-  RAISE NOTICE 'PASS: new CASHIER membership/role creation blocked by trigger';
+  RAISE NOTICE 'PASS: new CASHIER membership insert blocked by trigger';
+  RAISE NOTICE 'PASS: ADMIN-to-CASHIER role conversion blocked by trigger when an ADMIN fixture exists';
   RAISE NOTICE 'PASS: legacy CASHIER rows constrained to inactive permissionless tombstones';
   RAISE NOTICE 'PASS: retired cashier RPCs absent';
 END
