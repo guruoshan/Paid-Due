@@ -1,5 +1,5 @@
 -- Disposable/staging contract checks for the final ADMIN-only role boundary.
--- This test is read-only apart from its transaction-scoped catalog assertions.
+-- All negative write attempts are transaction-scoped and rolled back; this must run only in CI/staging.
 BEGIN;
 DO $test$
 DECLARE
