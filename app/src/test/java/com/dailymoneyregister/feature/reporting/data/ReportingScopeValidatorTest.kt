@@ -53,13 +53,12 @@ class ReportingScopeValidatorTest {
 
     private val admin = cashier.copy(id = "admin", username = "admin", role = UserRole.ADMIN, authType = AuthType.PASSWORD)
 
-    private fun session(requiresPinChange: Boolean = false, businessOverride: BusinessEntity = business) =
+    private fun session(inactive: Boolean = false, businessOverride: BusinessEntity = business) =
         ActiveSession(
             business = businessOverride,
             branch = b1,
-            user = admin,
-            membership = null,
-            requiresPinChange = requiresPinChange
+            user = if (inactive) admin.copy(isActive = false) else admin,
+            membership = null
         )
 
     private fun scope(
@@ -94,10 +93,10 @@ class ReportingScopeValidatorTest {
     }
 
     @Test
-    fun adminWhoMustChangePinIsDenied() {
+    fun inactiveAdminIsDenied() {
         assertDenied(ReportingDenyReason.NOT_PERMITTED) {
             ReportingAccessValidator.validate(
-                session(requiresPinChange = true),
+                session(inactive = true),
                 scope(),
                 allBranches,
                 null
