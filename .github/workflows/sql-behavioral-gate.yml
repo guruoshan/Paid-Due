@@ -85,8 +85,8 @@ jobs:
           TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
         run: |
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
-          # Remove the legacy financial-contract test stub before asserting the
-          # retired RPC catalog; it belongs only to the earlier rollback test.
+          -- Remove the legacy financial-contract test stub before asserting the
+          -- retired RPC catalog; it belongs only to the earlier rollback test.
           DROP FUNCTION IF EXISTS public.ingest_cashier_financial_envelope(text,text,text,text,text,text,integer,timestamptz,text,date,text,text,jsonb);
           DROP TABLE IF EXISTS public.business_memberships CASCADE;
           CREATE SCHEMA IF NOT EXISTS private;
