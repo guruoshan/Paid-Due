@@ -321,8 +321,7 @@ class ReportingRoomIntegrationTest {
             ReportingScope(
                 businessId = business.id,
                 branchId = branch.id,
-                cashierUserId = null,
-                currencyCode = branch.currencyCode,
+currencyCode = branch.currencyCode,
                 period = ReportingPeriod(
                     fromInclusive = 1_000L,
                     toExclusive = 2_000L
@@ -414,8 +413,7 @@ class ReportingRoomIntegrationTest {
             ReportingScope(
                 businessId = business.id,
                 branchId = branch.id,
-                cashierUserId = null,
-                currencyCode = branch.currencyCode,
+currencyCode = branch.currencyCode,
                 period = ReportingPeriod(
                     fromInclusive = 1_000L,
                     toExclusive = 2_000L
@@ -432,19 +430,9 @@ class ReportingRoomIntegrationTest {
         val options = ReportingFilterOptionsRepository(database).load(business.id, branch.currencyCode)
         assertEquals(listOf(branch.id), options.branches.map { it.id })
 
-        val filtered = repository.read(
-            ReportingScope(
-                businessId = business.id,
-                branchId = branch.id,
-                cashierUserId = cloudCashierId,
-                currencyCode = branch.currencyCode,
-                period = ReportingPeriod(1_000L, 2_000L)
-            )
-        )
-        assertEquals(2, filtered.rows.size)
-        assertEquals(1, filtered.summary.counts.sales)
-        assertEquals(0L, filtered.summary.cashSalesCollected.amount)
-        assertEquals(1_250L, filtered.summary.onlineSalesCollected.amount)
+        // Historical actor attribution remains visible; the retired cashier selector is gone.
+        assertTrue(afterPaymentChange.rows.all { it.cashier.userId == cloudCashierId })
+
     }
 
     @Test
@@ -491,8 +479,7 @@ class ReportingRoomIntegrationTest {
                 ReportingScope(
                     businessId = business.id,
                     branchId = branch.id,
-                    cashierUserId = null,
-                    currencyCode = branch.currencyCode,
+currencyCode = branch.currencyCode,
                     period = ReportingPeriod(1_000L, 2_000L)
                 )
             )
