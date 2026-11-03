@@ -171,7 +171,7 @@ class RoomReportingReadRepository(
         // A sale's actor is the immutable originating operation actor, not
         // necessarily TransactionEntity.createdByUserId. Older/imported rows can
         // retain a creator ID that differs from the operation actor. Reporting's
-        // cashier filter must follow the authoritative operation attribution.
+        // Report actor identity follows authoritative operation attribution.
         val saleOperationIds = saleRecords.flatMap { record ->
             val fundingOperationIds = record.settlements
                 .filter { it.entryPurpose.name == "SALE_FUNDING" }
