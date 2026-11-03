@@ -89,7 +89,7 @@ def scan_recreations(functions: list[str]) -> list[str]:
     )
     for path in sorted(MIGRATIONS.glob("*.sql")):
         stamp = re.match(r"(\d+)", path.name)
-        if not stamp or int(stamp.group(1)) <= 20261023070000:
+        if not stamp or int(stamp.group(1)) <= 20261023050000:
             continue
         source = uncomment(path.read_text(encoding="utf-8"))
         for match in create_re.finditer(source):
