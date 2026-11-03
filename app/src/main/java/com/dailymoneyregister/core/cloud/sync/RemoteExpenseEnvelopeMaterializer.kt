@@ -7,6 +7,7 @@ import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
 import com.dailymoneyregister.feature.customers.data.CustomerIdentity
 import com.dailymoneyregister.feature.register.data.ExpenseCategory
+import com.dailymoneyregister.core.model.enums.CashShiftEventType
 import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.OperationStatus
@@ -15,7 +16,6 @@ import com.dailymoneyregister.core.model.enums.PaymentCategory
 import com.dailymoneyregister.core.model.enums.PaymentChannel
 import com.dailymoneyregister.core.model.enums.SubjectType
 import org.json.JSONObject
-import com.dailymoneyregister.core.model.enums.CashShiftEventType
 
 /**
  * Owns the inbound expense-create boundary so the universal envelope dispatcher
