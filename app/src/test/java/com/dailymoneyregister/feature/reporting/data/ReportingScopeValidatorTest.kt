@@ -95,7 +95,7 @@ class ReportingScopeValidatorTest {
                 session(inactive = true),
                 scope(),
                 allBranches
-        )
+            )
         }
     }
 
@@ -106,7 +106,7 @@ class ReportingScopeValidatorTest {
                 session(),
                 scope(businessId = "other"),
                 allBranches
-        )
+            )
         }
     }
 
@@ -117,7 +117,7 @@ class ReportingScopeValidatorTest {
                 session(),
                 scope(branchId = "b9"),
                 allBranches
-        )
+            )
         }
     }
 
@@ -128,7 +128,7 @@ class ReportingScopeValidatorTest {
                 session(),
                 scope(branchId = "b3", currency = "OMR"),
                 allBranches
-        )
+            )
         }
     }
 
@@ -151,7 +151,7 @@ class ReportingScopeValidatorTest {
                 session(),
                 scope(currency = "USD"),
                 allBranches
-        )
+            )
         }
     }
 
