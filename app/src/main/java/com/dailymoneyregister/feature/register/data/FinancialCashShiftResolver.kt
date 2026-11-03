@@ -10,7 +10,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * BOARDLOCK automatic cashier-shift attribution boundary.
+ * BOARDLOCK automatic register-shift attribution boundary.
  *
  * Existing persisted Operation.cashShiftId remains authoritative.
  *
@@ -51,7 +51,7 @@ internal class FinancialCashShiftResolver(
                      * Existing durable attribution is immutable.
                      *
                      * NULL is valid for historical operations admitted
-                     * before cashier-shift attribution existed.
+                     * before register-shift attribution existed.
                      *
                      * Never invent or retrofit a shift during replay.
                      */
@@ -61,7 +61,7 @@ internal class FinancialCashShiftResolver(
             val latest =
                 cashShiftDao.getLatestShiftForUser(
                     branchId = requireNotNull(command.branchId) {
-                        "Cashier financial operation requires a branch"
+                        "Financial operation requires a branch"
                     },
                     userId = command.actorUserId
                 )
@@ -84,7 +84,7 @@ internal class FinancialCashShiftResolver(
             }
 
             /*
-             * No open shift exists for this cashier.
+             * No open shift exists for this actor.
              *
              * The financial operation has already passed its admission
              * checks before this helper is reached, so opening the shift
@@ -97,7 +97,7 @@ internal class FinancialCashShiftResolver(
                     operationId = OperationId.generate(),
                     businessId = command.businessId,
                     branchId = requireNotNull(command.branchId) {
-                        "Cashier financial operation requires a branch"
+                        "Financial operation requires a branch"
                     },
                     shiftId = shiftId,
                     actorUserId = command.actorUserId,
@@ -112,13 +112,13 @@ internal class FinancialCashShiftResolver(
 
                 is CommandResult.Conflict ->
                     throw IllegalStateException(
-                        "Unable to establish cashier shift: " +
+                        "Unable to establish register shift: " +
                             opened.message
                     )
 
                 is CommandResult.PermissionDenied ->
                     throw IllegalStateException(
-                        "Unable to establish cashier shift: " +
+                        "Unable to establish register shift: " +
                             opened.message
                     )
 
