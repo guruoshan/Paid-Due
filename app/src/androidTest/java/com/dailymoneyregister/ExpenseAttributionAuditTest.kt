@@ -7,6 +7,7 @@ import com.dailymoneyregister.core.cloud.sync.RemoteEnvelopeMaterializer
 import com.dailymoneyregister.core.cloud.sync.RemoteEnvelopeV2
 import com.dailymoneyregister.core.command.CommandFingerprint
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.insertCloudStaffIdentitiesForTest
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.CashShiftEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
@@ -58,7 +59,7 @@ class ExpenseAttributionAuditTest {
                     updatedAt = 0L
                 )
             )
-            db.cloudStaffIdentityDao().upsertAll(
+            db.insertCloudStaffIdentitiesForTest(
                 listOf(
                     CloudStaffIdentityEntity(
                         membershipId = "membership-a",

@@ -3,6 +3,7 @@ package com.dailymoneyregister.core.cloud.sync
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.insertCloudStaffIdentitiesForTest
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
@@ -42,7 +43,7 @@ class CloudOnlyCashShiftOwnerTest {
                 createdAt = 1L, updatedAt = 1L
             )
         )
-        database.cloudStaffIdentityDao().upsertAll(
+        database.insertCloudStaffIdentitiesForTest(
             listOf(CloudStaffIdentityEntity(
                 membershipId = "membership-cloud-cashier", localUserId = cashierId,
                 businessId = businessId, branchId = branchId, role = "CASHIER",
@@ -104,7 +105,7 @@ class CloudOnlyCashShiftOwnerTest {
             businessId = "other-business", branchId = branchId, role = "CASHIER",
             permissionsJson = "{}", isActive = true, isRemoved = false, updatedAt = 2L
         )
-        database.cloudStaffIdentityDao().upsertAll(listOf(wrongBusinessIdentity))
+        database.insertCloudStaffIdentitiesForTest(listOf(wrongBusinessIdentity))
         val wrongBusiness = evidence("wrong-business-shift", userId = "other-business-cashier")
         val businessRejected = runCatching {
             RemoteEnvelopeEvidenceApplier.apply(
@@ -117,7 +118,7 @@ class CloudOnlyCashShiftOwnerTest {
 
     @Test
     fun preservesHistoricalCashShiftForRevokedCloudCashierWithoutLocalUserRow() = runTest {
-        database.cloudStaffIdentityDao().upsertAll(
+        database.insertCloudStaffIdentitiesForTest(
             listOf(CloudStaffIdentityEntity(
                 membershipId = "membership-cloud-cashier", localUserId = cashierId,
                 businessId = businessId, branchId = branchId, role = "CASHIER",

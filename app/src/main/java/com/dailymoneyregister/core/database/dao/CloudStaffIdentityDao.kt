@@ -1,16 +1,11 @@
 package com.dailymoneyregister.core.database.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.dailymoneyregister.core.database.entity.CloudStaffIdentityEntity
 
 @Dao
 interface CloudStaffIdentityDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertAll(identities: List<CloudStaffIdentityEntity>)
-
     @Query("""
         SELECT * FROM cloud_staff_identities
         WHERE local_user_id = :localUserId
