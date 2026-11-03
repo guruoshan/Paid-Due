@@ -248,7 +248,7 @@ class CustomerRepository @Inject constructor(
         /** UI gate mirrors directory access; history remains separately protected. */
         fun canViewCustomers(): Boolean {
             val session = SessionManager.currentSession.value ?: return false
-            if (session.requiresPinChange || !session.user.isActive ||
+            if (!session.user.isActive ||
                 session.user.businessId != session.business.id ||
                 session.branch.businessId != session.business.id
             ) return false
