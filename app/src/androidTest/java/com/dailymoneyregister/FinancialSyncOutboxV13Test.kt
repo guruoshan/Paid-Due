@@ -216,7 +216,7 @@ class FinancialSyncOutboxV13Test {
             "SELECT status FROM financial_sync_outbox WHERE operation_id='cloud-shift-open'"
         ).use {
             assertTrue(it.moveToFirst())
-            assertEquals("QUEUED", it.getString(0))
+            assertEquals("NOT_APPLICABLE", it.getString(0))
         }
     }
 
