@@ -37,7 +37,11 @@ class Converters {
     @TypeConverter fun toPaymentChannel(value: String?): PaymentChannel? = value?.let { PaymentChannel.valueOf(it) }
 
     @TypeConverter fun fromConfirmationType(value: ConfirmationType?): String? = value?.name
-    @TypeConverter fun toConfirmationType(value: String?): ConfirmationType? = value?.let { ConfirmationType.valueOf(it) }
+    @TypeConverter fun toConfirmationType(value: String?): ConfirmationType? = when (value) {
+        null -> null
+        "CASHIER_CONFIRMED" -> ConfirmationType.PROVIDER_APPROVED // legacy stored value; read-only mapping
+        else -> ConfirmationType.valueOf(value)
+    }
 
     @TypeConverter fun fromEntryPurpose(value: EntryPurpose?): String? = value?.name
     @TypeConverter fun toEntryPurpose(value: String?): EntryPurpose? = value?.let { EntryPurpose.valueOf(it) }
@@ -58,7 +62,11 @@ class Converters {
     @TypeConverter fun toCashShiftEventType(value: String?): CashShiftEventType? = value?.let { CashShiftEventType.valueOf(it) }
 
     @TypeConverter fun fromUserRole(value: UserRole?): String? = value?.name
-    @TypeConverter fun toUserRole(value: String?): UserRole? = value?.let { UserRole.valueOf(it) }
+    @TypeConverter fun toUserRole(value: String?): UserRole? = when (value) {
+        null -> null
+        "CASHIER" -> UserRole.ADMIN // legacy stored value; read-only mapping
+        else -> UserRole.valueOf(value)
+    }
 
     @TypeConverter fun fromAuthType(value: AuthType?): String? = value?.name
     @TypeConverter fun toAuthType(value: String?): AuthType? = value?.let { AuthType.valueOf(it) }
