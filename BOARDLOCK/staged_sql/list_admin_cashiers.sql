@@ -1,3 +1,6 @@
+-- RETIRED FEATURE: Cashier/staff functionality has been retired.
+-- DO NOT APPLY or auto-deploy this staged SQL.
+-- Kept unchanged as historical evidence only; deployment tooling must exclude this file.
 -- REVIEWED AGAINST THE LIVE SCHEMA ON 2026-10-08.
 -- STAGED ONLY: do not apply without explicit deployment approval.
 --

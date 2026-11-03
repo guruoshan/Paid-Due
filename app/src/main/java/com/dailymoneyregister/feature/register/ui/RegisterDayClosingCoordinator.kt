@@ -267,6 +267,7 @@ internal class RegisterDayClosingCoordinator(
                                 expectedCashMinor = report.expectedCashMinor,
                                 countedCashMinor = countedMinor,
                                 differenceMinor = Math.subtractExact(countedMinor, report.expectedCashMinor),
+                                // Preserve the original shift owner in historical day-close evidence.
                                 cashierUserId = report.shift.actorUserId,
                                 closedByUserId = closingSession.user.id,
                                 closedAt = closeOccurredAt

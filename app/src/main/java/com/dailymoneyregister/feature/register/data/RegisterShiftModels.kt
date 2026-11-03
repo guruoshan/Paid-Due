@@ -127,6 +127,7 @@ data class RegisterShiftCloseReportSnapshot(
     val expectedCashMinor: Long,
     val countedCashMinor: Long,
     val differenceMinor: Long,
+    // Legacy shift-owner identifier retained for historical attribution and serialized report compatibility.
     val cashierUserId: String,
     val closedByUserId: String,
     val closedAt: Long

@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dailymoneyregister.AndroidTestDatabaseFactory
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.insertCloudStaffIdentitiesForTest
 import com.dailymoneyregister.core.database.entity.BranchEntity
 import com.dailymoneyregister.core.database.entity.BusinessEntity
 import com.dailymoneyregister.core.database.entity.CashShiftEntity
@@ -109,7 +110,7 @@ class ReportingRoomIntegrationTest {
     fun persistedSaleFlowsThroughRoomRepositoryIntoAuthoritativeSummary() = runBlocking {
         val occurredAt = 1_500L
         val cloudCashierId = "reporting-phase3b-cloud-cashier"
-        database.cloudStaffIdentityDao().upsertAll(
+        database.insertCloudStaffIdentitiesForTest(
             listOf(
                 CloudStaffIdentityEntity(
                     membershipId = "reporting-phase3b-cloud-membership",
