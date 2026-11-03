@@ -7,10 +7,10 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.staff-activate]
-verify_jwt = false
+verify_jwt = true
 
 [functions.staff-open]
-verify_jwt = false
+verify_jwt = true
 
 [functions.staff-preview]
-verify_jwt = false
+verify_jwt = true
