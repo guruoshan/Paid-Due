@@ -68,6 +68,8 @@ enum class PaymentChannel {
 }
 
 enum class ConfirmationType {
+    // Persisted settlement token retained for historical and current cash-tender evidence.
+    // Do not rename or remove without a versioned data-decoding migration.
     CASHIER_CONFIRMED,
     PROVIDER_APPROVED
 }
@@ -117,10 +119,12 @@ enum class CashShiftEventType {
 
 enum class UserRole {
     ADMIN,
+    // Legacy persisted role retained for Room and inbound-sync decoding; authorization rejects it.
     CASHIER
 }
 
 enum class AuthType {
+    // Legacy persisted credential type retained for decoding; login/restoration do not accept it.
     PIN,
     PASSWORD
 }
