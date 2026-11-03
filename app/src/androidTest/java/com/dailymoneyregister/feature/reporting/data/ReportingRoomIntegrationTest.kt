@@ -430,7 +430,7 @@ class ReportingRoomIntegrationTest {
         assertEquals(1, afterPaymentChange.summary.counts.sales)
 
         val options = ReportingFilterOptionsRepository(database).load(business.id, branch.currencyCode)
-        assertTrue(options.cashiers.isEmpty())
+        assertEquals(listOf(branch.id), options.branches.map { it.id })
 
         val filtered = repository.read(
             ReportingScope(
