@@ -221,16 +221,10 @@ class InvoiceRepository @Inject constructor(
         if (session.business.id != command.businessId || session.branch.id != command.branchId) {
             return CommandResult.PermissionDenied("$label business/branch does not match the authenticated session")
         }
-        if (session.requiresPinChange) {
-            return CommandResult.PermissionDenied("Cashier must create a new PIN before using the register")
-        }
 
         val actor = userDao.getUserById(command.actorUserId)
             ?: return CommandResult.PermissionDenied("$label actor does not exist")
 
-        if (actor.mustChangePin) {
-            return CommandResult.PermissionDenied("Cashier must create a new PIN before using the register")
-        }
         if (!actor.isActive) {
             return CommandResult.PermissionDenied("Inactive user cannot issue an invoice")
         }
