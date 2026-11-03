@@ -193,7 +193,7 @@ class RegisterShiftAuthorizationTest {
                     branchId =
                         setup.branchId.value,
                     shiftId =
-                        cashierShift.shiftId,
+                        legacyShiftId,
                     actorUserId =
                         setup.adminUserId.value,
                     deviceId =
@@ -249,7 +249,7 @@ class RegisterShiftAuthorizationTest {
             val events =
                 database.cashShiftDao()
                     .getEventsForShift(
-                        cashierShift.shiftId.value
+                        legacyShiftId.value
                     )
 
             val opened =
@@ -288,7 +288,7 @@ class RegisterShiftAuthorizationTest {
             val storedShift =
                 database.cashShiftDao()
                     .getShiftById(
-                        cashierShift.shiftId.value
+                        legacyShiftId.value
                     )
 
             assertEquals(
