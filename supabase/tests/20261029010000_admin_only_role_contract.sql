@@ -230,7 +230,9 @@ BEGIN
 
   RAISE NOTICE 'PASS: no active CASHIER memberships';
   RAISE NOTICE 'PASS: new CASHIER membership insert blocked by trigger';
-  RAISE NOTICE 'PASS: ADMIN-to-CASHIER role conversion blocked by trigger when an ADMIN fixture exists';
+  RAISE NOTICE 'PASS: ADMIN-to-CASHIER role conversion blocked by trigger';
+  RAISE NOTICE 'PASS: removed CASHIER membership reactivation blocked';
+  RAISE NOTICE 'PASS: cashier permission grant blocked';
   RAISE NOTICE 'PASS: legacy CASHIER rows constrained to inactive permissionless tombstones';
   RAISE NOTICE 'PASS: retired cashier RPCs absent';
 END
