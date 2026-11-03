@@ -38,7 +38,6 @@
     <string name="open_cash_register_desc">Fast cash sales, calculator, itemized bills, tax &amp; shipping</string>
     <string name="settings_languages_desc">Switch app language (EN, AR, HI, BN, UR) or view profile</string>
 
-    <!-- Cashier Management -->
 
     <!-- Settings -->
     <string name="settings">Settings</string>
@@ -250,7 +249,7 @@
     <string name="tx_settlement_funding_correction">Funding correction</string>
     <string name="tx_settlement_payment_reclassification">Payment method reclassification</string>
     <string name="tx_settlement_void_reversal">Void reversal</string>
-    <string name="tx_confirmation_cashier">Cashier confirmed</string>
+    <string name="tx_confirmation_cash_tender">Cash tender confirmed</string>
     <string name="tx_confirmation_provider">Provider approved</string>
     <string name="history_back">Back</string>
     <string name="history_search_hint">Search date, phone, name or amount</string>
@@ -304,7 +303,7 @@
     <string name="online_no_qr_configured">No payment QR configured. You can still confirm an online payment manually after verifying it was received.</string>
     <string name="online_add_qr">Add payment QR</string>
     <string name="online_customer_choice_hint">The customer may scan this QR or pay using another online or bank method.</string>
-    <string name="online_cashier_confirmation_warning">Confirm only after you have verified that payment was received.</string>
+    <string name="online_payment_confirmation_warning">Confirm only after you have verified that payment was received.</string>
 
     <!-- Coupon UI resources restored for existing CouponCompactDialogR7A references. -->
     <string name="coupon_redemption_receipt">Coupon used by %1$s: %2$s. Remaining balance: %3$s</string>
@@ -334,7 +333,6 @@
     <string name="dmr22_closed_by">Closed by: %1$s</string>
     <string name="dmr22_closed_at">Closed at: %1$s</string>
 
-    <!-- Staff lifecycle: edit / permissions / disable / enable / reset PIN -->
     <string name="admin_email">Admin email</string>
 
     <!-- Help & FAQ: financial metric definitions (presentation-only; calculation rules live in reporting code). -->

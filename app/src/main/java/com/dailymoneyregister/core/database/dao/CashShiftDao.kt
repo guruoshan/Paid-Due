@@ -28,7 +28,7 @@ interface CashShiftDao {
         LIMIT 1
         """
     )
-    suspend fun getLatestShiftForCashier(
+    suspend fun getLatestShiftForUser(
         branchId: String,
         userId: String
     ): CashShiftEntity?

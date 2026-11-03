@@ -23,7 +23,7 @@ import java.util.Locale
 data class PhoneNumberInputValue(val countryCode: String, val rawNumber: String = "") {
     init {
         require(countryCode in PhoneNumberUtil.getInstance().supportedRegions) {
-            "A supported uppercase merchant/cashier country code is required"
+            "A supported uppercase business country code is required"
         }
     }
 

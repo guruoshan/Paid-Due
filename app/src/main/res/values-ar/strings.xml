@@ -42,7 +42,6 @@
     <string name="open_cash_register_desc">مبيعات نقدية سريعة، حاسبة، فواتير مفصلة، وضريبة وشحن</string>
     <string name="settings_languages_desc">تغيير لغة التطبيق أو استعراض الملف التعريفي</string>
 
-    <!-- Cashier Management -->
 
     <!-- Settings -->
     <string name="settings">الإعدادات</string>
@@ -230,7 +229,7 @@
     <string name="tx_settlement_funding_correction">تصحيح التمويل</string>
     <string name="tx_settlement_payment_reclassification">إعادة تصنيف طريقة الدفع</string>
     <string name="tx_settlement_void_reversal">عكس الإلغاء</string>
-    <string name="tx_confirmation_cashier">تم التأكيد بواسطة الكاشير</string>
+    <string name="tx_confirmation_cash_tender">تم تأكيد الدفع النقدي</string>
     <string name="tx_confirmation_provider">تمت الموافقة بواسطة المزود</string>
     <string name="history_back">رجوع</string>
     <string name="history_search_hint">ابحث بالتاريخ أو الهاتف أو الاسم أو المبلغ</string>

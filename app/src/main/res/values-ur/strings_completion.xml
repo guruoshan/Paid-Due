@@ -30,7 +30,7 @@
     <string name="online_no_qr_configured">کوئی ادائیگی QR سیٹ نہیں ہے۔ رقم موصول ہونے کی تصدیق کے بعد بھی آپ آن لائن ادائیگی کو دستی طور پر کنفرم کر سکتے ہیں۔</string>
     <string name="online_add_qr">ادائیگی QR شامل کریں</string>
     <string name="online_customer_choice_hint">گاہک یہ QR اسکین کر سکتا ہے یا کسی اور آن لائن یا بینک طریقے سے ادائیگی کر سکتا ہے۔</string>
-    <string name="online_cashier_confirmation_warning">صرف اسی وقت تصدیق کریں جب آپ نے تصدیق کر لی ہو کہ ادائیگی موصول ہو گئی ہے۔</string>
+    <string name="online_payment_confirmation_warning">صرف اسی وقت تصدیق کریں جب آپ نے تصدیق کر لی ہو کہ ادائیگی موصول ہو گئی ہے۔</string>
     <string name="hub_business_branch">%1$s • %2$s (%3$s)</string>
     <string name="lockout_countdown">مقفل: %1$s سیکنڈ</string>
     <string name="sale_saved">فروخت محفوظ ہو گئی</string>

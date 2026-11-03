@@ -6,11 +6,17 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dailymoneyregister.core.command.CommandExecutor
 import com.dailymoneyregister.core.command.CommandResult
 import com.dailymoneyregister.core.database.DmrDatabase
+import com.dailymoneyregister.core.database.entity.CashShiftEntity
+import com.dailymoneyregister.core.database.entity.CashShiftEventEntity
+import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.UserAccountEntity
 import com.dailymoneyregister.core.database.entity.UserBranchMembershipEntity
 import com.dailymoneyregister.core.device.DeviceIdentityProvider
 import com.dailymoneyregister.core.model.enums.AuthType
 import com.dailymoneyregister.core.model.enums.CashShiftEventType
+import com.dailymoneyregister.core.model.enums.OperationStatus
+import com.dailymoneyregister.core.model.enums.OperationType
+import com.dailymoneyregister.core.model.enums.SubjectType
 import com.dailymoneyregister.core.model.enums.UserRole
 import com.dailymoneyregister.core.model.ids.CashShiftId
 import com.dailymoneyregister.core.model.ids.OperationId
@@ -19,7 +25,6 @@ import com.dailymoneyregister.core.security.SessionManager
 import com.dailymoneyregister.core.security.TrustedSessionStore
 import com.dailymoneyregister.feature.register.data.CloseRegisterShiftCommand
 import com.dailymoneyregister.feature.register.data.CountRegisterShiftCommand
-import com.dailymoneyregister.feature.register.data.OpenRegisterShiftCommand
 import com.dailymoneyregister.feature.register.data.RegisterRepository
 import com.dailymoneyregister.feature.setup.data.SetupParams
 import com.dailymoneyregister.feature.setup.data.SetupRepository
@@ -76,27 +81,53 @@ class RegisterShiftAuthorizationTest {
     }
 
     @Test
-    fun adminCanCountAndCloseCashierShiftWithoutChangingOwner() =
+    fun adminCanCountAndCloseLegacyShiftWithoutChangingOwner() =
         runBlocking {
 
             val setup = createSetup()
             val cashierId = seedCashier(setup)
+            val legacyShiftId = CashShiftId("legacy-cashier-shift")
+            val legacyOpenOperationId = OperationId("legacy-cashier-open")
 
-            setSession(
-                setup = setup,
-                userId = cashierId
-            )
-
-            val cashierShift =
-                openCommand(
-                    setup = setup,
-                    userId = cashierId
+            // Materialize an existing historical shift directly. No cashier
+            // login or new cashier lifecycle command is used by this test.
+            database.operationDao().insertOperation(
+                OperationEntity(
+                    id = legacyOpenOperationId.value,
+                    businessId = setup.businessId.value,
+                    branchId = setup.branchId.value,
+                    operationType = OperationType.OPEN_CASH_SHIFT,
+                    subjectType = SubjectType.CASH_SHIFT,
+                    subjectId = legacyShiftId.value,
+                    transactionId = null,
+                    cashShiftId = legacyShiftId.value,
+                    actorUserId = cashierId,
+                    deviceId = "legacy-device",
+                    occurredAt = 1_000L,
+                    requestFingerprint = "legacy-cashier-open-fingerprint",
+                    commandSchemaVersion = 1,
+                    intentPayload = "{}",
+                    status = OperationStatus.SUCCEEDED
                 )
-
-            assertTrue(
-                repository.openRegisterShift(
-                    cashierShift
-                ) is CommandResult.Success
+            )
+            database.cashShiftDao().insertShift(
+                CashShiftEntity(
+                    id = legacyShiftId.value,
+                    branchId = setup.branchId.value,
+                    userId = cashierId,
+                    createdAt = 1_000L
+                )
+            )
+            database.cashShiftDao().insertShiftEvent(
+                CashShiftEventEntity(
+                    id = "legacy-cashier-open-event",
+                    shiftId = legacyShiftId.value,
+                    operationId = legacyOpenOperationId.value,
+                    type = CashShiftEventType.OPENED,
+                    amountMinor = 0L,
+                    occurredAt = 1_000L,
+                    actorUserId = cashierId
+                )
             )
 
             setSession(
@@ -108,14 +139,14 @@ class RegisterShiftAuthorizationTest {
                 CountRegisterShiftCommand(
                     operationId =
                         OperationId(
-                            "admin-count-cashier-${System.nanoTime()}"
+                            "admin-count-legacy-shift-${System.nanoTime()}"
                         ),
                     businessId =
                         setup.businessId.value,
                     branchId =
                         setup.branchId.value,
                     shiftId =
-                        cashierShift.shiftId,
+                        legacyShiftId,
                     countedCashMinor =
                         8_750L,
                     actorUserId =
@@ -155,14 +186,14 @@ class RegisterShiftAuthorizationTest {
                 CloseRegisterShiftCommand(
                     operationId =
                         OperationId(
-                            "admin-close-cashier-${System.nanoTime()}"
+                            "admin-close-legacy-shift-${System.nanoTime()}"
                         ),
                     businessId =
                         setup.businessId.value,
                     branchId =
                         setup.branchId.value,
                     shiftId =
-                        cashierShift.shiftId,
+                        legacyShiftId,
                     actorUserId =
                         setup.adminUserId.value,
                     deviceId =
@@ -196,7 +227,7 @@ class RegisterShiftAuthorizationTest {
 
             /*
              * RegisterShiftResult.actorUserId is the historical shift owner.
-             * It must remain the cashier, not the Admin who closed it.
+             * It must remain the legacy owner, not the Admin who closed it.
              */
             assertEquals(
                 cashierId,
@@ -218,7 +249,7 @@ class RegisterShiftAuthorizationTest {
             val events =
                 database.cashShiftDao()
                     .getEventsForShift(
-                        cashierShift.shiftId.value
+                        legacyShiftId.value
                     )
 
             val opened =
@@ -257,7 +288,7 @@ class RegisterShiftAuthorizationTest {
             val storedShift =
                 database.cashShiftDao()
                     .getShiftById(
-                        cashierShift.shiftId.value
+                        legacyShiftId.value
                     )
 
             assertEquals(
@@ -405,28 +436,5 @@ class RegisterShiftAuthorizationTest {
         )
     }
 
-    private fun openCommand(
-        setup: SetupResult,
-        userId: String
-    ) =
-        OpenRegisterShiftCommand(
-            operationId =
-                OperationId(
-                    "open-${System.nanoTime()}"
-                ),
-            businessId =
-                setup.businessId.value,
-            branchId =
-                setup.branchId.value,
-            shiftId =
-                CashShiftId(
-                    "shift-${System.nanoTime()}"
-                ),
-            actorUserId =
-                userId,
-            deviceId =
-                "test-device",
-            occurredAt =
-                1_000L
-        )
+
 }

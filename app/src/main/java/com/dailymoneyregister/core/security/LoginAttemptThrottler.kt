@@ -5,14 +5,15 @@ import android.content.SharedPreferences
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Persistent PIN authentication throttling to prevent brute-force attacks.
+ * Persistent login-attempt throttling to prevent brute-force attacks.
+ * The legacy SharedPreferences file name is retained so existing lockouts survive this rename.
  * Policy:
  * - Max 5 consecutive failed attempts
  * - 30 seconds lockout after 5 failed attempts
  * Persists failure counts and lockout timestamps using SharedPreferences so app restarts
  * cannot bypass active lockouts.
  */
-class PinThrottler(
+class LoginAttemptThrottler(
     private val context: Context? = null,
     private val prefs: SharedPreferences? = context?.getSharedPreferences("pin_throttler_prefs", Context.MODE_PRIVATE),
     private val maxAttempts: Int = 5,

@@ -51,47 +51,11 @@ class RoomReportingReadRepository(
                 emptyList()
             }
 
-        val cashierKnown: Boolean? =
-            if (session != null && scope.cashierUserId != null) {
-                val cloudIdentities = if (scope.branchId != null) {
-                    listOfNotNull(
-                        database.cloudStaffIdentityDao().findIdentity(
-                            localUserId = scope.cashierUserId,
-                            businessId = session.business.id,
-                            branchId = scope.branchId
-                        )
-                    )
-                } else {
-                    database.businessBranchDao()
-                        .getBranchesByBusinessId(session.business.id)
-                        .mapNotNull { branch ->
-                            database.cloudStaffIdentityDao().findIdentity(
-                                localUserId = scope.cashierUserId,
-                                businessId = session.business.id,
-                                branchId = branch.id
-                            )
-                        }
-                }
-                if (cloudIdentities.isNotEmpty()) {
-                    cloudIdentities.any {
-                        it.role == "CASHIER" && it.isActive && !it.isRemoved
-                    }
-                } else {
-                    database.userDao().getUserByIdInBusiness(
-                        userId = scope.cashierUserId,
-                        businessId = session.business.id
-                    )?.isActive == true
-                }
-            } else {
-                null
-            }
-
         // Throws ReportingAccessDeniedException before ANY financial read.
         val access = ReportingAccessValidator.validate(
             session = session,
             scope = scope,
-            businessBranches = businessBranches,
-            requestedCashierKnownInBusiness = cashierKnown
+            businessBranches = businessBranches
         )
 
         return try {
@@ -207,7 +171,7 @@ class RoomReportingReadRepository(
         // A sale's actor is the immutable originating operation actor, not
         // necessarily TransactionEntity.createdByUserId. Older/imported rows can
         // retain a creator ID that differs from the operation actor. Reporting's
-        // cashier filter must follow the authoritative operation attribution.
+        // Report actor identity follows authoritative operation attribution.
         val saleOperationIds = saleRecords.flatMap { record ->
             val fundingOperationIds = record.settlements
                 .filter { it.entryPurpose.name == "SALE_FUNDING" }
@@ -455,7 +419,7 @@ class RoomReportingReadRepository(
             }
         }
 
-        // ---- 9. Currency guard, cashier filter, ordering, counts ---------
+        // ---- 9. Currency guard, ordering, counts --------------------------
 
         rows.forEach {
             check(it.currencyCode == access.currencyCode) {
@@ -463,14 +427,7 @@ class RoomReportingReadRepository(
             }
         }
 
-        val filtered =
-            if (scope.cashierUserId != null) {
-                rows.filter { it.cashier.userId == scope.cashierUserId }
-            } else {
-                rows
-            }
-
-        val ordered = filtered.sortedWith(
+        val ordered = rows.sortedWith(
             compareByDescending<ReportRow> { it.occurredAt }
                 .thenByDescending { it.stableId }
         )

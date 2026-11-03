@@ -55,23 +55,11 @@ internal class FinancialMutationAuthorizer(
             )
         }
 
-        if (session.requiresPinChange) {
-            return CommandResult.PermissionDenied(
-                "Cashier must create a new PIN before using the register"
-            )
-        }
-
         val actor =
             userDao.getUserById(actorUserId)
                 ?: return CommandResult.PermissionDenied(
                     "$actionLabel actor does not exist"
                 )
-
-        if (actor.mustChangePin) {
-            return CommandResult.PermissionDenied(
-                "Cashier must create a new PIN before using the register"
-            )
-        }
 
         if (!actor.isActive) {
             return CommandResult.PermissionDenied(

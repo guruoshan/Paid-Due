@@ -124,20 +124,10 @@ internal class SaleFinancialRepository(
         // 2. BOARDLOCK: authoritative identity, branch, permission, currency and money validation.
         // Never trust only the UI/caller for financial truth.
 
-        if (session.requiresPinChange) {
-            return CommandResult.PermissionDenied("Cashier must create a new PIN before using the register")
-        }
-
         val authoritativeActor = userDao.getUserById(command.actorUserId)
             ?: return CommandResult.PermissionDenied(
                 "Cash sale actor does not exist"
             )
-
-        if (authoritativeActor.mustChangePin) {
-            return CommandResult.PermissionDenied(
-                "Cashier must create a new PIN before using the register"
-            )
-        }
 
         if (!authoritativeActor.isActive) {
             return CommandResult.PermissionDenied(

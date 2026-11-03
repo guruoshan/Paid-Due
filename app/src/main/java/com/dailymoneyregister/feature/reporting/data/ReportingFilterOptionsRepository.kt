@@ -12,14 +12,8 @@ data class ReportingBranchOption(
     val timezoneId: String
 )
 
-data class ReportingCashierOption(
-    val id: String,
-    val displayName: String
-)
-
 data class ReportingFilterOptions(
-    val branches: List<ReportingBranchOption>,
-    val cashiers: List<ReportingCashierOption>
+    val branches: List<ReportingBranchOption>
 )
 
 class ReportingFilterOptionsRepository @Inject constructor(
@@ -28,7 +22,6 @@ class ReportingFilterOptionsRepository @Inject constructor(
     suspend fun load(
         businessId: String,
         currencyCode: String,
-        branchId: String? = null
     ): ReportingFilterOptions {
 
         val branches =
@@ -54,9 +47,6 @@ class ReportingFilterOptionsRepository @Inject constructor(
                     )
                 }
 
-        return ReportingFilterOptions(
-            branches = branches,
-            cashiers = emptyList()
-        )
+        return ReportingFilterOptions(branches = branches)
     }
 }

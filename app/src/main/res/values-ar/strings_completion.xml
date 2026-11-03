@@ -30,7 +30,7 @@
     <string name="online_no_qr_configured">لم يتم إعداد رمز QR للدفع. لا يزال بإمكانك تأكيد الدفع الإلكتروني يدويًا بعد التحقق من استلامه.</string>
     <string name="online_add_qr">إضافة رمز QR للدفع</string>
     <string name="online_customer_choice_hint">يمكن للعميل مسح رمز QR هذا أو الدفع بطريقة إلكترونية أو مصرفية أخرى.</string>
-    <string name="online_cashier_confirmation_warning">قم بالتأكيد فقط بعد التحقق من استلام الدفع.</string>
+    <string name="online_payment_confirmation_warning">قم بالتأكيد فقط بعد التحقق من استلام الدفع.</string>
     <string name="hub_business_branch">%1$s • %2$s (%3$s)</string>
     <string name="lockout_countdown">مقفل: %1$s ث</string>
     <string name="sale_saved">تم حفظ البيع</string>

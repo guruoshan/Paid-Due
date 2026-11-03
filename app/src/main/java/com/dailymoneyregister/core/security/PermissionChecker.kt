@@ -44,18 +44,16 @@ object PermissionChecker {
         membership: UserBranchMembershipEntity?,
         action: PermissionAction
     ): Boolean {
-        // ADMIN is the only supported product role. Legacy CASHIER records may
-        // still be decoded for historical attribution, but never authorize actions.
+        // ADMIN is the only supported product role.
         return user.role == UserRole.ADMIN
     }
 
     /**
-     * Session-aware gate for presentation/read actions. Legacy CASHIER sessions
-     * are rejected even if stale local rows or memberships remain on disk.
+     * Session-aware gate for presentation/read actions.
      */
     fun isPermitted(session: ActiveSession?, action: PermissionAction): Boolean {
         session ?: return false
-        if (session.requiresPinChange || !session.user.isActive) return false
+        if (!session.user.isActive) return false
         if (session.user.businessId != session.business.id) return false
         if (session.branch.businessId != session.business.id) return false
         if (session.user.role != UserRole.ADMIN) return false

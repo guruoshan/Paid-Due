@@ -202,7 +202,7 @@ class CouponTopUpCharacterizationTest {
         val walletId = createInitiallyFundedWallet()
         val command = topUpCommand(walletId, operationId = "topup-recovery-op")
         val shift = requireNotNull(
-            database.cashShiftDao().getLatestShiftForCashier(branch.id, admin.id)
+            database.cashShiftDao().getLatestShiftForUser(branch.id, admin.id)
         )
 
         database.operationDao().insertOperation(

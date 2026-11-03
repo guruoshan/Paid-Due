@@ -761,7 +761,7 @@ class CustomerDetailViewModel @Inject constructor(
                      *
                      * A FAILED Operation ID must never be submitted again.
                      * Keep the durable failed operation for audit history, but
-                     * release the UI's in-flight command. A later cashier press
+                     * release the UI's in-flight command. A later retry
                      * is a new intent and therefore receives a new operationId
                      * and repaymentId.
                      */

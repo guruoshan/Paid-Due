@@ -8,13 +8,12 @@ import com.dailymoneyregister.core.model.money.MoneyMinorUnits
  * Requested reporting scope.
  *
  * This is read-model input only and never financial truth.
- * Repository security must validate this scope against the authenticated
- * business, permitted branches and cashier/report permissions.
+ * Repository security validates this scope against the authenticated
+ * business and permitted branches.
  */
 data class ReportingScope(
     val businessId: String,
     val branchId: String?,
-    val cashierUserId: String?,
     val currencyCode: String,
     val period: ReportingPeriod
 ) {
@@ -75,6 +74,7 @@ data class ReportBranch(
     }
 }
 
+/** Historical actor projection retained for report attribution; it is not a cashier-management model. */
 data class ReportCashier(
     val userId: String,
     val displayName: String?
@@ -708,8 +708,7 @@ data class ReportingFilter(
         ReportActivityFilter.ALL,
     val payment: ReportPaymentFilter =
         ReportPaymentFilter.ALL,
-    val branchId: String? = null,
-    val cashierUserId: String? = null
+    val branchId: String? = null
 ) {
     val normalizedQuery: String
         get() = query.trim()

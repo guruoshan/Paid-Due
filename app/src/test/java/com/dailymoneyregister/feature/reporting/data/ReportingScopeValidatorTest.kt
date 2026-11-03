@@ -37,40 +37,35 @@ class ReportingScopeValidatorTest {
     private val b3 = branch("b3", "INR")
     private val foreign = branch("b9", "OMR", businessId = "other")
 
-    private val cashier =
+    private val admin =
         UserAccountEntity(
-            id = "cashier",
+            id = "admin",
             businessId = "business",
-            displayName = "Cashier",
-            username = "cashier",
-            role = UserRole.CASHIER,
-            authType = AuthType.PIN,
+            displayName = "Admin",
+            username = "admin",
+            role = UserRole.ADMIN,
+            authType = AuthType.PASSWORD,
             credentialHash = "hash",
             credentialSalt = "salt",
             createdAt = 0L,
             updatedAt = 0L
         )
 
-    private val admin = cashier.copy(id = "admin", username = "admin", role = UserRole.ADMIN, authType = AuthType.PASSWORD)
-
-    private fun session(requiresPinChange: Boolean = false, businessOverride: BusinessEntity = business) =
+    private fun session(inactive: Boolean = false, businessOverride: BusinessEntity = business) =
         ActiveSession(
             business = businessOverride,
             branch = b1,
-            user = admin,
-            membership = null,
-            requiresPinChange = requiresPinChange
+            user = if (inactive) admin.copy(isActive = false) else admin,
+            membership = null
         )
 
     private fun scope(
         businessId: String = "business",
         branchId: String? = null,
-        cashierUserId: String? = null,
         currency: String = "OMR"
     ) = ReportingScope(
         businessId = businessId,
         branchId = branchId,
-        cashierUserId = cashierUserId,
         currencyCode = currency,
         period = ReportingPeriod(fromInclusive = 100L, toExclusive = 200L)
     )
@@ -89,18 +84,17 @@ class ReportingScopeValidatorTest {
     @Test
     fun noSessionIsDenied() {
         assertDenied(ReportingDenyReason.NO_ACTIVE_SESSION) {
-            ReportingAccessValidator.validate(null, scope(), allBranches, null)
+            ReportingAccessValidator.validate(null, scope(), allBranches)
         }
     }
 
     @Test
-    fun adminWhoMustChangePinIsDenied() {
+    fun inactiveAdminIsDenied() {
         assertDenied(ReportingDenyReason.NOT_PERMITTED) {
             ReportingAccessValidator.validate(
-                session(requiresPinChange = true),
+                session(inactive = true),
                 scope(),
-                allBranches,
-                null
+                allBranches
             )
         }
     }
@@ -111,8 +105,7 @@ class ReportingScopeValidatorTest {
             ReportingAccessValidator.validate(
                 session(),
                 scope(businessId = "other"),
-                allBranches,
-                null
+                allBranches
             )
         }
     }
@@ -123,8 +116,7 @@ class ReportingScopeValidatorTest {
             ReportingAccessValidator.validate(
                 session(),
                 scope(branchId = "b9"),
-                allBranches,
-                null
+                allBranches
             )
         }
     }
@@ -135,8 +127,7 @@ class ReportingScopeValidatorTest {
             ReportingAccessValidator.validate(
                 session(),
                 scope(branchId = "b3", currency = "OMR"),
-                allBranches,
-                null
+                allBranches
             )
         }
     }
@@ -146,8 +137,7 @@ class ReportingScopeValidatorTest {
         val access = ReportingAccessValidator.validate(
             session(),
             scope(),
-            allBranches,
-            null
+            allBranches
         )
 
         assertEquals(listOf("b1", "b2"), access.branchIds)
@@ -160,20 +150,7 @@ class ReportingScopeValidatorTest {
             ReportingAccessValidator.validate(
                 session(),
                 scope(currency = "USD"),
-                allBranches,
-                null
-            )
-        }
-    }
-
-    @Test
-    fun unknownCashierFilterIsDenied() {
-        assertDenied(ReportingDenyReason.UNKNOWN_CASHIER) {
-            ReportingAccessValidator.validate(
-                session(),
-                scope(cashierUserId = "ghost"),
-                allBranches,
-                false
+                allBranches
             )
         }
     }
@@ -183,8 +160,7 @@ class ReportingScopeValidatorTest {
         val access = ReportingAccessValidator.validate(
             session(),
             scope(branchId = "b2"),
-            allBranches,
-            null
+            allBranches
         )
 
         assertEquals(listOf("b2"), access.branchIds)

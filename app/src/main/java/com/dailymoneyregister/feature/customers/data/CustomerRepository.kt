@@ -222,19 +222,11 @@ class CustomerRepository @Inject constructor(
     private fun requireDirectoryAccess(): String {
         val session = SessionManager.currentSession.value
             ?: throw PermissionDeniedException("No active session")
-        if (session.requiresPinChange || !session.user.isActive ||
+        if (!session.user.isActive ||
             session.user.businessId != session.business.id ||
             session.branch.businessId != session.business.id
         ) throw PermissionDeniedException("Active business session required")
 
-        if (session.user.role.name == "CASHIER") {
-            val membership = session.membership
-                ?: throw PermissionDeniedException("Active branch membership required")
-            if (membership.userId != session.user.id ||
-                membership.branchId != session.branch.id ||
-                membership.role.name != "CASHIER"
-            ) throw PermissionDeniedException("Active branch membership mismatch")
-        }
         PermissionChecker.assertPermitted(
             session.user, session.membership, PermissionAction.VIEW_BROAD_HISTORY
         )
@@ -256,17 +248,10 @@ class CustomerRepository @Inject constructor(
         /** UI gate mirrors directory access; history remains separately protected. */
         fun canViewCustomers(): Boolean {
             val session = SessionManager.currentSession.value ?: return false
-            if (session.requiresPinChange || !session.user.isActive ||
+            if (!session.user.isActive ||
                 session.user.businessId != session.business.id ||
                 session.branch.businessId != session.business.id
             ) return false
-            if (session.user.role.name == "CASHIER") {
-                val membership = session.membership ?: return false
-                if (membership.userId != session.user.id ||
-                    membership.branchId != session.branch.id ||
-                    membership.role.name != "CASHIER"
-                ) return false
-            }
             return PermissionChecker.isPermitted(
                 session.user, session.membership, PermissionAction.VIEW_BROAD_HISTORY
             )

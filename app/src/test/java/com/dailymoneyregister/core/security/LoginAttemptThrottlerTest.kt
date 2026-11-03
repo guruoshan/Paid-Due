@@ -38,37 +38,37 @@ private class TestSharedPreferences : SharedPreferences {
     }
 }
 
-class PinThrottlerTest {
+class LoginAttemptThrottlerTest {
     @Test
     fun lockoutOccursAfterFiveFailures() {
-        val throttler = PinThrottler(maxAttempts = 5, lockoutDurationMillis = 30_000L)
-        repeat(4) { assertEquals(0L, throttler.recordFailure("cashier", 1_000L)) }
-        assertEquals(30L, throttler.recordFailure("cashier", 1_000L))
-        assertTrue(throttler.isLockedOut("cashier", 1_000L))
+        val throttler = LoginAttemptThrottler(maxAttempts = 5, lockoutDurationMillis = 30_000L)
+        repeat(4) { assertEquals(0L, throttler.recordFailure("admin@example.com", 1_000L)) }
+        assertEquals(30L, throttler.recordFailure("admin@example.com", 1_000L))
+        assertTrue(throttler.isLockedOut("admin@example.com", 1_000L))
     }
 
     @Test
     fun lockoutExpiresAfterThirtySeconds() {
-        val throttler = PinThrottler(maxAttempts = 5, lockoutDurationMillis = 30_000L)
-        repeat(5) { throttler.recordFailure("cashier", 1_000L) }
-        assertTrue(throttler.isLockedOut("cashier", 30_999L))
-        assertFalse(throttler.isLockedOut("cashier", 31_000L))
+        val throttler = LoginAttemptThrottler(maxAttempts = 5, lockoutDurationMillis = 30_000L)
+        repeat(5) { throttler.recordFailure("admin@example.com", 1_000L) }
+        assertTrue(throttler.isLockedOut("admin@example.com", 30_999L))
+        assertFalse(throttler.isLockedOut("admin@example.com", 31_000L))
     }
 
     @Test
     fun successClearsFailureState() {
-        val throttler = PinThrottler(maxAttempts = 5, lockoutDurationMillis = 30_000L)
-        repeat(4) { throttler.recordFailure("cashier", 1_000L) }
-        throttler.recordSuccess("cashier")
-        assertEquals(0L, throttler.recordFailure("cashier", 1_000L))
+        val throttler = LoginAttemptThrottler(maxAttempts = 5, lockoutDurationMillis = 30_000L)
+        repeat(4) { throttler.recordFailure("admin@example.com", 1_000L) }
+        throttler.recordSuccess("admin@example.com")
+        assertEquals(0L, throttler.recordFailure("admin@example.com", 1_000L))
     }
 
     @Test
     fun stateSurvivesNewInstanceWithSharedPreferences() {
         val prefs = TestSharedPreferences()
-        repeat(4) { PinThrottler(prefs = prefs).recordFailure("cashier", 1_000L) }
-        val restored = PinThrottler(prefs = prefs)
-        assertEquals(30L, restored.recordFailure("cashier", 1_000L))
-        assertTrue(restored.isLockedOut("cashier", 1_000L))
+        repeat(4) { LoginAttemptThrottler(prefs = prefs).recordFailure("admin@example.com", 1_000L) }
+        val restored = LoginAttemptThrottler(prefs = prefs)
+        assertEquals(30L, restored.recordFailure("admin@example.com", 1_000L))
+        assertTrue(restored.isLockedOut("admin@example.com", 1_000L))
     }
 }
