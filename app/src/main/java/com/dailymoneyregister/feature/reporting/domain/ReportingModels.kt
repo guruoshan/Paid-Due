@@ -74,6 +74,7 @@ data class ReportBranch(
     }
 }
 
+/** Historical actor projection retained for report attribution; it is not a cashier-management model. */
 data class ReportCashier(
     val userId: String,
     val displayName: String?
