@@ -246,12 +246,6 @@ internal class RegisterShiftRepository(
             )
         }
 
-        if (session.requiresPinChange) {
-            return CommandResult.PermissionDenied(
-                "$actionLabel is unavailable until the cashier PIN is changed"
-            )
-        }
-
         val actor =
             userDao.getUserByIdInBusiness(
                 actorUserId,
