@@ -95,7 +95,7 @@ class ReportingScopeValidatorTest {
                 session(inactive = true),
                 scope(),
                 allBranches
-            )
+        )
         }
     }
 
@@ -106,7 +106,7 @@ class ReportingScopeValidatorTest {
                 session(),
                 scope(businessId = "other"),
                 allBranches
-            )
+        )
         }
     }
 
@@ -117,7 +117,7 @@ class ReportingScopeValidatorTest {
                 session(),
                 scope(branchId = "b9"),
                 allBranches
-            )
+        )
         }
     }
 
@@ -128,7 +128,7 @@ class ReportingScopeValidatorTest {
                 session(),
                 scope(branchId = "b3", currency = "OMR"),
                 allBranches
-            )
+        )
         }
     }
 
@@ -138,7 +138,7 @@ class ReportingScopeValidatorTest {
             session(),
             scope(),
             allBranches
-            )
+        )
 
         assertEquals(listOf("b1", "b2"), access.branchIds)
         assertEquals("OMR", access.currencyCode)
@@ -151,7 +151,7 @@ class ReportingScopeValidatorTest {
                 session(),
                 scope(currency = "USD"),
                 allBranches
-            )
+        )
         }
     }
 
@@ -161,7 +161,7 @@ class ReportingScopeValidatorTest {
             session(),
             scope(branchId = "b2"),
             allBranches
-            )
+        )
 
         assertEquals(listOf("b2"), access.branchIds)
         assertEquals("business", access.businessId)
