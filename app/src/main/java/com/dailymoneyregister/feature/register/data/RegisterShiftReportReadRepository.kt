@@ -100,7 +100,7 @@ internal class RegisterShiftReportReadRepository(
                 ?: return null
 
         val latest =
-            cashShiftDao.getLatestShiftForCashier(
+            cashShiftDao.getLatestShiftForUser(
                 branchId = session.branch.id,
                 userId = session.user.id
             ) ?: return null
