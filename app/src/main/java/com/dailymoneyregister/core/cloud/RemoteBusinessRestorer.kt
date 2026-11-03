@@ -284,8 +284,8 @@ class RemoteBusinessRestorer @Inject constructor(
         permissions: Map<String, Boolean>,
         activatedAtMillis: Long
     ): RemoteBusinessRestorationResult {
-        // This method is also a materialization boundary: reject legacy CASHIER
-        // payloads here so no caller can recreate an active cashier account.
+        // This method is also a materialization boundary: reject unsupported
+        // legacy role payloads so no caller can recreate a retired account.
         if (role != UserRole.ADMIN || authType != AuthType.PASSWORD) {
             return RemoteBusinessRestorationResult.Failed(
                 "Only Admin identities can be restored"
