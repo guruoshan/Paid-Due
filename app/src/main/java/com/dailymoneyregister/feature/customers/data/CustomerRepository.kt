@@ -227,14 +227,6 @@ class CustomerRepository @Inject constructor(
             session.branch.businessId != session.business.id
         ) throw PermissionDeniedException("Active business session required")
 
-        if (session.user.role.name == "CASHIER") {
-            val membership = session.membership
-                ?: throw PermissionDeniedException("Active branch membership required")
-            if (membership.userId != session.user.id ||
-                membership.branchId != session.branch.id ||
-                membership.role.name != "CASHIER"
-            ) throw PermissionDeniedException("Active branch membership mismatch")
-        }
         PermissionChecker.assertPermitted(
             session.user, session.membership, PermissionAction.VIEW_BROAD_HISTORY
         )
@@ -260,13 +252,6 @@ class CustomerRepository @Inject constructor(
                 session.user.businessId != session.business.id ||
                 session.branch.businessId != session.business.id
             ) return false
-            if (session.user.role.name == "CASHIER") {
-                val membership = session.membership ?: return false
-                if (membership.userId != session.user.id ||
-                    membership.branchId != session.branch.id ||
-                    membership.role.name != "CASHIER"
-                ) return false
-            }
             return PermissionChecker.isPermitted(
                 session.user, session.membership, PermissionAction.VIEW_BROAD_HISTORY
             )
