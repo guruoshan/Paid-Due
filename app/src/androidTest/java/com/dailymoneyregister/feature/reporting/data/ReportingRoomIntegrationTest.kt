@@ -321,7 +321,7 @@ class ReportingRoomIntegrationTest {
             ReportingScope(
                 businessId = business.id,
                 branchId = branch.id,
-currencyCode = branch.currencyCode,
+                currencyCode = branch.currencyCode,
                 period = ReportingPeriod(
                     fromInclusive = 1_000L,
                     toExclusive = 2_000L
@@ -413,7 +413,7 @@ currencyCode = branch.currencyCode,
             ReportingScope(
                 businessId = business.id,
                 branchId = branch.id,
-currencyCode = branch.currencyCode,
+                currencyCode = branch.currencyCode,
                 period = ReportingPeriod(
                     fromInclusive = 1_000L,
                     toExclusive = 2_000L
@@ -479,7 +479,7 @@ currencyCode = branch.currencyCode,
                 ReportingScope(
                     businessId = business.id,
                     branchId = branch.id,
-currencyCode = branch.currencyCode,
+                currencyCode = branch.currencyCode,
                     period = ReportingPeriod(1_000L, 2_000L)
                 )
             )
