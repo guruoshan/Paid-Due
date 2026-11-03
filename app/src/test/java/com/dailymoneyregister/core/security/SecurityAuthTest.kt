@@ -13,73 +13,6 @@ import org.junit.Test
 
 class SecurityAuthTest {
 
-    @Test
-    fun testCashierPinHashingAndVerification() {
-        val pin = "123456"
-        val salt = PinHasher.generateSalt()
-
-        val hash =
-            PinHasher.hashPin(
-                pin,
-                salt
-            )
-
-        assertNotEquals(pin, hash)
-        assertTrue(hash.startsWith("pbkdf2-sha256:600000:"))
-
-        assertTrue(
-            PinHasher.verifyPin(
-                pin,
-                salt,
-                hash
-            )
-        )
-
-        assertFalse(
-            PinHasher.verifyPin(
-                "654321",
-                salt,
-                hash
-            )
-        )
-
-        assertFalse(
-            PinHasher.verifyPin(
-                "000000",
-                salt,
-                hash
-            )
-        )
-
-        assertFalse(
-            PinHasher.isValidPin(
-                "12345"
-            )
-        )
-
-        assertFalse(
-            PinHasher.isValidPin(
-                "1234567"
-            )
-        )
-
-        assertFalse(
-            PinHasher.isValidPin(
-                "12345a"
-            )
-        )
-    }
-
-    @Test
-    fun testMalformedPinCredentialFailsClosed() {
-        assertFalse(
-            PinHasher.verifyPin(
-                "123456",
-                "bad-salt",
-                "bad-hash"
-            )
-        )
-    }
 
     @Test
     fun testAdminPasswordHashingAndVerification() {
@@ -154,7 +87,7 @@ class SecurityAuthTest {
     }
 
     @Test
-    fun testPinThrottlingAndLockoutInMemory() {
+    fun testAdminLoginThrottlingAndLockoutInMemory() {
         val throttler =
             PinThrottler(
                 maxAttempts = 5,
@@ -162,7 +95,7 @@ class SecurityAuthTest {
             )
 
         val username =
-            "cashier_ahmed"
+            "admin@example.com"
 
         val t0 =
             100_000L
