@@ -2,7 +2,7 @@ package com.dailymoneyregister.core.di
 
 import android.content.Context
 import com.dailymoneyregister.core.i18n.LanguageManager
-import com.dailymoneyregister.core.security.PinThrottler
+import com.dailymoneyregister.core.security.LoginAttemptThrottler
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -16,8 +16,8 @@ object SecurityModule {
 
     @Provides
     @Singleton
-    fun providePinThrottler(@ApplicationContext context: Context): PinThrottler {
-        return PinThrottler(context = context)
+    fun provideLoginAttemptThrottler(@ApplicationContext context: Context): LoginAttemptThrottler {
+        return LoginAttemptThrottler(context = context)
     }
 
     @Provides
