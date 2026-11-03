@@ -37,21 +37,19 @@ class ReportingScopeValidatorTest {
     private val b3 = branch("b3", "INR")
     private val foreign = branch("b9", "OMR", businessId = "other")
 
-    private val cashier =
+    private val admin =
         UserAccountEntity(
-            id = "cashier",
+            id = "admin",
             businessId = "business",
-            displayName = "Cashier",
-            username = "cashier",
-            role = UserRole.CASHIER,
-            authType = AuthType.PIN,
+            displayName = "Admin",
+            username = "admin",
+            role = UserRole.ADMIN,
+            authType = AuthType.PASSWORD,
             credentialHash = "hash",
             credentialSalt = "salt",
             createdAt = 0L,
             updatedAt = 0L
         )
-
-    private val admin = cashier.copy(id = "admin", username = "admin", role = UserRole.ADMIN, authType = AuthType.PASSWORD)
 
     private fun session(inactive: Boolean = false, businessOverride: BusinessEntity = business) =
         ActiveSession(
@@ -64,12 +62,10 @@ class ReportingScopeValidatorTest {
     private fun scope(
         businessId: String = "business",
         branchId: String? = null,
-        cashierUserId: String? = null,
         currency: String = "OMR"
     ) = ReportingScope(
         businessId = businessId,
         branchId = branchId,
-        cashierUserId = cashierUserId,
         currencyCode = currency,
         period = ReportingPeriod(fromInclusive = 100L, toExclusive = 200L)
     )
@@ -161,18 +157,6 @@ class ReportingScopeValidatorTest {
                 scope(currency = "USD"),
                 allBranches,
                 null
-            )
-        }
-    }
-
-    @Test
-    fun unknownCashierFilterIsDenied() {
-        assertDenied(ReportingDenyReason.UNKNOWN_CASHIER) {
-            ReportingAccessValidator.validate(
-                session(),
-                scope(cashierUserId = "ghost"),
-                allBranches,
-                false
             )
         }
     }
