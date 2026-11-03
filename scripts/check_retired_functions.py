@@ -24,6 +24,8 @@ STAGED_FILES = (
     "fetch_cashier_financial_envelopes.sql",
 )
 STAFF_FUNCTIONS = ("staff-invite", "staff-activate", "staff-open", "staff-preview")
+# This private trigger is the new ADMIN-only guard, not a retired staff RPC.
+ALLOWED_RETIREMENT_GUARDS = {"prevent_new_cashier_memberships"}
 
 
 def uncomment(sql: str) -> str:
@@ -99,7 +101,7 @@ def scan_recreations(functions: list[str]) -> list[str]:
                 or "cashier" in name
                 or "staff" in name
                 or "permission_request" in name
-            ):
+            ) and name not in ALLOWED_RETIREMENT_GUARDS:
                 offenders.append(f"{path.relative_to(ROOT)}: CREATE FUNCTION {name}")
     return offenders
 
