@@ -38,8 +38,6 @@
     <string name="open_cash_register_desc">দ্রুত নগদ বিক্রয়, ক্যালকুলেটর, চালান ও শিপিং</string>
     <string name="settings_languages_desc">অ্যাপের ভাষা পরিবর্তন করুন বা প্রোফাইল দেখুন</string>
 
-    <!-- Cashier Management -->
-
     <!-- Settings -->
     <string name="settings">সেটিংস</string>
     <string name="change_language">ভাষা</string>
@@ -218,7 +216,6 @@
     <string name="tx_settlement_funding_correction">ফান্ডিং সংশোধন</string>
     <string name="tx_settlement_payment_reclassification">পেমেন্ট পদ্ধতি পুনঃশ্রেণীবিন্যাস</string>
     <string name="tx_settlement_void_reversal">বাতিল রিভার্সাল</string>
-    <string name="tx_confirmation_cashier">ক্যাশিয়ার দ্বারা নিশ্চিত</string>
     <string name="tx_confirmation_provider">প্রদানকারী দ্বারা অনুমোদিত</string>
     <string name="history_back">ফিরে যান</string>
     <string name="history_search_hint">তারিখ, ফোন, নাম বা পরিমাণ খুঁজুন</string>
