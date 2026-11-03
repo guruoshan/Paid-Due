@@ -639,6 +639,7 @@ class RegisterViewModel internal constructor(
     fun clearDraft() {
         val sessionSnapshot = SessionManager.currentSession.value
         if (synchronizeFinancialSession(sessionSnapshot)) return
+        if (_uiState.value.isExecuting) return
         draftCompositionCoordinator.clearDraft(sessionSnapshot?.branch)
     }
 
@@ -850,6 +851,7 @@ class RegisterViewModel internal constructor(
     fun startNewSale() {
         val sessionSnapshot = SessionManager.currentSession.value
         if (synchronizeFinancialSession(sessionSnapshot)) return
+        if (_uiState.value.isExecuting) return
         val branch = sessionSnapshot?.branch
         _uiState.value = RegisterUiState(
             calculatorState = CalculatorState(),

@@ -353,6 +353,66 @@ class RegisterViewModelSessionTest {
         assertEquals(MoneyMinorUnits.ZERO, vm.uiState.value.draftState.grandTotal)
     }
 
+    @Test
+    fun clearDraftDuringInFlightSaleIsIgnoredAndCompletionStillLands() = runTest {
+        val gate = CompletableDeferred<CommandResult<TransactionEntity>>()
+        val vm = viewModel { _, _, _ -> gate.await() }
+        vm.onKeypadPress(KeypadKey.Digit('1'))
+        vm.executeCashSale()
+        runCurrent()
+        assertTrue(vm.uiState.value.isExecuting)
+
+        vm.clearDraft()
+        runCurrent()
+        // Expected after the fix: reset is refused while a sale is in flight.
+        assertTrue(vm.uiState.value.isExecuting)
+        assertNotEquals(MoneyMinorUnits.ZERO, vm.uiState.value.draftState.grandTotal)
+
+        gate.complete(CommandResult.Success(transaction()))
+        runCurrent()
+        assertFalse(vm.uiState.value.isExecuting)
+        assertNotNull(vm.uiState.value.lastCompletedTransaction)
+    }
+
+    @Test
+    fun sessionChangeDuringInFlightSaleResetsStateAndClearsExecuting() = runTest {
+        val gate = CompletableDeferred<CommandResult<TransactionEntity>>()
+        val vm = viewModel { _, _, _ -> gate.await() }
+        vm.onKeypadPress(KeypadKey.Digit('1'))
+        vm.executeCashSale()
+        runCurrent()
+        assertTrue("sale not in flight before session switch", vm.uiState.value.isExecuting)
+
+        SessionManager.setSession(b)
+        runCurrent()
+        assertFalse("session change did not clear in-flight state", vm.uiState.value.isExecuting)
+        assertEquals(MoneyMinorUnits.ZERO, vm.uiState.value.draftState.grandTotal)
+
+        gate.complete(CommandResult.Success(transaction()))
+        runCurrent()
+        assertNull(vm.uiState.value.lastCompletedTransaction)
+    }
+
+    @Test
+    fun startNewSaleDuringInFlightSaleIsIgnoredAndCompletionStillLands() = runTest {
+        val gate = CompletableDeferred<CommandResult<TransactionEntity>>()
+        val vm = viewModel { _, _, _ -> gate.await() }
+        vm.onKeypadPress(KeypadKey.Digit('1'))
+        vm.executeCashSale()
+        runCurrent()
+        assertTrue("sale not in flight before startNewSale", vm.uiState.value.isExecuting)
+
+        vm.startNewSale()
+        runCurrent()
+        assertTrue("startNewSale reset an in-flight sale", vm.uiState.value.isExecuting)
+        assertNotEquals("startNewSale cleared the draft during a sale", MoneyMinorUnits.ZERO, vm.uiState.value.draftState.grandTotal)
+
+        gate.complete(CommandResult.Success(transaction()))
+        runCurrent()
+        assertFalse("sale still in flight after completion", vm.uiState.value.isExecuting)
+        assertNotNull("completed sale not recorded", vm.uiState.value.lastCompletedTransaction)
+    }
+
     private fun viewModel(
         execute: suspend (CashSaleCommand, UserAccountEntity, UserBranchMembershipEntity?) -> CommandResult<TransactionEntity> =
             { _, _, _ -> error("No sale should be admitted") }

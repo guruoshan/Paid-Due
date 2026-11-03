@@ -319,6 +319,7 @@ internal fun RegisterMainContentHost(
                     }
                     Button(
                         onClick = { viewModel.clearDraft() },
+                        enabled = !state.isExecuting,
                         modifier = Modifier.weight(1f).height(sizing.actionHeight),
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 4.dp),
