@@ -1,3 +1,6 @@
+-- RETIRED FEATURE: Cashier/staff functionality has been retired.
+-- DO NOT APPLY or auto-deploy this staged SQL.
+-- Kept unchanged as historical evidence only; deployment tooling must exclude this file.
 -- BOARDLOCK STAGED SQL — FETCH CASHIER METADATA RPC. DO NOT APPLY OR AUTO-DEPLOY.
 create or replace function public.fetch_cashier_metadata(
     p_business_id text,

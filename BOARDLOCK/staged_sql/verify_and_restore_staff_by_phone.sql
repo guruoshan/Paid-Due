@@ -1,3 +1,6 @@
+-- RETIRED FEATURE: Cashier/staff functionality has been retired.
+-- DO NOT APPLY or auto-deploy this staged SQL.
+-- Kept unchanged as historical evidence only; deployment tooling must exclude this file.
 -- BOARDLOCK: fail-closed retirement of an UNSAFE staged verification function.
 -- This does not create an alternative cashier login mechanism.
 -- Previous implementation accepted a formatted PIN without PBKDF2 comparison.

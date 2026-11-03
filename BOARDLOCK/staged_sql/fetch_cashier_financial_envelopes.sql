@@ -1,3 +1,6 @@
+-- RETIRED FEATURE: Cashier/staff functionality has been retired.
+-- DO NOT APPLY or auto-deploy this staged SQL.
+-- Kept unchanged as historical evidence only; deployment tooling must exclude this file.
 -- BOARDLOCK STAGED SQL — CASHIER FINANCIAL DOWNLOAD. DO NOT APPLY/AUTO-DEPLOY.
 -- The API supplies scope only after verifying the bearer-backed sync session;
 -- this RPC independently rechecks active cashier membership and branch scope.

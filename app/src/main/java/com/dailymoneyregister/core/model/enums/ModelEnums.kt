@@ -11,13 +11,17 @@ enum class OperationType {
     CREATE_BUSINESS,
     CREATE_BRANCH,
     CREATE_ADMIN,
-    // Retired cashier-management operation tokens remain only for historical Room decoding.
+    // Legacy operation token retained only to decode historical Room rows; execution is retired.
     CREATE_CASHIER,
     UPDATE_USER_LANGUAGE,
     UPDATE_BUSINESS_PROFILE,
+    // Legacy operation token retained only to decode historical Room rows; execution is retired.
     UPDATE_CASHIER,
+    // Legacy operation token retained only to decode historical Room rows; execution is retired.
     UPDATE_CASHIER_PERMISSIONS,
+    // Legacy operation token retained only to decode historical Room rows; execution is retired.
     DISABLE_CASHIER,
+    // Legacy operation token retained only to decode historical Room rows; execution is retired.
     ENABLE_CASHIER,
     ADMIN_RESET_PIN,
     RECORD_SALE,

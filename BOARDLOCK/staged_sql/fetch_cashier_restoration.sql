@@ -1,3 +1,6 @@
+-- RETIRED FEATURE: Cashier/staff functionality has been retired.
+-- DO NOT APPLY or auto-deploy this staged SQL.
+-- Kept unchanged as historical evidence only; deployment tooling must exclude this file.
 -- Paid & Due: return the authenticated cashier's complete restoration payload.
 -- Called only by the API after the cashier's PIN has been verified.
 -- The caller uses the service-role key; the RPC is not exposed to app roles.
