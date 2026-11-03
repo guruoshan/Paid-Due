@@ -7,6 +7,7 @@ import com.dailymoneyregister.core.database.entity.OperationEntity
 import com.dailymoneyregister.core.database.entity.SettlementEntryEntity
 import com.dailymoneyregister.feature.customers.data.CustomerIdentity
 import com.dailymoneyregister.feature.register.data.ExpenseCategory
+import com.dailymoneyregister.core.model.enums.CashShiftEventType
 import com.dailymoneyregister.core.model.enums.ConfirmationType
 import com.dailymoneyregister.core.model.enums.EntryPurpose
 import com.dailymoneyregister.core.model.enums.OperationStatus
@@ -165,6 +166,10 @@ internal object RemoteExpenseEnvelopeMaterializer {
             require(cashShift.userId == actorUserId) {
                 "Expense cash shift belongs to another actor"
             }
+            require(
+                database.cashShiftDao().getEventsForShift(cashShift.id)
+                    .none { it.type == CashShiftEventType.CLOSED }
+            ) { "Expense cash shift is closed" }
 
             CustomerIdentityReconciler.reconcileEvidenceCustomers(
                 database, businessId,
