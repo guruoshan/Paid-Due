@@ -4,7 +4,7 @@
     <string name="dmr20_confirm_day_closing">Confirm Day Closing</string>
     <string name="dmr20_day_loading">Loading register shift report…</string>
     <string name="dmr20_day_no_open">No open register shift to close.</string>
-    <string name="dmr20_day_ready">register shift report is ready.</string>
+    <string name="dmr20_day_ready">Register shift report is ready.</string>
     <string name="dmr20_day_review_totals">Review the authoritative shift totals before closing.</string>
     <string name="dmr20_actual_cash">Actual cash counted</string>
     <string name="dmr20_day_notice">Closing saves the cash count and closes only your register shift. Existing transactions are not changed.</string>
