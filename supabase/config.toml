@@ -2,15 +2,3 @@ project_id = "ttvdpgxqvvtjnxxfkoui"
 
 [functions.api]
 verify_jwt = false
-
-[functions.staff-invite]
-verify_jwt = true
-
-[functions.staff-activate]
-verify_jwt = true
-
-[functions.staff-open]
-verify_jwt = true
-
-[functions.staff-preview]
-verify_jwt = true

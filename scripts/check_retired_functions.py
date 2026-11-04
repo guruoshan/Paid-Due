@@ -23,7 +23,6 @@ STAGED_FILES = (
     "fetch_cashier_metadata.sql",
     "fetch_cashier_financial_envelopes.sql",
 )
-STAFF_FUNCTIONS = ("staff-invite", "staff-activate", "staff-open", "staff-preview")
 # This private trigger is the new ADMIN-only guard, not a retired staff RPC.
 ALLOWED_RETIREMENT_GUARDS = {"prevent_new_cashier_memberships"}
 
@@ -120,27 +119,6 @@ def check_staged_headers() -> list[str]:
     return errors
 
 
-def check_edge_retirement() -> list[str]:
-    errors: list[str] = []
-    config = (ROOT / "supabase" / "config.toml").read_text(encoding="utf-8")
-    for slug in STAFF_FUNCTIONS:
-        section = re.search(
-            rf"(?ms)^\[functions\.{re.escape(slug)}\]\s*(.*?)(?=^\[|\Z)", config
-        )
-        if not section or not re.search(r"(?m)^verify_jwt\s*=\s*true\s*$", section.group(1)):
-            errors.append(f"supabase/config.toml: {slug} must set verify_jwt = true")
-        handler = ROOT / "supabase" / "functions" / slug / "index.ts"
-        if not handler.is_file():
-            errors.append(f"missing retired handler: {handler.relative_to(ROOT)}")
-            continue
-        source = handler.read_text(encoding="utf-8")
-        if not re.search(r"\bstatus\s*:\s*410\b", source):
-            errors.append(f"{handler.relative_to(ROOT)}: retired handler must return HTTP 410")
-        if re.search(r"\b(?:fetch|createClient|createClientFromRequest)\s*\(", source):
-            errors.append(f"{handler.relative_to(ROOT)}: retired handler must not call external services")
-    return errors
-
-
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--write", action="store_true", help="regenerate the embedded SQL assertions")
@@ -170,14 +148,13 @@ def main() -> int:
     else:
         print(f"PASS: {len(functions)} retired function signatures are asserted in the SQL contract")
 
-    errors = scan_recreations(functions) + check_staged_headers() + check_edge_retirement()
+    errors = scan_recreations(functions) + check_staged_headers()
     if errors:
         for error in errors:
             print(f"FAIL: {error}")
         return 1
     print("PASS: no retired function recreation found in post-retirement migrations")
     print(f"PASS: all {len(STAGED_FILES)} staged cashier SQL files carry retirement warnings")
-    print(f"PASS: all {len(STAFF_FUNCTIONS)} retired Edge Function configs require JWT and handlers return 410")
     return 0
 
 

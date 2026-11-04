@@ -1,3 +1,5 @@
+> **HISTORICAL ARCHIVE — NOT CURRENT PRODUCT OR DEPLOYMENT GUIDANCE.** The cashier/staff invitation, activation, login, and management feature has been retired. Do not follow any cashier/staff workflow or endpoint examples below. Retained only to document prior implementation and decisions.
+
 # BOARDLOCK — Paid & Due Offline-First Supabase Migration Plan
 
 **Plan version:** 1.0  

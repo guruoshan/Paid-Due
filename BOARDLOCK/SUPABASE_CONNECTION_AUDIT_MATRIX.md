@@ -1,3 +1,5 @@
+> **HISTORICAL ARCHIVE — NOT CURRENT PRODUCT OR DEPLOYMENT GUIDANCE.** The cashier/staff invitation, activation, login, and management feature has been retired. Do not follow any cashier/staff workflow or endpoint examples below. Retained only to document prior implementation and decisions.
+
 # BOARDLOCK — Supabase Connection Audit Matrix
 
 **Audited source:** `migration/supabase-edge-only` at `6a45e5b04ec975df4142428cd86ef0b83d5724e6`  
