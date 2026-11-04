@@ -17,7 +17,7 @@ The following entries document owner-reported manual production actions and read
 - **Execution:** 2026-11-03 23:25:36 UTC, corroborated by the PostgreSQL log.
 - **Verification time:** not recorded by owner.
 - **Catalog state on 2026-11-04:** all three objects present; the constraint is validated.
-- **Body comparison:** function matches the repository definition except for explicit `SECURITY INVOKER` (the PostgreSQL default); trigger definition matches; constraint expression is textually different but semantically equivalent for the tested contract: the isolated CHECK/trigger behavior contract passed in PR #163's SQL Behavioral Gate run 41802243815.
+- **Body comparison:** function matches the repository definition except for explicit `SECURITY INVOKER` (the PostgreSQL default); trigger definition matches; constraint expression is textually different; constraint behavior tested against a fixture predicate in PR #163; parity with the production predicate not yet proven. The isolated CHECK/trigger behavior contract passed in PR #163's SQL Behavioral Gate run 41802243815.
 - **Repository representation:** `supabase/migrations/20261029010000_enforce_admin_only_role.sql` is the intended source representation; its remote migration-ledger status remains a separate reconciliation item. Any history reconciliation must be handled in a separate PR and must not reapply the DDL.
 
 ### 2. Five retired cashier/staff tables dropped manually
@@ -25,7 +25,7 @@ The following entries document owner-reported manual production actions and read
 - **Action:** Dropped `private.cashier_sync_sessions`, `private.staff_invite_activations`, `private.staff_invites`, `private.cashier_permission_requests`, and `private.staff_admin_audit_events`.
 - **Time:** not recorded by owner.
 - **Preconditions:** owner-reported checks established zero rows and no inbound foreign keys before each drop.
-- **Repository representation:** `supabase/migrations/20261023050000_retire_cashier_feature.sql` records the broader retirement but contains DELETE statements for four of these tables, not the manual DROP operations. A distinct migration representing the table drops is **to be added in a separate PR**; do not replay it against production as part of this closeout.
+- **Repository representation:** `supabase/migrations/20261023050000_retire_cashier_feature.sql` contains DELETE statements for all five named tables (`cashier_sync_sessions`, `staff_invite_activations`, `staff_invites`, `cashier_permission_requests`, and `staff_admin_audit_events`) and also for `staff_identities`. It does not DROP any of these tables. The manual table-drop operations are represented by a separate migration still to be added; do not replay it against production as part of this closeout.
 
 ### 3. RLS enabled on financial operation envelopes
 
