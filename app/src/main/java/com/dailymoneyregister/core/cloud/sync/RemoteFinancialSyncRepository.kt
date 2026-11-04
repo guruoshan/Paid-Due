@@ -241,24 +241,6 @@ class RemoteFinancialSyncRepository @Inject constructor(
         }
     }
 
-    private fun org.json.JSONArray.toEnvelopeList(): List<RemoteEnvelopeV2> = (0 until length()).map { i ->
-        val row = getJSONObject(i)
-        val text = row.getString("canonical_text")
-        RemoteEnvelopeV2(
-            operationId = row.getString("operation_id"),
-            businessId = row.getString("business_id"),
-            branchId = row.optString("branch_id", null),
-            operationType = row.getString("operation_type"),
-            occurredAtIso = row.getString("occurred_at"),
-            receivedAtIso = row.getString("received_at"),
-            canonicalText = text,
-            payloadJson = JSONObject(row.optJSONObject("canonical_payload")?.toString() ?: text),
-            canonicalSha256 = row.optString("canonical_sha256").ifBlank { null },
-            actorMembershipId = row.optString("actor_membership_id").ifBlank { null },
-            actorLocalUserId = row.optString("actor_local_user_id").ifBlank { null },
-            actorRole = row.optString("actor_role").ifBlank { null }
-        )
-    }
 }
 
 internal object FinancialSyncErrorClassifier {
