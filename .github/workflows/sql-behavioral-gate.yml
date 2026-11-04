@@ -121,6 +121,7 @@ jobs:
             can_view_reports boolean NOT NULL DEFAULT false,
             can_create_expense boolean NOT NULL DEFAULT false,
             can_view_customer_directory boolean NOT NULL DEFAULT false,
+            -- Mirrors the production principal-role CHECK from the cashier-retirement migration.
             CONSTRAINT business_memberships_principal_role_check CHECK (
               (role = 'ADMIN' AND auth_user_id IS NOT NULL AND staff_identity_id IS NULL)
               OR (role = 'CASHIER' AND auth_user_id IS NULL AND (
