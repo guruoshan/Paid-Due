@@ -17,7 +17,7 @@ The following entries document owner-reported manual production actions and read
 - **Execution:** 2026-11-03 23:25:36 UTC, corroborated by the PostgreSQL log.
 - **Verification time:** not recorded by owner.
 - **Catalog state on 2026-11-04:** all three objects present; the constraint is validated.
-- **Body comparison:** function matches the repository definition except for explicit `SECURITY INVOKER` (the PostgreSQL default); trigger definition matches; constraint expression is textually different. Semantic equivalence remains pending the isolated behavioral contract in Step 2 of the cashier-retirement closeout.
+- **Body comparison:** function matches the repository definition except for explicit `SECURITY INVOKER` (the PostgreSQL default); trigger definition matches; constraint expression is textually different but semantically equivalent for the tested contract: the isolated CHECK/trigger behavior contract passed in PR #163's SQL Behavioral Gate run 41802243815.
 - **Repository representation:** `supabase/migrations/20261029010000_enforce_admin_only_role.sql` is the intended source representation; its remote migration-ledger status remains a separate reconciliation item. Any history reconciliation must be handled in a separate PR and must not reapply the DDL.
 
 ### 2. Five retired cashier/staff tables dropped manually
@@ -32,7 +32,7 @@ The following entries document owner-reported manual production actions and read
 - **Action:** RLS enabled on `private.financial_operation_envelopes`.
 - **Time:** not recorded by owner.
 - **Catalog state on 2026-11-04:** `relrowsecurity=true`, `relforcerowsecurity=false`; no grants to `anon`, `authenticated`, or `public`.
-- **Repository representation:** the existing table-definition/staged SQL describes RLS, but the authoritative production change is not yet represented by a verified applied migration. A reviewed migration representation is **to be added in a separate PR**; do not apply it as part of this documentation change.
+- **Repository representation:** `BOARDLOCK/staged_sql/financial_operation_envelopes.sql` contains the RLS enablement and revoke statements, but is staged SQL rather than an applied migration. A reviewed migration representation is **to be added in a separate PR**; do not apply it as part of this documentation change.
 
 ### 4. PIN pepper secret removed
 
