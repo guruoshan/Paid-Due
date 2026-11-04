@@ -89,12 +89,19 @@ jobs:
           DROP FUNCTION IF EXISTS public.ingest_cashier_financial_envelope(text,text,text,text,text,text,integer,timestamptz,text,date,text,text,jsonb);
           DROP TABLE IF EXISTS public.business_memberships CASCADE;
           CREATE SCHEMA IF NOT EXISTS private;
+          CREATE SCHEMA IF NOT EXISTS auth;
+          CREATE TABLE IF NOT EXISTS auth.users (
+            id uuid PRIMARY KEY
+          );
+          CREATE TABLE IF NOT EXISTS public.businesses (
+            id text PRIMARY KEY
+          );
           CREATE TABLE public.business_memberships (
             id text PRIMARY KEY,
-            business_id text NOT NULL,
+            business_id text NOT NULL REFERENCES public.businesses(id),
             branch_id text NOT NULL,
             role text NOT NULL,
-            auth_user_id uuid,
+            auth_user_id uuid REFERENCES auth.users(id),
             staff_identity_id uuid,
             is_active boolean NOT NULL DEFAULT false,
             removed_at timestamptz,
@@ -113,7 +120,14 @@ jobs:
             can_manage_products boolean NOT NULL DEFAULT false,
             can_view_reports boolean NOT NULL DEFAULT false,
             can_create_expense boolean NOT NULL DEFAULT false,
-            can_view_customer_directory boolean NOT NULL DEFAULT false
+            can_view_customer_directory boolean NOT NULL DEFAULT false,
+            CONSTRAINT business_memberships_principal_role_check CHECK (
+              (role = 'ADMIN' AND auth_user_id IS NOT NULL AND staff_identity_id IS NULL)
+              OR (role = 'CASHIER' AND auth_user_id IS NULL AND (
+                staff_identity_id IS NOT NULL
+                OR (staff_identity_id IS NULL AND is_active = false AND removed_at IS NOT NULL)
+              ))
+            )
           );
           SQL
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261029010000_enforce_admin_only_role.sql
