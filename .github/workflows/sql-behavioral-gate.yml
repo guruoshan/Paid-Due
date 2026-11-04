@@ -44,7 +44,7 @@ jobs:
           EOF
 
       - name: Start disposable local Supabase stack
-        run: supabase start --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor --workdir /tmp/supabase-sql-gate
+        run: supabase start --exclude realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor --workdir /tmp/supabase-sql-gate
 
       - name: Install PostgreSQL client
         run: |
@@ -89,10 +89,6 @@ jobs:
           DROP FUNCTION IF EXISTS public.ingest_cashier_financial_envelope(text,text,text,text,text,text,integer,timestamptz,text,date,text,text,jsonb);
           DROP TABLE IF EXISTS public.business_memberships CASCADE;
           CREATE SCHEMA IF NOT EXISTS private;
-          CREATE SCHEMA IF NOT EXISTS auth;
-          CREATE TABLE IF NOT EXISTS auth.users (
-            id uuid PRIMARY KEY
-          );
           CREATE TABLE IF NOT EXISTS public.businesses (
             id text PRIMARY KEY
           );
