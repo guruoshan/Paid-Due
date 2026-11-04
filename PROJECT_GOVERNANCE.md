@@ -526,18 +526,15 @@ This is a conscious product/security decision for the current register/accountab
 
 Approved behavior:
 
-- Admin/Cashier authenticates initially.
-- Same trusted installation may remain signed in across app close/restart/process death.
-- Normal Cash Sales do not repeatedly request PIN.
+- The Admin authenticates initially.
+- The same trusted installation may remain signed in across app close/restart/process death.
 - Logout ends the trusted session.
-- Future Switch Cashier ends the current identity and requires the next cashier to authenticate.
-- New/untrusted device requires authentication.
-- Cashier forced-PIN-change rules remain enforced.
+- A new/untrusted device requires authentication.
 - Sensitive future operations may require permission checks or selective reauthentication only when explicitly designed.
 
-Do not introduce idle auto-lock, repeated PIN prompts, or a lock screen without an approved product/security decision.
+The cashier/staff login, invitation, activation, PIN, and management flows were retired on 2026-10-23. Do not implement or restore those flows; see the [Cashier Retirement Audit](docs/audit/CASHIER_RETIREMENT_AUDIT_2026-10-29.md).
 
-Wrong-PIN throttling remains separate from idle-lock behavior.
+Do not introduce idle auto-lock or a lock screen without an approved product/security decision.
 
 Re-review this decision before introducing:
 

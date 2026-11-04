@@ -1,4 +1,4 @@
-> **HISTORICAL ARCHIVE — NOT CURRENT PRODUCT OR DEPLOYMENT GUIDANCE.** The cashier/staff invitation, activation, login, and management feature has been retired. Do not follow any cashier/staff workflow or endpoint examples below. Retained only to document prior implementation and decisions.
+> **HISTORICAL ARCHIVE — NOT CURRENT PRODUCT OR DEPLOYMENT GUIDANCE.** The cashier/staff invitation, activation, login, PIN, and management flows were retired on 2026-10-23. Do not follow or restore any workflow or endpoint examples below. This file is retained only as historical evidence; see the [Cashier Retirement Audit](docs/audit/CASHIER_RETIREMENT_AUDIT_2026-10-29.md).
 
 ﻿# Onboarding Progress
 
