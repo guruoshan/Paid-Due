@@ -7,6 +7,46 @@ Evidence branch base: `main` at merge commit `dc21e1c62dc558a38b4c9cbf716a24e386
 Supabase project: `ttvdpgxqvvtjnxxfkoui`  
 Production evidence: read-only Supabase catalog queries, `list_migrations`, `list_edge_functions`, and PostgreSQL logs queried on 2026-11-04.
 
+## Manual production changes, 3–4 November 2026
+
+The following entries document owner-reported manual production actions and read-only catalog/log evidence. They do not authorize replay, migration repair, or production mutation.
+
+### 1. Cashier-retirement guard DDL
+
+- **Action:** Function `private.prevent_new_cashier_memberships()`, trigger `public.trg_prevent_new_cashier_memberships`, and constraint `business_memberships_cashier_retirement_check` applied through the Supabase Dashboard SQL Editor.
+- **Execution:** 2026-11-03 23:25:36 UTC, corroborated by the PostgreSQL log.
+- **Verification time:** not recorded by owner.
+- **Catalog state on 2026-11-04:** all three objects present; the constraint is validated.
+- **Body comparison:** function matches the repository definition except for explicit `SECURITY INVOKER` (the PostgreSQL default); trigger definition matches; constraint expression is textually different but semantically equivalent for the tested contract: the isolated CHECK/trigger behavior contract passed in PR #163's SQL Behavioral Gate run 41802243815.
+- **Repository representation:** `supabase/migrations/20261029010000_enforce_admin_only_role.sql` is the intended source representation; its remote migration-ledger status remains a separate reconciliation item. Any history reconciliation must be handled in a separate PR and must not reapply the DDL.
+
+### 2. Five retired cashier/staff tables dropped manually
+
+- **Action:** Dropped `private.cashier_sync_sessions`, `private.staff_invite_activations`, `private.staff_invites`, `private.cashier_permission_requests`, and `private.staff_admin_audit_events`.
+- **Time:** not recorded by owner.
+- **Preconditions:** owner-reported checks established zero rows and no inbound foreign keys before each drop.
+- **Repository representation:** `supabase/migrations/20261023050000_retire_cashier_feature.sql` records the broader retirement but contains DELETE statements for four of these tables, not the manual DROP operations. A distinct migration representing the table drops is **to be added in a separate PR**; do not replay it against production as part of this closeout.
+
+### 3. RLS enabled on financial operation envelopes
+
+- **Action:** RLS enabled on `private.financial_operation_envelopes`.
+- **Time:** not recorded by owner.
+- **Catalog state on 2026-11-04:** `relrowsecurity=true`, `relforcerowsecurity=false`; no grants to `anon`, `authenticated`, or `public`.
+- **Repository representation:** `BOARDLOCK/staged_sql/financial_operation_envelopes.sql` contains the RLS enablement and revoke statements, but is staged SQL rather than an applied migration. A reviewed migration representation is **to be added in a separate PR**; do not apply it as part of this documentation change.
+
+### 4. PIN pepper secret removed
+
+- **Action:** owner deleted the PIN pepper secret.
+- **Time:** not recorded by owner.
+- **Secret name:** not recorded in the available owner evidence; no value is recorded here.
+- **Repository representation:** secrets are operational project configuration and must not be embedded in a SQL migration. A non-secret inventory/runbook record is **to be added in a separate PR** after the owner supplies the exact secret name.
+
+### 5. Retired staff Edge Functions
+
+- **Action:** `staff-invite`, `staff-activate`, `staff-open`, and `staff-preview` were redeployed with `verify_jwt=true` (versions v15, v9, v13, and v6 respectively), subsequently deleted from production (404 confirmed), and their source removed in PR #159.
+- **Time:** exact deployment/deletion times not recorded by owner.
+- **Repository representation:** source retirement is represented by PR #159; deployment JWT settings and production deletion are operational Dashboard/API actions, not SQL migration effects. Any durable non-secret operational inventory note is **to be added in a separate PR** if required by the owner.
+
 ## 1. Count reconciliation: the earlier 15/13 statement is not reproduced
 
 The latest production migration list and the existing 2026-11-01 reconciliation evidence produce **13 local-only version numbers and 13 remote-only version numbers**, not 15 local-only and 13 remote-only.
