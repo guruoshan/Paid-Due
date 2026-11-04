@@ -42,7 +42,7 @@ No version has been silently renamed, deleted, re-dated, repaired, or applied as
 - `public.trg_prevent_new_cashier_memberships`: present.
 - `business_memberships_cashier_retirement_check`: present and validated.
 - Ledger versions `20261029010000`, `20261027175000`, `20261027190000`, and `20261027193000`: absent from the remote migration ledger.
-- `staff-invite`, `staff-activate`, `staff-open`, and `staff-preview`: active; all four still report `verify_jwt=false`.
+- `staff-invite`, `staff-activate`, `staff-open`, and `staff-preview`: deployed with `verify_jwt=true` (v15, v9, v13, v6), then deleted from production and removed from `main` (PR #159). Historical state, recorded 4 November 2026.
 - `sync_customer_directory_list` and `sync_customer_directory_upsert`: absent from `pg_proc`; no live function definition references either legacy function name.
 - The Supabase project migration list still shows the two live-only versions and the nine version-name mismatches above. No migration-history repair was run.
 

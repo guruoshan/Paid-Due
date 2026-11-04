@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - feature/supabase-notification-inbox-day-close-permissions-20261010
-      - fix/direct-cashier-invite-app-launch-20261010
   pull_request:
     branches:
       - migration/supabase-auth-invites-no-cloudflare-20261010
