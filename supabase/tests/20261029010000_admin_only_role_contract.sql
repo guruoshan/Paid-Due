@@ -1,136 +1,58 @@
 -- Disposable/staging contract checks for the final ADMIN-only role boundary.
--- All negative write attempts are transaction-scoped and rolled back; this must run only in CI/staging.
+-- Every behavioral write targets public.business_memberships itself. The CI gate
+-- supplies only the minimal referenced businesses/auth.users tables and relevant
+-- production CHECK constraints; all fixture rows and mutations roll back.
 BEGIN;
--- Exercise the installed trigger function against isolated fixtures. The
--- historical tombstone is inserted before attaching the trigger so the test
--- can independently verify reactivation and permission-grant rejection.
-CREATE TEMP TABLE cashier_retirement_guard_fixture (
-  id text PRIMARY KEY,
-  role text NOT NULL,
-  auth_user_id uuid,
-  staff_identity_id uuid,
-  is_active boolean NOT NULL,
-  removed_at timestamptz,
-  can_create_sale boolean NOT NULL,
-  can_accept_cash boolean NOT NULL,
-  can_accept_online boolean NOT NULL,
-  can_create_credit_sale boolean NOT NULL,
-  can_use_coupon boolean NOT NULL,
-  can_issue_invoice boolean NOT NULL,
-  can_issue_receipt boolean NOT NULL,
-  can_refund boolean NOT NULL,
-  can_void boolean NOT NULL,
-  can_correct_amount boolean NOT NULL,
-  can_change_payment_method boolean NOT NULL,
-  can_view_broad_history boolean NOT NULL,
-  can_manage_products boolean NOT NULL,
-  can_view_reports boolean NOT NULL,
-  can_create_expense boolean NOT NULL,
-  can_view_customer_directory boolean NOT NULL
- ) ON COMMIT DROP;
-ALTER TABLE cashier_retirement_guard_fixture
-  ADD CONSTRAINT cashier_retirement_fixture_check CHECK (
-    role <> 'CASHIER'
-    OR (
-      is_active = false AND removed_at IS NOT NULL
-      AND auth_user_id IS NULL AND staff_identity_id IS NULL
-      AND can_create_sale = false AND can_accept_cash = false
-      AND can_accept_online = false AND can_create_credit_sale = false
-      AND can_use_coupon = false AND can_issue_invoice = false
-      AND can_issue_receipt = false AND can_refund = false AND can_void = false
-      AND can_correct_amount = false AND can_change_payment_method = false
-      AND can_view_broad_history = false AND can_manage_products = false
-      AND can_view_reports = false AND can_create_expense = false
-      AND can_view_customer_directory = false
-    )
-  );
 
--- Constraint-only acceptance: a fully inactive, permissionless historical
--- CASHIER tombstone is valid before the INSERT trigger is attached.
-INSERT INTO cashier_retirement_guard_fixture VALUES (
-  'legacy-tombstone-accepted-by-check', 'CASHIER', NULL, NULL, false, now(),
-  false, false, false, false, false, false, false, false, false,
-  false, false, false, false, false, false, false
-);
+-- Isolated tenant and authenticated principal fixtures for real-table FK checks.
+INSERT INTO public.businesses (id) VALUES ('__cashier_guard_test_business__');
+INSERT INTO auth.users (id) VALUES ('00000000-0000-0000-0000-000000000001');
 
-DO $constraint_cases$
-DECLARE
-  v_state text;
-  v_constraint text;
+CREATE FUNCTION pg_temp.set_retirement_trigger(p_enabled boolean)
+RETURNS void LANGUAGE plpgsql AS $toggle$
+DECLARE v_exists boolean;
 BEGIN
-  -- The CHECK independently rejects active CASHIER state with SQLSTATE 23514.
-  BEGIN
-    INSERT INTO cashier_retirement_guard_fixture VALUES (
-      'check-active-rejected', 'CASHIER', NULL, NULL, true, now(),
-      false, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false
-    );
-    RAISE EXCEPTION 'FAIL: CHECK accepted active CASHIER row';
-  EXCEPTION WHEN check_violation THEN
-    GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_constraint = CONSTRAINT_NAME;
-    IF v_state <> '23514' OR v_constraint <> 'cashier_retirement_fixture_check' THEN
-      RAISE EXCEPTION 'FAIL: active CASHIER CHECK rejection had SQLSTATE %, constraint %', v_state, v_constraint;
+  SELECT EXISTS (
+    SELECT 1 FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname = 'business_memberships'
+      AND t.tgname = 'trg_prevent_new_cashier_memberships'
+      AND NOT t.tgisinternal
+  ) INTO v_exists;
+  -- In negative-control mode the intentionally dropped trigger is absent;
+  -- do not recreate it while isolating CHECK behavior.
+  IF v_exists THEN
+    IF p_enabled THEN
+      EXECUTE 'ALTER TABLE public.business_memberships ENABLE TRIGGER trg_prevent_new_cashier_memberships';
+    ELSE
+      EXECUTE 'ALTER TABLE public.business_memberships DISABLE TRIGGER trg_prevent_new_cashier_memberships';
     END IF;
-  END;
+  END IF;
+END
+$toggle$;
 
-  -- The CHECK independently rejects any permission grant with SQLSTATE 23514.
+CREATE FUNCTION pg_temp.assert_constraint_rejects(
+  p_sql text, p_constraint text, p_fail_message text
+) RETURNS void LANGUAGE plpgsql AS $assert$
+DECLARE v_state text; v_constraint text;
+BEGIN
   BEGIN
-    INSERT INTO cashier_retirement_guard_fixture VALUES (
-      'check-permission-rejected', 'CASHIER', NULL, NULL, false, now(),
-      true, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false
-    );
-    RAISE EXCEPTION 'FAIL: CHECK accepted CASHIER permission';
+    EXECUTE p_sql;
+    RAISE EXCEPTION '%', p_fail_message;
   EXCEPTION WHEN check_violation THEN
-    GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_constraint = CONSTRAINT_NAME;
-    IF v_state <> '23514' OR v_constraint <> 'cashier_retirement_fixture_check' THEN
-      RAISE EXCEPTION 'FAIL: permission CHECK rejection had SQLSTATE %, constraint %', v_state, v_constraint;
-    END IF;
-  END;
-
-  -- Principal references are forbidden on CASHIER tombstones by the CHECK.
-  BEGIN
-    INSERT INTO cashier_retirement_guard_fixture VALUES (
-      'check-auth-user-rejected', 'CASHIER', '00000000-0000-0000-0000-000000000011', NULL, false, now(),
-      false, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false
-    );
-    RAISE EXCEPTION 'FAIL: CHECK accepted CASHIER auth_user_id';
-  EXCEPTION WHEN check_violation THEN
-    GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_constraint = CONSTRAINT_NAME;
-    IF v_state <> '23514' OR v_constraint <> 'cashier_retirement_fixture_check' THEN
-      RAISE EXCEPTION 'FAIL: auth_user_id CHECK rejection had SQLSTATE %, constraint %', v_state, v_constraint;
-    END IF;
-  END;
-
-  BEGIN
-    INSERT INTO cashier_retirement_guard_fixture VALUES (
-      'check-staff-id-rejected', 'CASHIER', NULL, '00000000-0000-0000-0000-000000000012', false, now(),
-      false, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false
-    );
-    RAISE EXCEPTION 'FAIL: CHECK accepted CASHIER staff_identity_id';
-  EXCEPTION WHEN check_violation THEN
-    GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_constraint = CONSTRAINT_NAME;
-    IF v_state <> '23514' OR v_constraint <> 'cashier_retirement_fixture_check' THEN
-      RAISE EXCEPTION 'FAIL: staff_identity_id CHECK rejection had SQLSTATE %, constraint %', v_state, v_constraint;
+    GET STACKED DIAGNOSTICS
+      v_state = RETURNED_SQLSTATE,
+      v_constraint = CONSTRAINT_NAME;
+    IF v_state <> '23514' OR v_constraint <> p_constraint THEN
+      RAISE EXCEPTION 'FAIL: expected SQLSTATE 23514/constraint %, got %/%',
+        p_constraint, v_state, v_constraint;
     END IF;
   END;
 END
-$constraint_cases$;
+$assert$;
 
-INSERT INTO cashier_retirement_guard_fixture VALUES (
-  'legacy-tombstone', 'CASHIER', NULL, NULL, false, now(),
-  false, false, false, false, false, false, false, false, false,
-  false, false, false, false, false, false, false
-);
-INSERT INTO cashier_retirement_guard_fixture VALUES (
-  'admin-fixture', 'ADMIN', '00000000-0000-0000-0000-000000000001', NULL, true, NULL,
-  true, true, true, true, true, true, true, true, true,
-  true, true, true, true, true, true, true
-);
-
--- Assert trigger-specific rejections by exact SQLSTATE and message.
 CREATE FUNCTION pg_temp.assert_cashier_trigger_rejects(p_sql text, p_message text)
 RETURNS void LANGUAGE plpgsql AS $assert$
 DECLARE v_state text; v_message text;
@@ -141,29 +63,59 @@ BEGIN
   EXCEPTION WHEN check_violation THEN
     GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_message = MESSAGE_TEXT;
     IF v_state <> '23514' OR v_message <> p_message THEN
-      RAISE EXCEPTION 'FAIL: trigger rejection expected SQLSTATE 23514/message %, got %/%', p_message, v_state, v_message;
+      RAISE EXCEPTION 'FAIL: trigger rejection expected SQLSTATE 23514/message %, got %/%',
+        p_message, v_state, v_message;
     END IF;
   END;
 END
 $assert$;
 
-CREATE TRIGGER trg_test_cashier_retirement_guard
-BEFORE INSERT OR UPDATE OF role, is_active, removed_at, auth_user_id, staff_identity_id,
-  can_create_sale, can_accept_cash, can_accept_online, can_create_credit_sale, can_use_coupon,
-  can_issue_invoice, can_issue_receipt, can_refund, can_void, can_correct_amount,
-  can_change_payment_method, can_view_broad_history, can_manage_products, can_view_reports,
+-- Seed a real-table legacy tombstone with the trigger temporarily disabled.
+-- This proves the production CHECK accepts the historical tombstone shape;
+-- the transaction is rolled back at the end of this contract.
+SELECT pg_temp.set_retirement_trigger(false);
+INSERT INTO public.business_memberships (
+  id, business_id, branch_id, role, auth_user_id, staff_identity_id,
+  is_active, removed_at, can_create_sale, can_accept_cash, can_accept_online,
+  can_create_credit_sale, can_use_coupon, can_issue_invoice, can_issue_receipt,
+  can_refund, can_void, can_correct_amount, can_change_payment_method,
+  can_view_broad_history, can_manage_products, can_view_reports,
   can_create_expense, can_view_customer_directory
-ON cashier_retirement_guard_fixture
-FOR EACH ROW EXECUTE FUNCTION private.prevent_new_cashier_memberships();
+) VALUES (
+  'legacy-tombstone', '__cashier_guard_test_business__', '__cashier_guard_test_branch__',
+  'CASHIER', NULL, NULL, false, now(),
+  false, false, false, false, false, false, false, false, false, false, false,
+  false, false, false, false, false
+);
+SELECT pg_temp.set_retirement_trigger(true);
+
+INSERT INTO public.business_memberships (
+  id, business_id, branch_id, role, auth_user_id, staff_identity_id,
+  is_active, removed_at, can_create_sale, can_accept_cash, can_accept_online,
+  can_create_credit_sale, can_use_coupon, can_issue_invoice, can_issue_receipt,
+  can_refund, can_void, can_correct_amount, can_change_payment_method,
+  can_view_broad_history, can_manage_products, can_view_reports,
+  can_create_expense, can_view_customer_directory
+) VALUES (
+  'admin-fixture', '__cashier_guard_test_business__', '__cashier_guard_test_branch__',
+  'ADMIN', '00000000-0000-0000-0000-000000000001', NULL, true, NULL,
+  true, true, true, true, true, true, true, true, true, true, true,
+  true, true, true, true, true
+);
+
 DO $test$
 DECLARE
   v_active_cashiers bigint;
   v_trigger_count integer;
   v_constraint_count integer;
+  v_principal_constraint_count integer;
   v_trigger_definition text;
   v_trigger_function oid;
   v_column text;
+  v_negative_control text;
 BEGIN
+  v_negative_control := coalesce(current_setting('paid_due.guard_negative_control', true), '');
+
   SELECT count(*) INTO v_active_cashiers
   FROM public.business_memberships
   WHERE role = 'CASHIER'
@@ -181,35 +133,37 @@ BEGIN
     AND c.relname = 'business_memberships'
     AND t.tgname = 'trg_prevent_new_cashier_memberships'
     AND NOT t.tgisinternal;
-  IF v_trigger_count <> 1 THEN
+  IF v_trigger_count <> 1 AND v_negative_control <> 'trigger' THEN
     RAISE EXCEPTION 'FAIL: ADMIN-only membership trigger missing';
   END IF;
 
-  SELECT pg_get_triggerdef(t.oid), t.tgfoid
-  INTO v_trigger_definition, v_trigger_function
-  FROM pg_trigger t
-  JOIN pg_class c ON c.oid = t.tgrelid
-  JOIN pg_namespace n ON n.oid = c.relnamespace
-  WHERE n.nspname = 'public'
-    AND c.relname = 'business_memberships'
-    AND t.tgname = 'trg_prevent_new_cashier_memberships'
-    AND NOT t.tgisinternal;
+  IF v_trigger_count = 1 THEN
+    SELECT pg_get_triggerdef(t.oid), t.tgfoid
+    INTO v_trigger_definition, v_trigger_function
+    FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname = 'business_memberships'
+      AND t.tgname = 'trg_prevent_new_cashier_memberships'
+      AND NOT t.tgisinternal;
 
-  IF v_trigger_function <> 'private.prevent_new_cashier_memberships()'::regprocedure::oid THEN
-    RAISE EXCEPTION 'FAIL: membership trigger is not bound to the retirement guard function';
-  END IF;
-
-  FOREACH v_column IN ARRAY ARRAY[
-    'role', 'is_active', 'removed_at', 'auth_user_id', 'staff_identity_id',
-    'can_create_sale', 'can_accept_cash', 'can_accept_online', 'can_create_credit_sale',
-    'can_use_coupon', 'can_issue_invoice', 'can_issue_receipt', 'can_refund', 'can_void',
-    'can_correct_amount', 'can_change_payment_method', 'can_view_broad_history',
-    'can_manage_products', 'can_view_reports', 'can_create_expense', 'can_view_customer_directory'
-  ] LOOP
-    IF position(v_column IN lower(v_trigger_definition)) = 0 THEN
-      RAISE EXCEPTION 'FAIL: membership trigger does not watch column %', v_column;
+    IF v_trigger_function <> 'private.prevent_new_cashier_memberships()'::regprocedure::oid THEN
+      RAISE EXCEPTION 'FAIL: membership trigger is not bound to the retirement guard function';
     END IF;
-  END LOOP;
+
+    FOREACH v_column IN ARRAY ARRAY[
+      'role', 'is_active', 'removed_at', 'auth_user_id', 'staff_identity_id',
+      'can_create_sale', 'can_accept_cash', 'can_accept_online', 'can_create_credit_sale',
+      'can_use_coupon', 'can_issue_invoice', 'can_issue_receipt', 'can_refund', 'can_void',
+      'can_correct_amount', 'can_change_payment_method', 'can_view_broad_history',
+      'can_manage_products', 'can_view_reports', 'can_create_expense', 'can_view_customer_directory'
+    ] LOOP
+      IF position(v_column IN lower(v_trigger_definition)) = 0 THEN
+        RAISE EXCEPTION 'FAIL: membership trigger does not watch column %', v_column;
+      END IF;
+    END LOOP;
+  END IF;
 
   SELECT count(*) INTO v_constraint_count
   FROM pg_constraint c
@@ -220,106 +174,153 @@ BEGIN
     AND c.conname = 'business_memberships_cashier_retirement_check'
     AND c.contype = 'c'
     AND c.convalidated;
-  IF v_constraint_count <> 1 THEN
+  IF v_constraint_count <> 1 AND v_negative_control <> 'check' THEN
     RAISE EXCEPTION 'FAIL: validated CASHIER tombstone constraint missing';
   END IF;
 
-  -- The tombstone CHECK intentionally permits inactive historical rows. These
-  -- attempts satisfy that CHECK so only the retirement trigger can reject them.
+  SELECT count(*) INTO v_principal_constraint_count
+  FROM pg_constraint c
+  JOIN pg_class r ON r.oid = c.conrelid
+  JOIN pg_namespace n ON n.oid = r.relnamespace
+  WHERE n.nspname = 'public'
+    AND r.relname = 'business_memberships'
+    AND c.conname = 'business_memberships_principal_role_check'
+    AND c.contype = 'c'
+    AND c.convalidated;
+  IF v_principal_constraint_count <> 1 THEN
+    RAISE EXCEPTION 'FAIL: validated principal-role constraint missing';
+  END IF;
+
+  -- These cases deliberately disable only the trigger so the production
+  -- CHECK constraints on public.business_memberships, not a copied fixture
+  -- predicate, are the mechanisms under test.
+  PERFORM pg_temp.set_retirement_trigger(false);
+
+  -- Staff identity makes the principal-role CHECK valid; active CASHIER state
+  -- therefore isolates business_memberships_cashier_retirement_check.
+  PERFORM pg_temp.assert_constraint_rejects(
+    $sql$INSERT INTO public.business_memberships (
+      id, business_id, branch_id, role, auth_user_id, staff_identity_id,
+      is_active, removed_at
+    ) VALUES (
+      'check-active-rejected', '__cashier_guard_test_business__', '__cashier_guard_test_branch__',
+      'CASHIER', NULL, '00000000-0000-0000-0000-000000000011', true, NULL
+    )$sql$,
+    'business_memberships_cashier_retirement_check',
+    'FAIL: CHECK accepted active CASHIER row'
+  );
+
+  -- A permission grant on an otherwise-valid tombstone isolates the retirement CHECK.
+  PERFORM pg_temp.assert_constraint_rejects(
+    $sql$UPDATE public.business_memberships SET can_refund = true WHERE id = 'legacy-tombstone'$sql$,
+    'business_memberships_cashier_retirement_check',
+    'FAIL: CHECK accepted CASHIER permission'
+  );
+
+  -- CASHIER plus auth_user_id violates both principal shape and retirement
+  -- policy; the actual PostgreSQL-reported constraint is asserted explicitly.
+  PERFORM pg_temp.assert_constraint_rejects(
+    $sql$INSERT INTO public.business_memberships (
+      id, business_id, branch_id, role, auth_user_id, staff_identity_id,
+      is_active, removed_at
+    ) VALUES (
+      'check-auth-user-rejected', '__cashier_guard_test_business__', '__cashier_guard_test_branch__',
+      'CASHIER', '00000000-0000-0000-0000-000000000001', NULL, false, now()
+    )$sql$,
+    'business_memberships_cashier_retirement_check',
+    'FAIL: CHECK accepted CASHIER auth_user_id'
+  );
+
+  -- A staff identity is allowed by the principal-role CHECK but forbidden by
+  -- the retirement CHECK on a historical tombstone.
+  PERFORM pg_temp.assert_constraint_rejects(
+    $sql$INSERT INTO public.business_memberships (
+      id, business_id, branch_id, role, auth_user_id, staff_identity_id,
+      is_active, removed_at
+    ) VALUES (
+      'check-staff-id-rejected', '__cashier_guard_test_business__', '__cashier_guard_test_branch__',
+      'CASHIER', NULL, '00000000-0000-0000-0000-000000000012', false, now()
+    )$sql$,
+    'business_memberships_cashier_retirement_check',
+    'FAIL: CHECK accepted CASHIER staff_identity_id'
+  );
+
+  -- ADMIN requires auth_user_id; role != CASHIER means only the principal-role
+  -- CHECK can reject this row.
+  PERFORM pg_temp.assert_constraint_rejects(
+    $sql$INSERT INTO public.business_memberships (
+      id, business_id, branch_id, role, auth_user_id, staff_identity_id
+    ) VALUES (
+      'check-admin-principal-rejected', '__cashier_guard_test_business__', '__cashier_guard_test_branch__',
+      'ADMIN', NULL, NULL
+    )$sql$,
+    'business_memberships_principal_role_check',
+    'FAIL: principal-role CHECK accepted ADMIN without auth_user_id'
+  );
+
+  PERFORM pg_temp.set_retirement_trigger(true);
+
+  -- The trigger must reject a new tombstone even though the production CHECK
+  -- accepts its shape. This is also the trigger negative-control assertion.
   BEGIN
     INSERT INTO public.business_memberships (
       id, business_id, branch_id, role, auth_user_id, staff_identity_id,
-      can_create_sale, can_accept_cash, can_accept_online, can_create_credit_sale,
-      can_use_coupon, can_issue_invoice, can_issue_receipt, can_refund, can_void,
-      can_correct_amount, can_change_payment_method, can_view_broad_history,
-      can_manage_products, can_view_reports, can_create_expense,
-      can_view_customer_directory, is_active, removed_at
+      is_active, removed_at
     ) VALUES (
-      '__cashier_retirement_insert_test__', '__missing_business__', '__missing_branch__',
-      'CASHIER', NULL, NULL,
-      false, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false, false, now()
+      'trigger-inactive-insert', '__cashier_guard_test_business__', '__cashier_guard_test_branch__',
+      'CASHIER', NULL, NULL, false, now()
     );
     RAISE EXCEPTION 'FAIL: new CASHIER membership insert was accepted';
   EXCEPTION WHEN check_violation THEN
-    NULL;
+    GET STACKED DIAGNOSTICS v_negative_control = MESSAGE_TEXT;
+    IF v_negative_control <> 'CASHIER role is retired; create ADMIN memberships only' THEN
+      RAISE EXCEPTION 'FAIL: trigger rejection message mismatch: %', v_negative_control;
+    END IF;
   END;
 
-
-  BEGIN
-    UPDATE cashier_retirement_guard_fixture
-    SET role = 'CASHIER', auth_user_id = NULL, is_active = false, removed_at = now(),
-        can_create_sale = false, can_accept_cash = false, can_accept_online = false,
-        can_create_credit_sale = false, can_use_coupon = false, can_issue_invoice = false,
-        can_issue_receipt = false, can_refund = false, can_void = false,
-        can_correct_amount = false, can_change_payment_method = false,
-        can_view_broad_history = false, can_manage_products = false, can_view_reports = false,
-        can_create_expense = false, can_view_customer_directory = false
-    WHERE id = 'admin-fixture';
-    RAISE EXCEPTION 'FAIL: ADMIN membership conversion to CASHIER was accepted';
-  EXCEPTION WHEN check_violation THEN
-    NULL;
-  END;
-
-  BEGIN
-    UPDATE cashier_retirement_guard_fixture SET is_active = true
-    WHERE id = 'legacy-tombstone';
-    RAISE EXCEPTION 'FAIL: removed CASHIER membership reactivation was accepted';
-  EXCEPTION WHEN check_violation THEN
-    NULL;
-  END;
-
-  BEGIN
-    UPDATE cashier_retirement_guard_fixture SET can_refund = true
-    WHERE id = 'legacy-tombstone';
-    RAISE EXCEPTION 'FAIL: cashier permission grant was accepted';
-  EXCEPTION WHEN check_violation THEN
-    NULL;
-  END;
-
-  -- New CASHIER INSERT is rejected even when it would satisfy the CHECK.
+  -- Remaining trigger cases preserve the original exact trigger-message assertions.
   PERFORM pg_temp.assert_cashier_trigger_rejects(
-    $sql$INSERT INTO cashier_retirement_guard_fixture VALUES (
-      'trigger-inactive-insert', 'CASHIER', NULL, NULL, false, now(),
-      false, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false
+    $sql$INSERT INTO public.business_memberships (
+      id, business_id, branch_id, role, auth_user_id, staff_identity_id,
+      is_active, removed_at
+    ) VALUES (
+      'trigger-active-insert', '__cashier_guard_test_business__', '__cashier_guard_test_branch__',
+      'CASHIER', NULL, '00000000-0000-0000-0000-000000000013', true, NULL
     )$sql$,
     'CASHIER role is retired; create ADMIN memberships only'
   );
   PERFORM pg_temp.assert_cashier_trigger_rejects(
-    $sql$INSERT INTO cashier_retirement_guard_fixture VALUES (
-      'trigger-active-insert', 'CASHIER', NULL, NULL, true, now(),
-      false, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false
+    $sql$INSERT INTO public.business_memberships (
+      id, business_id, branch_id, role, auth_user_id, staff_identity_id,
+      is_active, removed_at, can_create_sale
+    ) VALUES (
+      'trigger-permission-insert', '__cashier_guard_test_business__', '__cashier_guard_test_branch__',
+      'CASHIER', NULL, NULL, false, now(), true
     )$sql$,
     'CASHIER role is retired; create ADMIN memberships only'
   );
   PERFORM pg_temp.assert_cashier_trigger_rejects(
-    $sql$INSERT INTO cashier_retirement_guard_fixture VALUES (
-      'trigger-permission-insert', 'CASHIER', NULL, NULL, false, now(),
-      true, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false
+    $sql$INSERT INTO public.business_memberships (
+      id, business_id, branch_id, role, auth_user_id, staff_identity_id,
+      is_active, removed_at
+    ) VALUES (
+      'trigger-auth-user-insert', '__cashier_guard_test_business__', '__cashier_guard_test_branch__',
+      'CASHIER', '00000000-0000-0000-0000-000000000001', NULL, false, now()
     )$sql$,
     'CASHIER role is retired; create ADMIN memberships only'
   );
   PERFORM pg_temp.assert_cashier_trigger_rejects(
-    $sql$INSERT INTO cashier_retirement_guard_fixture VALUES (
-      'trigger-auth-user-insert', 'CASHIER', '00000000-0000-0000-0000-000000000013', NULL, false, now(),
-      false, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false
+    $sql$INSERT INTO public.business_memberships (
+      id, business_id, branch_id, role, auth_user_id, staff_identity_id,
+      is_active, removed_at
+    ) VALUES (
+      'trigger-staff-identity-insert', '__cashier_guard_test_business__', '__cashier_guard_test_branch__',
+      'CASHIER', NULL, '00000000-0000-0000-0000-000000000014', false, now()
     )$sql$,
     'CASHIER role is retired; create ADMIN memberships only'
   );
   PERFORM pg_temp.assert_cashier_trigger_rejects(
-    $sql$INSERT INTO cashier_retirement_guard_fixture VALUES (
-      'trigger-staff-identity-insert', 'CASHIER', NULL, '00000000-0000-0000-0000-000000000014', false, now(),
-      false, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false
-    )$sql$,
-    'CASHIER role is retired; create ADMIN memberships only'
-  );
-  PERFORM pg_temp.assert_cashier_trigger_rejects(
-    $sql$UPDATE cashier_retirement_guard_fixture SET role='CASHIER', auth_user_id=NULL,
+    $sql$UPDATE public.business_memberships SET role='CASHIER', auth_user_id=NULL,
       is_active=false, removed_at=now(), can_create_sale=false, can_accept_cash=false,
       can_accept_online=false, can_create_credit_sale=false, can_use_coupon=false,
       can_issue_invoice=false, can_issue_receipt=false, can_refund=false, can_void=false,
@@ -329,24 +330,36 @@ BEGIN
     'CASHIER role is retired; role conversion to CASHIER is prohibited'
   );
   PERFORM pg_temp.assert_cashier_trigger_rejects(
-    $sql$UPDATE cashier_retirement_guard_fixture SET is_active=true WHERE id='legacy-tombstone'$sql$,
+    $sql$UPDATE public.business_memberships SET is_active=true
+      WHERE id='legacy-tombstone'$sql$,
     'Historical CASHIER tombstones cannot be activated or granted permissions'
   );
   PERFORM pg_temp.assert_cashier_trigger_rejects(
-    $sql$UPDATE cashier_retirement_guard_fixture SET can_refund=true WHERE id='legacy-tombstone'$sql$,
+    $sql$UPDATE public.business_memberships SET can_refund=true
+      WHERE id='legacy-tombstone'$sql$,
     'Historical CASHIER tombstones cannot be activated or granted permissions'
   );
 
-  -- ADMIN inserts and updates carrying permissions remain accepted.
-  INSERT INTO cashier_retirement_guard_fixture VALUES (
-    'admin-insert-accepted', 'ADMIN', '00000000-0000-0000-0000-000000000015', NULL, true, NULL,
-    true, true, true, true, true, true, true, true, true,
-    true, true, true, true, true, true, true
+  -- ADMIN inserts and permission updates remain accepted on the real table.
+  INSERT INTO public.business_memberships (
+    id, business_id, branch_id, role, auth_user_id, staff_identity_id,
+    is_active, removed_at, can_create_sale, can_accept_cash, can_accept_online,
+    can_create_credit_sale, can_use_coupon, can_issue_invoice, can_issue_receipt,
+    can_refund, can_void, can_correct_amount, can_change_payment_method,
+    can_view_broad_history, can_manage_products, can_view_reports,
+    can_create_expense, can_view_customer_directory
+  ) VALUES (
+    'admin-insert-accepted', '__cashier_guard_test_business__', '__cashier_guard_test_branch__',
+    'ADMIN', '00000000-0000-0000-0000-000000000001', NULL, true, NULL,
+    true, true, true, true, true, true, true, true, true, true, true,
+    true, true, true, true, true
   );
-  UPDATE cashier_retirement_guard_fixture SET can_refund=true, can_void=true
+  UPDATE public.business_memberships SET can_refund=true, can_void=true
   WHERE id='admin-fixture';
-  IF NOT EXISTS (SELECT 1 FROM cashier_retirement_guard_fixture
-    WHERE id='admin-fixture' AND can_refund AND can_void) THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.business_memberships
+    WHERE id='admin-fixture' AND can_refund AND can_void
+  ) THEN
     RAISE EXCEPTION 'FAIL: ADMIN permission update was not persisted';
   END IF;
 
