@@ -190,10 +190,7 @@ object VoidPayloadCodec {
     fun decodeReason(payload: String): String? =
         decode(payload).reason
 
-    private fun encodeReason(reason: String?): String =
-        reason?.toByteArray(Charsets.UTF_8)?.let {
-            Base64.encodeToString(it, Base64.NO_WRAP)
-        }.orEmpty()
+    
 
     private fun decodeReasonValue(encoded: String): String? {
         if (encoded.isEmpty()) return null
