@@ -44,7 +44,7 @@ jobs:
           EOF
 
       - name: Start disposable local Supabase stack
-        run: supabase start --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor --workdir /tmp/supabase-sql-gate
+        run: supabase start --exclude realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor --workdir /tmp/supabase-sql-gate
 
       - name: Install PostgreSQL client
         run: |
@@ -89,13 +89,16 @@ jobs:
           DROP FUNCTION IF EXISTS public.ingest_cashier_financial_envelope(text,text,text,text,text,text,integer,timestamptz,text,date,text,text,jsonb);
           DROP TABLE IF EXISTS public.business_memberships CASCADE;
           CREATE SCHEMA IF NOT EXISTS private;
+          CREATE TABLE IF NOT EXISTS public.businesses (
+            id text PRIMARY KEY
+          );
           CREATE TABLE public.business_memberships (
             id text PRIMARY KEY,
-            business_id text NOT NULL,
-            branch_id text NOT NULL,
+            business_id text NOT NULL REFERENCES public.businesses(id),
+            branch_id text NOT NULL REFERENCES public.branches(id),
             role text NOT NULL,
-            auth_user_id uuid,
-            staff_identity_id uuid,
+            auth_user_id uuid REFERENCES auth.users(id),
+            staff_identity_id uuid REFERENCES private.staff_identities(id),
             is_active boolean NOT NULL DEFAULT false,
             removed_at timestamptz,
             can_create_sale boolean NOT NULL DEFAULT false,
@@ -113,7 +116,15 @@ jobs:
             can_manage_products boolean NOT NULL DEFAULT false,
             can_view_reports boolean NOT NULL DEFAULT false,
             can_create_expense boolean NOT NULL DEFAULT false,
-            can_view_customer_directory boolean NOT NULL DEFAULT false
+            can_view_customer_directory boolean NOT NULL DEFAULT false,
+            -- Mirrors the production principal-role CHECK from the cashier-retirement migration.
+            CONSTRAINT business_memberships_principal_role_check CHECK (
+              (role = 'ADMIN' AND auth_user_id IS NOT NULL AND staff_identity_id IS NULL)
+              OR (role = 'CASHIER' AND auth_user_id IS NULL AND (
+                staff_identity_id IS NOT NULL
+                OR (staff_identity_id IS NULL AND is_active = false AND removed_at IS NOT NULL)
+              ))
+            )
           );
           SQL
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261029010000_enforce_admin_only_role.sql
