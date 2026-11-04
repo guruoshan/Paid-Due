@@ -281,7 +281,7 @@ class AmountCorrectionFinancialCoreIntegrationTest {
     @Test
     fun productionCreditCorrection_updatesDebtWithSignedAdjustment_andReplaysExactlyOnce() =
         runBlocking {
-            useAdminActor()
+            useAdminActor(database, businessId, branchId, adminActorId) { actorId = it }
             val transaction = seedCreditSale(
                 transactionId = "credit-correction-ledger",
                 amountMinor = 10_000L
@@ -356,7 +356,7 @@ class AmountCorrectionFinancialCoreIntegrationTest {
     @Test
     fun productionCorrection_increase_writesOnlyPositiveDelta_andPreservesOriginal() =
         runBlocking {
-            useAdminActor()
+            useAdminActor(database, businessId, branchId, adminActorId) { actorId = it }
 
             val transaction =
                 seedCashSale(
@@ -463,7 +463,7 @@ class AmountCorrectionFinancialCoreIntegrationTest {
     @Test
     fun productionCorrection_decrease_writesOnlyNegativeDelta() =
         runBlocking {
-            useAdminActor()
+            useAdminActor(database, businessId, branchId, adminActorId) { actorId = it }
 
             val transaction =
                 seedCashSale(
@@ -511,7 +511,7 @@ class AmountCorrectionFinancialCoreIntegrationTest {
     @Test
     fun productionCorrection_chain_isAppendOnlyAndInternallyConsistent() =
         runBlocking {
-            useAdminActor()
+            useAdminActor(database, businessId, branchId, adminActorId) { actorId = it }
 
             val transaction =
                 seedCashSale(
@@ -631,7 +631,7 @@ class AmountCorrectionFinancialCoreIntegrationTest {
     @Test
     fun productionCorrection_sameOperationRetry_replaysWithoutDuplicateMoney() =
         runBlocking {
-            useAdminActor()
+            useAdminActor(database, businessId, branchId, adminActorId) { actorId = it }
 
             val transaction =
                 seedCashSale(
@@ -704,7 +704,7 @@ class AmountCorrectionFinancialCoreIntegrationTest {
     @Test
     fun productionCorrection_sameOperationChangedIntent_conflictsWithoutDuplicateMoney() =
         runBlocking {
-            useAdminActor()
+            useAdminActor(database, businessId, branchId, adminActorId) { actorId = it }
 
             val transaction =
                 seedCashSale(
@@ -773,7 +773,7 @@ class AmountCorrectionFinancialCoreIntegrationTest {
     @Test
     fun productionCorrection_belowAlreadyRefundedValue_failsClosed() =
         runBlocking {
-            useAdminActor()
+            useAdminActor(database, businessId, branchId, adminActorId) { actorId = it }
 
             val transaction =
                 seedCashSale(
@@ -842,7 +842,7 @@ class AmountCorrectionFinancialCoreIntegrationTest {
     @Test
     fun startupRecovery_completesAdmittedPendingCorrection_exactlyOnce() =
         runBlocking {
-            useAdminActor()
+            useAdminActor(database, businessId, branchId, adminActorId) { actorId = it }
 
             val transaction =
                 seedCashSale(
@@ -966,29 +966,7 @@ class AmountCorrectionFinancialCoreIntegrationTest {
         }
 
 
-    private suspend fun useAdminActor() {
-        actorId = adminActorId
-        val sessionBusiness = checkNotNull(
-            database.businessBranchDao().getBusinessById(businessId)
-        )
-        val sessionBranch = checkNotNull(
-            database.businessBranchDao().getBranchById(branchId)
-        )
-        val sessionActor = checkNotNull(
-            database.userDao().getUserById(adminActorId)
-        )
-        val sessionMembership = checkNotNull(
-            database.userDao().getMembership(adminActorId, branchId)
-        )
-        SessionManager.setSession(
-            ActiveSession(
-                business = sessionBusiness,
-                branch = sessionBranch,
-                user = sessionActor,
-                membership = sessionMembership
-            )
-        )
-    }
+    
 
     private fun newCommand(
         transactionId: String,

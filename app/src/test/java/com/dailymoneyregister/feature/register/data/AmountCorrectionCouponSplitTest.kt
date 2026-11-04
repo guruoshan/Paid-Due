@@ -73,18 +73,7 @@ class AmountCorrectionCouponSplitTest {
         "s-coupon-only", PaymentCategory.COUPON, PaymentChannel.COUPON_WALLET, 5_000L
     )
 
-    private inline fun <reified T : Throwable> assertRejectedWith(block: () -> Unit) {
-        try {
-            block()
-        } catch (e: Throwable) {
-            assertTrue(
-                "expected ${T::class.java.simpleName}, got ${e::class.java.simpleName}",
-                e is T
-            )
-            return
-        }
-        fail("expected ${T::class.java.simpleName}, but no exception was thrown")
-    }
+    
 
     @Test
     fun couponSaleWithCashRemainderCorrectsTheCashPartOnly() {

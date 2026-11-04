@@ -287,10 +287,7 @@ object PaymentMethodChangePayloadCodec {
         )
     }
 
-    private fun encodeReason(reason: String?): String =
-        reason?.toByteArray(Charsets.UTF_8)?.let {
-            Base64.encodeToString(it, Base64.NO_WRAP)
-        }.orEmpty()
+    
 
     private fun decodeReason(encoded: String): String? {
         if (encoded.isEmpty()) return null
