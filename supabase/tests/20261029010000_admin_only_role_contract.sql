@@ -6,7 +6,13 @@ BEGIN;
 
 -- Isolated tenant and authenticated principal fixtures for real-table FK checks.
 INSERT INTO public.businesses (id) VALUES ('__cashier_guard_test_business__');
+INSERT INTO public.branches (id, business_id) VALUES ('__cashier_guard_test_branch__', '__cashier_guard_test_business__');
 INSERT INTO auth.users (id) VALUES ('00000000-0000-0000-0000-000000000001');
+INSERT INTO private.staff_identities (id) VALUES
+  ('00000000-0000-0000-0000-000000000011'),
+  ('00000000-0000-0000-0000-000000000012'),
+  ('00000000-0000-0000-0000-000000000013'),
+  ('00000000-0000-0000-0000-000000000014');
 
 CREATE FUNCTION pg_temp.set_retirement_trigger(p_enabled boolean)
 RETURNS void LANGUAGE plpgsql AS $toggle$
