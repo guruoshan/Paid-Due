@@ -139,3 +139,29 @@ The files below are **source snapshots only**, not migrations. Each function def
 **Existing staged restore source:** `BOARDLOCK/staged_sql/restore_admin_by_auth_id.sql` remains unchanged. It is not equivalent to the live definition: the live version requires exactly one eligible Admin membership and checks active branch/profile plus a nonblank local user ID. The staged version does not enforce those same eligibility checks. The live version also uses SQLSTATE `28000` for missing authentication; the staged version uses `P0401`. The live source snapshot is therefore retained separately rather than treating the staged SQL as an equivalent definition.
 
 These snapshots do not authorize production DDL, migration-history repair, replay, grants, or deployment. Any future migration-history reconciliation requires separate owner approval.
+
+
+## 8. PR #169 authorization correction — 2026-11-07
+
+This addendum records repository state and production reconciliation status. It does not authorize applying the migration or repairing migration history.
+
+- **Repository change:** PR [#169](https://github.com/guruoshan/Paid-Due/pull/169) merged into `main` at `502b67aac7c33c8d826c2501e14024874db76b5a`.
+- **Migration:** `supabase/migrations/20261107120000_fix_removed_admin_membership_authorization.sql` is **merged but not applied to production**. A read-only production migration-ledger check returned no row for version `20261107120000`; `list_migrations` also does not list it.
+- **Changed live objects in the migration:**
+  1. `public.restore_admin_by_auth_id()`
+  2. `public.ingest_financial_envelope(...)`
+  3. `public.profiles_self_or_shared_business_select` policy on `public.profiles`
+- **Scope expansion:** the original defect report concerned Admin restoration. Review found the same missing `removed_at IS NULL` eligibility predicate in the financial-envelope write authorization lookup and in the shared-business profile-visibility predicate. Those paths were included because a removed-but-still-active membership must not retain write authority or expose another profile. This is a bounded authorization correction; it does not change accounting or collision semantics.
+- **Verification status:** SQL Behavioral Gate passed on the PR head, including a negative control that failed when the restore guard was removed. Production application remains pending a separate owner approval and the runbook in [`docs/runbooks/apply-20261107120000.md`](runbooks/apply-20261107120000.md).
+- **Guard verification time:** **not recorded by owner**. Repository merge time is not a production verification timestamp.
+
+### Reporting-inventory migration source status
+
+Version `20261018140123` (`add_financial_reporting_inventory_rpc`) is present in the production migration ledger, but its migration source is absent from `main`. A recovered copy from commit `057b2c62dc7ed08ac9ba45293bf9c487c382d464` is being proposed separately. Status: **candidate, not yet restored to main; provenance is not provable from the original submission bytes**. The recovered file is for source-history completeness and must not be replayed against production. See the separate reporting-inventory restore PR when opened.
+
+### Close-out decision references
+
+- Owner decisions and evidence: [`docs/audits/2026-11-07-owner-decisions.md`](audits/2026-11-07-owner-decisions.md).
+- Production apply preflight, approval gate, apply-path restriction, post-checks, and rollback plan: [`docs/runbooks/apply-20261107120000.md`](runbooks/apply-20261107120000.md).
+
+No other migration-history entry or historical SQL artifact is changed by this addendum.
