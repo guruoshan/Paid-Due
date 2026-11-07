@@ -1,8 +1,6 @@
 -- Minimal disposable support schema for the removed-active authorization contract.
 -- This file is used only by the SQL Behavioral Gate local Supabase stack.
-ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS name text;
-UPDATE public.businesses SET name = COALESCE(name, id);
-ALTER TABLE public.businesses ALTER COLUMN name SET DEFAULT 'Test Business';
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS name text DEFAULT 'Test Business';
 
 ALTER TABLE public.business_memberships ADD COLUMN IF NOT EXISTS local_user_id text;
 ALTER TABLE public.business_memberships ADD COLUMN IF NOT EXISTS can_issue_invoice boolean NOT NULL DEFAULT false;
