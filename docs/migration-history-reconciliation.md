@@ -157,7 +157,7 @@ This addendum records repository state and production reconciliation status. It 
 
 ### Reporting-inventory migration source status
 
-Version `20261018140123` (`add_financial_reporting_inventory_rpc`) is present in the production migration ledger, but its migration source is absent from `main`. A recovered copy from commit `057b2c62dc7ed08ac9ba45293bf9c487c382d464` is being proposed separately. Status: **candidate, not yet restored to main; provenance is not provable from the original submission bytes**. The recovered file is for source-history completeness and must not be replayed against production. See the separate reporting-inventory restore PR when opened.
+Version `20261018140123` (`add_financial_reporting_inventory_rpc`) is present in the production migration ledger, but its migration source is absent from `main`. A recovered copy from commit `057b2c62dc7ed08ac9ba45293bf9c487c382d464` is being proposed separately. Status: **candidate, not yet restored to main; provenance is not provable from the original submission bytes**. The recovered file is for source-history completeness and must not be replayed against production. See PR [#172](https://github.com/guruoshan/Paid-Due/pull/172) and the subsequent source-recovery status addendum below.
 
 ### Close-out decision references
 
@@ -165,3 +165,14 @@ Version `20261018140123` (`add_financial_reporting_inventory_rpc`) is present in
 - Production apply preflight, approval gate, apply-path restriction, post-checks, and rollback plan: [`docs/runbooks/apply-20261107120000.md`](runbooks/apply-20261107120000.md).
 
 No other migration-history entry or historical SQL artifact is changed by this addendum.
+
+
+## 9. Subsequent reporting-inventory source recovery — 2026-11-07
+
+The status above (“candidate, not yet restored to main”) records the state when this PR #169 reconciliation addendum was authored. The subsequent source-only recovery is now complete:
+
+- PR [#172](https://github.com/guruoshan/Paid-Due/pull/172) merged at `715906be773ed8b8c3036a56405e3f5c31d86526`.
+- `supabase/migrations/20261018140123_add_financial_reporting_inventory_rpc.sql` is now present on `main`.
+- The SQL body after the recovery header was compared with the file at commit `057b2c62dc7ed08ac9ba45293bf9c487c382d464`; the body is byte-for-byte identical. The header records the source commit and timestamp, and the limitation that the original submission bytes cannot be independently proven.
+- Production migration ledger version `20261018140123` already exists. This is repository source recovery only; **do not reapply the migration**.
+- No other file from PR #43 was restored by PR #172. PR #43 remains open and its broader changes require separate review.
