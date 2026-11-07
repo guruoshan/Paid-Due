@@ -35,7 +35,6 @@ begin
     where bm.auth_user_id = v_user_id
       and bm.role = 'ADMIN'
       and bm.is_active = true
-      and bm.removed_at IS NULL
       and b.is_active = true
       and br.is_active = true
       and p.is_active = true
@@ -103,7 +102,6 @@ begin
     where bm.auth_user_id = v_user_id
       and bm.role = 'ADMIN'
       and bm.is_active = true
-      and bm.removed_at IS NULL
       and b.is_active = true
       and br.is_active = true
       and p.is_active = true
