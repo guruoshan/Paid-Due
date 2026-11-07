@@ -130,6 +130,21 @@ jobs:
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261029010000_enforce_admin_only_role.sql
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/20261029010000_admin_only_role_contract.sql
 
+      - name: Prepare removed-active Admin authorization fixtures
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/fixtures/admin_removal_authorization_schema.sql
+
+      - name: Apply Admin removal authorization migration
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261107120000_fix_removed_admin_membership_authorization.sql
+
+      - name: Run removed-active Admin authorization regression contract
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/20261107120000_admin_removal_authorization_contract.sql
+
       - name: Stop disposable local Supabase stack
         if: always()
         run: supabase stop --no-backup --workdir /tmp/supabase-sql-gate
