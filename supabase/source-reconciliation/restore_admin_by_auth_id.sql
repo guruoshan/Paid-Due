@@ -1,6 +1,6 @@
 -- SOURCE RECONCILIATION ONLY. NOT A MIGRATION. DO NOT APPLY.
--- Recorded from production catalog on 2026-11-07, normalised body SHA-256 bbdad76fb26c6705a9f01e1af617fe0dc0317c18bbd45e3635b8c36fc1ab536c.
--- Applied out of band before this repository tracked it. Migration ledger status: see reconciliation doc.
+-- Proposed predicate correction; not applied to production. Baseline live body SHA-256 before this change: bbdad76fb26c6705a9f01e1af617fe0dc0317c18bbd45e3635b8c36fc1ab536c.
+-- Baseline definition was applied out of band before this repository tracked it. Migration ledger status: see reconciliation doc.
 
 CREATE OR REPLACE FUNCTION public.restore_admin_by_auth_id()
  RETURNS TABLE(membership_id text, local_user_id text, staff_identity_id uuid, business_id text, branch_id text, business_name text, branch_name text, branch_code text, country_code text, currency_code text, currency_decimal_places integer, currency_symbol text, timezone_id text, tax_rounding_mode text, default_tax_rate_bps integer, branch_address text, branch_phone text, tax_registration_number text, display_name text, canonical_phone text, credential_hash text, credential_salt text, permissions jsonb)
@@ -35,6 +35,7 @@ begin
     where bm.auth_user_id = v_user_id
       and bm.role = 'ADMIN'
       and bm.is_active = true
+      and bm.removed_at IS NULL
       and b.is_active = true
       and br.is_active = true
       and p.is_active = true
@@ -102,6 +103,7 @@ begin
     where bm.auth_user_id = v_user_id
       and bm.role = 'ADMIN'
       and bm.is_active = true
+      and bm.removed_at IS NULL
       and b.is_active = true
       and br.is_active = true
       and p.is_active = true
