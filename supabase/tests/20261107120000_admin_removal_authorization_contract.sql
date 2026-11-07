@@ -74,6 +74,7 @@ INSERT INTO public.business_memberships (
   '00000000-0000-4000-8000-000000000102', 'local-active-removed-duplicate', 'ADMIN', true, now(), NULL,
   true,true,true,true,true,true,true,true,true,true,true,true,true,true
 );
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000102', true);
 DO $test$ DECLARE v_rows integer; BEGIN
   SELECT count(*) INTO v_rows FROM public.restore_admin_by_auth_id();
   IF v_rows <> 1 THEN RAISE EXCEPTION 'FAIL: mixed active/removed memberships returned % rows; expected exactly 1', v_rows; END IF;
