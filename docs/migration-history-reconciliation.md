@@ -121,3 +121,21 @@ No staging branch/project was created.
 - No Edge Function was deployed.
 - No production data, schema, migration history, project setting, or branch was changed by this work.
 - No historical migration, staged SQL file, `CloudStaffIdentityEntity`, or `findIdentity()` was deleted.
+
+## Source reconciliation: functions tracked after live application
+
+The files below are **source snapshots only**, not migrations. Each function definition was captured with read-only `pg_get_functiondef` on 2026-11-07; trigger statements (where applicable) are recorded as comments and are not executable. Normalised body hashes are SHA-256 of `prosrc` with whitespace collapsed.
+
+| Live function | Repository source file | Normalised body SHA-256 | Migration ledger status |
+|---|---|---|---|
+| `private.prevent_envelope_mutation()` | `supabase/source-reconciliation/prevent_envelope_mutation.sql` | `209c0bcec37edf8a6a14fea298748ad16dc705fe1f3834c2726b55fd8bea4afa` | not in migration ledger; applied out of band; to be reconciled by owner |
+| `private.enforce_membership_branch_business()` | `supabase/source-reconciliation/enforce_membership_branch_business.sql` | `5e514eec1f9eceffbc60f1bec5d8c1a9bc04f62fa95dbe27c7a58d20093d9671` | not in migration ledger; applied out of band; to be reconciled by owner |
+| `private.touch_updated_at()` | `supabase/source-reconciliation/touch_updated_at.sql` | `ea50a08e96e3b58836dd8778cdebc980cf343acd1786dd0a8a561ce3f2288615` | not in migration ledger; applied out of band; to be reconciled by owner |
+| `public.fetch_financial_reporting_inventory_v1(...)` | `supabase/source-reconciliation/fetch_financial_reporting_inventory_v1.sql` | `aa5e8c05aa0c505549017622c2949ac87bed9fa062a5664ba6e2a572d43536d8` | live ledger version `20261018140123_add_financial_reporting_inventory_rpc` exists; its migration source file is absent from this repository |
+| `public.restore_admin_by_auth_id()` | `supabase/source-reconciliation/restore_admin_by_auth_id.sql` | `bbdad76fb26c6705a9f01e1af617fe0dc0317c18bbd45e3635b8c36fc1ab536c` | not in migration ledger; applied out of band; to be reconciled by owner |
+
+**Important ledger distinction:** the reporting-inventory function is not an out-of-band/no-ledger object. The live migration list contains version `20261018140123`; the gap is that the matching migration source is missing from `main`. The other four functions have no matching function-definition migration entry in the live ledger.
+
+**Existing staged restore source:** `BOARDLOCK/staged_sql/restore_admin_by_auth_id.sql` remains unchanged. It is not equivalent to the live definition: the live version requires exactly one eligible Admin membership and checks active branch/profile plus a nonblank local user ID. The staged version does not enforce those same eligibility checks. The live version also uses SQLSTATE `28000` for missing authentication; the staged version uses `P0401`. The live source snapshot is therefore retained separately rather than treating the staged SQL as an equivalent definition.
+
+These snapshots do not authorize production DDL, migration-history repair, replay, grants, or deployment. Any future migration-history reconciliation requires separate owner approval.
