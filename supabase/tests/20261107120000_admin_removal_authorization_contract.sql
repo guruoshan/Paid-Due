@@ -106,4 +106,15 @@ DO $test$ DECLARE v_rows integer; BEGIN
 END $test$;
 RESET ROLE;
 
+-- Positive control: the same policy still exposes a target with a live membership.
+UPDATE public.business_memberships SET removed_at = NULL
+WHERE id = 'admin-removal-authz-target';
+SET LOCAL ROLE authenticated;
+DO $test$ DECLARE v_rows integer; BEGIN
+  SELECT count(*) INTO v_rows FROM public.profiles
+  WHERE auth_user_id = '00000000-0000-4000-8000-000000000105';
+  IF v_rows <> 1 THEN RAISE EXCEPTION 'FAIL: shared-business profile policy hid active target; expected 1 row, got %', v_rows; END IF;
+END $test$;
+RESET ROLE;
+
 ROLLBACK;
