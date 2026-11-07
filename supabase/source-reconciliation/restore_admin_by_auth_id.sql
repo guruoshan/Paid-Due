@@ -1,6 +1,6 @@
 -- SOURCE RECONCILIATION ONLY. NOT A MIGRATION. DO NOT APPLY.
 -- Recorded from production catalog on 2026-11-07, normalised body SHA-256 bbdad76fb26c6705a9f01e1af617fe0dc0317c18bbd45e3635b8c36fc1ab536c.
--- Applied before this repository tracked it. Migration ledger status: no matching function-definition migration entry found in the live ledger; applied out of band before repository source tracking.
+-- Applied out of band before this repository tracked it. Migration ledger status: see reconciliation doc.
 
 CREATE OR REPLACE FUNCTION public.restore_admin_by_auth_id()
  RETURNS TABLE(membership_id text, local_user_id text, staff_identity_id uuid, business_id text, branch_id text, business_name text, branch_name text, branch_code text, country_code text, currency_code text, currency_decimal_places integer, currency_symbol text, timezone_id text, tax_rounding_mode text, default_tax_rate_bps integer, branch_address text, branch_phone text, tax_registration_number text, display_name text, canonical_phone text, credential_hash text, credential_salt text, permissions jsonb)
