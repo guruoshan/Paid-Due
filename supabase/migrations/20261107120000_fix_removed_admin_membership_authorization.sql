@@ -122,8 +122,7 @@ begin
       and bm.can_manage_products is not null
       and bm.can_view_reports is not null;
 end;
-$function$
-
+$function$;
 
 ALTER FUNCTION public.restore_admin_by_auth_id() OWNER TO postgres;
 REVOKE ALL ON FUNCTION public.restore_admin_by_auth_id() FROM PUBLIC, anon;
@@ -243,8 +242,7 @@ begin
 
   return query select 'ACKNOWLEDGED'::text, p_operation_id, p_canonical_sha256, true;
 end;
-$function$
-
+$function$;
 
 ALTER FUNCTION public.ingest_financial_envelope(text,text,text,text,text,text,integer,timestamptz,text,date,text,text,jsonb) OWNER TO postgres;
 REVOKE ALL ON FUNCTION public.ingest_financial_envelope(text,text,text,text,text,text,integer,timestamptz,text,date,text,text,jsonb) FROM PUBLIC, anon;
