@@ -1,6 +1,6 @@
 -- SOURCE RECONCILIATION ONLY. NOT A MIGRATION. DO NOT APPLY.
 -- Recorded from production catalog on 2026-11-07, normalised body SHA-256 5e514eec1f9eceffbc60f1bec5d8c1a9bc04f62fa95dbe27c7a58d20093d9671.
--- Applied before this repository tracked it. Migration ledger status: no matching function-definition migration entry found in the live ledger; applied out of band before repository source tracking.
+-- Applied out of band before this repository tracked it. Migration ledger status: see reconciliation doc.
 
 CREATE OR REPLACE FUNCTION private.enforce_membership_branch_business()
  RETURNS trigger
