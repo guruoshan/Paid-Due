@@ -1,6 +1,6 @@
 -- SOURCE RECONCILIATION ONLY. NOT A MIGRATION. DO NOT APPLY.
 -- Recorded from production catalog on 2026-11-07, normalised body SHA-256 aa5e8c05aa0c505549017622c2949ac87bed9fa062a5664ba6e2a572d43536d8.
--- Applied before this repository tracked it. Migration ledger status: live ledger version 20261018140123 exists; repository migration source absent.
+-- Applied before this repository tracked its source. Migration ledger status: live version 20261018140123 exists; matching migration source absent from repository.
 
 CREATE OR REPLACE FUNCTION public.fetch_financial_reporting_inventory_v1(p_business_id text, p_branch_ids text[], p_from_occurred_at timestamp with time zone, p_to_occurred_at timestamp with time zone, p_actor_user_id text DEFAULT NULL::text, p_after_received_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_operation_id text DEFAULT NULL::text, p_limit integer DEFAULT 100)
  RETURNS TABLE(operation_id text, business_id text, branch_id text, operation_type text, occurred_at timestamp with time zone, received_at timestamp with time zone, canonical_text text, canonical_payload jsonb, canonical_sha256 text)
