@@ -1,5 +1,5 @@
 -- SOURCE RECONCILIATION ONLY. NOT A MIGRATION. DO NOT APPLY.
--- Recorded from production catalog on 2026-11-07, normalised body SHA-256 bbdad76fb26c6705a9f01e1af617fe0dc0317c18bbd45e3635b8c36fc1ab536c.
+-- Proposed predicate correction; not applied to production. Baseline live body SHA-256 before this change: bbdad76fb26c6705a9f01e1af617fe0dc0317c18bbd45e3635b8c36fc1ab536c.
 -- Applied out of band before this repository tracked it. Migration ledger status: see reconciliation doc.
 
 CREATE OR REPLACE FUNCTION public.restore_admin_by_auth_id()
@@ -35,6 +35,7 @@ begin
     where bm.auth_user_id = v_user_id
       and bm.role = 'ADMIN'
       and bm.is_active = true
+      and bm.removed_at IS NULL
       and b.is_active = true
       and br.is_active = true
       and p.is_active = true
@@ -102,6 +103,7 @@ begin
     where bm.auth_user_id = v_user_id
       and bm.role = 'ADMIN'
       and bm.is_active = true
+      and bm.removed_at IS NULL
       and b.is_active = true
       and br.is_active = true
       and p.is_active = true
