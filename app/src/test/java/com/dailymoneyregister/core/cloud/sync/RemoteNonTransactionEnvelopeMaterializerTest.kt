@@ -61,12 +61,53 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
         assertEquals(InboundProcessResult.Applied, first)
         assertEquals(InboundProcessResult.Skipped, replay)
         assertEquals(OperationStatus.SUCCEEDED, storedOperation?.status)
-        assertEquals("REPAYMENT", storedOperation?.resultReferenceType)
+        assertEquals("CREDIT_REPAYMENT", storedOperation?.resultReferenceType)
         assertEquals("repayment-evidence-id", storedOperation?.resultReferenceId)
         coVerify(exactly = 1) { ledgerDao.insertCreditRepayment(any()) }
         coVerify(exactly = 1) { ledgerDao.insertCreditEvent(any()) }
         coVerify(exactly = 1) { ledgerDao.insertCreditRepaymentAllocations(any()) }
         coVerify(exactly = 1) { transactionDao.insertSettlements(any()) }
+    }
+
+    @Test
+    fun acceptsLocalCreditRepaymentReferenceWhenDownloadedAsAlreadySucceededReplay() = runTest {
+        val envelope = creditRepaymentEnvelope()
+        val first = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        storedOperation = requireNotNull(storedOperation).copy(
+            resultReferenceType = "CREDIT_REPAYMENT"
+        )
+
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertEquals(InboundProcessResult.Applied, first)
+        assertEquals(InboundProcessResult.Skipped, replay)
+        assertEquals("CREDIT_REPAYMENT", storedOperation?.resultReferenceType)
+        assertEquals("repayment-evidence-id", storedOperation?.resultReferenceId)
+        coVerify(exactly = 1) { ledgerDao.insertCreditRepayment(any()) }
+    }
+
+    @Test
+    fun rejectsSuccessfulReplayWhenStoredRequestFingerprintDiffers() = runTest {
+        val envelope = creditRepaymentEnvelope()
+        val first = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+        storedOperation = requireNotNull(storedOperation).copy(
+            requestFingerprint = "different-payload-digest"
+        )
+
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, envelope, businessId, branchId
+        )
+
+        assertEquals(InboundProcessResult.Applied, first)
+        assertTrue(replay is InboundProcessResult.Rejected)
+        assertEquals("different-payload-digest", storedOperation?.requestFingerprint)
+        coVerify(exactly = 1) { ledgerDao.insertCreditRepayment(any()) }
     }
 
     @Test
@@ -145,7 +186,7 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
                     it.status == "ACKNOWLEDGED"
             })
             operationDao.markSucceededIfPending(
-                envelope.operationId, fingerprint, "REPAYMENT", repaymentId
+                envelope.operationId, fingerprint, "CREDIT_REPAYMENT", repaymentId
             )
         }
     }
