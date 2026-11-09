@@ -111,6 +111,36 @@ class RemoteNonTransactionEnvelopeMaterializerTest : RemoteEnvelopeMaterializerT
     }
 
     @Test
+    fun rejectsSameOperationIdWhenDownloadedRepaymentSubjectIdDiffers() = runTest {
+        val original = creditRepaymentEnvelope()
+        val first = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, original, businessId, branchId
+        )
+        storedOperation = requireNotNull(storedOperation).copy(
+            resultReferenceType = "CREDIT_REPAYMENT"
+        )
+        val changedPayload = JSONObject(original.canonicalText).apply {
+            put("subject_id", "different-repayment-id")
+            getJSONObject("financial_evidence")
+                .getJSONObject("credit_repayment")
+                .put("id", "different-repayment-id")
+        }
+        val changedEnvelope = envelopeFromPayload(
+            original, "RECORD_CREDIT_REPAYMENT", changedPayload, original.operationId
+        )
+
+        val replay = RemoteEnvelopeMaterializer.materializeInboundEnvelope(
+            database, changedEnvelope, businessId, branchId
+        )
+
+        assertEquals(InboundProcessResult.Applied, first)
+        assertTrue(replay is InboundProcessResult.Rejected)
+        assertEquals("repayment-evidence-id", storedOperation?.subjectId)
+        assertEquals("CREDIT_REPAYMENT", storedOperation?.resultReferenceType)
+        coVerify(exactly = 1) { ledgerDao.insertCreditRepayment(any()) }
+    }
+
+    @Test
     fun rejectsSuccessfulReplayWhenStoredActorIdentityDiffers() = runTest {
         val envelope = creditRepaymentEnvelope()
 
