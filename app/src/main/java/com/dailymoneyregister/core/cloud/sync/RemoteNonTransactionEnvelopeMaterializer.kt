@@ -118,7 +118,11 @@ internal object RemoteNonTransactionEnvelopeMaterializer {
                     commandSchemaVersion = payload.optInt("command_schema_version", 1),
                     intentPayload = payload.optString("intent_payload", "{}"),
                     status = OperationStatus.SUCCEEDED,
-                    resultReferenceType = subjectType.name,
+                    resultReferenceType = if (operationType == OperationType.RECORD_CREDIT_REPAYMENT) {
+                        "CREDIT_REPAYMENT"
+                    } else {
+                        subjectType.name
+                    },
                     resultReferenceId = subjectId
                 )
                 val admission = InboundOperationCompletion.ensure(database, operation)
