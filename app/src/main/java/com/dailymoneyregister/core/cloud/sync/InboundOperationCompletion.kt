@@ -97,7 +97,12 @@ internal object InboundOperationCompletion {
             payload.optString("cash_shift_id").ifBlank { null }
         }
         val resultReference = if (!transactionOperation) {
-            subjectType.name to subjectId
+            val referenceType = if (operationType == OperationType.RECORD_CREDIT_REPAYMENT) {
+                "CREDIT_REPAYMENT"
+            } else {
+                subjectType.name
+            }
+            referenceType to subjectId
         } else {
             val transactionRef = requireNotNull(transactionId)
             when (operationType) {
